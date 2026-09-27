@@ -27,36 +27,42 @@
  */
 
 import { test, expect } from "@playwright/test";
+import type { Locator, Page } from "@playwright/test";
 
-const USER = process.env.ECAP_USER;
-const PASS = process.env.ECAP_PASS;
+// Defaulted rather than left undefined, so `test.skip` below is also a type
+// narrowing: without the ?? the compiler cannot tell that USER is a string by
+// the time the test body fills the field.
+const USER = process.env.ECAP_USER ?? "";
+const PASS = process.env.ECAP_PASS ?? "";
 
-/** Mantine renders a Select as an input with a label, not a native <select>. */
+/** What one cascade Select is currently showing. */
+type SelectState = { value: string; disabled: boolean };
 
 /** Index of the Select whose label reads exactly `label`. */
-async function selectIndex(page, label) {
+async function selectIndex(page: Page, label: string): Promise<number> {
   return page.evaluate((text) => {
     const inputs = [...document.querySelectorAll("input.mantine-Select-input")];
     return inputs.findIndex((i) => {
       const l = document.querySelector(`label[for="${i.id}"]`);
-      return l && l.textContent.replace(/\s*\*$/, "").trim().toLowerCase() === text;
+      return l?.textContent.replace(/\s*\*$/, "").trim().toLowerCase() === text;
     });
   }, label.toLowerCase());
 }
 
-async function selectValue(page, label) {
+async function selectValue(page: Page, label: string): Promise<SelectState | null> {
   return page.evaluate((text) => {
-    const inputs = [...document.querySelectorAll("input.mantine-Select-input")];
+    const inputs = [...document.querySelectorAll<HTMLInputElement>("input.mantine-Select-input")];
     const i = inputs.findIndex((inp) => {
       const l = document.querySelector(`label[for="${inp.id}"]`);
-      return l && l.textContent.replace(/\s*\*$/, "").trim().toLowerCase() === text;
+      return l?.textContent.replace(/\s*\*$/, "").trim().toLowerCase() === text;
     });
-    return i < 0 ? null : { value: inputs[i].value, disabled: inputs[i].disabled };
+    const input = inputs[i];
+    return input ? { value: input.value, disabled: input.disabled } : null;
   }, label.toLowerCase());
 }
 
 /** Open a Select and return its visible options. */
-async function openSelect(page, label) {
+async function openSelect(page: Page, label: string): Promise<Locator> {
   const i = await selectIndex(page, label);
   expect(i, `a Select labelled "${label}" should exist`).toBeGreaterThanOrEqual(0);
   await page.locator("input.mantine-Select-input").nth(i).click();
@@ -69,7 +75,7 @@ test.describe("ECAP attendance dashboard", () => {
   test.skip(!USER || !PASS, "set ECAP_USER and ECAP_PASS to run against the live portal");
 
   test("loads a class register, worst attendance first", async ({ page }) => {
-    const problems = [];
+    const problems: string[] = [];
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     page.on("console", (m) => {
       if (m.type() === "error") problems.push(`console.error: ${m.text()}`);
@@ -85,12 +91,13 @@ test.describe("ECAP attendance dashboard", () => {
     // touching anything. Waiting for Subject to unlock waits for the last pass.
     await page.waitForFunction(
       () => {
-        const inputs = [...document.querySelectorAll("input.mantine-Select-input")];
+        const inputs = [...document.querySelectorAll<HTMLInputElement>("input.mantine-Select-input")];
         const i = inputs.findIndex((inp) => {
           const l = document.querySelector(`label[for="${inp.id}"]`);
-          return l && l.textContent.replace(/\s*\*$/, "").trim() === "Subject";
+          return l?.textContent.replace(/\s*\*$/, "").trim() === "Subject";
         });
-        return i >= 0 && !inputs[i].disabled;
+        const input = inputs[i];
+        return !!input && !input.disabled;
       },
       null,
       { timeout: 90_000 },
@@ -100,8 +107,9 @@ test.describe("ECAP attendance dashboard", () => {
     // enabled. An enabled-but-empty dropdown is the exact failure this catches.
     for (const level of ["Course", "Semester", "Branch", "Section"]) {
       const state = await selectValue(page, level);
-      expect(state.disabled, `${level} should be enabled`).toBe(false);
-      expect(state.value, `${level} should have a value`).not.toBe("");
+      expect(state, `${level} should exist`).not.toBeNull();
+      expect(state?.disabled, `${level} should be enabled`).toBe(false);
+      expect(state?.value, `${level} should have a value`).not.toBe("");
     }
 
     /* ---- pick a subject, which is always the user's to choose ---- */
@@ -122,7 +130,7 @@ test.describe("ECAP attendance dashboard", () => {
 
     /* ---- the roster ---- */
     const table = await page.evaluate(() => {
-      const rows = [...document.querySelectorAll("tbody tr")].map((tr) => {
+      return [...document.querySelectorAll("tbody tr")].map((tr) => {
         const cells = [...tr.querySelectorAll("td")].map((c) =>
           c.innerText.replace(/\s+/g, " ").trim(),
         );
@@ -133,12 +141,11 @@ test.describe("ECAP attendance dashboard", () => {
           name: cells[2] ?? "",
           attendedOfHeld: cells[cells.length - 2] ?? "",
           badges: [...tr.querySelectorAll(".mantine-Badge-root")].map((b) =>
-            b.textContent.trim().toLowerCase(),
+            b.textContent?.trim().toLowerCase() ?? "",
           ),
           pct: Number.isNaN(num) ? null : num,
         };
       });
-      return rows;
     });
 
     expect(table.length, "the register should have rows").toBeGreaterThan(0);
@@ -147,19 +154,27 @@ test.describe("ECAP attendance dashboard", () => {
     // real class gaining or losing a student does not turn the suite red, but a
     // broken sort still does.
     const pcts = table.map((r) => r.pct).filter((p) => p != null);
-    expect(pcts.length).toBe(table.length, "every row should carry a percentage");
+    expect(pcts.length, "every row should carry a percentage").toBe(table.length);
     for (let i = 1; i < pcts.length; i++) {
+      const here = pcts[i];
+      const above = pcts[i - 1];
+      // Both are in range by the loop bound. The guard is only here to satisfy
+      // noUncheckedIndexedAccess, not because either can actually be missing.
+      if (here === undefined || above === undefined) continue;
       expect(
-        pcts[i],
-        `row ${i} (${pcts[i]}%) should not be worse than the row above it`,
-      ).toBeGreaterThanOrEqual(pcts[i - 1]);
+        here,
+        `row ${i} (${here}%) should not be worse than the row above it`,
+      ).toBeGreaterThanOrEqual(above);
     }
     expect(pcts[0], "the worst student should be listed first").toBe(Math.min(...pcts));
 
     // Rows should look like students, not parse debris.
     for (const row of table.slice(0, 5)) {
       expect(row.roll.length, `roll number should not be empty for ${row.name}`).toBeGreaterThan(0);
-      expect(row.attendedOfHeld, `attended/held should be populated for ${row.name}`).toMatch(/\d+\s*\/\s*\d+/);
+      expect(
+        row.attendedOfHeld,
+        `attended/held should be populated for ${row.name}`,
+      ).toMatch(/\d+\s*\/\s*\d+/);
     }
 
     /* ---- the flagged rows agree with the stat cards ---- */
@@ -171,9 +186,9 @@ test.describe("ECAP attendance dashboard", () => {
     // figure from the caption's previous element rather than trying to match
     // both out of one string.
     const statCards = await page.evaluate(() => {
-      const out = {};
+      const out: Record<string, number> = {};
       for (const p of document.querySelectorAll("p")) {
-        const caption = p.textContent.replace(/\s+/g, " ").trim().toUpperCase();
+        const caption = (p.textContent ?? "").replace(/\s+/g, " ").trim().toUpperCase();
         if (!/^(STUDENTS|CLASS AVERAGE|BELOW \d+%)$/.test(caption)) continue;
         const n = parseInt(p.previousElementSibling?.textContent?.trim() ?? "", 10);
         if (!Number.isNaN(n)) out[caption] = n;

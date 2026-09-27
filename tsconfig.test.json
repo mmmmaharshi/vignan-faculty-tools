@@ -1,8 +1,12 @@
 {
+  // The harness. It is Node code driving a browser, so it gets both `dom` (for
+  // the page.evaluate callbacks, which run in the page) and bun-types (for
+  // process.env). Unlike tsconfig.json, nothing here is ever shipped to a
+  // browser, so there is no boundary to protect.
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
-    "types": []
+    "types": ["bun-types"]
   },
   "include": ["test", "shared", "playwright.config.ts", "vite.config.ts"]
 }

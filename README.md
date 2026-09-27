@@ -145,7 +145,9 @@ web/index.html      Vite entry point
 web/main.tsx        React root + MantineProvider
 web/App.tsx         cascade, table, CSV export
 shared/api.ts       the server/client contract; both sides import it
-vite.config.js      build config
+vite.config.ts      build config
+playwright.config.ts  test runner config
+test/smoke.spec.ts  one end-to-end pass against the live portal
 tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
 dist/               build output, served by server.ts
 ```

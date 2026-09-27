@@ -47,7 +47,9 @@ web/index.html      Vite entry point
 web/main.tsx        React root + MantineProvider
 web/App.tsx         cascade, table, CSV export
 shared/api.ts       the server/client contract; both sides import it
-vite.config.js      build config
+vite.config.ts      build config
+playwright.config.ts  test runner config
+test/smoke.spec.ts  one end-to-end pass against the live portal
 tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
 dist/               build output, served by server.ts (not source)
 ```
@@ -128,7 +130,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-One end-to-end smoke test in `test/smoke.spec.js`. It signs in to the live portal
+One end-to-end smoke test in `test/smoke.spec.ts`. It signs in to the live portal
 and loads a real register, because a DOM stub is not sufficient here: one was
 tried against the previous vanilla build and it passed code that was broken in a
 real browser, since it did not model `selectedIndex`/`value` coupling or
