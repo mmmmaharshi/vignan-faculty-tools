@@ -1,6 +1,6 @@
 node_modules/
 
-# Build output. Regenerate with `bun run build`; server.js answers 503 with
+# Build output. Regenerate with `bun run build`; server.ts answers 503 with
 # instructions if it is missing.
 dist/
 

@@ -33,7 +33,7 @@ _Avoid_: Option map, metadata cache
 
 **Calling convention**:
 The portal has two mutually incompatible ways of invoking a remote method, and
-using the wrong one returns an empty result with no error. See `server.js`.
+using the wrong one returns an empty result with no error. See `server.ts`.
 _Avoid_: API, endpoint style
 
 ## Attendance

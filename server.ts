@@ -401,10 +401,17 @@ function unquoteJs(text: string): string {
   if (t.startsWith("{") || t.startsWith("[")) {
     try {
       const j: unknown = JSON.parse(t);
-      // Only a string is accepted. A number, an object, or a missing key all
-      // fall through to the raw text, which the callers then find no markup in.
-      // The untyped version returned the value whatever it was and failed
-      // further downstream instead; this fails here, where it is legible.
+      // Only a string is accepted. A number, an object or a missing key all fall
+      // through to the raw text, which the callers then find no markup in.
+      //
+      // This is better than the untyped version but it is not a clean failure,
+      // and the difference matters. Returning the value whatever it was meant
+      // parseRegister called .match on a number and threw a TypeError, which
+      // surfaced as a 500. Returning the raw text instead means no markup is
+      // found, which surfaces as a 502 saying the register came back empty -
+      // pointing at the date range rather than at a reply that was not shaped
+      // the way this function assumes. Throwing here, naming the actual cause,
+      // is part of the portal-seam validation ADR 0002 defers.
       if (j !== null && typeof j === "object") {
         const rec = j as Record<string, unknown>;
         const payload = rec.value ?? rec.d;
