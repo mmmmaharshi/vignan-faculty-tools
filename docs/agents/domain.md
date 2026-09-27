@@ -50,16 +50,7 @@ silently overriding:
 
 > _Contradicts ADR-0007 (event-sourced orders), but worth reopening because…_
 
-## Vocabulary already established
+## Vocabulary to watch
 
-The domain has no `CONTEXT.md` yet, but these terms are load-bearing and are used
-consistently in `server.js` and `AGENTS.md`. Treat them as the seed glossary:
-
-- **portal** — the ECAP web application. Not to be confused with the local app.
-- **cascade** — the dependent chain course → semester → branch → section →
-  subject, where each level's options are produced by the level above it.
-- **register** — the roster of students with per-student attendance for one
-  subject over a date range. Also the name of the portal page that produces it.
-- **label cache** — the per-session map from a dropdown option's value to its
-  visible text, needed because `ShowAcademicCalendar` requires both.
-- **regular / irregular / critical** — attendance bands at 75% and 60%.
+The glossary is `CONTEXT.md` at the repo root. Read it before naming a domain
+concept in an issue, a test, or a commit message.
