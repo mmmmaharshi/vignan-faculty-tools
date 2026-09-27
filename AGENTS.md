@@ -3,6 +3,11 @@
 A local, read-only web app that reads class attendance from the ECAP portal so a
 faculty member can see who is drifting in a class early enough to act on it.
 
+## Standards
+
+**Always follow [CODING_STANDARDS.md](./CODING_STANDARDS.md).** Read it before
+writing code here. It is binding, and it wins over anything else in this file.
+
 ## Commands
 
 ```sh
