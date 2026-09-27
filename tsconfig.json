@@ -1,0 +1,14 @@
+{
+  // The front end. `types` is pinned rather than left to auto-include because
+  // `@types/node` is present transitively, and leaving it out is the entire
+  // point of this project: `web/` gets React's types and nothing else, so it
+  // cannot reach for `process` or `Buffer`. See tsconfig.server.json for the
+  // other half of that bargain.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext", "DOM", "DOM.Iterable"],
+    "jsx": "react-jsx",
+    "types": ["react", "react-dom"]
+  },
+  "include": ["web", "shared"]
+}

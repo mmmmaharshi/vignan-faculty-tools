@@ -1,0 +1,11 @@
+{
+  // The server. `lib` deliberately omits "dom": this project must not be able to
+  // call `document` and have the compiler allow it. If a portal method ever
+  // needs browser globals, that is a bug, not a missing lib.
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "lib": ["ESNext"],
+    "types": ["bun-types"]
+  },
+  "include": ["server.ts", "shared"]
+}
