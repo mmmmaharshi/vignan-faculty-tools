@@ -44,8 +44,8 @@ leave two bound to the same port.
 ```
 server.ts           Bun HTTP server; all ECAP interaction lives here
 web/index.html      Vite entry point
-web/main.jsx        React root + MantineProvider
-web/App.jsx         cascade, table, CSV export
+web/main.tsx        React root + MantineProvider
+web/App.tsx         cascade, table, CSV export
 shared/api.ts       the server/client contract; both sides import it
 vite.config.js      build config
 tsconfig*.json      three projects, split so web/ has DOM and server.ts does not

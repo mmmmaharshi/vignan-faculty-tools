@@ -24,6 +24,7 @@
  */
 
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 import {
   Alert,
   Badge,
@@ -42,50 +43,84 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import type { Option, OptionsReply, RegisterReply } from "../shared/api";
 
 // The irregular/critical thresholds belong to the server, which is what applies
 // them. They arrive in the summary so the labels below can never drift from the
 // flags the server actually set.
 
+/** One position in the cascade. Derived from the contract, so the two cannot drift. */
+type Level = keyof OptionsReply;
+
+/** What the user has chosen at each level. Every level is present, possibly "". */
+type Sel = Record<Level, string>;
+
+/** Which screen is showing. */
+type Phase = "boot" | "login" | "app";
+
+/** A message under a form, coloured by kind. */
+type Note = { kind: "error" | "warning"; text: string };
+
 /** The full chain, in cascade order. */
-const LEVELS = [
+const LEVELS: ReadonlyArray<readonly [Level, string]> = [
   ["course", "Course"],
   ["semester", "Semester"],
   ["branch", "Branch"],
   ["section", "Section"],
   ["subject", "Subject"],
 ];
-const LEVEL_KEYS = LEVELS.map(([k]) => k);
+const LEVEL_KEYS: readonly Level[] = LEVELS.map(([k]) => k);
 
-const EMPTY_SEL = Object.fromEntries(LEVEL_KEYS.map(([k]) => [k, ""]));
-const EMPTY_OPTS = Object.fromEntries(LEVEL_KEYS.map((k) => [k, []]));
+// Written out rather than assembled with Object.fromEntries, so adding a level to
+// the contract is a compile error here until someone decides what an unset one
+// looks like.
+const EMPTY_SEL: Sel = { course: "", semester: "", branch: "", section: "", subject: "" };
+const EMPTY_OPTS: OptionsReply = { course: [], semester: [], branch: [], section: [], subject: [] };
 
 /* ------------------------------------------------------------------ helpers */
 
-async function api(path, options) {
+/** An HTTP failure, carrying the status so callers can tell 401 from 400. */
+class ApiError extends Error {
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "ApiError";
+  }
+}
+
+/**
+ * Call the server and return the typed reply.
+ *
+ * `T` is an assertion, not a check, and the reason it is a sound one is that the
+ * server is compiled against the same declarations in `shared/api.ts`: a reply
+ * that drifts from what this side expects is a build error over there. Before
+ * the contract existed, the two halves agreed about these shapes by memory.
+ */
+async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, options);
-  let body = {};
+  let body: { error?: string } = {};
   try {
-    body = await res.json();
+    body = (await res.json()) as { error?: string };
   } catch {
     /* an empty body is not fatal here */
   }
   if (!res.ok) {
-    const err = new Error(body.error || `Request failed (${res.status})`);
-    err.status = res.status;
-    throw err;
+    throw new ApiError(res.status, body.error ?? `Request failed (${res.status})`);
   }
-  return body;
+  return body as T;
 }
 
 /** The portal wants dd/mm/yyyy. */
-function toPortalDate(iso) {
+function toPortalDate(iso: string): string {
   if (!iso) return "";
   const [y, m, d] = iso.split("-");
+  if (!y || !m || !d) return "";
   return `${d}/${m}/${y}`;
 }
 
-function defaultRange() {
+function defaultRange(): { from: string; to: string } {
   const now = new Date();
   return {
     to: now.toISOString().slice(0, 10),
@@ -104,34 +139,34 @@ function defaultRange() {
  * pre-selecting the first one risks loading the wrong register, so it is left
  * empty for the user to pick.
  */
-function applyOptions(sel, opts) {
+function applyOptions(sel: Sel, opts: OptionsReply): Sel {
   const next = { ...sel };
   for (const key of LEVEL_KEYS) {
     if (key === "subject") {
       next.subject = "";
       continue;
     }
-    const list = opts[key] ?? [];
-    if (!list.length) {
+    const first = opts[key][0];
+    if (!first) {
       next[key] = "";
       continue;
     }
-    if (!list.some((o) => String(o.value) === String(next[key]))) {
-      next[key] = list[0].value;
+    if (!opts[key].some((o) => String(o.value) === String(next[key]))) {
+      next[key] = first.value;
     }
   }
   return next;
 }
 
-function toSelectData(list) {
-  return (list ?? []).map((o) => ({ value: String(o.value), label: o.label }));
+function toSelectData(list: Option[]): { value: string; label: string }[] {
+  return list.map((o) => ({ value: String(o.value), label: o.label }));
 }
 
 /**
  * Whether every level above `key` has a choice, i.e. whether the server could
  * now answer for it.
  */
-function isReady(sel, key) {
+function isReady(sel: Sel, key: Level): boolean {
   const i = LEVEL_KEYS.indexOf(key);
   return LEVEL_KEYS.slice(0, i).every((k) => !!sel[k]);
 }
@@ -139,31 +174,31 @@ function isReady(sel, key) {
 /* ------------------------------------------------------------------ app */
 
 export default function App() {
-  const [phase, setPhase] = useState("boot"); // boot | login | app
+  const [phase, setPhase] = useState<Phase>("boot"); // boot | login | app
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
 
-  const [loginNote, setLoginNote] = useState(null);
-  const [filterNote, setFilterNote] = useState(null);
+  const [loginNote, setLoginNote] = useState<Note | null>(null);
+  const [filterNote, setFilterNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadNote, setLoadNote] = useState("");
 
-  const [sel, setSel] = useState(EMPTY_SEL);
-  const [opts, setOpts] = useState(EMPTY_OPTS);
+  const [sel, setSel] = useState<Sel>(EMPTY_SEL);
+  const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
 
-  const [range, setRange] = useState(() => defaultRange());
-  const [result, setResult] = useState(null);
+  const [range, setRange] = useState<{ from: string; to: string }>(() => defaultRange());
+  const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
 
   // The cascade is driven imperatively, not from an effect watching `sel`.
   // A state-driven effect would re-enter itself every time it committed a pass.
-  const selRef = useRef(sel);
+  const selRef = useRef<Sel>(sel);
   selRef.current = sel;
   const refreshToken = useRef(0);
 
   /* ---- the cascade ---- */
 
-  const runRefresh = useCallback(async (changed) => {
+  const runRefresh = useCallback(async (changed: Level | null) => {
     const token = ++refreshToken.current;
 
     // Drop everything below the level that changed *before* asking, so the
@@ -192,7 +227,7 @@ export default function App() {
       for (let pass = 0; pass < LEVEL_KEYS.length; pass++) {
         if (token !== refreshToken.current) return;
 
-        const reply = await api("/api/options", {
+        const reply = await api<OptionsReply>("/api/options", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
@@ -226,16 +261,16 @@ export default function App() {
         // looping when the server genuinely has nothing to give.
         const gained = LEVEL_KEYS.some((k) => draft[k] !== before[k]);
         const pending = LEVEL_KEYS.find(
-          (k) => k !== "course" && isReady(draft, k) && (reply[k] ?? []).length === 0,
+          (k) => k !== "course" && isReady(draft, k) && reply[k].length === 0,
         );
         if (!gained || !pending) return;
       }
     } catch (err) {
-      if (err.status === 401) {
+      if (err instanceof ApiError && err.status === 401) {
         setPhase("login");
         return;
       }
-      setFilterNote({ kind: "error", text: err.message });
+      setFilterNote({ kind: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       if (token === refreshToken.current) {
         setBusy(false);
@@ -246,12 +281,12 @@ export default function App() {
 
   /* ---- sign in ---- */
 
-  const signIn = async (e) => {
+  const signIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoginNote(null);
     setBusy(true);
     try {
-      await api("/api/login", {
+      await api<{ ok: true }>("/api/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ userId: userId.trim(), password }),
@@ -260,7 +295,7 @@ export default function App() {
       setPhase("app");
       await runRefresh(null);
     } catch (err) {
-      setLoginNote({ kind: "error", text: err.message });
+      setLoginNote({ kind: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusy(false);
     }
@@ -268,7 +303,7 @@ export default function App() {
 
   const signOut = async () => {
     try {
-      await api("/api/logout", { method: "POST" });
+      await api<{ ok: true }>("/api/logout", { method: "POST" });
     } catch {
       /* the cookie is cleared either way */
     }
@@ -283,7 +318,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const s = await api("/api/session");
+        const s = await api<{ signedIn: boolean }>("/api/session");
         if (s && s.signedIn) {
           setPhase("app");
           await runRefresh(null);
@@ -312,7 +347,7 @@ export default function App() {
     setBusy(true);
     setLoadNote("Reading the register from ECAP...");
     try {
-      const body = await api("/api/register", {
+      const body = await api<RegisterReply>("/api/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
@@ -327,11 +362,11 @@ export default function App() {
       });
       setResult(body);
     } catch (err) {
-      if (err.status === 401) {
+      if (err instanceof ApiError && err.status === 401) {
         setPhase("login");
         return;
       }
-      setFilterNote({ kind: "error", text: err.message });
+      setFilterNote({ kind: "error", text: err instanceof Error ? err.message : String(err) });
     } finally {
       setBusy(false);
       setLoadNote("");
@@ -342,7 +377,7 @@ export default function App() {
 
   const saveCsv = () => {
     if (!result) return;
-    const q = (v) => '"' + String(v).replace(/"/g, '""') + '"';
+    const q = (v: unknown): string => '"' + String(v).replace(/"/g, '""') + '"';
     const head = ["Roll No", "Student Name", "Attend/Held", "Percent", "Status"];
     const lines = [head.map(q).join(",")];
     for (const s of result.students) {
@@ -368,8 +403,8 @@ export default function App() {
 
   /* ---- derived ---- */
 
-  const has = (k) => !!sel[k];
-  const disabled = {
+  const has = (k: Level): boolean => !!sel[k];
+  const disabled: Record<Level, boolean> = {
     course: false,
     semester: !has("course"),
     branch: !has("course"),
@@ -385,8 +420,7 @@ export default function App() {
     : [];
 
   const chosenText = LEVELS.map(([key, label]) => {
-    const list = opts[key] ?? [];
-    const hit = list.find((o) => String(o.value) === String(sel[key]));
+    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
     return hit ? `${label}: ${hit.label}` : null;
   })
     .filter(Boolean)

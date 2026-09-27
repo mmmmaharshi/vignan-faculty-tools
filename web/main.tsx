@@ -3,9 +3,12 @@ import { createRoot } from "react-dom/client";
 import { MantineProvider } from "@mantine/core";
 
 import "@mantine/core/styles.css";
-import App from "./App.jsx";
+import App from "./App";
 
-createRoot(document.getElementById("root")).render(
+const root = document.getElementById("root");
+if (!root) throw new Error("web/index.html has no #root element to mount into");
+
+createRoot(root).render(
   <React.StrictMode>
     {/* Default theme, untouched. All visual style comes from Mantine. */}
     <MantineProvider defaultColorScheme="light">
