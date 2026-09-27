@@ -38,9 +38,12 @@ _Avoid_: API, endpoint style
 
 ## Attendance
 
-**Held**:
-The number of classes held in the date range, as the portal reports it.
-_Avoid_: Total classes, conducted
+**Attended of held**:
+The portal's combined attendance cell for one student over the whole date
+range: a string such as `38/45`. The app displays it and never parses it, so
+the two numbers inside it are not separately modelled and must not be reasoned
+about as if they were.
+_Avoid_: Held, total classes, conducted, attendance
 
 **Regular**:
 Attendance at or above 75%.
