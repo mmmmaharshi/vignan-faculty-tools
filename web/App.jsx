@@ -42,8 +42,9 @@ import {
   Title,
 } from "@mantine/core";
 
-const IRREGULAR_BELOW = 75;
-const CRITICAL_BELOW = 60;
+// The irregular/critical thresholds belong to the server, which is what applies
+// them. They arrive in the summary so the labels below can never drift from the
+// flags the server actually set.
 
 /** The full chain, in cascade order. */
 const LEVELS = [
@@ -55,13 +56,7 @@ const LEVELS = [
 ];
 const LEVEL_KEYS = LEVELS.map(([k]) => k);
 
-/**
- * Levels the app may choose on the user's behalf. The subject is excluded: it
- * is the choice that matters, and guessing it would risk the wrong register.
- */
-const AUTO_KEYS = ["course", "semester", "branch", "section"];
-
-const EMPTY_SEL = Object.fromEntries(LEVEL_KEYS.map((k) => [k, ""]));
+const EMPTY_SEL = Object.fromEntries(LEVEL_KEYS.map(([k]) => [k, ""]));
 const EMPTY_OPTS = Object.fromEntries(LEVEL_KEYS.map((k) => [k, []]));
 
 /* ------------------------------------------------------------------ helpers */
@@ -553,7 +548,7 @@ export default function App() {
                     {summary.irregular}
                   </Text>
                   <Text c="dimmed" size="xs" tt="uppercase">
-                    Below {IRREGULAR_BELOW}%
+                    Below {summary.irregularBelow}%
                   </Text>
                 </Paper>
                 <Paper withBorder p="md">
@@ -561,7 +556,7 @@ export default function App() {
                     {summary.critical}
                   </Text>
                   <Text c="dimmed" size="xs" tt="uppercase">
-                    Below {CRITICAL_BELOW}%
+                    Below {summary.criticalBelow}%
                   </Text>
                 </Paper>
               </SimpleGrid>
@@ -594,7 +589,7 @@ export default function App() {
                 {rows.length === 0 ? (
                   <Text c="dimmed" size="sm">
                     {onlyIrregular
-                      ? `No irregular students. Everyone is at or above ${IRREGULAR_BELOW}%.`
+                      ? `No irregular students. Everyone is at or above ${summary.irregularBelow}%.`
                       : "No students in this register."}
                   </Text>
                 ) : (

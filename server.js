@@ -650,6 +650,10 @@ const server = Bun.serve({
               total,
               irregular: withFlags.filter((r) => r.irregular).length,
               critical: withFlags.filter((r) => r.critical).length,
+              // Sent so the client labels the cards from the same numbers that
+              // produced the flags, instead of hardcoding them in two places.
+              irregularBelow: IRREGULAR_BELOW,
+              criticalBelow: CRITICAL_BELOW,
               overCap: total > CLASS_CAP,
               overCapBy: Math.max(0, total - CLASS_CAP),
               average: counted.length
