@@ -15,9 +15,10 @@
  *     status code alone runs the signed-in path while signed out.
  *   - Two refreshes can overlap. refreshToken makes the newer call win, so a
  *     stale response can never repopulate the dropdowns.
- *   - Auto-advance only when a level has exactly ONE option, because there is
- *     then no decision to get wrong. With several, stop and let the user pick:
- *     silently choosing one of three sections risks loading the wrong class.
+ *   - Every level above the subject auto-fills to its first option, so the chain
+ *     populates itself and the user overrides whatever they disagree with. The
+ *     subject is the one exception and is left for the user, because it decides
+ *     which register loads.
  *
  * See docs/adr/0001-port-ui-to-react-and-mantine.md.
  */
@@ -169,16 +170,20 @@ export default function App() {
     // request only ever carries a valid prefix of the chain. A stale semester
     // left in place would make the server compute a section list for a
     // combination the user can no longer see.
-    let sel = { ...selRef.current };
+    //
+    // `draft` and `reply` are deliberately not named `sel` and `opts`: those are
+    // the state above, and shadowing them made `setOpts(opts)` ambiguous about
+    // whether it was storing the state or the server's answer.
+    let draft = { ...selRef.current };
     if (changed === "course") {
-      sel = { ...sel, semester: "", branch: "", section: "", subject: "" };
+      draft = { ...draft, semester: "", branch: "", section: "", subject: "" };
     } else if (changed === "semester" || changed === "branch") {
-      sel = { ...sel, section: "", subject: "" };
+      draft = { ...draft, section: "", subject: "" };
     } else if (changed === "section") {
-      sel = { ...sel, subject: "" };
+      draft = { ...draft, subject: "" };
     }
-    selRef.current = sel;
-    setSel(sel);
+    selRef.current = draft;
+    setSel(draft);
 
     setBusy(true);
     setLoadNote("Loading options...");
@@ -187,24 +192,23 @@ export default function App() {
       for (let pass = 0; pass < LEVEL_KEYS.length; pass++) {
         if (token !== refreshToken.current) return;
 
-        const opts = await api("/api/options", {
+        const reply = await api("/api/options", {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
-            course: sel.course || undefined,
-            semester: sel.semester || undefined,
-            branch: sel.branch || undefined,
-            section: sel.section || undefined,
+            course: draft.course || undefined,
+            semester: draft.semester || undefined,
+            branch: draft.branch || undefined,
+            section: draft.section || undefined,
           }),
         });
         if (token !== refreshToken.current) return;
 
-        const before = sel;
-        const next = applyOptions(sel, opts);
-        sel = next;
-        selRef.current = next;
-        setSel(next);
-        setOpts(opts);
+        const before = draft;
+        draft = applyOptions(draft, reply);
+        selRef.current = draft;
+        setSel(draft);
+        setOpts(reply);
 
         // Keep going while this pass settled a level AND some level below it is
         // now ready but still empty.
@@ -220,9 +224,9 @@ export default function App() {
         // Populating the whole chain and letting the user override any level is
         // both simpler and what a user expects. Requiring `gained` stops this
         // looping when the server genuinely has nothing to give.
-        const gained = LEVEL_KEYS.some((k) => sel[k] !== before[k]);
+        const gained = LEVEL_KEYS.some((k) => draft[k] !== before[k]);
         const pending = LEVEL_KEYS.find(
-          (k) => k !== "course" && isReady(sel, k) && (opts[k] ?? []).length === 0,
+          (k) => k !== "course" && isReady(draft, k) && (reply[k] ?? []).length === 0,
         );
         if (!gained || !pending) return;
       }

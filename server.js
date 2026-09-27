@@ -83,7 +83,6 @@ const AES_KEY = "8701661282118308";
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const IRREGULAR_BELOW = 75; // attendance % considered irregular
 const CRITICAL_BELOW = 60;  // attendance % considered critical
-const CLASS_CAP = 75;
 const HTTP_TIMEOUT_MS = 60_000;
 
 class HttpError extends Error {
@@ -190,7 +189,6 @@ class Portal {
     if (!this.signedIn) {
       throw new HttpError(401, "Sign-in failed. Check your ECAP user name and password.");
     }
-    return true;
   }
 
   /** Convention A. Returns the .d payload, which may be a string or an array. */
@@ -654,8 +652,6 @@ const server = Bun.serve({
               // produced the flags, instead of hardcoding them in two places.
               irregularBelow: IRREGULAR_BELOW,
               criticalBelow: CRITICAL_BELOW,
-              overCap: total > CLASS_CAP,
-              overCapBy: Math.max(0, total - CLASS_CAP),
               average: counted.length
                 ? Math.round((counted.reduce((a, r) => a + r.pct, 0) / counted.length) * 10) / 10
                 : null,

@@ -45,6 +45,21 @@ Four decisions were taken explicitly, and each one cost something:
 4. **Mantine components only for the UI.** No bespoke CSS. The one concession
    would have been print styling, which decision 2 removed.
 
+## Correction, after review
+
+A two-axis review of the port found that decision 3 was recorded inaccurately,
+and that the original rule it describes could not actually work.
+
+The old rule was "auto-choose only when a level has exactly one option, otherwise
+stop and let the user pick". Porting it faithfully produced a dead end: a
+single-option level cannot be changed, so nothing below it was ever fetched, and
+the subject list became unreachable. The fix was to let **every** level above the
+subject auto-fill to its first option, so the chain populates itself and the user
+overrides what they disagree with. The subject stays unchosen by design.
+
+That is now the recorded behaviour, in `AGENTS.md` and in the front end. The text
+of decision 3 above is left as originally written so the change is visible.
+
 ## Consequences
 
 - `bun install` is now required. `node_modules` is a few hundred megabytes.

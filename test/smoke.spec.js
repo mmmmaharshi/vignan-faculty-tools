@@ -32,11 +32,6 @@ const USER = process.env.ECAP_USER;
 const PASS = process.env.ECAP_PASS;
 
 /** Mantine renders a Select as an input with a label, not a native <select>. */
-function selectInput(page, label) {
-  return page.locator("input.mantine-Select-input").filter({
-    has: page.locator(`xpath=..//label[normalize-space()="${label}"]`),
-  });
-}
 
 /** Index of the Select whose label reads exactly `label`. */
 async function selectIndex(page, label) {
@@ -194,7 +189,9 @@ test.describe("ECAP attendance dashboard", () => {
     /* ---- the register on screen is named ---- */
     // With five dropdowns in front of you, reading last week's numbers as this
     // week's is the expensive mistake this line exists to prevent.
-    const selection = await page.locator("#selection, p").filter({ hasText: /^Course:/ }).first();
+    // Mantine Text renders as <p>, so the caption is a paragraph starting with
+    // "Course:". No id is set on it, so match on the text itself.
+    const selection = page.locator("p").filter({ hasText: /^Course:/ }).first();
     await expect(selection).toContainText(`Subject: ${subject}`);
 
     /* ---- nothing exploded on the way ---- */

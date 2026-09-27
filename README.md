@@ -154,14 +154,16 @@ dist/               build output, served by server.js
 - Section and subject lists come from ECAP, so the app only offers classes you
   actually teach. Some combinations are genuinely empty — IV Semester has one
   section for most branches, for instance.
-- The cascade populates itself as far as the subject list, auto-selecting a level
-  only when the server offers a single option. The subject is always left for
-  you, because pre-selecting one risks loading the wrong register.
+- The cascade populates itself: every level above the subject fills with its
+  first option and you override whatever you disagree with. The subject is always
+  left for you, because it decides which register loads, and the line above the
+  table names the register on screen.
 - One cookie jar per signed-in user, so two people can be signed in at once.
-- **No test suite.** A DOM stub is not sufficient here: one was tried against the
-  previous vanilla build and it passed code that was broken in a real browser,
-  because it did not model `selectedIndex`/`value` coupling or `innerHTML`
-  clearing a select's options. If tests get added, drive a real browser.
+- The thresholds are 75% and 60%, set once in `server.js` and sent to the client
+  in the summary, so the stat cards and the row flags cannot disagree.
+- One end-to-end smoke test, run against the live portal. A DOM stub is not
+  sufficient here: one was tried against the previous vanilla build and it passed
+  code that was broken in a real browser.
 - If the portal changes its markup, the `Portal` methods in `server.js` will need
   revisiting: the endpoint paths, the parameter names, and the label cache that
   feeds `ShowAcademicCalendar`. That last one is the most fragile, because the
