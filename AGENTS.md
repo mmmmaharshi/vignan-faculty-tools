@@ -23,6 +23,21 @@ bun server.js              # http://127.0.0.1:8787
 bun run dev                # Vite on :5173, proxies /api to :8787 (run both)
 ```
 
+### Background servers
+
+Before starting a dev server, check whether one is already running and reuse it
+if so. A second start fights the first for the port: the older process keeps
+serving stale code while the new one dies on a bind error, and the leftover is
+easy to forget about.
+
+```sh
+Get-Process node,bun,deno,python,go,java -ErrorAction SilentlyContinue
+Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
+```
+
+Reuse what is already there, or stop it before starting a replacement. Never
+leave two bound to the same port.
+
 ## Layout
 
 ```
@@ -92,10 +107,25 @@ rather than cosmetic, so the rules are load-bearing:
 
 ## Testing
 
-There is no automated test suite. A DOM stub is not sufficient here: one was tried
-against the previous vanilla build and it passed code that was broken in a real
-browser, because it did not model `selectedIndex`/`value` coupling or `innerHTML`
-clearing a select's options. If tests get added, drive a real browser.
+```sh
+bunx playwright install chromium      # once
+ECAP_USER=... ECAP_PASS=... bun run test
+```
+
+One end-to-end smoke test in `test/smoke.spec.js`. It signs in to the live portal
+and loads a real register, because a DOM stub is not sufficient here: one was
+tried against the previous vanilla build and it passed code that was broken in a
+real browser, since it did not model `selectedIndex`/`value` coupling or
+`innerHTML` clearing a select's options.
+
+It skips when `ECAP_USER` / `ECAP_PASS` are unset. A green run that checked
+nothing would be worse than no run, so it refuses to pass vacuously.
+
+Per `CODING_STANDARDS.md`, the assertions are properties of the rendered page, not
+restatements of the code: percentages ascend, the first row is the minimum, the
+flagged-row count equals the stat card, and the register on screen is named.
+Each breaks for its own distinct reason. Do not add assertions that mirror the
+implementation — they pass when the code is wrong and prove nothing.
 
 ## Agent skills
 

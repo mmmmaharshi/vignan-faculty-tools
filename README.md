@@ -23,6 +23,18 @@ themselves; pick a subject, set the date range, and press **Load register**.
 For front-end work, `bun run dev` runs Vite on :5173 and proxies `/api` to the
 server on :8787, so run both. Production is the single-process path above.
 
+## Tests
+
+```sh
+bunx playwright install chromium                          # once
+ECAP_USER=... ECAP_PASS=... bun run test
+```
+
+One end-to-end smoke test that signs in to the live portal and loads a real
+register. It skips without credentials rather than passing vacuously. A DOM stub
+is not sufficient for this app — one was tried against the previous build and it
+passed code that was broken in a real browser.
+
 ## What it shows
 
 | Stat | Meaning |
