@@ -8,6 +8,12 @@ faculty member can see who is drifting in a class early enough to act on it.
 **Always follow [CODING_STANDARDS.md](./CODING_STANDARDS.md).** Read it before
 writing code here. It is binding, and it wins over anything else in this file.
 
+## Communication
+
+**Always respond in `/i-have-adhd` style.** Load the skill and follow it: lead
+with the concrete next action, number multi-step work, keep state visible across
+turns, and cut tangents. It lives in `~/.agents/skills/i-have-adhd`.
+
 ## Commands
 
 ```sh
