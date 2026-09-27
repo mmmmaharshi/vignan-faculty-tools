@@ -14,7 +14,8 @@ register each time.
 ```sh
 bun install        # once
 bun run build      # builds the front end into dist/
-bun server.js      # then open http://127.0.0.1:8787
+bun server.ts      # then open http://127.0.0.1:8787
+bun run typecheck  # tsc over all three projects
 ```
 
 Sign in with your ECAP user name and password. The class dropdowns fill
@@ -87,7 +88,7 @@ therefore a direct HTTPS request — about 3 seconds from a cold sign-in to a
 rendered 63-student register.
 
 There are two different remote-call conventions on that site, and using the wrong
-one returns an empty result with no error. Both are handled in `server.js`.
+one returns an empty result with no error. Both are handled in `server.ts`.
 
 **A — dropdown fillers**, `POST /vignanit/jqmethods.aspx/<Method>`
 
@@ -139,12 +140,14 @@ url-encoded.
 ## Project layout
 
 ```
-server.js           Bun HTTP server; all ECAP interaction lives here
+server.ts           Bun HTTP server; all ECAP interaction lives here
 web/index.html      Vite entry point
 web/main.jsx        React root + MantineProvider
 web/App.jsx         cascade, table, CSV export
+shared/api.ts       the server/client contract; both sides import it
 vite.config.js      build config
-dist/               build output, served by server.js
+tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
+dist/               build output, served by server.ts
 ```
 
 ## Notes and limits
@@ -159,12 +162,12 @@ dist/               build output, served by server.js
   left for you, because it decides which register loads, and the line above the
   table names the register on screen.
 - One cookie jar per signed-in user, so two people can be signed in at once.
-- The thresholds are 75% and 60%, set once in `server.js` and sent to the client
+- The thresholds are 75% and 60%, set once in `server.ts` and sent to the client
   in the summary, so the stat cards and the row flags cannot disagree.
 - One end-to-end smoke test, run against the live portal. A DOM stub is not
   sufficient here: one was tried against the previous vanilla build and it passed
   code that was broken in a real browser.
-- If the portal changes its markup, the `Portal` methods in `server.js` will need
+- If the portal changes its markup, the `Portal` methods in `server.ts` will need
   revisiting: the endpoint paths, the parameter names, and the label cache that
   feeds `ShowAcademicCalendar`. That last one is the most fragile, because the
   register comes back empty rather than erroring when the labels stop matching.

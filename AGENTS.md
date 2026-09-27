@@ -19,8 +19,9 @@ turns, and cut tangents. It lives in `~/.agents/skills/i-have-adhd`.
 ```sh
 bun install                # once
 bun run build              # front end -> dist/
-bun server.js              # http://127.0.0.1:8787
+bun server.ts              # http://127.0.0.1:8787
 bun run dev                # Vite on :5173, proxies /api to :8787 (run both)
+bun run typecheck          # tsc over all three projects - see the trap below
 ```
 
 ### Background servers
@@ -41,12 +42,14 @@ leave two bound to the same port.
 ## Layout
 
 ```
-server.js           Bun HTTP server; all ECAP interaction lives here
+server.ts           Bun HTTP server; all ECAP interaction lives here
 web/index.html      Vite entry point
 web/main.jsx        React root + MantineProvider
 web/App.jsx         cascade, table, CSV export
+shared/api.ts       the server/client contract; both sides import it
 vite.config.js      build config
-dist/               build output, served by server.js (not source)
+tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
+dist/               build output, served by server.ts (not source)
 ```
 
 ## The front end is Mantine-only
@@ -65,7 +68,7 @@ imported.
 - **The portal is a client-side shell.** Its Academic Register page renders no
   dropdowns at all; the page's own JavaScript builds them by calling remote
   methods. There are two different calling conventions and using the wrong one
-  returns an empty result with no error. `server.js` documents both.
+  returns an empty result with no error. `server.ts` documents both.
 - **The password is AES-encrypted client-side before it is posted**, and the
   output is bare ciphertext, base64'd — not the OpenSSL `Salted__` form that
   stock CryptoJS produces. This portal's `JSFiles/jsaes.js` is a custom build.
@@ -83,8 +86,17 @@ imported.
   `onChange={(e) => setX((x) => ({ v: e.currentTarget.value }))}` throws
   "Cannot read properties of null" the first time anyone types. Read the value
   into a local first. This shipped once and blanked the whole page.
-- **Vite hashes asset filenames.** `server.js` caches `/assets/*` immutably and
+- **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
   `index.html` not at all; changing that pair reintroduces "my fix did nothing".
+- **Nothing typechecks the project.** Vite and Playwright both use esbuild, which
+  strips types without reading them, so `bun run build` passing says nothing about
+  types and `bun run test` will not catch a type error. `bun run typecheck` is the
+  only thing that does, and it does not run itself. See ADR 0002.
+- **The three tsconfigs are split on purpose.** `tsconfig.json` (web) pins
+  `types` to React alone because `@types/node` is present transitively and would
+  otherwise hand `web/` `process` and `Buffer`; `tsconfig.server.json` omits
+  `dom` so `server.ts` cannot call `document`. Both were verified by probe, not
+  assumed. Do not merge them into one config.
 
 ## The cascade
 

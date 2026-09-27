@@ -17,7 +17,7 @@ export default defineConfig({
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "bun server.js",
+    command: "bun server.ts",
     url: "http://127.0.0.1:8787",
     reuseExistingServer: true,
     timeout: 30_000,

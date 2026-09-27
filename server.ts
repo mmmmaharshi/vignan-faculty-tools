@@ -5,7 +5,7 @@
  * semester / section / subject / date range, and see the class roster with
  * per-student attendance so irregular students are visible at a glance.
  *
- * Run:  bun server.js     (then open http://127.0.0.1:8787)
+ * Run:  bun server.ts     (then open http://127.0.0.1:8787)
  *
  * ------------------------------------------------------------------
  * How this talks to ECAP
@@ -60,6 +60,22 @@
 
 import { createCipheriv } from "node:crypto";
 import { readdirSync } from "node:fs";
+import type {
+  Option,
+  OptionsReply,
+  OptionsRequest,
+  RegisterRequest,
+  Student,
+} from "./shared/api";
+
+/** One position in the cascade. Derived from the contract, so the two cannot drift. */
+type Level = keyof OptionsReply;
+
+/** A parsed register row, before the irregular/critical flags are attached. */
+type RegisterRow = Omit<Student, "irregular" | "critical">;
+
+/** A label-cache entry: the visible option for each value the browser sent. */
+type LabelCache = Partial<Record<Level, Record<string, Option>>>;
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
@@ -86,7 +102,14 @@ const CRITICAL_BELOW = 60;  // attendance % considered critical
 const HTTP_TIMEOUT_MS = 60_000;
 
 class HttpError extends Error {
-  constructor(status, message) { super(message); this.status = status; }
+  /** The HTTP status to answer with. Read by the error handler at the bottom. */
+  status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+    this.name = "HttpError";
+  }
 }
 
 /* ------------------------------------------------------------------ portal session */
@@ -99,21 +122,21 @@ class HttpError extends Error {
  * two people can be signed in at once without stepping on each other.
  */
 class Portal {
-  constructor() {
-    this.cookies = new Map();
-  }
+  /** Cookie name -> value. The jar is the whole auth state; see CONTEXT.md. */
+  cookies = new Map<string, string>();
 
-  get signedIn() {
+  get signedIn(): boolean {
     return this.cookies.has("frmAuth");
   }
 
-  #cookieHeader() {
+  #cookieHeader(): string {
     return [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
   }
 
-  #absorb(res) {
+  #absorb(res: Response): void {
     for (const raw of res.headers.getSetCookie?.() ?? []) {
       const [pair] = raw.split(";");
+      if (!pair) continue;
       const eq = pair.indexOf("=");
       if (eq > 0) this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
     }
@@ -129,9 +152,9 @@ class Portal {
    * the frmAuth cookie that was just issued, the portal would treat it as
    * anonymous, and a successful sign-in would come back looking like a failure.
    */
-  async #request(url, init = {}, maxHops = 6) {
-    const withCookie = (headers) => ({
-      ...headers,
+  async #request(url: string, init: RequestInit = {}, maxHops = 6): Promise<Response> {
+    const withCookie = (headers: RequestInit["headers"]): Record<string, string> => ({
+      ...Object.fromEntries(new Headers(headers).entries()),
       ...(this.#cookieHeader() ? { cookie: this.#cookieHeader() } : {}),
     });
 
@@ -157,7 +180,7 @@ class Portal {
     return res;
   }
 
-  async signIn(userId, password) {
+  async signIn(userId: string, password: string): Promise<void> {
     const page = await fetch(LOGIN_PAGE, {
       headers: { "user-agent": UA },
       signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
@@ -191,8 +214,17 @@ class Portal {
     }
   }
 
-  /** Convention A. Returns the .d payload, which may be a string or an array. */
-  async #jq(method, data) {
+  /**
+   * Convention A. Returns the `.d` payload, which may be a string or an array.
+   *
+   * `any` here is deliberate and load-bearing rather than lazy. `JSON.parse`
+   * gives nothing better, and the payload's shape depends on which portal method
+   * produced it. All three callers below hand it straight to `options()`, which
+   * stringifies whatever arrives, so nothing downstream depends on its type.
+   * ADR 0002 records the validation that has deliberately not been done yet;
+   * this return type is the first thing that changes when it is.
+   */
+  async #jq(method: string, data: Record<string, string | number | boolean>): Promise<any> {
     const body = Object.entries(data)
       .map(([k, v]) => `'${k}':${typeof v === "string" ? `'${v.replace(/'/g, "\\'")}'` : v}`)
       .join(",");
@@ -221,7 +253,7 @@ class Portal {
   }
 
   /** Convention B. `pairs` is [name, value] in the proxy's declared order. */
-  async #webMethod(name, pairs) {
+  async #webMethod(name: string, pairs: [string, string | number][]): Promise<string> {
     const body = pairs.map(([k, v]) => `${k}=${enc(v)}`).join("\r\n");
     const res = await this.#request(`${REGISTER_PROXY}?_method=${name}&_session=no`, {
       method: "POST",
@@ -239,14 +271,14 @@ class Portal {
 
   /* ---- the cascade ---- */
 
-  async courses() {
+  async courses(): Promise<Option[]> {
     return options(
       await this.#jq("LoadCourses", { controlid: "ddlcourse", onchangemethod: "", isdefaultall: false }),
     );
   }
 
   /** Branches and semesters arrive together, as d[0] and d[1]. */
-  async branchesAndSemesters(courseId) {
+  async branchesAndSemesters(courseId: string | number): Promise<[Option[], Option[]]> {
     const d = await this.#jq("LoadBranchAndSemestersDropDown", {
       courseid: Number(courseId),
       branchcontrolid: "ddlbranch",
@@ -265,7 +297,11 @@ class Portal {
    * semester option's title attribute. IV Semester ships an empty title, so
    * fall back to the semester's own value rather than sending a blank batch.
    */
-  async sections(courseId, branchId, semester) {
+  async sections(
+    courseId: string | number,
+    branchId: string | number,
+    semester: Option | null,
+  ): Promise<Option[]> {
     const batch = semester?.title !== "" && semester?.title != null
       ? semester.title
       : semester?.value;
@@ -280,7 +316,11 @@ class Portal {
     );
   }
 
-  async subjects(courseId, branchId, semesterId) {
+  async subjects(
+    courseId: string | number,
+    branchId: string | number,
+    semesterId: string | number,
+  ): Promise<Option[]> {
     return options(
       await this.#webMethod("FillSubjects", [
         ["CourseId", courseId],
@@ -290,7 +330,11 @@ class Portal {
     );
   }
 
-  async register(p) {
+  /**
+   * Every level is needed twice over - by value and by visible label - plus the
+   * subject's title. See the module header, note 3.
+   */
+  async register(p: Record<Level, Option> & { from: string; to: string }): Promise<string> {
     return this.#webMethod("ShowAcademicCalendar", [
       ["SubjectId", p.subject.value],
       ["Section", p.section.value],
@@ -314,7 +358,7 @@ const REGISTER_PAGE_URL = BASE + "/vignanit/ACADEMICS/AcademicRegister.aspx?scri
 /* ------------------------------------------------------------------ helpers */
 
 /** Reproduce the portal's CryptoJS output: raw AES-128-CBC, base64, no salt. */
-function portalEncrypt(plaintext) {
+function portalEncrypt(plaintext: string): string {
   const cipher = createCipheriv("aes-128-cbc", Buffer.from(AES_KEY, "utf8"), Buffer.from(AES_KEY, "utf8"));
   return Buffer.concat([
     cipher.update(Buffer.from(plaintext, "utf8")),
@@ -323,9 +367,10 @@ function portalEncrypt(plaintext) {
 }
 
 /** The portal's enc(): escapes only % and =. Values are deliberately not url-encoded. */
-const enc = (v) => String(v).replace(/%/g, "%26").replace(/=/g, "%3D");
+const enc = (v: string | number): string =>
+  String(v).replace(/%/g, "%26").replace(/=/g, "%3D");
 
-function hiddenValue(html, name) {
+function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(/<input[^>]*>/gi) ?? []) {
     if (new RegExp(`name="${name}"`, "i").test(tag)) {
       return tag.match(/value="([^"]*)"/i)?.[1] ?? "";
@@ -340,14 +385,27 @@ function hiddenValue(html, name) {
  * Convention B answers with a bare single-quoted HTML string that the page's
  * ajax_response eval()s into {error, value}. It is not JSON, so JSON.parse on
  * it fails and the value has to be unwrapped by hand.
+ *
+ * The return type is `string` and this function now guarantees it. It used to
+ * infer `any`, because one branch handed back `JSON.parse` output untouched
+ * while both callers assumed a string.
  */
-function unquoteJs(text) {
+function unquoteJs(text: string): string {
   const t = text.trim();
   if (!t) return "";
   if (t.startsWith("{") || t.startsWith("[")) {
     try {
-      const j = JSON.parse(t);
-      return j.value ?? j.d ?? t;
+      const j: unknown = JSON.parse(t);
+      // Only a string is accepted. A number, an object, or a missing key all
+      // fall through to the raw text, which the callers then find no markup in.
+      // The untyped version returned the value whatever it was and failed
+      // further downstream instead; this fails here, where it is legible.
+      if (j !== null && typeof j === "object") {
+        const rec = j as Record<string, unknown>;
+        const payload = rec.value ?? rec.d;
+        if (typeof payload === "string") return payload;
+      }
+      return t;
     } catch { /* not JSON after all */ }
   }
   if ((t.startsWith("'") && t.endsWith("'")) || (t.startsWith('"') && t.endsWith('"'))) {
@@ -360,27 +418,33 @@ function unquoteJs(text) {
   return t;
 }
 
-/** Read a <select> fragment into {value, label, title} options. */
-function options(html) {
-  const out = [];
+/**
+ * Read a <select> fragment into options.
+ *
+ * `unknown` on purpose: this is the one function every convention-A payload
+ * passes through, and that payload is untyped by design. See `#jq`.
+ */
+function options(html: unknown): Option[] {
+  const out: Option[] = [];
   for (const m of String(html ?? "").matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)) {
-    const attrs = m[1];
-    const pick = (n) =>
+    const attrs = m[1] ?? "";
+    const pick = (n: string): string =>
       attrs.match(new RegExp(`${n}\\s*=\\s*'([^']*)'`, "i"))?.[1] ??
       attrs.match(new RegExp(`${n}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ??
       "";
-    const label = m[2].replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    const label = (m[2] ?? "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
     if (label) out.push({ value: pick("value"), title: pick("title"), label });
   }
   return out;
 }
 
 /** The "-Select-" / "Select" entry is a placeholder, not a real choice. */
-const isPlaceholder = (o) => o.value === "0" || /^-?\s*select\s*-?$/i.test(o.label);
-const realOptions = (list) => (list ?? []).filter((o) => !isPlaceholder(o));
+const isPlaceholder = (o: Option): boolean =>
+  o.value === "0" || /^-?\s*select\s*-?$/i.test(o.label);
+const realOptions = (list: Option[]): Option[] => list.filter((o) => !isPlaceholder(o));
 
 /** Strip tags and collapse whitespace, for table scraping. */
-function cellText(html) {
+function cellText(html: string): string {
   return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
 }
 
@@ -396,19 +460,19 @@ function cellText(html) {
  * never split into its two numbers, so nothing downstream may treat it as a
  * count of held classes. See CONTEXT.md, "Attended of held".
  */
-function parseRegister(html) {
-  let table = null;
+function parseRegister(html: string): RegisterRow[] {
+  let table: string | null = null;
   for (const t of html.match(/<table[\s\S]*?<\/table>/gi) ?? []) {
-    const head = cellText((t.match(/<tr[\s\S]*?<\/tr>/i) ?? [""])[0]);
+    const head = cellText((t.match(/<tr[\s\S]*?<\/tr>/i) ?? [""])[0] ?? "");
     if (/roll\s*\.?\s*no/i.test(head)) { table = t; break; }
   }
   if (!table) return [];
 
-  const rows = [];
+  const rows: RegisterRow[] = [];
   for (const tr of (table.match(/<tr[\s\S]*?<\/tr>/gi) ?? []).slice(1)) {
-    const cells = [...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => cellText(m[1]));
+    const cells = [...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => cellText(m[1] ?? ""));
     if (cells.length < 4) continue;
-    const roll = cells[1];
+    const roll = cells[1] ?? "";
     if (!roll) continue;
     const attendedOfHeld = cells[cells.length - 2] ?? "";
     const pct = cells[cells.length - 1] ?? "";
@@ -426,7 +490,15 @@ function parseRegister(html) {
 
 /* ------------------------------------------------------------------ sessions */
 
-const sessions = new Map();
+/** One signed-in user: their portal jar, and the labels their dropdowns produced. */
+type Session = {
+  /** Last seen, for the TTL sweep. Touched on every request. */
+  at: number;
+  portal: Portal;
+  labels: LabelCache;
+};
+
+const sessions = new Map<string, Session>();
 
 function reapSessions() {
   const now = Date.now();
@@ -435,7 +507,7 @@ function reapSessions() {
   }
 }
 
-function getSession(id) {
+function getSession(id: string | null): Session | null {
   if (!id) return null;
   reapSessions();
   const s = sessions.get(id);
@@ -444,7 +516,7 @@ function getSession(id) {
   return s;
 }
 
-function readCookie(req, name) {
+function readCookie(req: Request, name: string): string | null {
   for (const part of (req.headers.get("cookie") || "").split(";")) {
     const [k, ...v] = part.trim().split("=");
     if (k === name) return decodeURIComponent(v.join("="));
@@ -452,11 +524,13 @@ function readCookie(req, name) {
   return null;
 }
 
-function requireSession(req) {
-  const s = getSession(readCookie(req, "ecap_sid"));
+function requireSession(req: Request): Session {
+  const id = readCookie(req, "ecap_sid");
+  const s = getSession(id);
   if (!s) throw new HttpError(401, "Your session expired. Please sign in again.");
   if (!s.portal.signedIn) {
-    sessions.delete(readCookie(req, "ecap_sid"));
+    // The jar is dead. Drop it rather than leave it to fail again next request.
+    if (id) sessions.delete(id);
     throw new HttpError(401, "Your ECAP session expired. Please sign in again.");
   }
   return s;
@@ -469,23 +543,48 @@ function requireSession(req) {
  * value, but the browser only ever sends values, so the mapping is remembered
  * here as the dropdowns are filled.
  */
-function remember(session, level, list) {
+function remember(session: Session, level: Level, list: Option[]): Option[] {
   session.labels[level] = Object.fromEntries(list.map((o) => [String(o.value), o]));
   return list;
 }
 
-function lookup(session, level, value) {
+function lookup(session: Session, level: Level, value: string | null | undefined): Option | null {
   if (value == null || value === "") return null;
   return session.labels[level]?.[String(value)] ?? null;
 }
 
 /* ------------------------------------------------------------------ http */
 
-function json(body, status = 200, headers = {}) {
+function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json; charset=utf-8", ...headers },
   });
+}
+
+/**
+ * Read a JSON request body as `T`.
+ *
+ * An assertion, not a validation, and worth being precise about why. The front
+ * end is compiled against the very same declarations in `shared/api.ts`, so a
+ * field it cannot spell is a build error on that side. What this cannot catch
+ * is a hand-rolled request from something other than this app - which is not a
+ * case that exists here: the server binds to 127.0.0.1 and serves one user.
+ *
+ * The portal seam is a different matter and is deliberately not narrowed like
+ * this. See `#jq` and ADR 0002.
+ */
+async function readJson<T>(req: Request, fallback: T): Promise<T> {
+  try {
+    return (await req.json()) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+/** A thrown value's message, without assuming it was an Error. */
+function messageOf(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
 }
 
 const server = Bun.serve({
@@ -540,7 +639,7 @@ const server = Bun.serve({
 
       /* ---- sign in ---- */
       if (req.method === "POST" && path === "/api/login") {
-        const { userId, password } = await req.json().catch(() => ({}));
+        const { userId, password } = await readJson<{ userId?: string; password?: string }>(req, {});
         if (!userId || !password) throw new HttpError(400, "Enter your user name and password.");
 
         reapSessions();
@@ -549,7 +648,7 @@ const server = Bun.serve({
           await portal.signIn(String(userId), String(password));
         } catch (e) {
           // Nothing to salvage from a failed attempt, so drop the jar entirely.
-          throw e instanceof HttpError ? e : new HttpError(502, e.message);
+          throw e instanceof HttpError ? e : new HttpError(502, messageOf(e));
         }
 
         const id = crypto.randomUUID();
@@ -562,7 +661,8 @@ const server = Bun.serve({
       }
 
       if (req.method === "POST" && path === "/api/logout") {
-        sessions.delete(readCookie(req, "ecap_sid"));
+        const id = readCookie(req, "ecap_sid");
+        if (id) sessions.delete(id);
         return json({ ok: true }, 200, { "set-cookie": "ecap_sid=; Path=/; Max-Age=0" });
       }
 
@@ -585,8 +685,10 @@ const server = Bun.serve({
          * end can disable them.
          */
         if (req.method === "POST" && path === "/api/options") {
-          const b = await req.json().catch(() => ({}));
-          const out = { course: [], semester: [], branch: [], section: [], subject: [] };
+          const b = await readJson<Partial<OptionsRequest>>(req, {});
+          // Typed as the contract, so the five assignments below are checked
+          // against the same shape the front end reads.
+          const out: OptionsReply = { course: [], semester: [], branch: [], section: [], subject: [] };
 
           out.course = remember(s, "course", realOptions(await portal.courses()));
 
@@ -606,7 +708,7 @@ const server = Bun.serve({
         }
 
         if (req.method === "POST" && path === "/api/register") {
-          const b = await req.json();
+          const b = await readJson<Partial<RegisterRequest>>(req, {});
           if (!b.course) throw new HttpError(400, "Choose a course.");
           if (!b.semester) throw new HttpError(400, "Choose a semester.");
           if (!b.branch) throw new HttpError(400, "Choose a branch.");
@@ -615,20 +717,23 @@ const server = Bun.serve({
           if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
 
           // Every level is needed as both a value and its visible label.
-          const p = {
+          const found: Record<Level, Option | null> = {
             course: lookup(s, "course", b.course),
             branch: lookup(s, "branch", b.branch),
             semester: lookup(s, "semester", b.semester),
             section: lookup(s, "section", b.section),
             subject: lookup(s, "subject", b.subject),
           };
-          const missing = Object.entries(p).filter(([, v]) => !v).map(([k]) => k);
+          const missing = Object.entries(found).filter(([, v]) => !v).map(([k]) => k);
           if (missing.length) {
             throw new HttpError(
               400,
               `Pick ${missing.join(", ")} again - the list of choices was refreshed.`,
             );
           }
+          // Sound because of the check directly above: every entry is non-null
+          // here, and the map is total over Level.
+          const p = found as Record<Level, Option>;
 
           const rows = parseRegister(await portal.register({ ...p, from: b.from, to: b.to }));
           if (!rows.length) {
@@ -638,12 +743,14 @@ const server = Bun.serve({
             );
           }
 
-          const withFlags = rows.map((r) => ({
+          const withFlags: Student[] = rows.map((r) => ({
             ...r,
             irregular: r.pct != null && r.pct < IRREGULAR_BELOW,
             critical: r.pct != null && r.pct < CRITICAL_BELOW,
           }));
-          const counted = withFlags.filter((r) => r.pct != null);
+          // The predicate is what lets the average below add without a null
+          // check: a plain filter leaves `pct` as number | null either way.
+          const counted = withFlags.filter((r): r is Student & { pct: number } => r.pct != null);
           const total = withFlags.length;
 
           return json({
@@ -670,8 +777,8 @@ const server = Bun.serve({
       return json({ error: "Not found" }, 404);
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
-      if (status === 500) console.error("[error]", e.message);
-      return json({ error: e.message || "Something went wrong." }, status);
+      if (status === 500) console.error("[error]", messageOf(e));
+      return json({ error: messageOf(e) || "Something went wrong." }, status);
     }
   },
 });
