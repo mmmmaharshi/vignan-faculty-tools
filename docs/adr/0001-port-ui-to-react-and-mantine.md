@@ -60,6 +60,25 @@ overrides what they disagree with. The subject stays unchosen by design.
 That is now the recorded behaviour, in `AGENTS.md` and in the front end. The text
 of decision 3 above is left as originally written so the change is visible.
 
+Two further claims in this ADR did not survive contact with the code.
+
+**Dark mode is available, not delivered.** The Context section names it as a gap
+the port closes, and the Consequences claim it improves "without bespoke work".
+`web/main.jsx` pins `defaultColorScheme="light"`, which suppresses the OS
+preference. The capability really is free — it is a prop on `MantineProvider`
+and needs no CSS — but nobody asked for it, so it was not taken. Read the
+Consequences line as a note on what is available, not a description of the app.
+
+**The dev-server proxy was rejected on paper and shipped in practice.**
+Decision 1 says no proxy was added and the Alternatives section rejects it
+outright. `vite.config.js` ships one, `AGENTS.md` and `README.md` both document
+`bun run dev`, and the background-server rule in `AGENTS.md` exists only because
+two processes can be running at once. The code was right and the paper was
+wrong, so the ADR is corrected rather than the proxy deleted: removing a working
+dev setup to match a stale sentence would be the tail wagging the dog. The
+stated worry — a second origin in front of a project already bitten by a
+concurrency race — is real, and is now handled by that rule instead.
+
 ## Consequences
 
 - `bun install` is now required. `node_modules` is a few hundred megabytes.
