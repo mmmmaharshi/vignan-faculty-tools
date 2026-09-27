@@ -348,7 +348,7 @@ export default function App() {
     for (const s of result.students) {
       const status = s.critical ? "Critical" : s.irregular ? "Irregular" : "Regular";
       lines.push(
-        [s.roll, s.name, s.held, s.pct == null ? "" : s.pct.toFixed(2), status]
+        [s.roll, s.name, s.attendedOfHeld, s.pct == null ? "" : s.pct.toFixed(2), status]
           .map(q)
           .join(","),
       );
@@ -634,7 +634,7 @@ export default function App() {
                                   {s.name}
                                 </Text>
                               </Table.Td>
-                              <Table.Td ta="right">{s.held}</Table.Td>
+                              <Table.Td ta="right">{s.attendedOfHeld}</Table.Td>
                               <Table.Td ta="right">
                                 {s.pct == null ? (
                                   "—"

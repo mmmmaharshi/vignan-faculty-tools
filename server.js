@@ -391,6 +391,10 @@ function cellText(html) {
  * roll number sits in column two. Percentages that will not parse are kept as
  * null rather than dropped, so a student is never silently missing from a
  * count just because one cell was odd.
+ *
+ * The attended/held cell is kept whole, as the string the portal sent. It is
+ * never split into its two numbers, so nothing downstream may treat it as a
+ * count of held classes. See CONTEXT.md, "Attended of held".
  */
 function parseRegister(html) {
   let table = null;
@@ -406,14 +410,14 @@ function parseRegister(html) {
     if (cells.length < 4) continue;
     const roll = cells[1];
     if (!roll) continue;
-    const held = cells[cells.length - 2] ?? "";
+    const attendedOfHeld = cells[cells.length - 2] ?? "";
     const pct = cells[cells.length - 1] ?? "";
     const num = parseFloat(String(pct).replace("%", ""));
     rows.push({
       sl: cells[0] ?? "",
       roll,
       name: cells[2] ?? "",
-      held,
+      attendedOfHeld,
       pct: Number.isNaN(num) ? null : num,
     });
   }

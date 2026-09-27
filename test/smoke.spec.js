@@ -131,7 +131,7 @@ test.describe("ECAP attendance dashboard", () => {
         return {
           roll: cells[1] ?? "",
           name: cells[2] ?? "",
-          held: cells[cells.length - 2] ?? "",
+          attendedOfHeld: cells[cells.length - 2] ?? "",
           badges: [...tr.querySelectorAll(".mantine-Badge-root")].map((b) =>
             b.textContent.trim().toLowerCase(),
           ),
@@ -159,7 +159,7 @@ test.describe("ECAP attendance dashboard", () => {
     // Rows should look like students, not parse debris.
     for (const row of table.slice(0, 5)) {
       expect(row.roll.length, `roll number should not be empty for ${row.name}`).toBeGreaterThan(0);
-      expect(row.held, `attended/held should be populated for ${row.name}`).toMatch(/\d+\s*\/\s*\d+/);
+      expect(row.attendedOfHeld, `attended/held should be populated for ${row.name}`).toMatch(/\d+\s*\/\s*\d+/);
     }
 
     /* ---- the flagged rows agree with the stat cards ---- */
