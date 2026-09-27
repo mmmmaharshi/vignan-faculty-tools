@@ -1,10 +1,11 @@
 /**
  * The contract between the server and the front end.
  *
- * Both sides import this module, so renaming a field is a compile error in both
- * projects rather than an `undefined` rendered into a table cell. That is the
- * whole reason it exists: the shapes below are the one thing the two halves of
- * this app must never disagree about.
+ * Both sides import this module, and the server checks what it emits against
+ * it with `satisfies` on every reply, so a field renamed in one place without
+ * the other is a compile error in both projects rather than an `undefined`
+ * rendered into a table cell. That is the whole reason it exists: the shapes
+ * below are the one thing the two halves of this app must never disagree about.
  *
  * Environment-neutral by necessity. This file compiles in the web project (DOM
  * available) and the server project (DOM deliberately absent), so it may not
@@ -29,6 +30,15 @@ export interface SessionReply {
 /** `POST /api/login` and `POST /api/logout`. */
 export interface OkReply {
   ok: true;
+}
+
+/**
+ * `POST /api/login` body. The password is used once, to encrypt the login
+ * payload, and is never stored, logged or returned.
+ */
+export interface LoginRequest {
+  userId: string;
+  password: string;
 }
 
 /**

@@ -61,10 +61,15 @@
 import { createCipheriv } from "node:crypto";
 import { readdirSync } from "node:fs";
 import type {
+  ErrorReply,
+  LoginRequest,
+  OkReply,
   Option,
   OptionsReply,
   OptionsRequest,
+  RegisterReply,
   RegisterRequest,
+  SessionReply,
   Student,
 } from "./shared/api";
 
@@ -639,7 +644,7 @@ const server = Bun.serve({
 
       /* ---- sign in ---- */
       if (req.method === "POST" && path === "/api/login") {
-        const { userId, password } = await readJson<{ userId?: string; password?: string }>(req, {});
+        const { userId, password } = await readJson<Partial<LoginRequest>>(req, {});
         if (!userId || !password) throw new HttpError(400, "Enter your user name and password.");
 
         reapSessions();
@@ -654,7 +659,7 @@ const server = Bun.serve({
         const id = crypto.randomUUID();
         sessions.set(id, { at: Date.now(), portal, labels: {} });
         return json(
-          { ok: true },
+          { ok: true } satisfies OkReply,
           200,
           { "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}` },
         );
@@ -663,7 +668,7 @@ const server = Bun.serve({
       if (req.method === "POST" && path === "/api/logout") {
         const id = readCookie(req, "ecap_sid");
         if (id) sessions.delete(id);
-        return json({ ok: true }, 200, { "set-cookie": "ecap_sid=; Path=/; Max-Age=0" });
+        return json({ ok: true } satisfies OkReply, 200, { "set-cookie": "ecap_sid=; Path=/; Max-Age=0" });
       }
 
       /* ---- everything below needs a signed-in session ---- */
@@ -672,8 +677,8 @@ const server = Bun.serve({
           // Probe the session but do not require the portal cookie, so a stale
           // page can tell the difference between "not signed in" and "expired".
           const s = getSession(readCookie(req, "ecap_sid"));
-          if (!s) return json({ signedIn: false }, 200);
-          return json({ signedIn: s.portal.signedIn }, 200);
+          if (!s) return json({ signedIn: false } satisfies SessionReply, 200);
+          return json({ signedIn: s.portal.signedIn } satisfies SessionReply, 200);
         }
 
         const s = requireSession(req);
@@ -715,6 +720,10 @@ const server = Bun.serve({
           if (!b.section) throw new HttpError(400, "Choose a section.");
           if (!b.subject) throw new HttpError(400, "Choose a subject.");
           if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
+
+          // Captured here because the guard is what narrows them, and the awaits
+          // below would otherwise discard that narrowing.
+          const { from, to } = b;
 
           // Every level is needed as both a value and its visible label.
           const found: Record<Level, Option | null> = {
@@ -766,15 +775,15 @@ const server = Bun.serve({
               average: counted.length
                 ? Math.round((counted.reduce((a, r) => a + r.pct, 0) / counted.length) * 10) / 10
                 : null,
-              range: { from: b.from, to: b.to },
+              range: { from, to },
             },
-          });
+          } satisfies RegisterReply);
         }
 
-        return json({ error: "Not found" }, 404);
+        return json({ error: "Not found" } satisfies ErrorReply, 404);
       }
 
-      return json({ error: "Not found" }, 404);
+      return json({ error: "Not found" } satisfies ErrorReply, 404);
     } catch (e) {
       const status = e instanceof HttpError ? e.status : 500;
       if (status === 500) console.error("[error]", messageOf(e));

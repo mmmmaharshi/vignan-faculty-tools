@@ -43,7 +43,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import type { Option, OptionsReply, RegisterReply } from "../shared/api";
+import type { LoginRequest, OkReply, Option, OptionsReply, RegisterReply, SessionReply } from "../shared/api";
 
 // The irregular/critical thresholds belong to the server, which is what applies
 // them. They arrive in the summary so the labels below can never drift from the
@@ -286,10 +286,11 @@ export default function App() {
     setLoginNote(null);
     setBusy(true);
     try {
-      await api<{ ok: true }>("/api/login", {
+      const body: LoginRequest = { userId: userId.trim(), password };
+      await api<OkReply>("/api/login", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ userId: userId.trim(), password }),
+        body: JSON.stringify(body),
       });
       setPassword(""); // do not keep it in the DOM
       setPhase("app");
@@ -303,7 +304,7 @@ export default function App() {
 
   const signOut = async () => {
     try {
-      await api<{ ok: true }>("/api/logout", { method: "POST" });
+      await api<OkReply>("/api/logout", { method: "POST" });
     } catch {
       /* the cookie is cleared either way */
     }
@@ -318,7 +319,7 @@ export default function App() {
   useEffect(() => {
     (async () => {
       try {
-        const s = await api<{ signedIn: boolean }>("/api/session");
+        const s = await api<SessionReply>("/api/session");
         if (s && s.signedIn) {
           setPhase("app");
           await runRefresh(null);
@@ -709,3 +710,4 @@ export default function App() {
     </Container>
   );
 }
+
