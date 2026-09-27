@@ -1,0 +1,11 @@
+node_modules/
+
+# Build output. Regenerate with `bun run build`; server.js answers 503 with
+# instructions if it is missing.
+dist/
+
+# Local env / editor
+.env
+.env.local
+.DS_Store
+*.log

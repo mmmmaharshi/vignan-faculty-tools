@@ -1,0 +1,4 @@
+# Keep line endings stable across the Windows / Bun / Vite toolchain.
+* text=auto eol=lf
+
+*.png binary
