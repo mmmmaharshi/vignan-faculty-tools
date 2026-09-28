@@ -10,3 +10,4 @@
 - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
 - Always make atomic commits with conventional commits style.
 - Tautological tests are considered harmful. A test that only restates what the code does (e.g. asserting the implementation against itself, duplicating logic, or only checking happy-path outputs that mirror the production code) provides no value and gives false confidence. Every test must fail for a real, distinct reason if the production code is wrong.
+- Output raw source code only. Omit all inline explanations, block comments, and conversational text.
