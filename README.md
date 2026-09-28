@@ -31,15 +31,18 @@ bunx playwright install chromium                          # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-One end-to-end smoke test that signs in to the live portal and loads a real
-register. It skips without credentials rather than passing vacuously. A DOM stub
-is not sufficient for this app — one was tried against the previous build and it
+**96 of the 97 tests need no credentials and no network, and run in about two
+seconds.** They cover the portal's parsing, its wire conventions, the attendance
+bands, the two route handlers (over a fake portal), and the cascade's rules.
+
+The 97th is an end-to-end smoke test that signs in to the live portal and loads a
+real register. It skips without credentials rather than passing vacuously, which
+is why everything reachable without a portal is tested there. A DOM stub is not
+sufficient for that one — a stub was tried against the previous build and it
 passed code that was broken in a real browser.
 
-Alongside it, `test/seam.spec.ts` covers the portal seam with fixture markup and
-no network at all, so it runs in under a second and works with no credentials.
-That is the suite that catches a change to the parsing; the smoke test catches a
-change to the experience.
+Every test in the fast suite was proven to fail by breaking the rule it
+describes, so a green run means something.
 
 ## What it shows
 
@@ -145,19 +148,27 @@ url-encoded.
 ## Project layout
 
 ```
-server.ts           Bun HTTP server; routes, sessions, the Portal HTTP client
-portal-replies.ts   pure string -> data functions, and the seam guards
-web/index.html      Vite entry point
-web/main.tsx        React root + MantineProvider
-web/App.tsx         cascade, table, CSV export
-shared/api.ts       the server/client contract; both sides import it
-vite.config.ts      build config
+server.ts             Bun HTTP server: routing, sessions, static files, the transport
+server-routes.ts      the two route handlers, over a PortalReader; no HTTP in it
+portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar
+portal-replies.ts     pure string -> data functions, and the seam guards
+attendance-bands.ts   the Regular / Irregular / Critical rule, and the summary
+web/index.html        Vite entry point
+web/main.tsx          React root + MantineProvider
+web/App.tsx           state, the three modes, and the refresh loop
+web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
+web/components/       four presentational modules; none of them holds state
+shared/api.ts         the server/client contract; both sides import it
+vite.config.ts        build config
 playwright.config.ts  test runner config
-test/seam.spec.ts   pure-function tests over fixture markup; no portal needed
-test/smoke.spec.ts  one end-to-end pass against the live portal
-tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
-dist/               build output, served by server.ts
+test/*.spec.ts        96 fast tests, no credentials; plus one live smoke test
+tsconfig*.json        three projects, split so web/ has DOM and server.ts does not
+dist/                 build output, served by server.ts
 ```
+
+One rule explains that layout: **importing `server.ts` boots a server**, so
+anything with a decision in it lives in a file that can be imported without one.
+`docs/adr/` records each of those extractions and why.
 
 ## Notes and limits
 
@@ -175,11 +186,13 @@ dist/               build output, served by server.ts
   left for you, because it decides which register loads, and the line above the
   table names the register on screen.
 - One cookie jar per signed-in user, so two people can be signed in at once.
-- The thresholds are 75% and 60%, set once in `server.ts` and sent to the client
-  in the summary, so the stat cards and the row flags cannot disagree.
-- One end-to-end smoke test, run against the live portal. A DOM stub is not
-  sufficient here: one was tried against the previous vanilla build and it passed
-  code that was broken in a real browser.
+- The thresholds are 75% and 60%, set once in `attendance-bands.ts` and sent to
+  the client in the summary, so the stat cards and the row flags cannot disagree.
+  A percentage the portal would not give is in no band at all and is left out of
+  the class average — a parsing failure is not evidence of bad attendance.
+- 96 fast tests with no credentials, and one end-to-end smoke test against the
+  live portal. Every fast test was proven to fail by breaking the rule it
+  describes.
 - If the portal changes its markup, the `Portal` methods in `server.ts` will need
   revisiting: the endpoint paths and the parameter names. Watch the labels
   especially — when the text `ShowAcademicCalendar` expects stops matching, the

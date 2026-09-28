@@ -44,27 +44,44 @@ leave two bound to the same port.
 ## Layout
 
 ```
-server.ts           Bun HTTP server; routes, sessions, the Portal HTTP client
-portal-replies.ts   pure string -> data functions, and the seam guards
-web/index.html      Vite entry point
-web/main.tsx        React root + MantineProvider
-web/App.tsx         cascade, table, CSV export
-shared/api.ts       the server/client contract; both sides import it
-vite.config.ts      build config
-playwright.config.ts  test runner config
-oxlint.config.ts    linter rules, from the Ultracite preset; 92 rules off with reasons
-oxfmt.config.ts     formatter, from the Ultracite preset; markdown excluded
-test/seam.spec.ts   pure-function tests over fixture markup; no portal needed
-test/smoke.spec.ts  one end-to-end pass against the live portal
-tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
-dist/               build output, served by server.ts (not source)
+server.ts            Bun HTTP server: routing, sessions, static files, the Portal transport
+server-routes.ts     the two route handlers, over a PortalReader; no HTTP in it
+portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
+portal-replies.ts    pure string -> data functions, and the seam guards
+attendance-bands.ts  the Regular / Irregular / Critical rule, and the summary
+web/index.html       Vite entry point
+web/main.tsx         React root + MantineProvider; the only createTheme call
+web/App.tsx          state, the three modes, and the refresh loop
+web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping
+web/components/      four presentational modules; none of them holds state
+web/types.ts         Note, the one shape three modules share
+shared/api.ts        the server/client contract; both sides import it
+vite.config.ts       build config
+playwright.config.ts test runner config
+oxlint.config.ts     linter rules, from the Ultracite preset; 92 rules off with reasons
+oxfmt.config.ts      formatter, from the Ultracite preset; markdown excluded
+test/seam.spec.ts    portal-replies over fixture markup
+test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
+test/bands.spec.ts   where the attendance lines sit
+test/routes.spec.ts  the options ladder and the register handler, over a fake portal
+test/cascade.spec.ts the cascade's rules
+test/smoke.spec.ts   one end-to-end pass against the live portal
+tsconfig*.json       three projects, split so web/ has DOM and server.ts does not
+dist/                build output, served by server.ts (not source)
 ```
 
-`portal-replies.ts` is separate from `server.ts` for one reason: importing
-`server.ts` boots a server, so nothing in it can be unit-tested. Everything in
-`portal-replies.ts` is a pure function over a string, which is what lets
-`test/seam.spec.ts` run in milliseconds with no portal and no credentials. Keep
-it that way — a network call in there makes the whole fast suite unreachable.
+**One rule explains this layout: importing `server.ts` boots a server.** So
+anything with a decision in it lives in a file that can be imported without one.
+That is the whole reason `portal-replies.ts`, `portal-conventions.ts`,
+`attendance-bands.ts`, `server-routes.ts` and `web/cascade.ts` exist, and the
+whole reason `server.ts` is now mostly HTTP plumbing.
+
+Keep it that way. A network call in any of them makes the fast suite
+unreachable, and the fast suite is the only one that runs without credentials —
+`test/smoke.spec.ts` **skips** when `ECAP_USER` is unset, so a green run can
+check nothing at all. `tsconfig.test.json` lists those five files one by one
+rather than as a directory, because `web/` is the DOM+React project and the test
+harness is not.
 
 ## The front end is Mantine-only
 
@@ -162,6 +179,11 @@ rather than cosmetic, so the rules are load-bearing:
 - **A newer refresh always wins.** `refreshToken` makes an older in-flight
   request bail rather than write to the DOM.
 
+These are the rules in `web/cascade.ts`; the loop that applies them is in
+`App.tsx`. Each rule has a test in `test/cascade.spec.ts` that was proven to fail
+by breaking it, so a change here is checked in under a second rather than
+discovered against a live portal.
+
 ## Testing
 
 ```sh
@@ -169,20 +191,41 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
+**96 of the 97 tests need no credentials and run in about two seconds.** They
+cover the portal's seam, its wire conventions, the attendance bands, the route
+handlers over a fake portal, and the cascade's rules. Only
+`test/smoke.spec.ts` touches the network.
+
+That ratio is the point. The smoke test skips when `ECAP_USER` / `ECAP_PASS` are
+unset, so on a machine without credentials a green run can check almost nothing.
+Anything that can be tested without a portal must be.
+
+### Proving a test can fail
+
+A test that has never been seen to fail is a decoration. When you add one,
+break the rule it describes, run it, and confirm the *named* test is the one that
+turns red. This is not ceremony — it is how the `defaultRange` timezone bug was
+found, and it is how two holes in the cipher tests were found (a fixture that
+never exercised the `?? ""` guard, and a `not.toContain("Salted__")` assertion
+that a salt does not defeat). Run the probe with a Playwright config that omits
+`globalSetup`, because the lint gate will refuse the deliberate breakage first.
+
+Every assertion in the fast suite is a property of the rule — where the line sits,
+what must never happen across it — not a restatement of how it is computed.
+
+### The end-to-end test
+
 One end-to-end smoke test in `test/smoke.spec.ts`. It signs in to the live portal
 and loads a real register, because a DOM stub is not sufficient here: one was
 tried against the previous vanilla build and it passed code that was broken in a
 real browser, since it did not model `selectedIndex`/`value` coupling or
 `innerHTML` clearing a select's options.
 
-It skips when `ECAP_USER` / `ECAP_PASS` are unset. A green run that checked
-nothing would be worse than no run, so it refuses to pass vacuously.
-
-Per `CODING_STANDARDS.md`, the assertions are properties of the rendered page, not
-restatements of the code: percentages ascend, the first row is the minimum, the
-flagged-row count equals the stat card, and the register on screen is named.
-Each breaks for its own distinct reason. Do not add assertions that mirror the
-implementation — they pass when the code is wrong and prove nothing.
+Its assertions are properties of the rendered page: percentages ascend, the first
+row is the minimum, the flagged-row count equals the stat card, and the register
+on screen is named. Each breaks for its own distinct reason. Do not add
+assertions that mirror the implementation — they pass when the code is wrong and
+prove nothing.
 
 ## Agent skills
 
