@@ -15,10 +15,18 @@
  * worth asserting on.
  */
 
-import type { Option, Student } from "./shared/api";
+import type { RegisterRow } from "./attendance-bands";
+import type { Option } from "./shared/api";
 
-/** A parsed register row, before the irregular/critical flags are attached. */
-export type RegisterRow = Omit<Student, "irregular" | "critical">;
+/**
+ * A parsed register row, before the bands are applied.
+ *
+ * Declared in `attendance-bands.ts`, which is where the bands live and therefore
+ * where this shape is consumed, and re-exported here so the parser's own
+ * signature reads in one piece. Declared once, so the parser and the bander
+ * cannot disagree about what a row is.
+ */
+export type { RegisterRow } from "./attendance-bands";
 
 /** An HTTP failure, carrying the status to answer with. */
 export class HttpError extends Error {

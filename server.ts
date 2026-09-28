@@ -62,6 +62,7 @@
 
 import { createCipheriv } from "node:crypto";
 
+import { summarise } from "./attendance-bands";
 import {
   hiddenValue,
   HttpError,
@@ -83,7 +84,6 @@ import type {
   RegisterReply,
   RegisterRequest,
   SessionReply,
-  Student,
 } from "./shared/api";
 
 /** One position in the cascade, straight from the contract. */
@@ -122,8 +122,6 @@ const UA =
 const AES_KEY = "8701661282118308";
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
-const IRREGULAR_BELOW = 75; // attendance % considered irregular
-const CRITICAL_BELOW = 60; // attendance % considered critical
 const HTTP_TIMEOUT_MS = 60_000;
 
 /* ------------------------------------------------------------------ helpers */
@@ -739,37 +737,10 @@ const server = Bun.serve({
             );
           }
 
-          const withFlags: Student[] = rows.map((r) => ({
-            ...r,
-            irregular: r.pct != null && r.pct < IRREGULAR_BELOW,
-            critical: r.pct != null && r.pct < CRITICAL_BELOW,
-          }));
-          // The predicate is what lets the average below add without a null
-          // check: a plain filter leaves `pct` as number | null either way.
-          const counted = withFlags.filter(
-            (r): r is Student & { pct: number } => r.pct != null
-          );
-          const total = withFlags.length;
-
-          return json({
-            students: withFlags,
-            summary: {
-              total,
-              irregular: withFlags.filter((r) => r.irregular).length,
-              critical: withFlags.filter((r) => r.critical).length,
-              // Sent so the client labels the cards from the same numbers that
-              // produced the flags, instead of hardcoding them in two places.
-              irregularBelow: IRREGULAR_BELOW,
-              criticalBelow: CRITICAL_BELOW,
-              average: counted.length
-                ? Math.round(
-                    (counted.reduce((a, r) => a + r.pct, 0) / counted.length) *
-                      10
-                  ) / 10
-                : null,
-              range: { from, to },
-            },
-          } satisfies RegisterReply);
+          // The bands and the counts come from one module and one pass, so the
+          // stat cards cannot disagree with the flags on the rows. See
+          // attendance-bands.ts and ADR 0006.
+          return json(summarise(rows, { from, to }) satisfies RegisterReply);
         }
 
         return json({ error: "Not found" } satisfies ErrorReply, 404);

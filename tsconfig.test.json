@@ -12,6 +12,7 @@
     "test",
     "shared",
     "portal-replies.ts",
+    "attendance-bands.ts",
     // The cascade's rules. Listed file by file rather than as "web", because
     // web/ is the DOM+React project and this harness is not - see
     // tsconfig.json. web/cascade.ts is deliberately free of both, which is what

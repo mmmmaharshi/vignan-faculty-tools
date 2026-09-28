@@ -59,9 +59,20 @@ _Avoid_: Low, at risk, deficient
 Attendance below 60%. Needs intervention now.
 _Avoid_: Severe, failing, urgent
 
-The three bands are the app's own thresholds and are stated once, in
-`IRREGULAR_BELOW` and `CRITICAL_BELOW`. Do not introduce a fourth band without an
-ADR.
+The three bands are the app's own thresholds, stated once in
+`attendance-bands.ts` as `IRREGULAR_BELOW` and `CRITICAL_BELOW` and applied by
+`band(pct)` in that same module. Both are "below", so there is no overlap and no
+gap: 75 is Regular, 74.99 is Irregular, 60 is Irregular, 59.99 is Critical. Do not
+introduce a fourth band without an ADR.
+
+A percentage the portal would not give is in no band at all: not Regular, not
+Irregular, not Critical. It is not evidence of bad attendance, so it is left out
+of the class average rather than counted as zero, and the row still appears in the
+register and the total.
+
+The flags on a row and the counts in the summary come from one pass in
+`summarise`, so they cannot disagree. See
+`docs/adr/0006-give-the-attendance-bands-a-module.md`.
 
 ## Identity
 
