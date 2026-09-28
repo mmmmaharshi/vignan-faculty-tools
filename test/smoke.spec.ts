@@ -35,36 +35,33 @@ import type { Locator, Page } from "@playwright/test";
 const USER = process.env.ECAP_USER ?? "";
 const PASS = process.env.ECAP_PASS ?? "";
 
-/** What one cascade Select is currently showing. */
-type SelectState = { value: string; disabled: boolean };
+/**
+ * What one cascade Select is currently showing, and where it sits.
+ *
+ * One function because `page.evaluate` cannot call a helper defined alongside it
+ * - the function is serialised into the page - so two lookups meant two copies
+ * of the same find, free to drift apart.
+ */
+type SelectState = { index: number; value: string; disabled: boolean };
 
-/** Index of the Select whose label reads exactly `label`. */
-async function selectIndex(page: Page, label: string): Promise<number> {
-  return page.evaluate((text) => {
-    const inputs = [...document.querySelectorAll("input.mantine-Select-input")];
-    return inputs.findIndex((i) => {
-      const l = document.querySelector(`label[for="${i.id}"]`);
-      return l?.textContent.replace(/\s*\*$/, "").trim().toLowerCase() === text;
-    });
-  }, label.toLowerCase());
-}
-
-async function selectValue(page: Page, label: string): Promise<SelectState | null> {
+/** The Select whose label reads exactly `label`, or null if there is none. */
+async function selectState(page: Page, label: string): Promise<SelectState | null> {
   return page.evaluate((text) => {
     const inputs = [...document.querySelectorAll<HTMLInputElement>("input.mantine-Select-input")];
-    const i = inputs.findIndex((inp) => {
+    const index = inputs.findIndex((inp) => {
       const l = document.querySelector(`label[for="${inp.id}"]`);
       return l?.textContent.replace(/\s*\*$/, "").trim().toLowerCase() === text;
     });
-    const input = inputs[i];
-    return input ? { value: input.value, disabled: input.disabled } : null;
+    const input = inputs[index];
+    return input ? { index, value: input.value, disabled: input.disabled } : null;
   }, label.toLowerCase());
 }
 
 /** Open a Select and return its visible options. */
 async function openSelect(page: Page, label: string): Promise<Locator> {
-  const i = await selectIndex(page, label);
-  expect(i, `a Select labelled "${label}" should exist`).toBeGreaterThanOrEqual(0);
+  const state = await selectState(page, label);
+  expect(state, `a Select labelled "${label}" should exist`).not.toBeNull();
+  const i = state?.index ?? 0;
   await page.locator("input.mantine-Select-input").nth(i).click();
   const options = page.locator('[role="listbox"]:visible [role="option"]');
   await options.first().waitFor({ state: "visible" });
@@ -106,7 +103,7 @@ test.describe("ECAP attendance dashboard", () => {
     // Every level above the subject should now hold a real choice, not just be
     // enabled. An enabled-but-empty dropdown is the exact failure this catches.
     for (const level of ["Course", "Semester", "Branch", "Section"]) {
-      const state = await selectValue(page, level);
+      const state = await selectState(page, level);
       expect(state, `${level} should exist`).not.toBeNull();
       expect(state?.disabled, `${level} should be enabled`).toBe(false);
       expect(state?.value, `${level} should have a value`).not.toBe("");
@@ -118,7 +115,7 @@ test.describe("ECAP attendance dashboard", () => {
     expect(subject).not.toBe("");
     await page.getByRole("option", { name: subject, exact: true }).click();
     await expect
-      .poll(async () => (await selectValue(page, "Subject"))?.value)
+      .poll(async () => (await selectState(page, "Subject"))?.value)
       .toBe(subject);
 
     /* ---- load the register ---- */

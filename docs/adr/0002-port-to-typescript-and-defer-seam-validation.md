@@ -76,6 +76,24 @@ Port the whole codebase to TypeScript. Five decisions, each costing something:
 - The deferred seam validation now has somewhere to land. It is no longer "add
   types to an untyped file" but "narrow one branch in `unquoteJs` and replace
   the unverified `json.d` hop with a guard", at known lines.
+
+## Correction, after the port
+
+The first consequence above was wrong, and it was wrong because the decision it
+described was made before there was anything to enforce. `tsc` is no longer
+advisory: `package.json` has `pretest`, so `bun run test` typechecks all three
+projects before it builds or launches a browser.
+
+The reasoning that changed it is not "types are good". It is that once ADR 0003
+landed, the type checker became the *only* thing verifying the shared contract
+in `shared/api.ts` — a probe renaming a field in one place and not the other
+turns into a build failure or does not, and nothing else in the toolchain is
+watching. A checker that only runs when a human remembers is not enforcing
+anything; it is advice.
+
+`bun run typecheck` still exists on its own, for the editor-driven loop. The
+`pretest` hook is what makes the gate real. The consequence text above is left
+as originally written so the change is visible.
 - A field renamed on the server without the client changing is now a build
   error. Before this port it was a blank cell.
 - This port reverses `CODING_STANDARDS.md` on YAGNI and on leaning on existing
