@@ -105,11 +105,12 @@ imported.
   into a local first. This shipped once and blanked the whole page.
 - **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
   `index.html` not at all; changing that pair reintroduces "my fix did nothing".
-- **Every Playwright run typechecks first.** Vite and Playwright both use esbuild,
-  which strips types without reading them, so a passing build says nothing about
-  types. The gate is `test/global-setup.ts`, which Playwright loads for every
-  invocation — deliberately not a `pretest` script, which only fires for
-  `bun run test` and left `bunx playwright test` able to skip it. See ADR 0002.
+- **Every Playwright run lints and typechecks first.** Vite and Playwright both
+  use esbuild, which strips types without reading them, so a passing build says
+  nothing about types, and nothing else in the toolchain lints at all. Both gates
+  live in `test/global-setup.ts`, which Playwright loads for every invocation —
+  deliberately not a `pretest` script, which only fires for `bun run test` and
+  left `bunx playwright test` able to skip them. See ADR 0002.
 - **`runRefresh` is memoised with `[]`, so it closes over render 1.** Anything
   inside it that reads `sel` or `opts` must go through `selRef` / `optsRef`
   instead. Reading `opts` directly compiles, runs, and silently yields
