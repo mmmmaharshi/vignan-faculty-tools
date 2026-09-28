@@ -21,26 +21,16 @@
  *     which register loads.
  *
  * See docs/adr/0001-port-ui-to-react-and-mantine.md.
+ *
+ * Structure: this file owns the state and the three modes, and composes four
+ * presentational components under `web/components/`. It owns the cascade
+ * outright - `runRefresh` and the ref pattern stay here, not in a child, because
+ * that logic is load-bearing and a reader debugging the chain should find it in
+ * one place. The children are told what to render and report changes upwards;
+ * none of them holds state.
  */
 
-import {
-  Alert,
-  Badge,
-  Button,
-  Checkbox,
-  Container,
-  Divider,
-  Group,
-  Paper,
-  PasswordInput,
-  Select,
-  SimpleGrid,
-  Stack,
-  Table,
-  Text,
-  TextInput,
-  Title,
-} from "@mantine/core";
+import { Button, Container, Group, Text, Title } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
@@ -54,8 +44,13 @@ import type {
   RegisterReply,
   RegisterRequest,
   SessionReply,
-  Student,
 } from "../shared/api";
+import { ClassPicker } from "./components/ClassPicker";
+import { RegisterSummary } from "./components/RegisterSummary";
+import { RegisterTable } from "./components/RegisterTable";
+import { statusOf } from "./components/rowStyle";
+import { SignInPanel } from "./components/SignInPanel";
+import type { Disabled, Note, Range, Sel } from "./types";
 
 // The irregular/critical thresholds belong to the server, which is what applies
 // them. They arrive in the summary so the labels below can never drift from the
@@ -64,14 +59,8 @@ import type {
 /** One position in the cascade, straight from the contract. */
 type Level = CascadeLevel;
 
-/** What the user has chosen at each level. Every level is present, possibly "". */
-type Sel = Record<Level, string>;
-
 /** Which screen is showing. */
 type Phase = "boot" | "login" | "app";
-
-/** A message under a form, coloured by kind. */
-type Note = { kind: "error" | "warning"; text: string };
 
 /** The full chain, in cascade order. */
 const LEVELS: readonly (readonly [Level, string])[] = [
@@ -186,10 +175,6 @@ function applyOptions(sel: Sel, opts: OptionsReply): Sel {
   return next;
 }
 
-function toSelectData(list: Option[]): { value: string; label: string }[] {
-  return list.map((o) => ({ value: String(o.value), label: o.label }));
-}
-
 /**
  * One CSV field, quoted.
  *
@@ -199,37 +184,6 @@ function toSelectData(list: Option[]): { value: string; label: string }[] {
  * through and turned `String()` into the thing doing the work.
  */
 const csvCell = (v: string): string => `"${v.replaceAll('"', '""')}"`;
-
-/**
- * The row tint, reading Mantine's own colour tokens.
- *
- * `Table.Tr`'s `bg` prop is the whole mechanism - there is no custom CSS
- * anywhere in this file, so this returns a token or nothing.
- */
-function tintFor(s: Student): string | undefined {
-  if (s.critical) return "var(--mantine-color-red-light)";
-  return s.irregular ? "var(--mantine-color-yellow-light)" : undefined;
-}
-
-/**
- * The sign-in reassurance, hoisted because it never varies.
- *
- * It is a React element, so building it at module scope means the same
- * descriptor is reused on every render instead of a new one being allocated each
- * time the login form shows.
- */
-const SIGN_IN_NOTE = (
-  <Alert color="blue">
-    Your credentials are used once to sign in and are never stored by this app.
-    Signing in opens a session that stays active for up to 12 hours.
-  </Alert>
-);
-
-/** The status word for a student, worst first. */
-function statusOf(s: Student): "Critical" | "Irregular" | "Regular" {
-  if (s.critical) return "Critical";
-  return s.irregular ? "Irregular" : "Regular";
-}
 
 /**
  * The full option behind each level's current value, or the label of the first
@@ -547,7 +501,7 @@ const App = (): React.JSX.Element => {
   /* ---- derived ---- */
 
   const has = (k: Level): boolean => !!sel[k];
-  const disabled: Record<Level, boolean> = {
+  const disabled: Disabled = {
     course: false,
     semester: !has("course"),
     branch: !has("course"),
@@ -574,8 +528,30 @@ const App = (): React.JSX.Element => {
     return hit ? [`${label}: ${hit.label}`] : [];
   }).join("   ·   ");
 
+  /* ---- what the children call back into ---- */
+
+  /**
+   * A level changed. The value is read here and passed on, never inside a
+   * `setState` updater: React clears `event.currentTarget` once the handler
+   * returns, and an updater runs later, so deferring the read throws "Cannot
+   * read properties of null". That shipped once and blanked the whole page.
+   */
+  const onSelectLevel = (key: Level, value: string) => {
+    setSel((s) => ({ ...s, [key]: value }));
+    selRef.current = { ...selRef.current, [key]: value };
+    // Subject is filled by the server, not by a change handler.
+    if (key !== "subject") runRefresh(key);
+  };
+
+  const onRangeChange = (part: keyof Range, value: string) => {
+    setRange((r) => ({ ...r, [part]: value }));
+  };
+
   /* ---- render ---- */
 
+  // Three modes, composed rather than switched with booleans. Each child is
+  // told what to render and reports changes upwards; none of them holds state,
+  // so the cascade below stays the single place any of it is decided.
   return (
     <Container size="lg" py="lg">
       <Group justify="space-between" align="baseline" mb="lg">
@@ -586,290 +562,61 @@ const App = (): React.JSX.Element => {
           </Text>
         </div>
         <Group gap="sm">
-          {phase === "app" && userId.trim() && (
+          {phase === "app" && userId.trim() ? (
             <Text c="dimmed" size="sm">
               {userId.trim()}
             </Text>
-          )}
-          {phase === "app" && (
+          ) : null}
+          {phase === "app" ? (
             <Button variant="default" onClick={signOut}>
               Sign out
             </Button>
-          )}
+          ) : null}
         </Group>
       </Group>
 
-      {phase !== "app" && (
-        <Paper withBorder p="lg" mb="md">
-          <form onSubmit={signIn}>
-            <Stack>
-              <Title order={4}>Sign in</Title>
-              <Group grow align="flex-end">
-                <TextInput
-                  label="ECAP user name"
-                  value={userId}
-                  onChange={(e) => setUserId(e.currentTarget.value)}
-                  autoComplete="username"
-                  required
-                />
-                <PasswordInput
-                  label="Password"
-                  value={password}
-                  onChange={(e) => setPassword(e.currentTarget.value)}
-                  autoComplete="current-password"
-                  required
-                />
-                <Button type="submit" loading={busy} fullWidth>
-                  Sign in
-                </Button>
-              </Group>
-              {loginNote ? (
-                <Alert color={loginNote.kind === "error" ? "red" : "yellow"}>
-                  {loginNote.text}
-                </Alert>
-              ) : (
-                SIGN_IN_NOTE
-              )}
-            </Stack>
-          </form>
-        </Paper>
-      )}
-
-      {phase === "app" && (
+      {phase === "app" ? (
         <>
-          <Paper withBorder p="lg" mb="md">
-            <Stack>
-              <Title order={4}>Class</Title>
-              <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
-                {LEVELS.map(([key, label]) => (
-                  <Select
-                    key={key}
-                    label={label}
-                    data={toSelectData(opts[key])}
-                    value={sel[key] || null}
-                    onChange={(value = "") => {
-                      setSel((s) => ({ ...s, [key]: value }));
-                      selRef.current = { ...selRef.current, [key]: value };
-                      // Subject is filled by the server, not by a change handler.
-                      if (key !== "subject") runRefresh(key);
-                    }}
-                    disabled={disabled[key]}
-                    searchable={false}
-                    allowDeselect={false}
-                  />
-                ))}
-                <TextInput
-                  label="From"
-                  type="date"
-                  value={range.from}
-                  onChange={(e) => {
-                    // Read the value here, not inside the updater: React clears
-                    // event.currentTarget once the handler returns, and the
-                    // updater runs later, so deferring the read throws
-                    // "Cannot read properties of null".
-                    const v = e.currentTarget.value;
-                    setRange((r) => ({ ...r, from: v }));
-                  }}
-                />
-                <TextInput
-                  label="To"
-                  type="date"
-                  value={range.to}
-                  onChange={(e) => {
-                    const v = e.currentTarget.value;
-                    setRange((r) => ({ ...r, to: v }));
-                  }}
-                />
-              </SimpleGrid>
-              <Group>
-                <Button onClick={loadRegister} loading={busy}>
-                  Load register
-                </Button>
-                <Button variant="default" onClick={saveCsv} disabled={!result}>
-                  Save CSV
-                </Button>
-                {loadNote && (
-                  <Text c="dimmed" size="sm">
-                    {loadNote}
-                  </Text>
-                )}
-              </Group>
-              {filterNote && (
-                <Alert color={filterNote.kind === "error" ? "red" : "yellow"}>
-                  {filterNote.text}
-                </Alert>
-              )}
-              {opts.emptyLevels.length > 0 && (
-                <Alert color="yellow">
-                  ECAP returned no{" "}
-                  {opts.emptyLevels
-                    .map((k) => LEVELS.find(([key]) => key === k)?.[1] ?? k)
-                    .join(" or ")}{" "}
-                  for this combination. Either the portal&apos;s layout has
-                  changed, or this branch does not run in this semester. Other
-                  levels are unaffected.
-                </Alert>
-              )}
-            </Stack>
-          </Paper>
+          <ClassPicker
+            levels={LEVELS}
+            opts={opts}
+            sel={sel}
+            disabled={disabled}
+            range={range}
+            busy={busy}
+            hasResult={result !== null}
+            loadNote={loadNote}
+            filterNote={filterNote}
+            onSelect={onSelectLevel}
+            onRange={onRangeChange}
+            onLoad={loadRegister}
+            onSaveCsv={saveCsv}
+          />
 
-          {summary && (
+          {summary ? (
             <>
-              <SimpleGrid cols={{ base: 2, sm: 4 }} mb="md">
-                <Paper withBorder p="md">
-                  <Text fw={700} size="xl">
-                    {summary.total}
-                  </Text>
-                  <Text c="dimmed" size="xs" tt="uppercase">
-                    Students
-                  </Text>
-                </Paper>
-                <Paper withBorder p="md">
-                  <Text fw={700} size="xl">
-                    {summary.average == null ? "—" : `${summary.average}%`}
-                  </Text>
-                  <Text c="dimmed" size="xs" tt="uppercase">
-                    Class average
-                  </Text>
-                </Paper>
-                <Paper withBorder p="md">
-                  <Text
-                    fw={700}
-                    size="xl"
-                    c={summary.irregular ? "yellow.8" : undefined}
-                  >
-                    {summary.irregular}
-                  </Text>
-                  <Text c="dimmed" size="xs" tt="uppercase">
-                    Below {summary.irregularBelow}%
-                  </Text>
-                </Paper>
-                <Paper withBorder p="md">
-                  <Text
-                    fw={700}
-                    size="xl"
-                    c={summary.critical ? "red.8" : undefined}
-                  >
-                    {summary.critical}
-                  </Text>
-                  <Text c="dimmed" size="xs" tt="uppercase">
-                    Below {summary.criticalBelow}%
-                  </Text>
-                </Paper>
-              </SimpleGrid>
-
-              <Paper withBorder p="lg">
-                <Group justify="space-between" mb="sm">
-                  <Checkbox
-                    label="Show only irregular students"
-                    checked={onlyIrregular}
-                    onChange={(e) => setOnlyIrregular(e.currentTarget.checked)}
-                  />
-                </Group>
-
-                {/*
-                  Name the register on screen. With five dropdowns in front of
-                  you it is easy to read last week's numbers as this week's.
-                */}
-                {chosenText && (
-                  <>
-                    <Text c="dimmed" size="sm" mb="sm">
-                      {chosenText}
-                      {summary.range?.from
-                        ? `   ·   ${summary.range.from} to ${summary.range.to}`
-                        : ""}
-                    </Text>
-                    <Divider mb="sm" />
-                  </>
-                )}
-
-                {rows.length === 0 ? (
-                  <Text c="dimmed" size="sm">
-                    {onlyIrregular
-                      ? `No irregular students. Everyone is at or above ${summary.irregularBelow}%.`
-                      : "No students in this register."}
-                  </Text>
-                ) : (
-                  <>
-                    <Table.ScrollContainer minWidth={640}>
-                      <Table
-                        striped
-                        highlightOnHover
-                        withTableBorder
-                        tabularNums
-                      >
-                        <Table.Thead>
-                          <Table.Tr>
-                            <Table.Th>Sl.No</Table.Th>
-                            <Table.Th>Roll No</Table.Th>
-                            <Table.Th>Student Name</Table.Th>
-                            <Table.Th ta="right">Attend / Held</Table.Th>
-                            <Table.Th ta="right">%</Table.Th>
-                          </Table.Tr>
-                        </Table.Thead>
-                        <Table.Tbody>
-                          {rows.map((s) => (
-                            <Table.Tr key={s.roll} bg={tintFor(s)}>
-                              <Table.Td c="dimmed">{s.sl}</Table.Td>
-                              <Table.Td>
-                                <Text ff="monospace" size="sm">
-                                  {s.roll}
-                                </Text>
-                              </Table.Td>
-                              <Table.Td>
-                                <Text tt="uppercase" size="sm">
-                                  {s.name}
-                                </Text>
-                              </Table.Td>
-                              <Table.Td ta="right">{s.attendedOfHeld}</Table.Td>
-                              <Table.Td ta="right">
-                                {s.pct == null ? (
-                                  "—"
-                                ) : (
-                                  <Group
-                                    gap={6}
-                                    justify="flex-end"
-                                    wrap="nowrap"
-                                  >
-                                    <Text fw={700} size="sm">
-                                      {s.pct.toFixed(2)}%
-                                    </Text>
-                                    {s.critical && (
-                                      <Badge
-                                        color="red"
-                                        size="xs"
-                                        variant="light"
-                                      >
-                                        critical
-                                      </Badge>
-                                    )}
-                                    {!s.critical && s.irregular && (
-                                      <Badge
-                                        color="yellow"
-                                        size="xs"
-                                        variant="light"
-                                      >
-                                        low
-                                      </Badge>
-                                    )}
-                                  </Group>
-                                )}
-                              </Table.Td>
-                            </Table.Tr>
-                          ))}
-                        </Table.Tbody>
-                      </Table>
-                    </Table.ScrollContainer>
-                    <Text c="dimmed" size="sm" mt="sm">
-                      Showing {rows.length} of {result.students.length}{" "}
-                      students, lowest attendance first.
-                    </Text>
-                  </>
-                )}
-              </Paper>
+              <RegisterSummary summary={summary} />
+              <RegisterTable
+                rows={rows}
+                total={result?.students.length ?? 0}
+                summary={summary}
+                onlyIrregular={onlyIrregular}
+                onToggleIrregular={setOnlyIrregular}
+                chosenText={chosenText}
+              />
             </>
-          )}
+          ) : null}
         </>
+      ) : (
+        <SignInPanel
+          userId={userId}
+          password={password}
+          busy={busy}
+          note={loginNote}
+          onUserId={setUserId}
+          onPassword={setPassword}
+          onSubmit={signIn}
+        />
       )}
     </Container>
   );
