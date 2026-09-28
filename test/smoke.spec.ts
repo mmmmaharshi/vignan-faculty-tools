@@ -153,18 +153,17 @@ test.describe("ECAP attendance dashboard", () => {
     // Worst first. Checking the ordering rather than a hardcoded count means a
     // real class gaining or losing a student does not turn the suite red, but a
     // broken sort still does.
-    const pcts = table.map((r) => r.pct).filter((p) => p != null);
+    const pcts = table.map((r) => r.pct).filter((p): p is number => p != null);
     expect(pcts.length, "every row should carry a percentage").toBe(table.length);
     for (let i = 1; i < pcts.length; i++) {
-      const here = pcts[i];
-      const above = pcts[i - 1];
-      // Both are in range by the loop bound. The guard is only here to satisfy
-      // noUncheckedIndexedAccess, not because either can actually be missing.
-      if (here === undefined || above === undefined) continue;
+      // The loop bound puts both indices in range, so the one assertion below is
+      // sound. It is written as an assertion rather than a guard on purpose: a
+      // guard that skipped a row would let the suite pass without ever checking
+      // it, which is the one failure mode a test must not have.
       expect(
-        here,
-        `row ${i} (${here}%) should not be worse than the row above it`,
-      ).toBeGreaterThanOrEqual(above);
+        pcts[i],
+        `row ${i} (${pcts[i]}%) should not be worse than the row above it`,
+      ).toBeGreaterThanOrEqual(pcts[i - 1]!);
     }
     expect(pcts[0], "the worst student should be listed first").toBe(Math.min(...pcts));
 

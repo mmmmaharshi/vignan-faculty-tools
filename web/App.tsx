@@ -418,7 +418,10 @@ export default function App() {
 
   const saveCsv = () => {
     if (!result) return;
-    const q = (v: unknown): string => '"' + String(v).replace(/"/g, '""') + '"';
+    // Every cell is a string: the portal's combined attended/held is one, and the
+  // percentage is formatted or blanked before it gets here. `unknown` would have
+  // let anything through and turned String() into the thing doing the checking.
+  const q = (v: string): string => '"' + v.replace(/"/g, '""') + '"';
     const head = ["Roll No", "Student Name", "Attend/Held", "Percent", "Status"];
     const lines = [head.map(q).join(",")];
     for (const s of result.students) {

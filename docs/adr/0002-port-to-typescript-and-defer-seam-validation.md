@@ -19,7 +19,10 @@ catches and an editor does not.
 
 Against that, `CODING_STANDARDS.md` says YAGNI, says to lean on dependencies
 already in the project, and is binding. TypeScript is a new dependency and a new
-thing to learn.
+thing to learn — and specifically **TypeScript 7**, the native port, not the 5.x
+line most projects mean by "add TypeScript". It was adopted at 7.0.2. That is a
+new major version of a compiler, not a version bump, and the configs here were
+written against it rather than migrated onto it.
 
 What settled it was looking at where the untyped data actually enters. Everything
 in `server.js` that crosses the portal boundary funnels through four functions:
