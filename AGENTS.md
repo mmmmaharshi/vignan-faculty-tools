@@ -175,12 +175,16 @@ theme key means you want a component prop instead.
   early for every reader east of Greenwich.
 - **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
   `index.html` not at all; changing that pair reintroduces "my fix did nothing".
-- **Every Playwright run lints and typechecks first.** Vite and Playwright both
-  use esbuild, which strips types without reading them, so a passing build says
-  nothing about types, and nothing else in the toolchain lints at all. Both gates
-  live in `test/global-setup.ts`, which Playwright loads for every invocation —
-  deliberately not a `pretest` script, which only fires for `bun run test` and
-  left `bunx playwright test` able to skip them. See ADR 0002.
+- **Every Playwright run lints, typechecks, then builds — in that order.** Vite and
+  Playwright both use esbuild, which strips types without reading them, so a
+  passing build says nothing about types, and nothing else in the toolchain
+  lints. All three live in `test/global-setup.ts`, which Playwright loads for
+  every invocation — deliberately not a `pretest` script, which only fires for
+  `bun run test` and left `bunx playwright test` able to skip them. Build **last**:
+  it is the only step that writes anything, and it does not fail on a type error,
+  so building first meant `dist/` was written from code already known to be
+  wrong — and `bunx playwright test` skipped the build entirely and tested
+  whatever was on disk. See ADR 0002 and 0012.
 - **`runRefresh` is memoised with `[]`, so it closes over render 1.** Anything
   inside it that reads `sel` or `opts` must go through `selRef` / `optsRef`
   instead. Reading `opts` directly compiles, runs, and silently yields

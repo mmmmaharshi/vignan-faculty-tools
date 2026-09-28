@@ -8,7 +8,7 @@
     "dev": "vite",
     "start": "bun server.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json && tsc -p tsconfig.test.json",
-    "test": "bun run build && playwright test",
+    "test": "playwright test",
     "lint": "ultracite check",
     "lint:fix": "ultracite fix"
   },
