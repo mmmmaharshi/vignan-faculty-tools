@@ -74,12 +74,20 @@ import type {
   SessionReply,
   Student,
 } from "./shared/api";
+import {
+  expectLevel,
+  hiddenValue,
+  HttpError,
+  looksLikeHtml,
+  options,
+  parseRegister,
+  realOptions,
+  unquoteJs,
+} from "./portal-replies";
+import type { RegisterRow } from "./portal-replies";
 
 /** One position in the cascade. Derived from the contract, so the two cannot drift. */
 type Level = keyof OptionsReply;
-
-/** A parsed register row, before the irregular/critical flags are attached. */
-type RegisterRow = Omit<Student, "irregular" | "critical">;
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
@@ -104,17 +112,6 @@ const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const IRREGULAR_BELOW = 75; // attendance % considered irregular
 const CRITICAL_BELOW = 60;  // attendance % considered critical
 const HTTP_TIMEOUT_MS = 60_000;
-
-class HttpError extends Error {
-  /** The HTTP status to answer with. Read by the error handler at the bottom. */
-  status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-    this.name = "HttpError";
-  }
-}
 
 /* ------------------------------------------------------------------ portal session */
 
@@ -270,6 +267,13 @@ class Portal {
     });
     const text = await res.text();
     if (!res.ok) throw new HttpError(502, `ECAP rejected ${name} (HTTP ${res.status}).`);
+    // Convention B is the quiet one: its reply is a JavaScript literal, so a
+    // dead session's markup arrives here looking like data and ends up as an
+    // empty level or an empty register. 401 bounces the front end to the login
+    // screen, which is the right place for it.
+    if (looksLikeHtml(text)) {
+      throw new HttpError(401, "Your ECAP session expired. Please sign in again.");
+    }
     return unquoteJs(text);
   }
 
@@ -373,131 +377,6 @@ function portalEncrypt(plaintext: string): string {
 /** The portal's enc(): escapes only % and =. Values are deliberately not url-encoded. */
 const enc = (v: string | number): string =>
   String(v).replace(/%/g, "%26").replace(/=/g, "%3D");
-
-function hiddenValue(html: string, name: string): string {
-  for (const tag of html.match(/<input[^>]*>/gi) ?? []) {
-    if (new RegExp(`name="${name}"`, "i").test(tag)) {
-      return tag.match(/value="([^"]*)"/i)?.[1] ?? "";
-    }
-  }
-  return "";
-}
-
-/**
- * Unwrap the portal's JavaScript-literal reply.
- *
- * Convention B answers with a bare single-quoted HTML string that the page's
- * ajax_response eval()s into {error, value}. It is not JSON, so JSON.parse on
- * it fails and the value has to be unwrapped by hand.
- *
- * The return type is `string` and this function now guarantees it. It used to
- * infer `any`, because one branch handed back `JSON.parse` output untouched
- * while both callers assumed a string.
- */
-function unquoteJs(text: string): string {
-  const t = text.trim();
-  if (!t) return "";
-  if (t.startsWith("{") || t.startsWith("[")) {
-    try {
-      const j: unknown = JSON.parse(t);
-      // Only a string is accepted. A number, an object or a missing key all fall
-      // through to the raw text, which the callers then find no markup in.
-      //
-      // This is better than the untyped version but it is not a clean failure,
-      // and the difference matters. Returning the value whatever it was meant
-      // parseRegister called .match on a number and threw a TypeError, which
-      // surfaced as a 500. Returning the raw text instead means no markup is
-      // found, which surfaces as a 502 saying the register came back empty -
-      // pointing at the date range rather than at a reply that was not shaped
-      // the way this function assumes. Throwing here, naming the actual cause,
-      // is part of the portal-seam validation ADR 0002 defers.
-      if (j !== null && typeof j === "object") {
-        const rec = j as Record<string, unknown>;
-        const payload = rec.value ?? rec.d;
-        if (typeof payload === "string") return payload;
-      }
-      return t;
-    } catch { /* not JSON after all */ }
-  }
-  if ((t.startsWith("'") && t.endsWith("'")) || (t.startsWith('"') && t.endsWith('"'))) {
-    return t
-      .slice(1, -1)
-      .replace(/\\(['"\\])/g, "$1")
-      .replace(/\\r/g, "\r")
-      .replace(/\\n/g, "\n");
-  }
-  return t;
-}
-
-/**
- * Read a <select> fragment into options.
- *
- * `unknown` on purpose: this is the one function every convention-A payload
- * passes through, and that payload is untyped by design. See `#jq`.
- */
-function options(html: unknown): Option[] {
-  const out: Option[] = [];
-  for (const m of String(html ?? "").matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)) {
-    const attrs = m[1] ?? "";
-    const pick = (n: string): string =>
-      attrs.match(new RegExp(`${n}\\s*=\\s*'([^']*)'`, "i"))?.[1] ??
-      attrs.match(new RegExp(`${n}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ??
-      "";
-    const label = (m[2] ?? "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-    if (label) out.push({ value: pick("value"), title: pick("title"), label });
-  }
-  return out;
-}
-
-/** The "-Select-" / "Select" entry is a placeholder, not a real choice. */
-const isPlaceholder = (o: Option): boolean =>
-  o.value === "0" || /^-?\s*select\s*-?$/i.test(o.label);
-const realOptions = (list: Option[]): Option[] => list.filter((o) => !isPlaceholder(o));
-
-/** Strip tags and collapse whitespace, for table scraping. */
-function cellText(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
-}
-
-/**
- * Pull the roster out of the register table.
- *
- * The last two columns are always attended/held and the percentage, and the
- * roll number sits in column two. Percentages that will not parse are kept as
- * null rather than dropped, so a student is never silently missing from a
- * count just because one cell was odd.
- *
- * The attended/held cell is kept whole, as the string the portal sent. It is
- * never split into its two numbers, so nothing downstream may treat it as a
- * count of held classes. See CONTEXT.md, "Attended of held".
- */
-function parseRegister(html: string): RegisterRow[] {
-  let table: string | null = null;
-  for (const t of html.match(/<table[\s\S]*?<\/table>/gi) ?? []) {
-    const head = cellText((t.match(/<tr[\s\S]*?<\/tr>/i) ?? [""])[0] ?? "");
-    if (/roll\s*\.?\s*no/i.test(head)) { table = t; break; }
-  }
-  if (!table) return [];
-
-  const rows: RegisterRow[] = [];
-  for (const tr of (table.match(/<tr[\s\S]*?<\/tr>/gi) ?? []).slice(1)) {
-    const cells = [...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => cellText(m[1] ?? ""));
-    if (cells.length < 4) continue;
-    const roll = cells[1] ?? "";
-    if (!roll) continue;
-    const attendedOfHeld = cells[cells.length - 2] ?? "";
-    const pct = cells[cells.length - 1] ?? "";
-    const num = parseFloat(String(pct).replace("%", ""));
-    rows.push({
-      sl: cells[0] ?? "",
-      roll,
-      name: cells[2] ?? "",
-      attendedOfHeld,
-      pct: Number.isNaN(num) ? null : num,
-    });
-  }
-  return rows;
-}
 
 /* ------------------------------------------------------------------ sessions */
 
@@ -696,13 +575,16 @@ const server = Bun.serve({
           // against the same shape the front end reads.
           const out: OptionsReply = { course: [], semester: [], branch: [], section: [], subject: [] };
 
-          out.course = realOptions(await portal.courses());
+          out.course = expectLevel(realOptions(await portal.courses()), "courses");
 
           if (b.course) {
             const [branches, semesters] = await portal.branchesAndSemesters(b.course);
-            out.branch = realOptions(branches);
-            out.semester = realOptions(semesters);
+            out.branch = expectLevel(realOptions(branches), "branches");
+            out.semester = expectLevel(realOptions(semesters), "semesters");
           }
+          // Sections and subjects are deliberately not guarded. Some
+          // combinations genuinely teach nothing, and an empty level is the
+          // honest answer for those. See docs/adr/0003.
           if (b.course && b.branch && b.semester) {
             out.section = realOptions(
               await portal.sections(b.course, b.branch, b.semester, b.semesterTitle),
@@ -734,7 +616,7 @@ const server = Bun.serve({
           if (!rows.length) {
             throw new HttpError(
               502,
-              "The register came back empty. Check that the subject has classes in that date range.",
+              "The register came back empty. Either the subject has no classes in that date range, or ECAP's page layout has changed.",
             );
           }
 

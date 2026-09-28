@@ -36,6 +36,11 @@ register. It skips without credentials rather than passing vacuously. A DOM stub
 is not sufficient for this app — one was tried against the previous build and it
 passed code that was broken in a real browser.
 
+Alongside it, `test/seam.spec.ts` covers the portal seam with fixture markup and
+no network at all, so it runs in under a second and works with no credentials.
+That is the suite that catches a change to the parsing; the smoke test catches a
+change to the experience.
+
 ## What it shows
 
 | Stat | Meaning |
@@ -140,13 +145,15 @@ url-encoded.
 ## Project layout
 
 ```
-server.ts           Bun HTTP server; all ECAP interaction lives here
+server.ts           Bun HTTP server; routes, sessions, the Portal HTTP client
+portal-replies.ts   pure string -> data functions, and the seam guards
 web/index.html      Vite entry point
 web/main.tsx        React root + MantineProvider
 web/App.tsx         cascade, table, CSV export
 shared/api.ts       the server/client contract; both sides import it
 vite.config.ts      build config
 playwright.config.ts  test runner config
+test/seam.spec.ts   pure-function tests over fixture markup; no portal needed
 test/smoke.spec.ts  one end-to-end pass against the live portal
 tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
 dist/               build output, served by server.ts

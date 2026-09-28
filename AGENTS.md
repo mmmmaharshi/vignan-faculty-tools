@@ -42,17 +42,25 @@ leave two bound to the same port.
 ## Layout
 
 ```
-server.ts           Bun HTTP server; all ECAP interaction lives here
+server.ts           Bun HTTP server; routes, sessions, the Portal HTTP client
+portal-replies.ts   pure string -> data functions, and the seam guards
 web/index.html      Vite entry point
 web/main.tsx        React root + MantineProvider
 web/App.tsx         cascade, table, CSV export
 shared/api.ts       the server/client contract; both sides import it
 vite.config.ts      build config
 playwright.config.ts  test runner config
+test/seam.spec.ts   pure-function tests over fixture markup; no portal needed
 test/smoke.spec.ts  one end-to-end pass against the live portal
 tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
 dist/               build output, served by server.ts (not source)
 ```
+
+`portal-replies.ts` is separate from `server.ts` for one reason: importing
+`server.ts` boots a server, so nothing in it can be unit-tested. Everything in
+`portal-replies.ts` is a pure function over a string, which is what lets
+`test/seam.spec.ts` run in milliseconds with no portal and no credentials. Keep
+it that way — a network call in there makes the whole fast suite unreachable.
 
 ## The front end is Mantine-only
 
