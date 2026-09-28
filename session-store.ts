@@ -66,9 +66,10 @@
  *
  * Importing this file touches no disk and no vault. The backend is passed in, so
  * the credential-free test suite injects a fake and never touches the real
- * Windows Credential Manager, and `bunSecrets()` in `server.ts` is the only code
- * that does.
+ * Windows Credential Manager. `bunSecrets()` below is the only code that does, and
+ * `server.ts` is its only caller.
  */
+import { CookieJar } from "./portal-conventions";
 
 /** One session, reduced to what a restart needs. Cookies are name/value pairs. */
 export type StoredSession = {
@@ -80,19 +81,55 @@ export type StoredSession = {
 /**
  * The vault operations this module needs.
  *
- * Only `get` and `set`, because a session is removed by rewriting the entry
- * rather than by deleting a key — see the one-entry note above. `Bun.secrets` does
- * have `delete`; this module deliberately does not use it, so the fake in the
- * tests cannot drift into testing something production never calls.
+ * `delete` is here because a session that has ended must have its entry removed,
+ * or the store accumulates an orphan for every sign-out the user ever performed.
+ * The fake in the tests implements all three, and production is the only caller.
  */
 export type Secrets = {
   get: (name: string) => Promise<string | null>;
   set: (name: string, value: string) => Promise<void>;
+  delete: (name: string) => Promise<boolean>;
 };
 
-/** The service name, and the single entry inside it. */
+/**
+ * The service name, and the one entry inside it that is not a session.
+ *
+ * ## One entry per session, and why there is an index
+ *
+ * `Bun.secrets` has `get`, `set` and `delete` — and **no way to enumerate**, so
+ * something has to say which entries exist. That is this list of ids.
+ *
+ * The obvious alternative — everything in one entry — is what this used to do, and
+ * it fails. On Windows a generic credential's blob is capped at
+ * `CRED_MAX_CREDENTIAL_BLOB_SIZE` = 5 × 512 = **2560 bytes**, and a session is
+ * ~526 bytes of JSON once the portal's 384-character `frmAuth` is in it. Measured
+ * on this build:
+ *
+ * ```
+ *  1 session  =  526 bytes  OK
+ *  4 sessions = 2101 bytes  OK
+ *  5 sessions = 2626 bytes  REJECTED: The stub received bad data. (code: 1783)
+ * ```
+ *
+ * That is a silent ceiling. `saveSessions` reports the failure rather than
+ * throwing, the server carries on serving, and persistence simply stops working
+ * after the fifth sign-in from another browser — with nothing on screen to say so.
+ * One entry per session puts each one comfortably under the cap, and leaves the
+ * index holding only ids: 39 bytes each, so the cap is not reached until roughly
+ * sixty sessions, which for a single-user local app is not a real limit.
+ *
+ * The index is written **after** the sessions it names, deliberately. The reverse
+ * order would let a failure leave an index pointing at entries that were never
+ * written, which drops live sessions; this way a failure leaves an orphan entry
+ * that nothing references and nobody misses.
+ */
 export const VAULT_SERVICE = "ecap-attendance-app";
-export const VAULT_ENTRY = "sessions";
+export const VAULT_INDEX = "sessions";
+
+/** The entry name for one session. Exported so tests can address one directly. */
+export function sessionKey(id: string): string {
+  return `session-${id}`;
+}
 
 /**
  * `Bun.secrets`, or null if this build or platform has none.
@@ -111,6 +148,7 @@ export function bunSecrets(): Secrets | null {
           value: string;
           persist?: string;
         }) => Promise<unknown>;
+        delete: (q: { service: string; name: string }) => Promise<boolean>;
       }
     | undefined;
   if (!raw) return null;
@@ -122,6 +160,7 @@ export function bunSecrets(): Secrets | null {
     set: async (name, value) => {
       await raw.set({ service: VAULT_SERVICE, name, value, persist: "local" });
     },
+    delete: (name) => raw.delete({ service: VAULT_SERVICE, name }),
   };
 }
 
@@ -132,11 +171,16 @@ export function bunSecrets(): Secrets | null {
  * from a signed-out one: restored as-is it would give a signed-in-looking
  * dashboard where every portal call fails.
  *
+ * The "does this jar authenticate" test is `CookieJar.signedIn` rather than a
+ * second copy of it. That fact already has one home - the jar the live server
+ * uses - and a re-implementation here is how the two drift apart with no test
+ * that they agree.
+ *
  * An empty cookie name is refused for the same reason `absorbSetCookie` refuses
- * one — it would serialise into a `Cookie` header the portal will not explain. A
+ * one: it would serialise into a `Cookie` header the portal will not explain. A
  * restored jar is held to the same rule as a live one.
  */
-export function parseOne(value: unknown): StoredSession | null {
+export function parseSession(value: unknown): StoredSession | null {
   if (typeof value !== "object" || value === null) return null;
   const { id, at, cookies } = value as Partial<StoredSession>;
   if (typeof id !== "string" || !id) return null;
@@ -152,22 +196,25 @@ export function parseOne(value: unknown): StoredSession | null {
   }
   // No `frmAuth` is not a session. Keeping one would restore a session that is
   // signed out in everything but name.
-  if (!pairs.some(([name]) => name === "frmAuth")) return null;
+  const jar = new CookieJar();
+  for (const [name, cookieValue] of pairs) jar.entries.set(name, cookieValue);
+  if (!jar.signedIn) return null;
   return { id, at, cookies: pairs };
 }
 
 /**
- * Read the entry, or nothing at all.
+ * The ids the index claims, or nothing.
  *
- * Never throws. The caller is a server boot, and the worst acceptable outcome
- * for an entry we cannot read is that you sign in again — which is exactly what
- * happened before any of this existed. Anything unparseable yields an empty list
- * rather than a guess, because a half-understood session is a broken one.
+ * Never throws: the caller is a server boot, and the worst acceptable outcome for
+ * an entry we cannot read is that you sign in again — which is exactly what
+ * happened before any of this existed. An unparseable index yields no ids rather
+ * than a guess, because an index naming sessions that cannot be read would drop
+ * live ones for no stated reason.
  */
-export async function loadSessions(backend: Secrets): Promise<StoredSession[]> {
+async function readIndex(backend: Secrets): Promise<string[]> {
   let raw: string | null;
   try {
-    raw = await backend.get(VAULT_ENTRY);
+    raw = await backend.get(VAULT_INDEX);
   } catch {
     return [];
   }
@@ -179,17 +226,56 @@ export async function loadSessions(backend: Secrets): Promise<StoredSession[]> {
     return [];
   }
   if (!Array.isArray(parsed)) return [];
-  // Element by element: one unreadable session costs that session, not the rest.
-  const out: StoredSession[] = [];
-  for (const entry of parsed) {
-    const session = parseOne(entry);
-    if (session) out.push(session);
+  return parsed.filter((id): id is string => typeof id === "string" && !!id);
+}
+
+function safeParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
   }
-  return out;
 }
 
 /**
- * Write the sessions, so the next boot has them.
+ * Read the index, then the sessions it names.
+ *
+ * One unreadable session costs that session, not the rest: a half-understood
+ * session is worse than an absent one, and one bad entry must not sign everyone
+ * out.
+ */
+export async function loadSessions(backend: Secrets): Promise<StoredSession[]> {
+  const ids = await readIndex(backend);
+  if (!ids.length) return [];
+  const found = await Promise.all(
+    ids.map(async (id): Promise<StoredSession | null> => {
+      let raw: string | null;
+      try {
+        raw = await backend.get(sessionKey(id));
+      } catch {
+        return null;
+      }
+      // The index and the entry can disagree - a write interrupted between the two
+      // - so the id in the entry is re-checked against the key it was read from
+      // rather than trusted.
+      const session = parseSession(raw ? safeParse(raw) : null);
+      return session && session.id === id ? session : null;
+    })
+  );
+  return found.filter((s): s is StoredSession => s !== null);
+}
+
+/**
+ * Write the sessions, so the next boot has them, then the index that names them.
+ *
+ * Order matters and is the reason this is not one write: sessions first, index
+ * second. See the note on `VAULT_INDEX`.
+ *
+ * Entries for sessions that have ended are removed, so the vault does not
+ * accumulate an orphan for every sign-out the user ever performed. That is a
+ * courtesy rather than a correctness matter — orphans are separate entries and so
+ * never count against the per-entry size cap — but a credential store that grows
+ * without bound is not one anyone should be left with.
  *
  * Returns a message rather than throwing: the in-memory session is the live one
  * and the vault is only a convenience for the next boot, so a failed write is
@@ -199,12 +285,39 @@ export async function saveSessions(
   backend: Secrets,
   sessions: readonly StoredSession[]
 ): Promise<string | null> {
-  try {
-    await backend.set(VAULT_ENTRY, JSON.stringify(sessions));
-    return null;
-  } catch (error) {
-    return `could not write the session to the OS vault: ${(error as Error).message}`;
+  const wanted = new Set(sessions.map((s) => s.id));
+  // Read what the index names *before* replacing it. Reading afterwards would find
+  // only the ids just written, and the sweep below would have nothing to remove.
+  const previous = await readIndex(backend);
+  // Sessions first, index second — the order is the reason this is not one write.
+  // If a session write fails the old index is still in place, and every id in it
+  // still resolves to a session that is on disk. The reverse order would leave an
+  // index naming entries that were never written, and a load would drop live
+  // sessions with nothing to show why.
+  for (const session of sessions) {
+    try {
+      await backend.set(sessionKey(session.id), JSON.stringify(session));
+    } catch (error) {
+      return `could not write the session to the OS vault: ${(error as Error).message}`;
+    }
   }
+  try {
+    await backend.set(VAULT_INDEX, JSON.stringify([...wanted]));
+  } catch (error) {
+    return `could not write the session index to the OS vault: ${(error as Error).message}`;
+  }
+  // Only now, with the new index committed, is it safe to remove what it no longer
+  // names. Doing this earlier would delete a live session's entry while the old
+  // index still pointed at it.
+  for (const id of previous) {
+    if (wanted.has(id)) continue;
+    try {
+      await backend.delete(sessionKey(id));
+    } catch {
+      // An orphan is untidy, not wrong. Never worth failing a save over.
+    }
+  }
+  return null;
 }
 
 /**

@@ -65,13 +65,21 @@ What persistence genuinely buys is the case that was actually asked for:
 lasts, and it is common — restarting mid-afternoon is not returning after a
 fortnight.
 
-ECAP's real idle timeout is not exposed over HTTP; it lives in `web.config`.
-ASP.NET's default is 20 minutes, though institutions usually raise it. A
-measurement is running against the live portal on a doubling ladder — 5, 15, 45,
-120, 360, 720, 1440 minutes idle — because ASP.NET's expiry is **sliding**, so a
-session poked every three minutes stays alive forever and a naive poller measures
-nothing. Each rung therefore gets a fresh sign-in, a genuinely idle wait, and
-**exactly one** check.
+ECAP's real idle timeout is not exposed over HTTP; it lives in `web.config`, and
+ASP.NET's default is 20 minutes though institutions usually raise it. It is being
+measured against the live portal on a doubling ladder — 5, 15, 45, 120, 360, 720,
+1440 minutes idle — because ASP.NET's expiry is **sliding**, so a session poked
+every three minutes stays alive forever and a naive poller measures nothing. Each
+rung therefore gets a fresh sign-in, a genuinely idle wait, and **exactly one**
+check.
+
+**That measurement is not a decision, so it does not live here.** This ADR records
+what was decided; a running experiment recorded inside it will be stale the moment
+it is written, and `CODING_STANDARDS.md` is explicit that this repo does not accept
+that. The ladder's log is a scratch file and its result will amend this section
+when it reports. Nothing in the design depends on the number: the TTL is a ceiling
+either way, and the only claim that did depend on it — the "up to 30 days" line in
+the sign-in form — has been removed rather than made vaguer.
 
 ## Decision
 
@@ -109,20 +117,41 @@ read files.
 The honest summary: this is a real improvement in one dimension and no change in
 another. It is not the difference between "protected" and "not protected".
 
-### One entry, because the vault cannot be listed
+### One entry per session, plus an index — and the size cap that forces it
 
-`Bun.secrets` has `get`, `set` and `delete` — and **no way to enumerate**. There
-is nothing to iterate at boot, which rules out one entry per session *and* the
-index file that would then be needed to find them.
+`Bun.secrets` has `get`, `set` and `delete` — and **no way to enumerate**, so
+something has to record which entries exist. That is `VAULT_INDEX`, a list of ids.
 
-Everything therefore lives in a single fixed entry. The whole set is read and
-rewritten together; the benefit is that **there is no index to fall out of step
-with the entries it points at**, which is the failure a file-per-session design
-has to be careful about and this one cannot have. Validation is still per session,
-so one unreadable session costs that session and not the rest.
+The obvious alternative is everything in one entry, and it is what this ADR
+originally decided. **It does not work.** On Windows a generic credential's blob
+is capped at `CRED_MAX_CREDENTIAL_BLOB_SIZE` = 5 × 512 = **2560 bytes**, and a
+session is ~526 bytes of JSON once the portal's 384-character `frmAuth` is in it.
+Measured on this build:
 
-`delete` is deliberately unused. A session is removed by rewriting the entry, so
-the `Secrets` interface the tests fake is only the surface production calls.
+```
+ 1 session  =  526 bytes  OK
+ 4 sessions = 2101 bytes  OK
+ 5 sessions = 2626 bytes  REJECTED: The stub received bad data. (code: 1783)
+```
+
+That is the worst shape of failure. `saveSessions` reports a problem rather than
+throwing, the server logs it and carries on serving, and **persistence simply
+stops working after the fifth sign-in** — with nothing on screen to say so. The
+first version of this design had exactly that bug. It was found only by accident:
+a test run had left four stale sessions in the vault, and the fifth write was
+rejected. Nothing in the code would have told us, and no test would have failed.
+
+One entry per session puts each comfortably under the cap and leaves the index
+holding only ids at ~39 bytes each, so the cap is not reached until roughly sixty
+sessions — not a real limit for a single-user local app.
+
+**Write order is load-bearing.** Sessions first, index second, orphan sweep third.
+A failure part-way then leaves an index naming only entries that are actually
+stored; the reverse order would leave an index pointing at nothing, and a load
+would drop live sessions. An entry is also re-checked against the key it was read
+from, so one filed under the wrong id cannot restore as a session whose id the
+cookie does not match. `delete` is used after all, to remove entries for sessions
+that have ended, so the store does not grow without bound.
 
 ### Everything else
 
@@ -130,10 +159,23 @@ the `Secrets` interface the tests fake is only the surface production calls.
   than by a comment. `Bun.serve` begins listening the moment it is called, so a
   restore placed after it leaves a window in which a request finds an empty map
   and signs a signed-in user out.
-- **Writes are debounced to 60 seconds**, flushed immediately on sign-in and
-  sign-out. Sixty seconds is not a durability guess: `at` is stamped on every
-  request, and rounding it to the nearest minute against a thirty-day window
+- **Writes are debounced to 60 seconds**, flushed immediately on sign-in **and
+  sign-out**. Sixty seconds is not a durability guess: `at` is stamped on every
+  request, and persisting it to the nearest minute against a thirty-day window
   changes nothing observable.
+  The two immediate flushes are the exception that proves the rule, and **the
+  sign-out one was originally missed.** It marked the store dirty and returned, so
+  sign out, hard-kill the server, start it again, and the session was still there
+  — the user ended it and it came back. The signal handlers do not help; they
+  cover a graceful Ctrl-C, not Task Manager or a power cut. `dropSession` now owns
+  the delete-and-dirty pair so the two cannot be separated again.
+- **The browser cookie is re-issued on every authenticated response.** The server's
+  session slides on use; a cookie written once at sign-in does not, so a user who
+  opened the app every day was signed out on day thirty-one anyway — the feature
+  failing for exactly the person it was built for, while this ADR claimed the
+  cookie was derived from the TTL so the two could not disagree. `Max-Age` only
+  means *thirty days from your last use* if something re-issues it, and the
+  browser has no other way to know the app is in use.
 - **A missing runtime is supported.** `bunSecrets()` returns null rather than
   throwing, and the app falls back to in-memory sessions — today's behaviour —
   instead of refusing to start. The banner says which one you got.
@@ -156,11 +198,19 @@ the `Secrets` interface the tests fake is only the surface production calls.
 - **The backend is injected**, so the credential-free suite covers all of this
   over a fake and never touches the real Windows Credential Manager — the same
   arrangement `server-routes.ts` already uses with its `PortalReader`.
-- **121 tests, 118 of them credential-free in about six seconds.** Eleven new, all
-  proven able to fail by seven mutations.
-- **The UI copy is now the weak point.** `SignInPanel` says "a session that stays
-  active for up to 30 days", which is true of *our* session and silent about
-  ECAP's. That is a claim to revisit once the ladder reports.
+- **130 tests, 124 of them runnable without credentials in about six seconds.**
+  Six are smoke tests and skip without them. Every session-store test is proven
+  able to fail: the one-entry shape, a truncated index, a mismatched id, the
+  orphan sweep, the write order, and the two immediate flushes each turn a named
+  test red when broken.
+- **One smoke test reads the real vault, read-only.** "A sign-out is persisted" is
+  a claim about a write reaching disk, and the only honest way to see that is to
+  look. Asserting it from the server's side would prove nothing — a session
+  removed from the map and never written still reads as signed-out. An earlier
+  version of `session-store.spec.ts` made exactly that mistake and would have gone
+  green with the flush deleted.
+- **The UI copy no longer claims a session length at all.** It did once, and the
+  number was the one thing on screen this app could not back.
 
 ## Alternatives considered
 

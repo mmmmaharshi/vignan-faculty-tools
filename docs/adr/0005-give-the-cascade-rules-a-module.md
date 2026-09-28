@@ -36,9 +36,15 @@ Split the cascade's *rules* from its *loop*.
 
 `web/cascade.ts` owns everything that is a function of data: `applyOptions`,
 `chosenLevels`, `isReady`, `disabledLevels`, `shouldContinue`, `chosenText`,
-`toPortalDate`, `defaultRange`, `statusOf`, `tintFor`, and the `LEVELS` vocabulary
-they share. It is pure, imports only `shared/api.ts`, and touches no DOM, no
-React and no globals.
+`toPortalDate`, `defaultRange`, `tintFor`, and the `LEVELS` vocabulary they share.
+It is pure, imports only `shared/api.ts`, and touches no DOM, no React and no
+globals.
+
+`statusOf` was in this list and is since gone — the CSV export was its only caller,
+so removing the export orphaned it. The band *thresholds* were never here: they
+live in `attendance-bands.ts`, and `withBands` sets the two flags the front end
+receives. `tintFor` reads those flags rather than the percentage, so it cannot
+disagree with the server about which band a student is in.
 
 `App.tsx` keeps `runRefresh`, `refreshToken`, `selRef` and `optsRef` - the part
 that is about *time* rather than data: which pass wins, and how a memoised

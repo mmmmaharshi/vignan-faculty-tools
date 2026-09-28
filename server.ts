@@ -440,10 +440,19 @@ const sessions = new Map<string, Session>();
  * Where the sessions are written, and how often.
  *
  * Sixty seconds is not a guess about durability, it is a statement that the
- * timestamp's precision is irrelevant: `at` is stamped on every request, and
- * rounding it to the nearest minute against a thirty-day window changes nothing
- * anybody can observe. Sign-in and sign-out flush immediately instead, because
- * those are the two moments where losing the write would actually be noticed.
+/**
+ * How often the vault is written when nothing structural has changed.
+ *
+ * Sixty seconds is a statement about the *timestamp's* precision, not about
+ * durability. `at` is stamped on every request, and persisting it to the nearest
+ * minute against a thirty-day window changes nothing anybody can observe - so
+ * there is no reason to write on each one.
+ *
+ * Sign-in and sign-out are the exceptions and are flushed immediately, because
+ * those are the two moments where losing the write is actually noticed: one loses
+ * a session the user believes they created, the other loses an ending they
+ * believe they performed. Leaving either to the tick meant a restart could undo
+ * it. See `flushSessions`'s callers and ADR 0014.
  */
 const SESSION_FLUSH_MS = 60_000;
 
@@ -461,6 +470,46 @@ let storeDirty = false;
 
 function markStoreDirty() {
   storeDirty = true;
+}
+
+/**
+ * Forget a session, and record that the vault now disagrees with the map.
+ *
+ * Three callers need exactly this - a deliberate sign-out, an expired portal jar,
+ * and the probe's 401 - and writing `if (id && sessions.delete(id))
+ * markStoreDirty()` at each of them is how one of them ends up forgetting the
+ * second half. That is not hypothetical: sign-out shipped calling `sessions.delete`
+ * without the flag, and then without the flush, and a restart resurrected the
+ * session the user had just ended.
+ *
+ * Returns whether anything was removed, so a caller can decide a write is needed.
+ */
+function dropSession(id: string | null): boolean {
+  if (!id) return false;
+  const removed = sessions.delete(id);
+  if (removed) markStoreDirty();
+  return removed;
+}
+
+/**
+ * The session cookie, re-issued on every authenticated response.
+ *
+ * The server's session **slides**: `at` is stamped on every request, so a
+ * thirty-day-old session used every day is still alive. The browser's cookie did
+ * not. It was written once at sign-in with a thirty-day `Max-Age` and never
+ * refreshed, so a user who opened the app daily was signed out on day thirty-one
+ * anyway - the feature failing for exactly the person it was built for, while the
+ * docs claimed the two could not disagree.
+ *
+ * Re-issuing on every authenticated response is what makes `Max-Age` mean
+ * *thirty days from your last use*, which is the only reading that matches the
+ * server. The browser has no other way to know the app is in use, and every
+ * authenticated request is that signal. One header, and no state to track.
+ */
+function refreshedCookie(id: string): Record<string, string> {
+  return {
+    "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`,
+  };
 }
 
 /** The map, reduced to the shape the store writes. */
@@ -562,7 +611,7 @@ function requireSession(req: Request): Session {
     throw new HttpError(401, "Your session expired. Please sign in again.");
   if (!s.portal.signedIn) {
     // The jar is dead. Drop it rather than leave it to fail again next request.
-    if (id && sessions.delete(id)) markStoreDirty();
+    dropSession(id);
     throw new HttpError(
       401,
       "Your ECAP session expired. Please sign in again."
@@ -740,14 +789,18 @@ const server = Bun.serve({
         // password the user believes they already gave.
         markStoreDirty();
         await flushSessions();
-        return json({ ok: true } satisfies OkReply, 200, {
-          "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`,
-        });
+        return json({ ok: true } satisfies OkReply, 200, refreshedCookie(id));
       }
 
       if (req.method === "POST" && path === "/api/logout") {
         const id = readCookie(req, "ecap_sid");
-        if (id && sessions.delete(id)) markStoreDirty();
+        // Awaited, not left to the tick. Leaving it to the tick meant a sign-out
+        // followed by a hard kill inside sixty seconds restored the session on the
+        // next boot - the exact thing the user asked to stop happening, and the
+        // reason the sign-out path is the one place that cannot defer its write.
+        // The signal handlers do not help: they cover a graceful Ctrl-C, not
+        // Task Manager or a power cut.
+        if (dropSession(id)) await flushSessions();
         return json({ ok: true } satisfies OkReply, 200, {
           "set-cookie": "ecap_sid=; Path=/; Max-Age=0",
         });
@@ -758,7 +811,8 @@ const server = Bun.serve({
         if (path === "/api/session") {
           // Probe the session, and do not require the portal cookie, so a stale
           // page can tell "not signed in" from "expired".
-          const s = getSession(readCookie(req, "ecap_sid"));
+          const id = readCookie(req, "ecap_sid");
+          const s = getSession(id);
           if (!s) return json({ signedIn: false } satisfies SessionReply, 200);
           // Ask the portal, rather than trusting the jar. With a 30-day session
           // the ECAP session dies long before ours does, and `jar.signedIn`
@@ -792,19 +846,25 @@ const server = Bun.serve({
             if (error instanceof HttpError && error.status === 401) {
               // The jar is dead. Drop it rather than make the next request
               // discover the same thing.
-              const id = readCookie(req, "ecap_sid");
-              if (id && sessions.delete(id)) markStoreDirty();
+              if (dropSession(id)) await flushSessions();
               return json({ signedIn: false } satisfies SessionReply, 200);
             }
           }
           return json(
             { signedIn: s.portal.signedIn } satisfies SessionReply,
-            200
+            200,
+            // The probe runs every five minutes, so a tab left open keeps rolling
+            // its cookie forward without anyone touching it.
+            id ? refreshedCookie(id) : undefined
           );
         }
 
         const s = requireSession(req);
         const { portal } = s;
+        // Re-issued on both data endpoints and on the probe above, so a tab in
+        // active use keeps its `Max-Age` rolling forward. See `refreshedCookie`.
+        const id = readCookie(req, "ecap_sid");
+        const cookie = id ? refreshedCookie(id) : undefined;
 
         // The decision-making lives in server-routes.ts, where it can be tested
         // without booting a server. What is left here is routing: this handler
@@ -814,7 +874,9 @@ const server = Bun.serve({
             await handleOptions(
               portal.reader,
               await readJson<OptionsRequest>(req)
-            )
+            ),
+            200,
+            cookie
           );
         }
 
@@ -823,7 +885,9 @@ const server = Bun.serve({
             await handleRegister(
               portal.reader,
               await readJson<RegisterRequest>(req)
-            )
+            ),
+            200,
+            cookie
           );
         }
 

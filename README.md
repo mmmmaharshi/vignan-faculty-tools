@@ -66,14 +66,16 @@ dropdowns in front of you it is easy to read last week's numbers as this week's.
   your machine except the sign-in request to ECAP over HTTPS.
 - It is used once, to encrypt the login payload. It is never written to disk,
   never logged, and never returned by any endpoint.
-- Sign-in keeps a session alive for **up to 30 days** of not using it — the timer
-  resets on every request, and the browser cookie is set to match. When it does
-  expire you sign in again. There is no stored password to leak or reuse.
+- Signing in opens a session that lasts up to **30 days without use**. Both halves
+  slide: the server stamps the session on every request, and the browser cookie is
+  re-issued on every response, so the window is 30 days from your *last* use rather
+  than from signing in. There is no stored password to leak or reuse.
 - **Restarting the server does not sign you out.** The sign-in token lives in the
-  **Windows Credential Manager** (via `Bun.secrets`), not in a file next to the
-  source, so nothing gets synced to cloud storage by accident. It is still not
-  the password — see above.
-- **The 30 days is a ceiling on our side, not a promise from ECAP.** Both of the
+  **Windows Credential Manager** (via `Bun.secrets`) on a runtime that has it, not
+  in a file next to the source, so nothing gets synced to cloud storage by
+  accident. It is still not the password — see above. Where there is no vault the
+  server says so on startup and falls back to in-memory sessions.
+- **That 30 days is a ceiling on our side, not a promise from ECAP.** Both of the
   portal's cookies are session cookies with no expiry, and the credential turns
   out to be bound to ECAP's own in-memory session. If ECAP forgets you, you sign
   in again no matter what is stored. This was measured against the live portal,

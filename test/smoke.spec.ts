@@ -24,10 +24,20 @@
  *    the badge count and the stat card disagree and this fails.
  *  - The line above the table names the register that is actually on screen.
  *  - No console errors or uncaught exceptions for the whole journey.
+ *  - A sign-out survives a restart, which is asserted by reading the OS vault
+ *    rather than by asking the server. See "the one test that reads the vault".
  */
+
+import { spawnSync } from "node:child_process";
+import nodePath from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { test, expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
+
+const STORE_URL = pathToFileURL(
+  nodePath.resolve("session-store.ts")
+).toString();
 
 // Defaulted rather than left undefined, so `test.skip` below is also a type
 // narrowing: without the ?? the compiler cannot tell that USER is a string by
@@ -138,6 +148,44 @@ async function signInAndLoad(page: Page): Promise<string> {
   await page.goto("/");
   await submitSignIn(page);
   return loadFirstSubject(page);
+}
+
+/**
+ * The one test that reads the OS vault, and why it has to.
+ *
+ * "A sign-out is persisted" is a claim about a **write reaching disk**, and the
+ * only honest way to see that is to look at what is on disk. Asserting it from
+ * the server's side - asking `/api/session` afterwards, say - would prove nothing:
+ * a session removed from the in-memory map and never written still reads as
+ * signed-out, so that assertion passes whether or not the write happened. An
+ * earlier version of `session-store.spec.ts` made exactly that mistake, calling
+ * `saveSessions` twice with a comment saying "what the logout handler writes",
+ * and would have gone green with the flush deleted.
+ *
+ * Read-only, and only this entry. Nothing here writes to the user's real
+ * Credential Manager.
+ *
+ * It shells out to `bun` because the Playwright runner is Node, where `Bun` does
+ * not exist. A child process is the honest way to reach a Bun-only API from here
+ * rather than pretending the test could ask directly.
+ */
+function vaultSessions(): { id: string }[] | null {
+  // Reads through the store's own `loadSessions`, so the test sees exactly what the
+  // server would see rather than a second reading of the vault's layout. The
+  // layout is not this test's business and has already changed once.
+  const script = [
+    `const { bunSecrets, loadSessions } = await import(${JSON.stringify(STORE_URL)});`,
+    `const b = bunSecrets();`,
+    `if (!b) { console.log("NOVAULT"); process.exit(0); }`,
+    `const s = await loadSessions(b);`,
+    `console.log(JSON.stringify(s.map((x) => ({ id: x.id }))));`,
+  ].join("");
+  const out = spawnSync("bun", ["-e", script], { encoding: "utf-8" });
+  const text = (out.stdout || "").trim();
+  if (text === "NOVAULT") return null;
+  if (!text) return [];
+  const parsed: unknown = JSON.parse(text);
+  return Array.isArray(parsed) ? (parsed as { id: string }[]) : null;
 }
 
 test.describe("ECAP attendance dashboard", () => {
@@ -571,5 +619,96 @@ test.describe("ECAP attendance dashboard", () => {
     // The reason, not merely *an* alert: an empty box here is the bug this file
     // has been bitten by before, and it is what `signedOut(why)` guards against.
     await expect(page.getByRole("alert")).toHaveText(/session expired/i);
+  });
+
+  test("a sign-out reaches the vault, so a restart cannot undo it", async ({
+    page,
+    request,
+  }) => {
+    // The bug this exists for: sign-out only marked the store dirty and left the
+    // write to the sixty-second tick. Sign out, hard-kill the server, start it
+    // again, and the session was still there - the user ended it and it came back.
+    // The signal handlers do not help, because they cover a graceful Ctrl-C and
+    // not Task Manager or a power cut.
+    await signInAndLoad(page);
+
+    const before = vaultSessions();
+    test.skip(before === null, "no OS vault on this runtime");
+
+    // The count is deliberately not asserted. Earlier sessions linger in the
+    // vault by design - a second browser stays signed in - so "exactly one" holds
+    // only on a clean machine and would fail here for the wrong reason. What
+    // matters is whether *this* session is there, and then gone.
+    const cookies = await page.context().cookies();
+    const sid = cookies.find((c) => c.name === "ecap_sid");
+    expect(sid?.value, "signed in, so there is a session cookie").toBeTruthy();
+    expect(
+      before?.map((s) => s.id),
+      "the session just created must be on disk before we end it"
+    ).toContain(sid?.value);
+
+    const res = await request.post("/api/logout", {
+      headers: { cookie: `ecap_sid=${sid?.value}` },
+    });
+    expect(res.ok()).toBe(true);
+
+    // Read the vault again immediately. Nothing is waiting on a timer, so if the
+    // session is still here the write did not happen - which is the whole claim.
+    const after = vaultSessions();
+    expect(
+      after?.map((s) => s.id),
+      "the ended session must be gone from the vault"
+    ).not.toContain(sid?.value);
+  });
+
+  test("the session cookie keeps rolling forward while the app is used", async ({
+    page,
+    baseURL,
+  }) => {
+    // The server's session slides on every request. The browser's cookie used not
+    // to: it was written once at sign-in with a thirty-day Max-Age and never
+    // refreshed, so a user who opened the app daily was signed out on day
+    // thirty-one anyway. This pins the other half of "the two cannot disagree".
+    await signInAndLoad(page);
+
+    const sid = () =>
+      page
+        .context()
+        .cookies()
+        .then((cs) => cs.find((c) => c.name === "ecap_sid"));
+    const first = await sid();
+    expect(
+      first?.expires ?? 0,
+      "signed in, so there is a cookie"
+    ).toBeGreaterThan(0);
+    const value = first?.value ?? "";
+
+    // Age the cookie so a re-issue is observable as a change rather than a
+    // coincidence of timing. Rewriting what the browser holds is the only way to
+    // see a rolling Max-Age from the outside, and it is the browser's own store.
+    const aged = Math.floor(Date.now() / 1000) + 60;
+    await page.context().clearCookies();
+    await page
+      .context()
+      .addCookies([
+        { url: baseURL ?? "", name: "ecap_sid", value, expires: aged },
+      ]);
+
+    // Through the **page**, not Playwright's `request` fixture. The fixture keeps
+    // its own cookie jar, so a `Set-Cookie` from a request-context response lands
+    // in *that* jar and this test would go on reading the page's jar unchanged -
+    // green, and proving nothing. The browser is the thing under test.
+    const reply = await page.evaluate(async () => {
+      const res = await fetch("/api/session");
+      return { status: res.status, body: await res.json() };
+    });
+    expect(reply.status).toBe(200);
+    expect(reply.body).toMatchObject({ signedIn: true });
+
+    const fresh = await sid();
+    expect(
+      fresh?.expires ?? 0,
+      "an authenticated response must push the expiry back out"
+    ).toBeGreaterThan(aged);
   });
 });

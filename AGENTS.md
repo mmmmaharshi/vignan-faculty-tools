@@ -177,11 +177,24 @@ theme key means you want a component prop instead.
   bound to ECAP's in-memory ASP.NET session, and a restored token whose session
   has lapsed is simply signed out. Do not let any UI copy imply otherwise. ADR
   0014.
-- **`Bun.secrets` cannot be enumerated** — `get`, `set`, `delete`, and no list.
-  That is why every session lives in **one** fixed entry rather than one entry
-  each: one-per-session would need an index, and an index is a second thing that
-  can fall out of step. A session is removed by rewriting the entry, so `delete`
-  is deliberately unused.
+- **The browser cookie is re-issued on every authenticated response, and it has
+  to be.** The server's session slides on use; a cookie written once at sign-in
+  does not, so a daily user was signed out on day 31 anyway. `refreshedCookie` in
+  `server.ts` is what makes `Max-Age` mean *thirty days from your last use*. Do
+  not "simplify" it back to a single write at sign-in.
+- **Sign-in and sign-out must `await flushSessions()`.** Leaving either to the
+  60-second tick means a restart can undo it, and the sign-out case is the one
+  that matters: the user ends a session, the server dies, and they are signed in
+  again. `dropSession` exists so the delete and the dirty flag cannot be separated
+  again.
+- **`Bun.secrets` cannot be enumerated**, so `VAULT_INDEX` lists the ids and each
+  session is its own entry. **One entry for all of them does not work**: Windows
+  caps a generic credential at `CRED_MAX_CREDENTIAL_BLOB_SIZE` = 5 × 512 = 2560
+  bytes and a session is ~526, so the fifth is rejected with `code 1783` and
+  persistence silently stops. Measured, and pinned by a test.
+- **Sessions are written before the index, and the index before the orphan
+  sweep.** A failure part-way must leave an index that only names entries which are
+  actually stored, or a load drops live sessions.
 - **Credential Manager is not a process boundary.** A separate process running as
   the same user reads an entry straight back. The vault narrows *at-rest*
   exposure — backups, cloud sync, disk imaging — and nothing else. Do not describe
