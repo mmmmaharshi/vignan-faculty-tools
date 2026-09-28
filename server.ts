@@ -60,7 +60,6 @@
  * re-use. If the portal session dies you sign in again.
  */
 
-import { summarise } from "./attendance-bands";
 import {
   absorbResponse,
   calendarPairs,
@@ -73,22 +72,19 @@ import {
 import {
   hiddenValue,
   HttpError,
-  level,
   looksLikeHtml,
   options,
-  parseRegister,
-  realOptions,
   unquoteJs,
 } from "./portal-replies";
+import { handleOptions, handleRegister } from "./server-routes";
+import type { PortalReader } from "./server-routes";
 import type {
   CascadeLevel,
   ErrorReply,
   LoginRequest,
   OkReply,
   Option,
-  OptionsReply,
   OptionsRequest,
-  RegisterReply,
   RegisterRequest,
   SessionReply,
 } from "./shared/api";
@@ -335,6 +331,18 @@ class Portal {
     );
   }
 
+  /**
+   * The reading half, which is all the route handlers need.
+   *
+   * Exposed as a property rather than by widening the class, so the dependency
+   * the handlers declare is the small one: a handler cannot sign in, cannot
+   * hold a jar and cannot make a request of its own. `PortalReader` is the
+   * interface, `Portal` is the first adapter, and a test's fake is the second.
+   */
+  get reader(): PortalReader {
+    return this;
+  }
+
   /** Branches and semesters arrive together, as d[0] and d[1]. */
   async branchesAndSemesters(
     courseId: string | number
@@ -451,19 +459,6 @@ function requireSession(req: Request): Session {
     );
   }
   return s;
-}
-
-/**
- * The level the client named, checked for both halves.
- *
- * `ShowAcademicCalendar` needs every level by identifier *and* by visible text,
- * and returns nothing at all rather than failing when a label is missing. So
- * both are checked here, where the message can name the level that is wrong.
- */
-function chosenLevel(b: Partial<RegisterRequest>, key: Level): Option {
-  const o = b[key];
-  if (!o?.value || !o.label) throw new HttpError(400, `Choose a ${key}.`);
-  return o;
 }
 
 /* ------------------------------------------------------------------ http */
@@ -606,103 +601,25 @@ const server = Bun.serve({
         const s = requireSession(req);
         const { portal } = s;
 
-        /**
-         * The whole selection is sent each time; only the levels that are now
-         * derivable get filled, and deeper ones come back empty so the front
-         * end can disable them.
-         */
+        // The decision-making lives in server-routes.ts, where it can be tested
+        // without booting a server. What is left here is routing: this handler
+        // decides which function runs and hands it a portal it can read from.
         if (req.method === "POST" && path === "/api/options") {
-          const b = await readJson<OptionsRequest>(req);
-          // Every level comes back on every call, deeper ones empty rather than
-          // absent, so the front end can tell "not yet derivable" from "chosen,
-          // and genuinely empty". Filled in place because each level is
-          // conditional on the ones above it, so it cannot be one literal.
-          //
-          // A level that *was* asked for and came back empty is recorded in
-          // `emptyLevels` rather than thrown. Nothing observable has ever been
-          // empty, but the survey behind that only covers the one course this
-          // account can see, and a 502 on an unobserved course would block the
-          // screen for everyone. See `level` in portal-replies.ts.
-          const emptyLevels: Level[] = [];
-          /* oxlint-disable unicorn/no-immediate-mutation -- filled per branch */
-          const out: OptionsReply = {
-            course: [],
-            semester: [],
-            branch: [],
-            section: [],
-            subject: [],
-            emptyLevels,
-          };
-
-          const take = (key: Level, list: Option[]): void => {
-            const { choices, empty } = level(list);
-            out[key] = choices;
-            if (empty) emptyLevels.push(key);
-          };
-
-          take("course", realOptions(await portal.courses()));
-
-          if (b.course) {
-            const [branches, semesters] = await portal.branchesAndSemesters(
-              b.course
-            );
-            take("branch", realOptions(branches));
-            take("semester", realOptions(semesters));
-          }
-          if (b.course && b.branch && b.semester) {
-            take(
-              "section",
-              realOptions(
-                await portal.sections(
-                  b.course,
-                  b.branch,
-                  b.semester,
-                  b.semesterTitle
-                )
-              )
-            );
-          }
-          if (b.course && b.branch && b.semester && b.section) {
-            take(
-              "subject",
-              realOptions(await portal.subjects(b.course, b.branch, b.semester))
-            );
-          }
-          /* oxlint-enable unicorn/no-immediate-mutation */
-          return json(out);
+          return json(
+            await handleOptions(
+              portal.reader,
+              await readJson<OptionsRequest>(req)
+            )
+          );
         }
 
         if (req.method === "POST" && path === "/api/register") {
-          const b = await readJson<RegisterRequest>(req);
-          if (!b.from || !b.to)
-            throw new HttpError(400, "Choose a date range.");
-
-          // Every level arrives whole, because the client is the only side that
-          // still holds the labels. Checked here, per level, so the message can
-          // name the one that is wrong.
-          const p: Record<Level, Option> = {
-            course: chosenLevel(b, "course"),
-            semester: chosenLevel(b, "semester"),
-            branch: chosenLevel(b, "branch"),
-            section: chosenLevel(b, "section"),
-            subject: chosenLevel(b, "subject"),
-          };
-          const { from, to } = b;
-
-          const rows = parseRegister(
-            await portal.register({ ...p, from: b.from, to: b.to })
+          return json(
+            await handleRegister(
+              portal.reader,
+              await readJson<RegisterRequest>(req)
+            )
           );
-          if (!rows.length) {
-            throw new HttpError(
-              502,
-              "The register came back empty. Either the subject has no classes in that date range, or ECAP's page layout has changed."
-            );
-          }
-
-          // The bands and the counts come from one module and one pass, so the
-          // stat cards cannot disagree with the flags on the rows. See
-          // attendance-bands.ts and ADR 0006.
-          return json(summarise(rows, { from, to }) satisfies RegisterReply);
         }
 
         return json({ error: "Not found" } satisfies ErrorReply, 404);
