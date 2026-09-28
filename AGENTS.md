@@ -75,6 +75,28 @@ with a decision in it therefore lives in a file importable without one, and
 `server.ts` is HTTP plumbing only. A network call in any of those files makes the
 credential-free suite unreachable.
 
+## The rail
+
+The sidebar holds navigation, the signed-in user's name, and **Sign out**. The
+cascade and the register are in the main area — the rail was 320px when it held
+five dropdowns, and "Information Technology" truncated to "Infc" in it, so the
+control that names the class you picked was the one you could not read.
+
+- **It is 300px wide, and 300 is Mantine's own number** — the width in the
+  canonical `AppShell` example in Mantine's documentation. There is no token for
+  it: `theme.spacing` tops out at `xl: 32`. Do not "tidy" it to a rounder-looking
+  280 or 320 without a reason; the number is borrowed, not chosen.
+- **Layout is `AppShell.Section` plus `Stack`, never margin.** The first section
+  takes `grow` so the second sits on the bottom of the rail; `Stack gap="xs"` is
+  the gap between the buttons. Mantine already provides both mechanisms.
+- **The buttons are `Button` with `variant` and `aria-current` swapped from
+  `pathname` on every render.** `Button` has no `active` prop, so the current
+  screen is a variant, and it cannot drift from the URL. `fullWidth` and
+  `justify="flex-start"` are the only other props — the rail looks the way it
+  looks because it is stock components with stock props.
+- **The header carries the burger and the title, and nothing else.** The user
+  name and Sign out moved out of it when the rail got wide enough to hold them.
+
 ## Routing
 
 Three screens, at three paths: `/dashboard` is the cascade and the register,

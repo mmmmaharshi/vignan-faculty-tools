@@ -4,11 +4,12 @@ import {
   Button,
   Container,
   Group,
+  Stack,
   Text,
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { SquaresFour, UserCircle } from "@phosphor-icons/react";
+import { SignOut, SquaresFour, UserCircle } from "@phosphor-icons/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -393,60 +394,70 @@ const App = (): React.JSX.Element => {
       header={{ height: 60 }}
       padding="lg"
       navbar={{
-        width: 200,
+        width: 300,
         breakpoint: "sm",
         collapsed: { mobile: !navOpen, desktop: screen !== "app" },
       }}
     >
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between" align="center">
-          <Group gap="sm">
-            {screen === "app" ? (
-              <Burger
-                opened={navOpen}
-                onClick={() => nav.toggle()}
-                hiddenFrom="sm"
-                size="sm"
-                aria-label="Show the navigation"
-              />
-            ) : null}
-            <Title order={3}>Vignan Faculty Tools</Title>
-          </Group>
-          <Group gap="sm">
+        <Group h="100%" px="md" align="center" gap="sm">
+          {screen === "app" ? (
+            <Burger
+              opened={navOpen}
+              onClick={() => nav.toggle()}
+              hiddenFrom="sm"
+              size="sm"
+              aria-label="Show the navigation"
+            />
+          ) : null}
+          <Title order={3}>Vignan Faculty Tools</Title>
+        </Group>
+      </AppShell.Header>
+      <AppShell.Navbar p="md">
+        <AppShell.Section grow>
+          <Stack gap="xs">
+            <Button
+              onClick={() => navigate(DASHBOARD_PATH)}
+              variant={!onLogin && !onProfile ? "filled" : "subtle"}
+              aria-current={!onLogin && !onProfile ? "page" : undefined}
+              leftSection={<SquaresFour size={18} aria-hidden />}
+              fullWidth
+              justify="flex-start"
+            >
+              Dashboard
+            </Button>
+            <Button
+              onClick={() => navigate(PROFILE_PATH)}
+              variant={onProfile ? "filled" : "subtle"}
+              aria-current={onProfile ? "page" : undefined}
+              leftSection={<UserCircle size={18} aria-hidden />}
+              fullWidth
+              justify="flex-start"
+            >
+              Profile
+            </Button>
+          </Stack>
+        </AppShell.Section>
+        <AppShell.Section>
+          <Stack gap="xs">
             {screen === "app" && userId.trim() ? (
               <Text c="dimmed" size="sm">
                 {userId.trim()}
               </Text>
             ) : null}
             {screen === "app" ? (
-              <Button variant="default" onClick={signOut}>
+              <Button
+                onClick={signOut}
+                variant="default"
+                leftSection={<SignOut size={18} aria-hidden />}
+                fullWidth
+                justify="flex-start"
+              >
                 Sign out
               </Button>
             ) : null}
-          </Group>
-        </Group>
-      </AppShell.Header>
-      <AppShell.Navbar p="md">
-        <Button
-          onClick={() => navigate(DASHBOARD_PATH)}
-          variant={!onLogin && !onProfile ? "filled" : "subtle"}
-          aria-current={!onLogin && !onProfile ? "page" : undefined}
-          leftSection={<SquaresFour size={18} aria-hidden />}
-          fullWidth
-          justify="flex-start"
-        >
-          Dashboard
-        </Button>
-        <Button
-          onClick={() => navigate(PROFILE_PATH)}
-          variant={onProfile ? "filled" : "subtle"}
-          aria-current={onProfile ? "page" : undefined}
-          leftSection={<UserCircle size={18} aria-hidden />}
-          fullWidth
-          justify="flex-start"
-        >
-          Profile
-        </Button>
+          </Stack>
+        </AppShell.Section>
       </AppShell.Navbar>
       <AppShell.Main>
         {screen === "app" ? (

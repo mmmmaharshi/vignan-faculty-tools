@@ -306,6 +306,46 @@ test.describe("Vignan Faculty Tools", () => {
     );
     await expect(profile).toHaveAttribute("aria-current", "page");
   });
+
+  test("the rail holds the sign-out, and the header does not", async ({
+    page,
+  }) => {
+    // Sign out and the user name moved out of the header and into the rail. The
+    // header is the burger and the title now, and a control that belongs to the
+    // navigation sitting above the navigation is a control nobody looks for.
+    //
+    // Scoped by ARIA landmark role rather than by CSS class. `AppShell.Navbar`
+    // renders a `<nav>` and `AppShell.Header` a `<header>`, so these are real
+    // landmarks - and Mantine's own class names are hashed (`m_45252eee` and
+    // friends), which would make a `.mantine-AppShell-navbar` selector match
+    // nothing at all and fail for the wrong reason.
+    //
+    // The point of the test is *which* region a control is in, so an unscoped
+    // assertion would pass with the button back in the header.
+    await page.goto("/dashboard");
+    await submitSignIn(page);
+
+    const rail = page.getByRole("navigation");
+    await expect(rail.getByRole("button", { name: "Sign out" })).toBeVisible();
+    await expect(rail.getByText(USER, { exact: true })).toBeVisible();
+
+    // And the header is empty of them, asserted as an absence so this fails if
+    // the move is half-reverted.
+    const header = page.getByRole("banner");
+    await expect(header.getByRole("button", { name: "Sign out" })).toHaveCount(
+      0
+    );
+    await expect(header.getByText(USER, { exact: true })).toHaveCount(0);
+    // What is left in the header is the app name, which is the point of a header.
+    await expect(
+      header.getByRole("heading", { name: "Vignan Faculty Tools" })
+    ).toBeVisible();
+
+    // Still works from where it now lives.
+    await rail.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
+  });
+
   test("a deep link to the profile is reachable, and reaches the dashboard", async ({
     page,
   }) => {
