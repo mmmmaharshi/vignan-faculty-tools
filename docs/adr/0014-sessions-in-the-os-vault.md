@@ -90,6 +90,11 @@ So the practical ceiling on any session here is ECAP's, not ours, and it is
 
 ## Decision
 
+The evidence for the choice below — the primary sources, the comparison table, and
+why each rejected option was rejected — is in
+[`docs/research/credential-storage.md`](../research/credential-storage.md). It is
+the record of what was investigated; this is the record of what was decided.
+
 ### `Bun.secrets`, not a file
 
 `Bun.secrets` is already installed — no new dependency, and it is Bun's own API

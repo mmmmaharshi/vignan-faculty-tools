@@ -3,6 +3,18 @@
 Research date: 2026-09-28. All claims below carry a primary-source URL. Anything
 I could not confirm from a primary source is marked **UNVERIFIED**.
 
+> **This is the evidence behind [ADR 0014](../adr/0014-sessions-in-the-os-vault.md),
+> not a plan.** Its conclusion — use `Bun.secrets`, do not store the password — is
+> what was implemented. Read it as a record of what was investigated and why the
+> alternatives were rejected, not as current guidance.
+>
+> Two things changed after it was written, both found by reviewing the code it led
+> to. **The recommendation it rejected an option for is now the one in use:** it
+> weighed storing a `password`, and the answer was no — persist the *session*
+> instead. And it recommends an `expiresAt` field where the code uses a sliding
+> `at`, deliberately. The `UNVERIFIED` markers are left as the researcher wrote
+> them rather than quietly upgraded to fact.
+
 ---
 
 ## What this app should do
