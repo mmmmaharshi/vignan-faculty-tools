@@ -65,21 +65,28 @@ What persistence genuinely buys is the case that was actually asked for:
 lasts, and it is common — restarting mid-afternoon is not returning after a
 fortnight.
 
-ECAP's real idle timeout is not exposed over HTTP; it lives in `web.config`, and
-ASP.NET's default is 20 minutes though institutions usually raise it. It is being
+ECAP's real idle timeout is not exposed over HTTP; it lives in `web.config`. It was
 measured against the live portal on a doubling ladder — 5, 15, 45, 120, 360, 720,
 1440 minutes idle — because ASP.NET's expiry is **sliding**, so a session poked
 every three minutes stays alive forever and a naive poller measures nothing. Each
-rung therefore gets a fresh sign-in, a genuinely idle wait, and **exactly one**
+rung therefore got a fresh sign-in, a genuinely idle wait, and **exactly one**
 check.
 
-**That measurement is not a decision, so it does not live here.** This ADR records
-what was decided; a running experiment recorded inside it will be stale the moment
-it is written, and `CODING_STANDARDS.md` is explicit that this repo does not accept
-that. The ladder's log is a scratch file and its result will amend this section
-when it reports. Nothing in the design depends on the number: the TTL is a ceiling
-either way, and the only claim that did depend on it — the "up to 30 days" line in
-the sign-in form — has been removed rather than made vaguer.
+**The result: ECAP's idle session is between 15 and 45 minutes.** Alive at 15, dead
+at 45.
+
+So the practical ceiling on any session here is ECAP's, not ours, and it is
+**short**. Three consequences, stated rather than smoothed over:
+
+- The 30-day TTL is a ceiling nothing will reach. The app's own window is long
+  enough to cover a coffee break and little else, so what the persistence actually
+  buys is **surviving our own restart**, which is the case that was asked for and
+  the one that is genuinely common.
+- A sign-in that is idle for half an hour needs re-authenticating. That is ECAP's
+  behaviour, not ours, and no amount of local storage changes it.
+- The sign-in form's "up to 30 days" line was removed rather than restated. A
+  truthful replacement would have to name ECAP's timeout, which we do not control
+  and cannot promise to keep true.
 
 ## Decision
 
