@@ -511,12 +511,12 @@ test.describe("ECAP attendance dashboard", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
 
-    // The number the sign-in form quotes is the same 30 days the cookie gets.
-    // It is a claim to the user, so it is worth holding to the same value rather
-    // than letting the two drift apart in a comment nobody reads.
-    await expect(page.getByText(/stays active for up to \d+ days?/)).toHaveText(
-      /up to 30 days/
-    );
+    // Signing out deliberately has nothing to explain, so the sign-in form shows
+    // no alert at all. Mantine's Alert carries role="alert" by default, so this
+    // counts the box itself rather than any text inside it - which is the point,
+    // because the bug it guards is an alert with *empty* text. Asserting on text
+    // content would pass straight through that.
+    await expect(page.getByRole("alert")).toHaveCount(0);
 
     // Sign in again in the SAME document. A page load would discard React state
     // and the test would pass whatever signedOut did or did not clear, which is
@@ -536,5 +536,40 @@ test.describe("ECAP attendance dashboard", () => {
       page.getByLabel("Show only irregular students")
     ).not.toBeChecked();
     await expect(page.locator("tbody tr")).toHaveCount(total);
+  });
+
+  test("a session that dies while you are working says so, and why", async ({
+    page,
+    request,
+  }) => {
+    // The other half of the sign-in form's alert, and the only path that sets a
+    // note with a reason in it. A deliberate sign-out must stay silent; a dead
+    // session must explain itself, or the user is dropped on a form with no idea
+    // what happened.
+    //
+    // Ended from OUTSIDE the browser, so the page still believes it is signed in
+    // and has to discover the truth for itself - which is the situation being
+    // tested. Deliberately failing a sign-in would reach the same branch but
+    // risks an account lockout on a real portal, so it is not done here.
+    await signInAndLoad(page);
+
+    const cookies = await page.context().cookies();
+    const sid = cookies.find((c) => c.name === "ecap_sid");
+    expect(sid, "signed in, so there is a session cookie").toBeTruthy();
+    await request.post("/api/logout", {
+      headers: { cookie: `ecap_sid=${sid?.value}` },
+    });
+
+    // The probe also runs on an interval, but waiting five minutes for it is not
+    // a test. `visibilitychange` is the same trigger a returning user fires, and
+    // the app listens for it directly.
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("visibilitychange"))
+    );
+
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
+    // The reason, not merely *an* alert: an empty box here is the bug this file
+    // has been bitten by before, and it is what `signedOut(why)` guards against.
+    await expect(page.getByRole("alert")).toHaveText(/session expired/i);
   });
 });

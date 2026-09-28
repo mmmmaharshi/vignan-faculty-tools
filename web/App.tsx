@@ -273,8 +273,8 @@ const App = (): React.JSX.Element => {
       setSignedIn(false);
       // Only a note when there is a reason for one. Signing out deliberately
       // passes an empty string, and a note object with empty text is truthy - so
-      // setting one replaced the reassurance under the sign-in form with a blank
-      // alert. An expiry explains itself; a deliberate sign-out needs no excuse.
+      // setting one rendered an empty alert under the sign-in form. An expiry
+      // explains itself; a deliberate sign-out needs no excuse.
       setLoginNote(why ? { kind: "warning", text: why } : null);
       setFilterNote(null);
       setBusy(false);

@@ -31,17 +31,6 @@ type SignInPanelProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
 
-/**
- * The reassurance shown when there is no error. Hoisted because it never varies,
- * so the same element descriptor is reused rather than rebuilt on every render.
- */
-const REASSURANCE = (
-  <Alert color="blue">
-    Your credentials are used once to sign in and are never stored by this app.
-    Signing in opens a session that stays active for up to 30 days.
-  </Alert>
-);
-
 export const SignInPanel = ({
   userId,
   password,
@@ -74,12 +63,19 @@ export const SignInPanel = ({
             Sign in
           </Button>
         </Group>
-        {note ? (
+        {/* Nothing at all when there is no note. There used to be a standing
+            reassurance here - that credentials are never stored, and how long the
+            session lasts - and it was cut for two reasons. It was noise on a form
+            with two fields. And the session claim was the one number on the
+            screen this app could not back: the portal's own cookies are session
+            cookies, so ECAP can end the session long before ours does (ADR 0014).
+            A standing claim we cannot keep is worse than no claim. The
+            "never stored" promise is still true, and still printed on every
+            server start. */}
+        {note && (
           <Alert color={note.kind === "error" ? "red" : "yellow"}>
             {note.text}
           </Alert>
-        ) : (
-          REASSURANCE
         )}
       </Stack>
     </form>

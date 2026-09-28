@@ -190,9 +190,13 @@ theme key means you want a component prop instead.
   makes that true. `Bun.serve` listens the moment it is called, so a restore after
   it leaves a window where a request finds an empty map and signs a signed-in user
   out.
-- **`signedOut(why)` takes a reason, and an empty one means no note.** A note
-  object with empty text is truthy, so passing `""` took the `note` branch and
-  replaced the sign-in reassurance with a blank alert.
+- **`signedOut(why)` takes a reason, and an empty one means no alert at all.** A
+  note object with empty text is *truthy*, so passing `""` rendered an empty
+  alert under the sign-in form. The sign-in form now shows **nothing** unless
+  there is something to say: a deliberate sign-out is silent, and a session that
+  died while you were working explains itself. Both halves have a mutation check
+  — assert on `getByRole("alert")`, which counts the box, not its text, because
+  the bug being guarded is precisely an alert with *no* text.
 - **The URL-write effect must skip while the selection is empty.** It and
   `signedOut`'s navigation are competing history writers; without that guard,
   signing out navigated to `/login` and was immediately dragged back to `/`.
@@ -262,7 +266,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**118 of the 121 tests need no credentials and run in about six seconds.** They
+**118 of the 122 tests need no credentials and run in about six seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, the cascade's rules, and session persistence over a
 fake vault. Only `test/smoke.spec.ts` touches the network — and it skips without
