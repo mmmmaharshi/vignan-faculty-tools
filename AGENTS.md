@@ -118,8 +118,8 @@ theme key means you want a component prop instead.
   "Cannot read properties of null" the first time anyone types. Read the value
   into a local first. This shipped once and blanked the whole page.
 - **`toISOString()` is a UTC conversion, and a date a human means is local.**
-  `defaultRange` used it on a local-midnight date and shipped a 31 December to
-  every reader east of Greenwich.
+  `defaultRange` used it on a local-midnight date and opened the range one day
+  early for every reader east of Greenwich.
 - **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
   `index.html` not at all; changing that pair reintroduces "my fix did nothing".
 - **Every Playwright run lints and typechecks first.** Vite and Playwright both
@@ -172,7 +172,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**96 of the 97 tests need no credentials and run in about two seconds.** They
+**99 of the 100 tests need no credentials and run in about two seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, and the cascade's rules. Only
 `test/smoke.spec.ts` touches the network — and it skips without credentials, so
@@ -208,3 +208,4 @@ Five canonical roles, default strings. See `docs/agents/triage-labels.md`.
 
 ### Domain docs
 Single-context: `CONTEXT.md` + `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+

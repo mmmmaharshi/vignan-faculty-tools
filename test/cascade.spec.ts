@@ -377,21 +377,53 @@ test.describe("dates", () => {
     expect(toPortalDate("nonsense")).toBe("");
   });
 
-  test("the app opens on this calendar year, in the reader's own timezone", () => {
-    // Constructed as local dates, deliberately, because that is the bug this
-    // guards. `new Date(y, 0, 1)` is local midnight; reading it back through
-    // toISOString() gives 31 December anywhere east of Greenwich, so the range
-    // would start a day early for every reader in IST.
-    const range = defaultRange(new Date(2026, 8, 28, 12, 0, 0));
-    expect(range.from).toBe("2026-01-01");
-    expect(range.to).toBe("2026-09-28");
+  test("the app opens on the 1st of this month, not the year or a rolling window", () => {
+    // The default is month-to-date. A term or a calendar year would dilute the
+    // percentage with classes a student attended before something changed, and
+    // the number would stop answering "how are they doing now".
+    expect(defaultRange(new Date(2026, 8, 28, 12, 0, 0))).toEqual({
+      from: "2026-09-01",
+      to: "2026-09-28",
+    });
   });
 
-  test("midnight on 1 January does not slip back into the previous year", () => {
-    // The exact instant the old toISOString() version got wrong.
-    const range = defaultRange(new Date(2026, 0, 1, 0, 0, 0));
-    expect(range.from).toBe("2026-01-01");
-    expect(range.to).toBe("2026-01-01");
+  test("the 1st of the month is the 1st, in a 30-day month and a 31-day one", () => {
+    // The day argument is always 1, so month length cannot reach it - but a
+    // month that begins on the 1st is the case that broke before.
+    expect(defaultRange(new Date(2026, 3, 30, 12, 0, 0)).from).toBe(
+      "2026-04-01"
+    );
+    expect(defaultRange(new Date(2026, 4, 31, 12, 0, 0)).from).toBe(
+      "2026-05-01"
+    );
+    expect(defaultRange(new Date(2024, 1, 29, 12, 0, 0)).from).toBe(
+      "2024-02-01"
+    );
+  });
+
+  test("in January the 1st of the month is also the 1st of the year", () => {
+    // The two defaults are indistinguishable here, which is the one case where
+    // a change in the rule would not show up.
+    expect(defaultRange(new Date(2026, 0, 15, 12, 0, 0))).toEqual({
+      from: "2026-01-01",
+      to: "2026-01-15",
+    });
+  });
+
+  test("on the 1st itself the range is a single day, not a negative one", () => {
+    expect(defaultRange(new Date(2026, 8, 1, 0, 0, 0))).toEqual({
+      from: "2026-09-01",
+      to: "2026-09-01",
+    });
+  });
+
+  test("midnight on the 1st does not slip back into the previous month", () => {
+    // The exact instant the old toISOString() version got wrong: local midnight
+    // read back through UTC is the day before, east of Greenwich. The 1st of
+    // the month is where that costs a day of the range.
+    const range = defaultRange(new Date(2026, 8, 1, 0, 0, 0));
+    expect(range.from).toBe("2026-09-01");
+    expect(range.to).toBe("2026-09-01");
   });
 
   test("a single-digit month and day are zero-padded, so the input accepts them", () => {

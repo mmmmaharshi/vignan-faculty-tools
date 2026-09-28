@@ -31,7 +31,7 @@ bunx playwright install chromium                          # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**96 of the 97 tests need no credentials and no network, and run in about two
+**99 of the 100 tests need no credentials and no network, and run in about two
 seconds.** They cover the portal's parsing, its wire conventions, the attendance
 bands, the two route handlers (over a fake portal), and the cascade's rules.
 
@@ -161,7 +161,7 @@ web/components/       four presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build config
 playwright.config.ts  test runner config
-test/*.spec.ts        96 fast tests, no credentials; plus one live smoke test
+test/*.spec.ts        99 fast tests, no credentials; plus one live smoke test
 tsconfig*.json        three projects, split so web/ has DOM and server.ts does not
 dist/                 build output, served by server.ts
 ```
@@ -190,7 +190,7 @@ anything with a decision in it lives in a file that can be imported without one.
   the client in the summary, so the stat cards and the row flags cannot disagree.
   A percentage the portal would not give is in no band at all and is left out of
   the class average — a parsing failure is not evidence of bad attendance.
-- 96 fast tests with no credentials, and one end-to-end smoke test against the
+- 99 fast tests with no credentials, and one end-to-end smoke test against the
   live portal. Every fast test was proven to fail by breaking the rule it
   describes.
 - If the portal changes its markup, the `Portal` methods in `server.ts` will need
@@ -198,3 +198,4 @@ anything with a decision in it lives in a file that can be imported without one.
   especially — when the text `ShowAcademicCalendar` expects stops matching, the
   register comes back empty rather than erroring, and the 502 says so: either the
   date range is wrong or the layout has changed.
+

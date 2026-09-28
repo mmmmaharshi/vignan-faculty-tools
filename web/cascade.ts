@@ -204,21 +204,24 @@ function isoDay(d: Date): string {
 }
 
 /**
- * The range the app opens with: this calendar year to today.
+ * The range the app opens with: the 1st of this month to today.
  *
- * A teaching year, not a rolling 30 days. Attendance is read against a term, and
- * a range that starts in January is the one a faculty member means by "so far".
+ * Month-to-date, because that is the window a check-in conversation is about.
+ * A wider range - a term, a calendar year - dilutes the percentage with classes
+ * a student may have attended before something changed, and the number stops
+ * answering "how are they doing now". The register itself still shows every
+ * student, so a wider range is two clicks away when someone wants it.
  *
  * Built from the local date parts rather than `toISOString()`, on purpose.
- * `new Date(y, 0, 1)` is local midnight, and `toISOString` converts it to UTC,
- * so anywhere east of Greenwich the 1 January comes back as 31 December. That
- * is a one-day window at the wrong end of the calendar, and it was invisible
- * until this function had a test.
+ * `new Date(y, m, 1)` is local midnight, and `toISOString` converts it to UTC,
+ * so anywhere east of Greenwich the 1st comes back as the last day of the month
+ * before. That is a one-day window at the wrong end of the range, and it was
+ * invisible until this function had a test.
  */
 export function defaultRange(now: Date = new Date()): Range {
   return {
     to: isoDay(now),
-    from: isoDay(new Date(now.getFullYear(), 0, 1)),
+    from: isoDay(new Date(now.getFullYear(), now.getMonth(), 1)),
   };
 }
 

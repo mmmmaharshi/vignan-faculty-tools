@@ -92,10 +92,11 @@ shape, no dispatch, and the same order of operations.
   it being free of both, and it was verified by probe rather than assumed.
 - **A real bug surfaced immediately.** `defaultRange` built its range with
   `toISOString()`, which converts local midnight to UTC - so east of Greenwich the
-  app opened on **31 December**. One day, at the wrong end of the calendar, for
-  every reader in IST, and invisible until the function had a test. It now builds
-  from local date parts, and two tests hold it: the 1 January case and a
-  single-digit month that would not have been accepted by a date input.
+  app opened one day early, at the wrong end of the range, for every reader in
+  IST, and it was invisible until the function had a test. It now builds from
+  local date parts, and tests hold it: the 1st-of-the-month case, where the
+  conversion costs a day of the range, and a single-digit month that would not
+  have been accepted by a date input.
 - `web/components/rowStyle.ts` is deleted and `web/types.ts` is reduced to one
   type. See the architecture review's candidate 5: both failed the deletion test,
   and this was the moment to notice.
