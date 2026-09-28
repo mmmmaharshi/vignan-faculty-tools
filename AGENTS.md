@@ -110,6 +110,11 @@ theme key, stop — the answer is a component prop, the same as above.
 `main.tsx` is the single place theme decisions live. Keep it that way, so
 "what does this app's Mantine config look like" has a one-line answer.
 
+## React
+
+**While writing front-end code, consult `vercel-react-best-practices` and
+`vercel-composition-patterns`.**
+
 ## Things that will bite you
 
 - **The portal is a client-side shell.** Its Academic Register page renders no
