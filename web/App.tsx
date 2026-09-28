@@ -56,6 +56,7 @@ import { useLocation, useNavigate, useSearchParams } from "react-router";
 import type {
   LoginRequest,
   OkReply,
+  Option,
   OptionsReply,
   OptionsRequest,
   RegisterReply,
@@ -78,7 +79,7 @@ import {
   statusOf,
   toPortalDate,
 } from "./cascade";
-import type { Level, Sel } from "./cascade";
+import type { Level, Range, Sel } from "./cascade";
 import { ClassPicker } from "./components/ClassPicker";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
@@ -205,7 +206,7 @@ const App = (): React.JSX.Element => {
   const [sel, setSel] = useState<Sel>(seeded.sel);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
 
-  const [range, setRange] = useState<{ from: string; to: string }>(() => ({
+  const [range, setRange] = useState<Range>(() => ({
     from: seeded.range.from || defaultRange().from,
     to: seeded.range.to || defaultRange().to,
   }));
@@ -281,6 +282,84 @@ const App = (): React.JSX.Element => {
     [navigate]
   );
 
+  /* ---- register ---- */
+
+  /**
+   * Fetch a register and put it on screen.
+   *
+   * Takes the levels as arguments rather than reading them, and that is the whole
+   * point. The cascade computes a selection and has it in hand before React has
+   * committed a render for it, so a function closing over `sel` would send the
+   * *previous* selection - which is why the auto-load below arrived with "Choose
+   * a course first" on a link whose course was plainly set.
+   *
+   * One function, two callers: the button, and the cascade. So there is one place
+   * that talks to `/api/register`, and one place that can go wrong.
+   */
+  const fetchRegister = useCallback(
+    async (levels: Record<Level, Option>, dates: Range) => {
+      setBusy(true);
+      setLoadNote("Reading the register from ECAP...");
+      // The same counter the refresh loop uses, so a session that ends while this
+      // is in flight invalidates the reply rather than letting it land on the
+      // login screen - which is how the previous session's register used to
+      // survive into the next one.
+      const token = ++refreshToken.current;
+      try {
+        const request: RegisterRequest = {
+          ...levels,
+          from: toPortalDate(dates.from),
+          to: toPortalDate(dates.to),
+        };
+        const body = await api<RegisterReply>("/api/register", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+        });
+        if (token !== refreshToken.current) return;
+        setResult(body);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          signedOut("Your session expired. Please sign in again.");
+          return;
+        }
+        setFilterNote({
+          kind: "error",
+          text: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        if (token === refreshToken.current) {
+          setBusy(false);
+          setLoadNote("");
+        }
+      }
+    },
+    [signedOut]
+  );
+
+  /**
+   * What `Load register` does: check the current selection, then fetch it.
+   *
+   * Memoised so `runRefresh` can call it as an honest dependency. A fresh function
+   * every render would make the cascade re-run on every change.
+   */
+  const loadRegister = useCallback(async () => {
+    setFilterNote(null);
+    if (!range.from || !range.to) {
+      setFilterNote({ kind: "warning", text: "Choose a date range." });
+      return;
+    }
+    const chosen = chosenLevels(opts, sel);
+    if (!chosen.ok) {
+      setFilterNote({
+        kind: "warning",
+        text: `Choose a ${chosen.label.toLowerCase()} first.`,
+      });
+      return;
+    }
+    await fetchRegister(chosen.levels, range);
+  }, [fetchRegister, opts, range, sel]);
+
   /* ---- the cascade ---- */
 
   const runRefresh = useCallback(
@@ -316,6 +395,7 @@ const App = (): React.JSX.Element => {
       setLoadNote("Loading options...");
 
       try {
+        let lastReply: OptionsReply = EMPTY_OPTS;
         for (const _pass of LEVEL_KEYS) {
           if (token !== refreshToken.current) return;
 
@@ -353,7 +433,68 @@ const App = (): React.JSX.Element => {
           // with the other cascade rules and has its own tests. The reasoning -
           // why stopping early dead-ends the chain, and why `gained` is what stops
           // the loop running forever - is documented on `shouldContinue`.
-          if (!shouldContinue(draft, before, reply)) return;
+          lastReply = reply;
+          if (!shouldContinue(draft, before, reply)) break;
+        }
+
+        /**
+         * The passes have finished. Two things are left to do, and both are here
+         * rather than in an effect because "the passes have finished" is something
+         * only this function knows.
+         *
+         * First, put the subject back. A subject is never auto-filled - it decides
+         * which register loads, so picking one quietly would show a faculty member
+         * the wrong roster - and `applyOptions` therefore clears it on every
+         * pass. So a link naming a subject would otherwise land on an empty
+         * dropdown after every refresh. Restoring a subject a person chose is not
+         * the same as picking one: that is the whole difference between a shared
+         * link being useful and being a dead end.
+         *
+         * The `stillOffered` check keeps `sel` honest. It is deliberately not the
+         * thing that stops a bad subject loading - `chosenLevels` is that gate,
+         * and it already refuses an unknown subject with "Choose a subject
+         * first" however the selection got there. This one is here because the
+         * state should be true.
+         *
+         * Then, open the register, but only if the URL asked for one. Picking a
+         * subject from a dropdown is a choice being made now, and `Load register`
+         * is the click the user makes it with.
+         */
+        const wanted = wantedSubject.current;
+        wantedSubject.current = "";
+        if (wanted && draft.subject === "") {
+          const stillOffered = lastReply.subject.some(
+            (o) => String(o.value) === String(wanted)
+          );
+          if (stillOffered) {
+            draft = { ...draft, subject: wanted };
+            selRef.current = draft;
+            setSel(draft);
+          }
+        }
+        /*
+         * Open the register, if the URL asked for one.
+         *
+         * There is deliberately no flag here. `draft.subject` is already the
+         * whole condition: `applyOptions` clears the subject on every pass and
+         * nothing else ever sets it, so the only way a subject survives to this
+         * point is if the URL seeded it. Picking a subject from a dropdown does
+         * not call this function, so a user choosing one never arrives here with
+         * it set - and `Load register` stays the click they make it with.
+         *
+         * An earlier version carried a ref for this, and a mutation check showed
+         * it could not be observed either way: with the ref removed, nothing
+         * changed. A guard that cannot fail is not a guard.
+         *
+         * `draft` and `lastReply` are in hand here and are not in React state
+         * yet, so they are what gets sent. Reading `sel` here would send the
+         * selection as it was before this pass, which is how the auto-load first
+         * arrived with "Choose a course first" on a link whose course was plainly
+         * set.
+         */
+        if (draft.subject) {
+          const chosen = chosenLevels(lastReply, draft);
+          if (chosen.ok) void fetchRegister(chosen.levels, range);
         }
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
@@ -371,7 +512,10 @@ const App = (): React.JSX.Element => {
         }
       }
     },
-    [signedOut]
+    // `fetchRegister` and `range` because the tail of the loop opens the register
+    // a link pointed at. `runRefresh`'s identity changing is not a problem: every
+    // effect that depends on it early-returns on `booted` or is keyed off a ref.
+    [fetchRegister, range, signedOut]
   );
 
   /* ---- sign in ---- */
@@ -486,42 +630,6 @@ const App = (): React.JSX.Element => {
   }, [booted, onLogin, navigate, runRefresh]);
 
   /**
-   * Put the subject back, once, after the cascade has settled.
-   *
-   * The rule that a subject is never auto-chosen is about *inventing* one. A
-   * subject the URL named was chosen by a person, and replaying it is restoring
-   * their choice rather than making one for them - which is the whole difference
-   * between a shared link being useful and being a dead end.
-   *
-   * The `stillOffered` check keeps `sel` honest - a subject withdrawn since the
-   * link was shared is not a choice the app should be holding, and re-adding it
-   * later must not silently select it.
-   *
-   * It is deliberately *not* the thing that stops a bad subject being loaded, and
-   * this guard cannot be tested as though it were. `chosenLevels` is that gate,
-   * and it already refuses an unknown subject with "Choose a subject first"
-   * whichever way the selection got there. Without this check the two paths look
-   * identical on screen - Mantine renders a value it has no option for as an
-   * empty input - so an assertion here would pass with the guard removed. It
-   * stays because the state should be true, not because a test needs it.
-   */
-  useEffect(() => {
-    const wanted = wantedSubject.current;
-    if (!wanted) return;
-    // Nothing to re-choose until the cascade has cleared the subject, and until
-    // the subject list has actually arrived.
-    if (sel.subject || !opts.subject.length) return;
-    wantedSubject.current = "";
-    const stillOffered = opts.subject.some(
-      (o) => String(o.value) === String(wanted)
-    );
-    if (!stillOffered) return;
-    const draft = { ...selRef.current, subject: wanted };
-    selRef.current = draft;
-    setSel(draft);
-  }, [opts.subject, sel.subject]);
-
-  /**
    * The URL is a snapshot of the selection, not a history of it.
    *
    * `replace`, always, for two reasons. The auto-fill commits `sel` several
@@ -556,61 +664,6 @@ const App = (): React.JSX.Element => {
       navigate(DASHBOARD_PATH, { replace: true });
     }
   }, [booted, signedIn, onLogin, navigate]);
-
-  /* ---- register ---- */
-
-  const loadRegister = async () => {
-    setFilterNote(null);
-    if (!range.from || !range.to) {
-      setFilterNote({ kind: "warning", text: "Choose a date range." });
-      return;
-    }
-
-    const chosen = chosenLevels(opts, sel);
-    if (!chosen.ok) {
-      setFilterNote({
-        kind: "warning",
-        text: `Choose a ${chosen.label.toLowerCase()} first.`,
-      });
-      return;
-    }
-
-    setBusy(true);
-    setLoadNote("Reading the register from ECAP...");
-    // The same counter the refresh loop uses, so a session that ends while this
-    // is in flight invalidates the reply rather than letting it land on the
-    // login screen - which is how the previous session's register used to
-    // survive into the next one.
-    const token = ++refreshToken.current;
-    try {
-      const request: RegisterRequest = {
-        ...chosen.levels,
-        from: toPortalDate(range.from),
-        to: toPortalDate(range.to),
-      };
-      const body = await api<RegisterReply>("/api/register", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(request),
-      });
-      if (token !== refreshToken.current) return;
-      setResult(body);
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        signedOut("Your session expired. Please sign in again.");
-        return;
-      }
-      setFilterNote({
-        kind: "error",
-        text: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      if (token === refreshToken.current) {
-        setBusy(false);
-        setLoadNote("");
-      }
-    }
-  };
 
   /* ---- export ---- */
 

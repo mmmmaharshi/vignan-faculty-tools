@@ -104,8 +104,17 @@ can be bookmarked, shared, and survives a refresh:
 - **The subject is replayed after the passes settle**, because the cascade clears
   it on every pass and it is never auto-filled. Restoring a subject someone chose
   is not the same as picking one.
-- **Loading stays a click.** The link restores the selection; it does not spend a
-  portal round trip on every page open.
+- **A link opens the register; a click is not doubled.** When the cascade settles
+  with a subject chosen, the register is fetched. There is deliberately no flag for
+  this — `draft.subject` *is* the condition, because `applyOptions` clears the
+  subject on every pass and only the URL seed ever sets it. Picking a subject from
+  a dropdown never reaches that point, so `Load register` stays the user's click.
+  ADR 0011.
+- `fetchRegister(levels, dates)` takes the selection as **arguments**, not from
+  state. The cascade calls it before React commits a render, so a version closing
+  over `sel` sends the previous selection — which is how the auto-load first
+  arrived saying "Choose a course first" on a link whose course was plainly set.
+  Same class of bug as the `optsRef` one below, from a new direction.
 - `selectionToQuery` / `queryToSelection` are in `web/cascade.ts` and tested
   there, not in `App`.
 
@@ -216,7 +225,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**107 of the 109 tests need no credentials and run in about two seconds.** They
+**107 of the 110 tests need no credentials and run in about two seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, and the cascade's rules. Only
 `test/smoke.spec.ts` touches the network — and it skips without credentials, so

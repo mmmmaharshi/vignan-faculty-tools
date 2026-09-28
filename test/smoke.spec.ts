@@ -395,6 +395,86 @@ test.describe("ECAP attendance dashboard", () => {
     expect(new URL(page.url()).pathname, "reload should stay on /").toBe("/");
   });
 
+  test("a link opens the register, and arriving by hand does not", async ({
+    page,
+  }) => {
+    // The rule: a *link* is followed, a click is not doubled. Someone who
+    // arrives with a subject in the URL came from a link or a refresh, and wants
+    // the register rather than an empty table to click. Someone who picks a
+    // subject from a dropdown is making a choice now, and `Load register` is the
+    // click they make it with.
+    //
+    // Asserted by counting the requests, not by looking at the screen: the thing
+    // under test is whether a portal round trip happens, and a table that happens
+    // to be on screen does not distinguish one request from two.
+    const registerCalls: unknown[] = [];
+    page.on("request", (r) => {
+      if (r.url().includes("/api/register") && r.method() === "POST") {
+        registerCalls.push(r.postData());
+      }
+    });
+
+    await page.goto("/");
+    await submitSignIn(page);
+
+    // Arrived with no subject in the URL, so nothing should have been loaded.
+    expect(registerCalls, "arriving by hand must not auto-load").toHaveLength(
+      0
+    );
+    await expect(page.locator("tbody tr")).toHaveCount(0);
+
+    // Assemble a link by hand, the way a user would.
+    const subjectText = await loadFirstSubject(page);
+    expect(registerCalls).toHaveLength(1);
+    const link = page.url();
+
+    // 1. Following the link opens the register with no click at all.
+    registerCalls.length = 0;
+    await page.goto(link, { waitUntil: "networkidle" });
+    await expect(page.locator("tbody tr").first()).toBeVisible({
+      timeout: 90_000,
+    });
+    expect(registerCalls, "a link should open the register once").toHaveLength(
+      1
+    );
+    await expect(
+      page.locator("p").filter({ hasText: /^Course:/ })
+    ).toContainText(`Subject: ${subjectText}`);
+
+    // 2. Reloading the same link must not send a second request. This is the
+    // one that catches a ref being cleared after the call rather than before it.
+    registerCalls.length = 0;
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(page.locator("tbody tr").first()).toBeVisible({
+      timeout: 90_000,
+    });
+    await page.waitForTimeout(1500);
+    expect(registerCalls, "a reload should not double-load").toHaveLength(1);
+
+    // 3. Changing a level is the user changing their mind, so nothing is loaded
+    // for them. The old register stays on screen; the name line above it is what
+    // says it is stale.
+    registerCalls.length = 0;
+    const branch = page.getByRole("combobox", { name: "Branch" });
+    const before = await branch.inputValue();
+    await branch.click();
+    const options = page.locator('[role="listbox"]:visible [role="option"]');
+    await options.first().waitFor({ state: "visible" });
+    const allOptions = await options.all();
+    for (const opt of allOptions) {
+      const raw = await opt.innerText();
+      const text = raw.trim();
+      if (text && text !== before) {
+        await opt.click();
+        break;
+      }
+    }
+    await page.waitForTimeout(4000);
+    expect(registerCalls, "changing a level must not auto-load").toHaveLength(
+      0
+    );
+  });
+
   test("ending a session leaves nothing of it behind", async ({ page }) => {
     // A dead session used to change the screen and keep the state: signing back
     // in produced a table already narrowed by a filter ticked against the
