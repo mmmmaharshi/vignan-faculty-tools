@@ -38,7 +38,7 @@ type SignInPanelProps = {
 const REASSURANCE = (
   <Alert color="blue">
     Your credentials are used once to sign in and are never stored by this app.
-    Signing in opens a session that stays active for up to 12 hours.
+    Signing in opens a session that stays active for up to 30 days.
   </Alert>
 );
 

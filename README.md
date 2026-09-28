@@ -67,8 +67,9 @@ dropdowns in front of you it is easy to read last week's numbers as this week's.
   your machine except the sign-in request to ECAP over HTTPS.
 - It is used once, to encrypt the login payload. It is never written to disk,
   never logged, and never returned by any endpoint.
-- Sign-in keeps a session alive for up to 12 hours. When that expires you sign in
-  again. There is no stored password to leak or reuse.
+- Sign-in keeps a session alive for **up to 30 days** of not using it — the timer
+  resets on every request, and the browser cookie is set to match. When it does
+  expire you sign in again. There is no stored password to leak or reuse.
 
 ## The front end
 

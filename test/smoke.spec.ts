@@ -486,6 +486,23 @@ test.describe("ECAP attendance dashboard", () => {
     const total = await page.locator("tbody tr").count();
     expect(total).toBeGreaterThan(0);
 
+    /* ---- the session is a month, and the browser agrees with the server ---- */
+    // The cookie's Max-Age is derived from the server's TTL, so the two can never
+    // disagree about when a session ends. A month is the point: the ECAP session
+    // dies long before this one does, which is why /api/session asks the portal
+    // rather than trusting the jar.
+    const cookies = await page.context().cookies();
+    const sid = cookies.find((c) => c.name === "ecap_sid");
+    expect(sid, "sign-in should set ecap_sid").toBeTruthy();
+    // `expires` is an absolute Unix time, not a duration. The difference from now
+    // is the cookie's remaining life.
+    const days = ((sid?.expires ?? 0) - Date.now() / 1000) / 86_400;
+    expect(
+      days,
+      `ecap_sid should last about 30 days, got ${days.toFixed(1)}`
+    ).toBeGreaterThan(29);
+    expect(days).toBeLessThan(31);
+
     await page.getByLabel("Show only irregular students").click();
     await expect
       .poll(() => page.locator("tbody tr").count())
@@ -493,6 +510,13 @@ test.describe("ECAP attendance dashboard", () => {
 
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
+
+    // The number the sign-in form quotes is the same 30 days the cookie gets.
+    // It is a claim to the user, so it is worth holding to the same value rather
+    // than letting the two drift apart in a comment nobody reads.
+    await expect(page.getByText(/stays active for up to \d+ days?/)).toHaveText(
+      /up to 30 days/
+    );
 
     // Sign in again in the SAME document. A page load would discard React state
     // and the test would pass whatever signedOut did or did not clear, which is

@@ -97,12 +97,16 @@ const DASHBOARD_PATH = "/";
 /**
  * How often to ask whether the session is still alive.
  *
- * Comfortably longer than a round trip to a local server, and short enough that
- * a user who left a register open comes back to the login form rather than to
- * numbers produced by a session that ended hours ago. The server's own TTL is 12
- * hours, so this is not racing it - it is noticing the moment it passes.
+ * Five minutes, not seconds, and the reason is the server's side of it: the
+ * probe now costs a real round trip to ECAP, so thirty seconds would be two
+ * requests a minute to someone else's server for as long as the tab is open.
+ * That is rude, and with a thirty-day session there is nothing it would catch
+ * sooner anyway.
+ *
+ * A page that has just been focused is probed immediately regardless, which is
+ * when a stale register is most likely to be read as current.
  */
-const SESSION_PROBE_MS = 30_000;
+const SESSION_PROBE_MS = 5 * 60_000;
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -267,7 +271,11 @@ const App = (): React.JSX.Element => {
       setUserId("");
       setPassword("");
       setSignedIn(false);
-      setLoginNote({ kind: "warning", text: why });
+      // Only a note when there is a reason for one. Signing out deliberately
+      // passes an empty string, and a note object with empty text is truthy - so
+      // setting one replaced the reassurance under the sign-in form with a blank
+      // alert. An expiry explains itself; a deliberate sign-out needs no excuse.
+      setLoginNote(why ? { kind: "warning", text: why } : null);
       setFilterNote(null);
       setBusy(false);
       setLoadNote("");
@@ -638,14 +646,21 @@ const App = (): React.JSX.Element => {
    * five dropdowns is not a thing anyone wants on a dashboard - the register on
    * screen is the state, and a bookmark is the thing worth keeping.
    *
-   * Skipped while empty, so a fresh app has no query string at all, and skipped
-   * when nothing changed, so this cannot navigate on every render.
+   * Skipped while the selection is empty, which covers two cases that both want
+   * the same behaviour: a fresh app has no query string at all, and a session
+   * that has just ended must not have one written back. The second is not
+   * obvious and was a real bug - `signedOut` navigates to /login, and this
+   * effect was landing *after* that navigation and dragging the path back to
+   * `/`, so signing out bounced straight back to a signed-in-looking dashboard.
+   *
+   * Skipped when nothing changed, so this cannot navigate on every render.
    */
   useEffect(() => {
-    if (onLogin) return;
+    // `onLogin` is not enough on its own: the two navigations race, and this one
+    // is scheduled after it. An empty selection is the honest signal that there
+    // is no register to name - and there is nothing to lose by not writing one.
+    if (onLogin || !sel.course) return;
     const q = selectionToQuery(sel, range).toString();
-    // `replace` and no comparison against the function: the string is compared
-    // against the current query above, so this cannot navigate on every render.
     if (q === query.toString()) return;
     setSearchParams(q, { replace: true });
   }, [onLogin, query, range, sel, setSearchParams]);

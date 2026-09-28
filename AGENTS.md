@@ -163,6 +163,18 @@ theme key means you want a component prop instead.
   bare phase change changes the screen while the old session's filter, options
   and register stay in state — signing back in then produced a table already
   narrowed by a choice made against a session that no longer existed.
+- **A session is 30 days of *not using it*, and the cookie's `Max-Age` is derived
+  from that** so the two cannot disagree. Longer than the ECAP session by
+  design, which is why `/api/session` asks the portal rather than trusting the
+  jar: `portal.signedIn` only means "an `frmAuth` cookie is in the jar". Only a
+  401 evicts — a dead session on convention A arrives as a 502, and 502 is
+  ambiguous. ADR 0013.
+- **`signedOut(why)` takes a reason, and an empty one means no note.** A note
+  object with empty text is truthy, so passing `""` took the `note` branch and
+  replaced the sign-in reassurance with a blank alert.
+- **The URL-write effect must skip while the selection is empty.** It and
+  `signedOut`'s navigation are competing history writers; without that guard,
+  signing out navigated to `/login` and was immediately dragged back to `/`.
 - **`/api/session` answers 200 with `{signedIn: false}`** when signed out, not
   401. Checking the status code alone silently runs the signed-in path.
 - **Do not read `event.currentTarget` inside a `setState` updater.** React clears

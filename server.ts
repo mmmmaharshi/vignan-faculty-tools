@@ -125,7 +125,20 @@ const UA =
 // portal's page source, so it protects nothing on the wire; HTTPS is what
 // actually protects the password.
 
-const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
+/**
+ * How long a session survives without being used.
+ *
+ * Thirty days, and sliding: `getSession` stamps `at` on every request, so this is
+ * a month of *not using it* rather than a month from signing in. The cookie's
+ * `Max-Age` is derived from this, so the browser and the server never disagree
+ * about when it ends.
+ *
+ * The number is deliberately longer than the ECAP session, which is why
+ * `/api/session` asks the portal rather than trusting the jar. Ours is a
+ * `Map` entry; theirs is whatever the portal decides, and it will not last a
+ * month. See the handler.
+ */
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 const HTTP_TIMEOUT_MS = 60_000;
 
 /* ------------------------------------------------------------------ helpers */
@@ -616,10 +629,47 @@ const server = Bun.serve({
       /* ---- everything below needs a signed-in session ---- */
       if (path.startsWith("/api/")) {
         if (path === "/api/session") {
-          // Probe the session but do not require the portal cookie, so a stale
-          // page can tell the difference between "not signed in" and "expired".
+          // Probe the session, and do not require the portal cookie, so a stale
+          // page can tell "not signed in" from "expired".
           const s = getSession(readCookie(req, "ecap_sid"));
           if (!s) return json({ signedIn: false } satisfies SessionReply, 200);
+          // Ask the portal, rather than trusting the jar. With a 30-day session
+          // the ECAP session dies long before ours does, and `jar.signedIn`
+          // only means "an frmAuth cookie is in the jar" - it stays true after
+          // the portal has forgotten us. Trusting it would show a signed-in
+          // dashboard that then failed every call, which is the one thing a
+          // session probe exists to prevent.
+          //
+          // `courses()` is the cheapest call that genuinely goes to the portal.
+          //
+          // What this does and does not catch, stated plainly because it is the
+          // limit of the check rather than a detail: only a 401 evicts. A dead
+          // session is detected on convention B, which inspects its reply for
+          // HTML and answers 401 (see `#webMethod`). Convention A has no such
+          // check, so a dead session there arrives as a 502 - an unreadable or
+          // errored reply - and a 502 is ambiguous. It could equally be a portal
+          // that is down, or markup that has moved. Signing the user out on
+          // that would turn a transient outage into a lost session, which is
+          // precisely the trade ADR 0002 refused when it chose `emptyLevels`
+          // over a 502. So a 502 is reported as signed-in and the real request
+          // surfaces it.
+          //
+          // The guaranteed path is therefore unchanged: a dead session is caught
+          // by the 401 on the next convention-B call, which is what
+          // `/api/register` and `/api/options`'s subject step do. This probe
+          // turns that from "the first thing the user does fails" into "the
+          // dashboard notices first".
+          try {
+            await s.portal.courses();
+          } catch (error) {
+            if (error instanceof HttpError && error.status === 401) {
+              // The jar is dead. Drop it rather than make the next request
+              // discover the same thing.
+              const id = readCookie(req, "ecap_sid");
+              if (id) sessions.delete(id);
+              return json({ signedIn: false } satisfies SessionReply, 200);
+            }
+          }
           return json(
             { signedIn: s.portal.signedIn } satisfies SessionReply,
             200
