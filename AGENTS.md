@@ -31,15 +31,12 @@ bun run lint:fix           # oxlint --fix + oxfmt, writes
 Before starting a dev server, check whether one is already running and reuse it
 if so. A second start fights the first for the port: the older process keeps
 serving stale code while the new one dies on a bind error, and the leftover is
-easy to forget about.
+easy to forget about. Never leave two bound to the same port.
 
 ```sh
 Get-Process node,bun,deno,python,go,java -ErrorAction SilentlyContinue
 Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
 ```
-
-Reuse what is already there, or stop it before starting a replacement. Never
-leave two bound to the same port.
 
 ## Layout
 
@@ -70,18 +67,10 @@ tsconfig*.json       three projects, split so web/ has DOM and server.ts does no
 dist/                build output, served by server.ts (not source)
 ```
 
-**One rule explains this layout: importing `server.ts` boots a server.** So
-anything with a decision in it lives in a file that can be imported without one.
-That is the whole reason `portal-replies.ts`, `portal-conventions.ts`,
-`attendance-bands.ts`, `server-routes.ts` and `web/cascade.ts` exist, and the
-whole reason `server.ts` is now mostly HTTP plumbing.
-
-Keep it that way. A network call in any of them makes the fast suite
-unreachable, and the fast suite is the only one that runs without credentials —
-`test/smoke.spec.ts` **skips** when `ECAP_USER` is unset, so a green run can
-check nothing at all. `tsconfig.test.json` lists those five files one by one
-rather than as a directory, because `web/` is the DOM+React project and the test
-harness is not.
+**One rule explains this layout: importing `server.ts` boots a server.** Anything
+with a decision in it therefore lives in a file importable without one, and
+`server.ts` is HTTP plumbing only. A network call in any of those files makes the
+credential-free suite unreachable.
 
 ## The front end is Mantine-only
 
@@ -91,24 +80,10 @@ read through Mantine's own `bg` and `c` props. If you find yourself wanting a
 custom rule, the answer is usually a component prop that already exists — check
 `Table.Tr bg`, `Table striped`, `Badge color` before reaching for CSS.
 
-- **The cascade's rules live in `web/cascade.ts`, its loop lives in `App.tsx`.**
-  A dropdown that will not fill is a *rule* bug: read `cascade.ts`. Two requests
-  racing, or a stale answer winning, is a *loop* bug: read `App.tsx`. Both sets of
-  rules are pure functions with tests that run in under a second, so a change to
-  either is checked without a portal. ADR 0005.
-- **`defaultRange` used `toISOString()` and shipped a 31 December.** Local
-  midnight converted to UTC is the previous day east of Greenwich, so every
-  reader in IST opened the app a day early. It now builds from local date parts.
-  The general trap: `toISOString()` is a UTC conversion, and a date a human means
-  is local. Do not reintroduce it.
-
-The Mantine theme is stock, with **one** exception: `fontFamily` is set in
-`web/main.tsx` to Scoutie Sans, from `@fontsource-variable/scoutie-sans`. That is
-the only `createTheme` call in the project. If you find yourself wanting a second
-theme key, stop — the answer is a component prop, the same as above.
-
-`main.tsx` is the single place theme decisions live. Keep it that way, so
-"what does this app's Mantine config look like" has a one-line answer.
+The Mantine theme is stock, with **one** exception: `fontFamily`, set in
+`web/main.tsx` to Scoutie Sans. `main.tsx` holds the only `createTheme` call in the
+project, and it is the single place a theme decision may go. Wanting a second
+theme key means you want a component prop instead.
 
 ## React
 
@@ -121,9 +96,10 @@ theme key, stop — the answer is a component prop, the same as above.
   dropdowns at all; the page's own JavaScript builds them by calling remote
   methods. There are two different calling conventions and using the wrong one
   returns an empty result with no error. `server.ts` documents both.
-- **The password is AES-encrypted client-side before it is posted**, and the
-  output is bare ciphertext, base64'd — not the OpenSSL `Salted__` form that
-  stock CryptoJS produces. This portal's `JSFiles/jsaes.js` is a custom build.
+- **The password is AES-encrypted client-side before it is posted**, as bare
+  ciphertext — not the OpenSSL `Salted__` form stock CryptoJS produces. This
+  portal's `JSFiles/jsaes.js` is a custom build, and a wrong ciphertext never
+  raises the Click event, so a good password looks like a bad one.
 - **`ShowAcademicCalendar` needs every level twice**, value *and* visible label.
   Passing only values returns nothing rather than failing, with no error to
   explain it. The front end therefore sends each chosen level **whole** — the
@@ -141,6 +117,9 @@ theme key, stop — the answer is a component prop, the same as above.
   `onChange={(e) => setX((x) => ({ v: e.currentTarget.value }))}` throws
   "Cannot read properties of null" the first time anyone types. Read the value
   into a local first. This shipped once and blanked the whole page.
+- **`toISOString()` is a UTC conversion, and a date a human means is local.**
+  `defaultRange` used it on a local-midnight date and shipped a 31 December to
+  every reader east of Greenwich.
 - **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
   `index.html` not at all; changing that pair reintroduces "my fix did nothing".
 - **Every Playwright run lints and typechecks first.** Vite and Playwright both
@@ -165,7 +144,9 @@ theme key, stop — the answer is a component prop, the same as above.
 
 Five dependent levels: course → semester → branch → section → subject. It was
 wrong three separate times before it was right, and every failure was structural
-rather than cosmetic, so the rules are load-bearing:
+rather than cosmetic, so the rules are load-bearing. **The rules are in
+`web/cascade.ts` and the loop that applies them is in `App.tsx`** — a dropdown
+that will not fill is a rule bug, two requests racing is a loop bug.
 
 - **A level is only fetched when a level above it changes.** Auto-filling a level
   does not trigger a refetch, so the loop keeps going on its own while a pass has
@@ -184,11 +165,6 @@ rather than cosmetic, so the rules are load-bearing:
 - **A newer refresh always wins.** `refreshToken` makes an older in-flight
   request bail rather than write to the DOM.
 
-These are the rules in `web/cascade.ts`; the loop that applies them is in
-`App.tsx`. Each rule has a test in `test/cascade.spec.ts` that was proven to fail
-by breaking it, so a change here is checked in under a second rather than
-discovered against a live portal.
-
 ## Testing
 
 ```sh
@@ -199,38 +175,28 @@ ECAP_USER=... ECAP_PASS=... bun run test
 **96 of the 97 tests need no credentials and run in about two seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, and the cascade's rules. Only
-`test/smoke.spec.ts` touches the network.
+`test/smoke.spec.ts` touches the network — and it skips without credentials, so
+anything testable without a portal must be.
 
-That ratio is the point. The smoke test skips when `ECAP_USER` / `ECAP_PASS` are
-unset, so on a machine without credentials a green run can check almost nothing.
-Anything that can be tested without a portal must be.
+**Never add an assertion that mirrors the implementation.** Such a test passes
+when the code is wrong and proves nothing. Assert a property instead: for the
+fast suite, where the line sits and what must never happen across it; for the
+smoke test, percentages ascend, the first row is the minimum, the flagged-row
+count equals the stat card, and the register on screen is named. Each breaks for
+its own distinct reason.
+
+The smoke test drives the real portal because a DOM stub is not sufficient: one
+was tried against the previous build and it passed code broken in a real
+browser, since it modelled neither `selectedIndex`/`value` coupling nor
+`innerHTML` clearing a select's options.
 
 ### Proving a test can fail
 
-A test that has never been seen to fail is a decoration. When you add one,
-break the rule it describes, run it, and confirm the *named* test is the one that
-turns red. This is not ceremony — it is how the `defaultRange` timezone bug was
-found, and it is how two holes in the cipher tests were found (a fixture that
-never exercised the `?? ""` guard, and a `not.toContain("Salted__")` assertion
-that a salt does not defeat). Run the probe with a Playwright config that omits
-`globalSetup`, because the lint gate will refuse the deliberate breakage first.
-
-Every assertion in the fast suite is a property of the rule — where the line sits,
-what must never happen across it — not a restatement of how it is computed.
-
-### The end-to-end test
-
-One end-to-end smoke test in `test/smoke.spec.ts`. It signs in to the live portal
-and loads a real register, because a DOM stub is not sufficient here: one was
-tried against the previous vanilla build and it passed code that was broken in a
-real browser, since it did not model `selectedIndex`/`value` coupling or
-`innerHTML` clearing a select's options.
-
-Its assertions are properties of the rendered page: percentages ascend, the first
-row is the minimum, the flagged-row count equals the stat card, and the register
-on screen is named. Each breaks for its own distinct reason. Do not add
-assertions that mirror the implementation — they pass when the code is wrong and
-prove nothing.
+A test never seen to fail is a decoration. Break the rule it describes, run it,
+and confirm the *named* test is the one that turns red. That is how the
+`defaultRange` timezone bug was found, and how two holes in the cipher tests were
+found. Use a Playwright config without `globalSetup` for the probe, because the
+lint gate refuses the deliberate breakage first.
 
 ## Agent skills
 
