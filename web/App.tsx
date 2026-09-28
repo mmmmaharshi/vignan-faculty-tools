@@ -23,8 +23,6 @@
  * See docs/adr/0001-port-ui-to-react-and-mantine.md.
  */
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
 import {
   Alert,
   Badge,
@@ -43,6 +41,9 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+
 import type {
   LoginRequest,
   OkReply,
@@ -71,7 +72,7 @@ type Phase = "boot" | "login" | "app";
 type Note = { kind: "error" | "warning"; text: string };
 
 /** The full chain, in cascade order. */
-const LEVELS: ReadonlyArray<readonly [Level, string]> = [
+const LEVELS: readonly (readonly [Level, string])[] = [
   ["course", "Course"],
   ["semester", "Semester"],
   ["branch", "Branch"],
@@ -83,8 +84,20 @@ const LEVEL_KEYS: readonly Level[] = LEVELS.map(([k]) => k);
 // Written out rather than assembled with Object.fromEntries, so adding a level to
 // the contract is a compile error here until someone decides what an unset one
 // looks like.
-const EMPTY_SEL: Sel = { course: "", semester: "", branch: "", section: "", subject: "" };
-const EMPTY_OPTS: OptionsReply = { course: [], semester: [], branch: [], section: [], subject: [] };
+const EMPTY_SEL: Sel = {
+  course: "",
+  semester: "",
+  branch: "",
+  section: "",
+  subject: "",
+};
+const EMPTY_OPTS: OptionsReply = {
+  course: [],
+  semester: [],
+  branch: [],
+  section: [],
+  subject: [],
+};
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -116,7 +129,10 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
     /* an empty body is not fatal here */
   }
   if (!res.ok) {
-    throw new ApiError(res.status, body.error ?? `Request failed (${res.status})`);
+    throw new ApiError(
+      res.status,
+      body.error ?? `Request failed (${res.status})`
+    );
   }
   return body as T;
 }
@@ -181,7 +197,7 @@ function toSelectData(list: Option[]): { value: string; label: string }[] {
  */
 function chosenLevels(
   opts: OptionsReply,
-  sel: Sel,
+  sel: Sel
 ): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
   // Sound because the loop below assigns every member of Level: LEVELS and
   // OptionsReply have the same five keys, and Level is derived from the latter.
@@ -218,7 +234,9 @@ export default function App() {
   const [sel, setSel] = useState<Sel>(EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
 
-  const [range, setRange] = useState<{ from: string; to: string }>(() => defaultRange());
+  const [range, setRange] = useState<{ from: string; to: string }>(() =>
+    defaultRange()
+  );
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
 
@@ -271,7 +289,9 @@ export default function App() {
         // Empty for IV Semester, which the server handles by falling back.
         // Read through optsRef, not opts - see the note where it is declared.
         const semesterTitle = draft.semester
-          ? optsRef.current.semester.find((o) => String(o.value) === String(draft.semester))?.title
+          ? optsRef.current.semester.find(
+              (o) => String(o.value) === String(draft.semester)
+            )?.title
           : undefined;
 
         const request: OptionsRequest = {
@@ -310,16 +330,19 @@ export default function App() {
         // looping when the server genuinely has nothing to give.
         const gained = LEVEL_KEYS.some((k) => draft[k] !== before[k]);
         const pending = LEVEL_KEYS.find(
-          (k) => k !== "course" && isReady(draft, k) && reply[k].length === 0,
+          (k) => k !== "course" && isReady(draft, k) && reply[k].length === 0
         );
         if (!gained || !pending) return;
       }
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
         setPhase("login");
         return;
       }
-      setFilterNote({ kind: "error", text: err instanceof Error ? err.message : String(err) });
+      setFilterNote({
+        kind: "error",
+        text: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       if (token === refreshToken.current) {
         setBusy(false);
@@ -344,8 +367,11 @@ export default function App() {
       setPassword(""); // do not keep it in the DOM
       setPhase("app");
       await runRefresh(null);
-    } catch (err) {
-      setLoginNote({ kind: "error", text: err instanceof Error ? err.message : String(err) });
+    } catch (error) {
+      setLoginNote({
+        kind: "error",
+        text: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setBusy(false);
     }
@@ -392,7 +418,10 @@ export default function App() {
 
     const chosen = chosenLevels(opts, sel);
     if (!chosen.ok) {
-      setFilterNote({ kind: "warning", text: `Choose a ${chosen.label.toLowerCase()} first.` });
+      setFilterNote({
+        kind: "warning",
+        text: `Choose a ${chosen.label.toLowerCase()} first.`,
+      });
       return;
     }
 
@@ -410,12 +439,15 @@ export default function App() {
         body: JSON.stringify(request),
       });
       setResult(body);
-    } catch (err) {
-      if (err instanceof ApiError && err.status === 401) {
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
         setPhase("login");
         return;
       }
-      setFilterNote({ kind: "error", text: err instanceof Error ? err.message : String(err) });
+      setFilterNote({
+        kind: "error",
+        text: error instanceof Error ? error.message : String(error),
+      });
     } finally {
       setBusy(false);
       setLoadNote("");
@@ -427,27 +459,43 @@ export default function App() {
   const saveCsv = () => {
     if (!result) return;
     // Every cell is a string: the portal's combined attended/held is one, and the
-  // percentage is formatted or blanked before it gets here. `unknown` would have
-  // let anything through and turned String() into the thing doing the checking.
-  const q = (v: string): string => '"' + v.replace(/"/g, '""') + '"';
-    const head = ["Roll No", "Student Name", "Attend/Held", "Percent", "Status"];
+    // percentage is formatted or blanked before it gets here. `unknown` would have
+    // let anything through and turned String() into the thing doing the checking.
+    const q = (v: string): string => `"${v.replaceAll('"', '""')}"`;
+    const head = [
+      "Roll No",
+      "Student Name",
+      "Attend/Held",
+      "Percent",
+      "Status",
+    ];
     const lines = [head.map(q).join(",")];
     for (const s of result.students) {
-      const status = s.critical ? "Critical" : s.irregular ? "Irregular" : "Regular";
+      const status = s.critical
+        ? "Critical"
+        : s.irregular
+          ? "Irregular"
+          : "Regular";
       lines.push(
-        [s.roll, s.name, s.attendedOfHeld, s.pct == null ? "" : s.pct.toFixed(2), status]
+        [
+          s.roll,
+          s.name,
+          s.attendedOfHeld,
+          s.pct == null ? "" : s.pct.toFixed(2),
+          status,
+        ]
           .map(q)
-          .join(","),
+          .join(",")
       );
     }
     // The BOM is what makes Excel read the file as UTF-8.
-    const blob = new Blob(["\uFEFF" + lines.join("\r\n")], {
+    const blob = new Blob([`\uFEFF${lines.join("\r\n")}`], {
       type: "text/csv;charset=utf-8",
     });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);
     a.download = "ecap-attendance.csv";
-    document.body.appendChild(a);
+    document.body.append(a);
     a.click();
     a.remove();
     URL.revokeObjectURL(a.href);
@@ -461,7 +509,12 @@ export default function App() {
     semester: !has("course"),
     branch: !has("course"),
     section: !(has("course") && has("branch") && has("semester")),
-    subject: !(has("course") && has("branch") && has("semester") && has("section")),
+    subject: !(
+      has("course") &&
+      has("branch") &&
+      has("semester") &&
+      has("section")
+    ),
   };
 
   const summary = result?.summary;
@@ -533,8 +586,9 @@ export default function App() {
                 </Alert>
               ) : (
                 <Alert color="blue">
-                  Your credentials are used once to sign in and are never stored by this
-                  app. Signing in opens a session that stays active for up to 12 hours.
+                  Your credentials are used once to sign in and are never stored
+                  by this app. Signing in opens a session that stays active for
+                  up to 12 hours.
                 </Alert>
               )}
             </Stack>
@@ -642,7 +696,11 @@ export default function App() {
                   </Text>
                 </Paper>
                 <Paper withBorder p="md">
-                  <Text fw={700} size="xl" c={summary.critical ? "red.8" : undefined}>
+                  <Text
+                    fw={700}
+                    size="xl"
+                    c={summary.critical ? "red.8" : undefined}
+                  >
                     {summary.critical}
                   </Text>
                   <Text c="dimmed" size="xs" tt="uppercase">
@@ -685,7 +743,12 @@ export default function App() {
                 ) : (
                   <>
                     <Table.ScrollContainer minWidth={640}>
-                      <Table striped highlightOnHover withTableBorder tabularNums>
+                      <Table
+                        striped
+                        highlightOnHover
+                        withTableBorder
+                        tabularNums
+                      >
                         <Table.Thead>
                           <Table.Tr>
                             <Table.Th>Sl.No</Table.Th>
@@ -725,17 +788,29 @@ export default function App() {
                                 {s.pct == null ? (
                                   "—"
                                 ) : (
-                                  <Group gap={6} justify="flex-end" wrap="nowrap">
+                                  <Group
+                                    gap={6}
+                                    justify="flex-end"
+                                    wrap="nowrap"
+                                  >
                                     <Text fw={700} size="sm">
                                       {s.pct.toFixed(2)}%
                                     </Text>
                                     {s.critical && (
-                                      <Badge color="red" size="xs" variant="light">
+                                      <Badge
+                                        color="red"
+                                        size="xs"
+                                        variant="light"
+                                      >
                                         critical
                                       </Badge>
                                     )}
                                     {!s.critical && s.irregular && (
-                                      <Badge color="yellow" size="xs" variant="light">
+                                      <Badge
+                                        color="yellow"
+                                        size="xs"
+                                        variant="light"
+                                      >
                                         low
                                       </Badge>
                                     )}
@@ -748,8 +823,8 @@ export default function App() {
                       </Table>
                     </Table.ScrollContainer>
                     <Text c="dimmed" size="sm" mt="sm">
-                      Showing {rows.length} of {result.students.length} students, lowest
-                      attendance first.
+                      Showing {rows.length} of {result.students.length}{" "}
+                      students, lowest attendance first.
                     </Text>
                   </>
                 )}
@@ -761,4 +836,3 @@ export default function App() {
     </Container>
   );
 }
-

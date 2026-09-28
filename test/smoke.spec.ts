@@ -45,15 +45,29 @@ const PASS = process.env.ECAP_PASS ?? "";
 type SelectState = { index: number; value: string; disabled: boolean };
 
 /** The Select whose label reads exactly `label`, or null if there is none. */
-async function selectState(page: Page, label: string): Promise<SelectState | null> {
+async function selectState(
+  page: Page,
+  label: string
+): Promise<SelectState | null> {
   return page.evaluate((text) => {
-    const inputs = [...document.querySelectorAll<HTMLInputElement>("input.mantine-Select-input")];
+    const inputs = [
+      ...document.querySelectorAll<HTMLInputElement>(
+        "input.mantine-Select-input"
+      ),
+    ];
     const index = inputs.findIndex((inp) => {
       const l = document.querySelector(`label[for="${inp.id}"]`);
-      return l?.textContent.replace(/\s*\*$/, "").trim().toLowerCase() === text;
+      return (
+        l?.textContent
+          .replace(/\s*\*$/, "")
+          .trim()
+          .toLowerCase() === text
+      );
     });
     const input = inputs[index];
-    return input ? { index, value: input.value, disabled: input.disabled } : null;
+    return input
+      ? { index, value: input.value, disabled: input.disabled }
+      : null;
   }, label.toLowerCase());
 }
 
@@ -69,7 +83,10 @@ async function openSelect(page: Page, label: string): Promise<Locator> {
 }
 
 test.describe("ECAP attendance dashboard", () => {
-  test.skip(!USER || !PASS, "set ECAP_USER and ECAP_PASS to run against the live portal");
+  test.skip(
+    !USER || !PASS,
+    "set ECAP_USER and ECAP_PASS to run against the live portal"
+  );
 
   test("loads a class register, worst attendance first", async ({ page }) => {
     const problems: string[] = [];
@@ -99,7 +116,11 @@ test.describe("ECAP attendance dashboard", () => {
     // touching anything. Waiting for Subject to unlock waits for the last pass.
     await page.waitForFunction(
       () => {
-        const inputs = [...document.querySelectorAll<HTMLInputElement>("input.mantine-Select-input")];
+        const inputs = [
+          ...document.querySelectorAll<HTMLInputElement>(
+            "input.mantine-Select-input"
+          ),
+        ];
         const i = inputs.findIndex((inp) => {
           const l = document.querySelector(`label[for="${inp.id}"]`);
           return l?.textContent.replace(/\s*\*$/, "").trim() === "Subject";
@@ -108,7 +129,7 @@ test.describe("ECAP attendance dashboard", () => {
         return !!input && !input.disabled;
       },
       null,
-      { timeout: 90_000 },
+      { timeout: 90_000 }
     );
 
     // Every level above the subject should now hold a real choice, not just be
@@ -126,14 +147,17 @@ test.describe("ECAP attendance dashboard", () => {
     // list from the semester's value instead. The register still loads, so this
     // is the only place the difference shows.
     const carriedTitle = optionBodies.some((body) => {
-      const sent = JSON.parse(body) as { semester?: string; semesterTitle?: string };
+      const sent = JSON.parse(body) as {
+        semester?: string;
+        semesterTitle?: string;
+      };
       // A string, not necessarily a non-empty one: IV Semester ships an empty
       // title by design, and the server falls back to the value for that.
       return !!sent.semester && typeof sent.semesterTitle === "string";
     });
     expect(
       carriedTitle,
-      `an /api/options request should carry semesterTitle once a semester is chosen; saw ${JSON.stringify(optionBodies)}`,
+      `an /api/options request should carry semesterTitle once a semester is chosen; saw ${JSON.stringify(optionBodies)}`
     ).toBe(true);
 
     /* ---- pick a subject, which is always the user's to choose ---- */
@@ -150,27 +174,29 @@ test.describe("ECAP attendance dashboard", () => {
     await page.getByLabel("To").fill("2026-09-30");
     await page.getByRole("button", { name: "Load register" }).click();
 
-    await expect(page.locator("tbody tr").first()).toBeVisible({ timeout: 90_000 });
+    await expect(page.locator("tbody tr").first()).toBeVisible({
+      timeout: 90_000,
+    });
 
     /* ---- the roster ---- */
-    const table = await page.evaluate(() => {
-      return [...document.querySelectorAll("tbody tr")].map((tr) => {
+    const table = await page.evaluate(() =>
+      [...document.querySelectorAll("tbody tr")].map((tr) => {
         const cells = [...tr.querySelectorAll("td")].map((c) =>
-          c.innerText.replace(/\s+/g, " ").trim(),
+          c.innerText.replaceAll(/\s+/g, " ").trim()
         );
-        const pctText = cells[cells.length - 1] ?? "";
-        const num = parseFloat(pctText);
+        const pctText = cells.at(-1) ?? "";
+        const num = Number.parseFloat(pctText);
         return {
           roll: cells[1] ?? "",
           name: cells[2] ?? "",
-          attendedOfHeld: cells[cells.length - 2] ?? "",
-          badges: [...tr.querySelectorAll(".mantine-Badge-root")].map((b) =>
-            b.textContent?.trim().toLowerCase() ?? "",
+          attendedOfHeld: cells.at(-2) ?? "",
+          badges: [...tr.querySelectorAll(".mantine-Badge-root")].map(
+            (b) => b.textContent?.trim().toLowerCase() ?? ""
           ),
           pct: Number.isNaN(num) ? null : num,
         };
-      });
-    });
+      })
+    );
 
     expect(table.length, "the register should have rows").toBeGreaterThan(0);
 
@@ -178,7 +204,9 @@ test.describe("ECAP attendance dashboard", () => {
     // real class gaining or losing a student does not turn the suite red, but a
     // broken sort still does.
     const pcts = table.map((r) => r.pct).filter((p): p is number => p != null);
-    expect(pcts.length, "every row should carry a percentage").toBe(table.length);
+    expect(pcts.length, "every row should carry a percentage").toBe(
+      table.length
+    );
     for (let i = 1; i < pcts.length; i++) {
       // The loop bound puts both indices in range, so the one assertion below is
       // sound. It is written as an assertion rather than a guard on purpose: a
@@ -186,24 +214,31 @@ test.describe("ECAP attendance dashboard", () => {
       // it, which is the one failure mode a test must not have.
       expect(
         pcts[i],
-        `row ${i} (${pcts[i]}%) should not be worse than the row above it`,
+        `row ${i} (${pcts[i]}%) should not be worse than the row above it`
       ).toBeGreaterThanOrEqual(pcts[i - 1]!);
     }
-    expect(pcts[0], "the worst student should be listed first").toBe(Math.min(...pcts));
+    expect(pcts[0], "the worst student should be listed first").toBe(
+      Math.min(...pcts)
+    );
 
     // Rows should look like students, not parse debris.
     for (const row of table.slice(0, 5)) {
-      expect(row.roll.length, `roll number should not be empty for ${row.name}`).toBeGreaterThan(0);
+      expect(
+        row.roll.length,
+        `roll number should not be empty for ${row.name}`
+      ).toBeGreaterThan(0);
       expect(
         row.attendedOfHeld,
-        `attended/held should be populated for ${row.name}`,
+        `attended/held should be populated for ${row.name}`
       ).toMatch(/\d+\s*\/\s*\d+/);
     }
 
     /* ---- the flagged rows agree with the stat cards ---- */
     // Crosses the wire: the client bands rows, the server counts them, and this
     // is the only assertion that would catch the two disagreeing.
-    const flagged = table.filter((r) => r.badges.includes("low") || r.badges.includes("critical"));
+    const flagged = table.filter(
+      (r) => r.badges.includes("low") || r.badges.includes("critical")
+    );
 
     // Each stat card is two siblings: the figure, then the caption. Read the
     // figure from the caption's previous element rather than trying to match
@@ -211,9 +246,15 @@ test.describe("ECAP attendance dashboard", () => {
     const statCards = await page.evaluate(() => {
       const out: Record<string, number> = {};
       for (const p of document.querySelectorAll("p")) {
-        const caption = (p.textContent ?? "").replace(/\s+/g, " ").trim().toUpperCase();
+        const caption = (p.textContent ?? "")
+          .replaceAll(/\s+/g, " ")
+          .trim()
+          .toUpperCase();
         if (!/^(STUDENTS|CLASS AVERAGE|BELOW \d+%)$/.test(caption)) continue;
-        const n = parseInt(p.previousElementSibling?.textContent?.trim() ?? "", 10);
+        const n = Number.parseInt(
+          p.previousElementSibling?.textContent?.trim() ?? "",
+          10
+        );
         if (!Number.isNaN(n)) out[caption] = n;
       }
       return out;
@@ -221,7 +262,7 @@ test.describe("ECAP attendance dashboard", () => {
 
     expect(
       statCards["BELOW 75%"],
-      `flagged rows (${flagged.length}) should match the Below 75% card, got ${JSON.stringify(statCards)}`,
+      `flagged rows (${flagged.length}) should match the Below 75% card, got ${JSON.stringify(statCards)}`
     ).toBe(flagged.length);
 
     /* ---- the register on screen is named ---- */
@@ -229,10 +270,16 @@ test.describe("ECAP attendance dashboard", () => {
     // week's is the expensive mistake this line exists to prevent.
     // Mantine Text renders as <p>, so the caption is a paragraph starting with
     // "Course:". No id is set on it, so match on the text itself.
-    const selection = page.locator("p").filter({ hasText: /^Course:/ }).first();
+    const selection = page
+      .locator("p")
+      .filter({ hasText: /^Course:/ })
+      .first();
     await expect(selection).toContainText(`Subject: ${subject}`);
 
     /* ---- nothing exploded on the way ---- */
-    expect(problems, `browser reported problems: ${problems.join("; ")}`).toEqual([]);
+    expect(
+      problems,
+      `browser reported problems: ${problems.join("; ")}`
+    ).toEqual([]);
   });
 });

@@ -70,14 +70,19 @@ export function unquoteJs(text: string): string {
         if (typeof payload === "string") return payload;
       }
       return t;
-    } catch { /* not JSON after all */ }
+    } catch {
+      /* not JSON after all */
+    }
   }
-  if ((t.startsWith("'") && t.endsWith("'")) || (t.startsWith('"') && t.endsWith('"'))) {
+  if (
+    (t.startsWith("'") && t.endsWith("'")) ||
+    (t.startsWith('"') && t.endsWith('"'))
+  ) {
     return t
       .slice(1, -1)
-      .replace(/\\(['"\\])/g, "$1")
-      .replace(/\\r/g, "\r")
-      .replace(/\\n/g, "\n");
+      .replaceAll(/\\(['"\\])/g, "$1")
+      .replaceAll("\\r", "\r")
+      .replaceAll("\\n", "\n");
   }
   return t;
 }
@@ -90,13 +95,19 @@ export function unquoteJs(text: string): string {
  */
 export function options(html: unknown): Option[] {
   const out: Option[] = [];
-  for (const m of String(html ?? "").matchAll(/<option\b([^>]*)>([\s\S]*?)<\/option>/gi)) {
+  for (const m of String(html ?? "").matchAll(
+    /<option\b([^>]*)>([\s\S]*?)<\/option>/gi
+  )) {
     const attrs = m[1] ?? "";
     const pick = (n: string): string =>
       attrs.match(new RegExp(`${n}\\s*=\\s*'([^']*)'`, "i"))?.[1] ??
       attrs.match(new RegExp(`${n}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ??
       "";
-    const label = (m[2] ?? "").replace(/<[^>]*>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+    const label = (m[2] ?? "")
+      .replaceAll(/<[^>]*>/g, "")
+      .replaceAll("&nbsp;", " ")
+      .replaceAll(/\s+/g, " ")
+      .trim();
     const value = pick("value");
     // Both halves, or nothing. An entry with visible text but no identifier
     // becomes a level the user can choose that resolves to nothing, and the
@@ -112,7 +123,8 @@ export function options(html: unknown): Option[] {
 export const isPlaceholder = (o: Option): boolean =>
   o.value === "0" || /^-?\s*select\s*-?$/i.test(o.label);
 
-export const realOptions = (list: Option[]): Option[] => list.filter((o) => !isPlaceholder(o));
+export const realOptions = (list: Option[]): Option[] =>
+  list.filter((o) => !isPlaceholder(o));
 
 /**
  * Options for a level that cannot legitimately be empty.
@@ -134,7 +146,7 @@ export function expectLevel(list: Option[], what: string): Option[] {
   if (!list.length) {
     throw new HttpError(
       502,
-      `ECAP returned no ${what}. The portal's layout may have changed, or the session may have expired - sign in again and try again.`,
+      `ECAP returned no ${what}. The portal's layout may have changed, or the session may have expired - sign in again and try again.`
     );
   }
   return list;
@@ -142,7 +154,11 @@ export function expectLevel(list: Option[], what: string): Option[] {
 
 /** Strip tags and collapse whitespace, for table scraping. */
 export function cellText(html: string): string {
-  return html.replace(/<[^>]*>/g, " ").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim();
+  return html
+    .replaceAll(/<[^>]*>/g, " ")
+    .replaceAll("&nbsp;", " ")
+    .replaceAll(/\s+/g, " ")
+    .trim();
 }
 
 /**
@@ -161,19 +177,24 @@ export function parseRegister(html: string): RegisterRow[] {
   let table: string | null = null;
   for (const t of html.match(/<table[\s\S]*?<\/table>/gi) ?? []) {
     const head = cellText((t.match(/<tr[\s\S]*?<\/tr>/i) ?? [""])[0] ?? "");
-    if (/roll\s*\.?\s*no/i.test(head)) { table = t; break; }
+    if (/roll\s*\.?\s*no/i.test(head)) {
+      table = t;
+      break;
+    }
   }
   if (!table) return [];
 
   const rows: RegisterRow[] = [];
   for (const tr of (table.match(/<tr[\s\S]*?<\/tr>/gi) ?? []).slice(1)) {
-    const cells = [...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map((m) => cellText(m[1] ?? ""));
+    const cells = [...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(
+      (m) => cellText(m[1] ?? "")
+    );
     if (cells.length < 4) continue;
     const roll = cells[1] ?? "";
     if (!roll) continue;
-    const attendedOfHeld = cells[cells.length - 2] ?? "";
-    const pct = cells[cells.length - 1] ?? "";
-    const num = parseFloat(String(pct).replace("%", ""));
+    const attendedOfHeld = cells.at(-2) ?? "";
+    const pct = cells.at(-1) ?? "";
+    const num = Number.parseFloat(String(pct).replace("%", ""));
     rows.push({
       sl: cells[0] ?? "",
       roll,

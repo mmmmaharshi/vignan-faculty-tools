@@ -24,6 +24,7 @@
  */
 
 import { test, expect } from "@playwright/test";
+
 import {
   expectLevel,
   HttpError,
@@ -47,9 +48,11 @@ const LOGIN_PAGE = `<!DOCTYPE html><html><head><title>ECAP</title></head><body>S
 test.describe("portal replies", () => {
   test("a dead session's markup is told apart from real data", () => {
     expect(looksLikeHtml(LOGIN_PAGE)).toBe(true);
-    expect(looksLikeHtml("  <html lang=\"en\">")).toBe(true);
+    expect(looksLikeHtml('  <html lang="en">')).toBe(true);
     // The two real reply shapes, which must never be mistaken for a page.
-    expect(looksLikeHtml("'<select><option value=\"1\">B.Tech</option></select>'")).toBe(false);
+    expect(
+      looksLikeHtml("'<select><option value=\"1\">B.Tech</option></select>'")
+    ).toBe(false);
     expect(looksLikeHtml('{"value":"<table></table>"}')).toBe(false);
     // A fragment that merely contains a tag is still data.
     expect(looksLikeHtml("<option value='1'>B.Tech</option>")).toBe(false);
@@ -63,7 +66,9 @@ test.describe("portal replies", () => {
     // here because it is the difference between unwrapping and not.
     expect(unquoteJs('{"value":"<table></table>"}')).toBe("<table></table>");
     expect(unquoteJs('{"d":"<table></table>"}')).toBe("<table></table>");
-    expect(unquoteJs("{value:'<table></table>'}")).toBe("{value:'<table></table>'}");
+    expect(unquoteJs("{value:'<table></table>'}")).toBe(
+      "{value:'<table></table>'}"
+    );
     // The case the untyped version got wrong: a payload that is not a string
     // came back as a number, and parseRegister then called .match on it.
     expect(typeof unquoteJs('{"value":42}')).toBe("string");
@@ -99,8 +104,8 @@ test.describe("portal replies", () => {
     let caught: unknown;
     try {
       expectLevel([], "courses");
-    } catch (e) {
-      caught = e;
+    } catch (error) {
+      caught = error;
     }
     expect(caught, "an empty level should raise").toBeInstanceOf(HttpError);
     const err = caught as HttpError;
@@ -124,7 +129,12 @@ test.describe("portal replies", () => {
     // Three students in, three out. Dropping the unparseable row would quietly
     // remove a student from the class average and from every flagged count.
     expect(rows).toHaveLength(3);
-    expect(rows[0]).toMatchObject({ roll: "21CS001", name: "Asha Rao", attendedOfHeld: "38/45", pct: 84.44 });
+    expect(rows[0]).toMatchObject({
+      roll: "21CS001",
+      name: "Asha Rao",
+      attendedOfHeld: "38/45",
+      pct: 84.44,
+    });
     expect(rows[1]?.pct).toBeNull();
     expect(rows[2]?.pct).toBe(100);
     // The combined cell is never split. See CONTEXT.md, "Attended of held".
@@ -133,6 +143,8 @@ test.describe("portal replies", () => {
     // A page with no register table is the failure this guards: the route
     // turns it into a 502 that names both causes rather than the date range.
     expect(parseRegister(LOGIN_PAGE)).toEqual([]);
-    expect(parseRegister("<table><tr><th>Something else</th></tr></table>")).toEqual([]);
+    expect(
+      parseRegister("<table><tr><th>Something else</th></tr></table>")
+    ).toEqual([]);
   });
 });

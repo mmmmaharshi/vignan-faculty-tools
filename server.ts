@@ -62,6 +62,18 @@
 
 import { createCipheriv } from "node:crypto";
 import { readdirSync } from "node:fs";
+
+import {
+  expectLevel,
+  hiddenValue,
+  HttpError,
+  looksLikeHtml,
+  options,
+  parseRegister,
+  realOptions,
+  unquoteJs,
+} from "./portal-replies";
+import type { RegisterRow } from "./portal-replies";
 import type {
   ErrorReply,
   LoginRequest,
@@ -74,31 +86,19 @@ import type {
   SessionReply,
   Student,
 } from "./shared/api";
-import {
-  expectLevel,
-  hiddenValue,
-  HttpError,
-  looksLikeHtml,
-  options,
-  parseRegister,
-  realOptions,
-  unquoteJs,
-} from "./portal-replies";
-import type { RegisterRow } from "./portal-replies";
 
 /** One position in the cascade. Derived from the contract, so the two cannot drift. */
 type Level = keyof OptionsReply;
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
-const DIST = ROOT + "/dist";
+const DIST = `${ROOT}/dist`;
 
 const BASE = "https://webprosindia.com";
-const LOGIN_PAGE = BASE + "/vignanit/main.aspx";
-const LOGIN_POST = BASE + "/vignanit/Default.aspx?ReturnUrl=%2fvignanit%2fmain.aspx";
-const JQ = BASE + "/vignanit/jqmethods.aspx";
-const REGISTER_PROXY =
-  BASE + "/vignanit/ajax/Academics_AcademicRegister,App_Web_academicregister.aspx.a2a1b31c.ashx";
+const LOGIN_PAGE = `${BASE}/vignanit/main.aspx`;
+const LOGIN_POST = `${BASE}/vignanit/Default.aspx?ReturnUrl=%2fvignanit%2fmain.aspx`;
+const JQ = `${BASE}/vignanit/jqmethods.aspx`;
+const REGISTER_PROXY = `${BASE}/vignanit/ajax/Academics_AcademicRegister,App_Web_academicregister.aspx.a2a1b31c.ashx`;
 
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
@@ -110,7 +110,7 @@ const AES_KEY = "8701661282118308";
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const IRREGULAR_BELOW = 75; // attendance % considered irregular
-const CRITICAL_BELOW = 60;  // attendance % considered critical
+const CRITICAL_BELOW = 60; // attendance % considered critical
 const HTTP_TIMEOUT_MS = 60_000;
 
 /* ------------------------------------------------------------------ portal session */
@@ -139,7 +139,8 @@ class Portal {
       const [pair] = raw.split(";");
       if (!pair) continue;
       const eq = pair.indexOf("=");
-      if (eq > 0) this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
+      if (eq > 0)
+        this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
     }
   }
 
@@ -153,8 +154,14 @@ class Portal {
    * the frmAuth cookie that was just issued, the portal would treat it as
    * anonymous, and a successful sign-in would come back looking like a failure.
    */
-  async #request(url: string, init: RequestInit = {}, maxHops = 6): Promise<Response> {
-    const withCookie = (headers: RequestInit["headers"]): Record<string, string> => ({
+  async #request(
+    url: string,
+    init: RequestInit = {},
+    maxHops = 6
+  ): Promise<Response> {
+    const withCookie = (
+      headers: RequestInit["headers"]
+    ): Record<string, string> => ({
       ...Object.fromEntries(new Headers(headers).entries()),
       ...(this.#cookieHeader() ? { cookie: this.#cookieHeader() } : {}),
     });
@@ -211,7 +218,10 @@ class Portal {
     await res.text();
 
     if (!this.signedIn) {
-      throw new HttpError(401, "Sign-in failed. Check your ECAP user name and password.");
+      throw new HttpError(
+        401,
+        "Sign-in failed. Check your ECAP user name and password."
+      );
     }
   }
 
@@ -225,9 +235,15 @@ class Portal {
    * ADR 0002 records the validation that has deliberately not been done yet;
    * this return type is the first thing that changes when it is.
    */
-  async #jq(method: string, data: Record<string, string | number | boolean>): Promise<any> {
+  async #jq(
+    method: string,
+    data: Record<string, string | number | boolean>
+  ): Promise<any> {
     const body = Object.entries(data)
-      .map(([k, v]) => `'${k}':${typeof v === "string" ? `'${v.replace(/'/g, "\\'")}'` : v}`)
+      .map(
+        ([k, v]) =>
+          `'${k}':${typeof v === "string" ? `'${v.replaceAll("'", "\\'")}'` : v}`
+      )
       .join(",");
     const res = await this.#request(`${JQ}/${method}`, {
       method: "POST",
@@ -241,7 +257,10 @@ class Portal {
     });
     const text = await res.text();
     if (!res.ok) {
-      throw new HttpError(502, `ECAP rejected the ${method} request (HTTP ${res.status}).`);
+      throw new HttpError(
+        502,
+        `ECAP rejected the ${method} request (HTTP ${res.status}).`
+      );
     }
     let json;
     try {
@@ -254,25 +273,35 @@ class Portal {
   }
 
   /** Convention B. `pairs` is [name, value] in the proxy's declared order. */
-  async #webMethod(name: string, pairs: [string, string | number][]): Promise<string> {
+  async #webMethod(
+    name: string,
+    pairs: [string, string | number][]
+  ): Promise<string> {
     const body = pairs.map(([k, v]) => `${k}=${enc(v)}`).join("\r\n");
-    const res = await this.#request(`${REGISTER_PROXY}?_method=${name}&_session=no`, {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        referer: REGISTER_PAGE_URL,
-        "user-agent": UA,
-      },
-      body,
-    });
+    const res = await this.#request(
+      `${REGISTER_PROXY}?_method=${name}&_session=no`,
+      {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded",
+          referer: REGISTER_PAGE_URL,
+          "user-agent": UA,
+        },
+        body,
+      }
+    );
     const text = await res.text();
-    if (!res.ok) throw new HttpError(502, `ECAP rejected ${name} (HTTP ${res.status}).`);
+    if (!res.ok)
+      throw new HttpError(502, `ECAP rejected ${name} (HTTP ${res.status}).`);
     // Convention B is the quiet one: its reply is a JavaScript literal, so a
     // dead session's markup arrives here looking like data and ends up as an
     // empty level or an empty register. 401 bounces the front end to the login
     // screen, which is the right place for it.
     if (looksLikeHtml(text)) {
-      throw new HttpError(401, "Your ECAP session expired. Please sign in again.");
+      throw new HttpError(
+        401,
+        "Your ECAP session expired. Please sign in again."
+      );
     }
     return unquoteJs(text);
   }
@@ -281,12 +310,18 @@ class Portal {
 
   async courses(): Promise<Option[]> {
     return options(
-      await this.#jq("LoadCourses", { controlid: "ddlcourse", onchangemethod: "", isdefaultall: false }),
+      await this.#jq("LoadCourses", {
+        controlid: "ddlcourse",
+        onchangemethod: "",
+        isdefaultall: false,
+      })
     );
   }
 
   /** Branches and semesters arrive together, as d[0] and d[1]. */
-  async branchesAndSemesters(courseId: string | number): Promise<[Option[], Option[]]> {
+  async branchesAndSemesters(
+    courseId: string | number
+  ): Promise<[Option[], Option[]]> {
     const d = await this.#jq("LoadBranchAndSemestersDropDown", {
       courseid: Number(courseId),
       branchcontrolid: "ddlbranch",
@@ -310,7 +345,7 @@ class Portal {
     courseId: string | number,
     branchId: string | number,
     semester: string | number,
-    semesterTitle?: string,
+    semesterTitle?: string
   ): Promise<Option[]> {
     const batch = semesterTitle ? semesterTitle : semester;
     return options(
@@ -320,21 +355,21 @@ class Portal {
         batch: Number(batch) || 0,
         defaulttext: "Select",
         controlid: "ddlsection",
-      }),
+      })
     );
   }
 
   async subjects(
     courseId: string | number,
     branchId: string | number,
-    semesterId: string | number,
+    semesterId: string | number
   ): Promise<Option[]> {
     return options(
       await this.#webMethod("FillSubjects", [
         ["CourseId", courseId],
         ["BranchId", branchId],
         ["SemesterId", semesterId],
-      ]),
+      ])
     );
   }
 
@@ -342,7 +377,9 @@ class Portal {
    * Every level is needed twice over - by value and by visible label - plus the
    * subject's title. See the module header, note 3.
    */
-  async register(p: Record<Level, Option> & { from: string; to: string }): Promise<string> {
+  async register(
+    p: Record<Level, Option> & { from: string; to: string }
+  ): Promise<string> {
     return this.#webMethod("ShowAcademicCalendar", [
       ["SubjectId", p.subject.value],
       ["Section", p.section.value],
@@ -361,22 +398,26 @@ class Portal {
   }
 }
 
-const REGISTER_PAGE_URL = BASE + "/vignanit/ACADEMICS/AcademicRegister.aspx?scrid=335";
+const REGISTER_PAGE_URL = `${BASE}/vignanit/ACADEMICS/AcademicRegister.aspx?scrid=335`;
 
 /* ------------------------------------------------------------------ helpers */
 
 /** Reproduce the portal's CryptoJS output: raw AES-128-CBC, base64, no salt. */
 function portalEncrypt(plaintext: string): string {
-  const cipher = createCipheriv("aes-128-cbc", Buffer.from(AES_KEY, "utf8"), Buffer.from(AES_KEY, "utf8"));
+  const cipher = createCipheriv(
+    "aes-128-cbc",
+    Buffer.from(AES_KEY, "utf-8"),
+    Buffer.from(AES_KEY, "utf-8")
+  );
   return Buffer.concat([
-    cipher.update(Buffer.from(plaintext, "utf8")),
+    cipher.update(Buffer.from(plaintext, "utf-8")),
     cipher.final(),
   ]).toString("base64");
 }
 
 /** The portal's enc(): escapes only % and =. Values are deliberately not url-encoded. */
 const enc = (v: string | number): string =>
-  String(v).replace(/%/g, "%26").replace(/=/g, "%3D");
+  String(v).replaceAll("%", "%26").replaceAll("=", "%3D");
 
 /* ------------------------------------------------------------------ sessions */
 
@@ -416,11 +457,15 @@ function readCookie(req: Request, name: string): string | null {
 function requireSession(req: Request): Session {
   const id = readCookie(req, "ecap_sid");
   const s = getSession(id);
-  if (!s) throw new HttpError(401, "Your session expired. Please sign in again.");
+  if (!s)
+    throw new HttpError(401, "Your session expired. Please sign in again.");
   if (!s.portal.signedIn) {
     // The jar is dead. Drop it rather than leave it to fail again next request.
     if (id) sessions.delete(id);
-    throw new HttpError(401, "Your ECAP session expired. Please sign in again.");
+    throw new HttpError(
+      401,
+      "Your ECAP session expired. Please sign in again."
+    );
   }
   return s;
 }
@@ -440,7 +485,11 @@ function chosenLevel(b: Partial<RegisterRequest>, key: Level): Option {
 
 /* ------------------------------------------------------------------ http */
 
-function json(body: unknown, status = 200, headers: Record<string, string> = {}): Response {
+function json(
+  body: unknown,
+  status = 200,
+  headers: Record<string, string> = {}
+): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { "content-type": "application/json; charset=utf-8", ...headers },
@@ -492,12 +541,15 @@ const server = Bun.serve({
        * like it silently did nothing.
        */
       if (req.method === "GET" && (path === "/" || path === "/index.html")) {
-        const index = Bun.file(DIST + "/index.html");
+        const index = Bun.file(`${DIST}/index.html`);
         if (!(await index.exists())) {
-          return new Response("The front end has not been built yet.\n\nRun:  bun run build\n", {
-            status: 503,
-            headers: { "content-type": "text/plain; charset=utf-8" },
-          });
+          return new Response(
+            "The front end has not been built yet.\n\nRun:  bun run build\n",
+            {
+              status: 503,
+              headers: { "content-type": "text/plain; charset=utf-8" },
+            }
+          );
         }
         return new Response(index, {
           headers: {
@@ -528,30 +580,33 @@ const server = Bun.serve({
       /* ---- sign in ---- */
       if (req.method === "POST" && path === "/api/login") {
         const { userId, password } = await readJson<LoginRequest>(req);
-        if (!userId || !password) throw new HttpError(400, "Enter your user name and password.");
+        if (!userId || !password)
+          throw new HttpError(400, "Enter your user name and password.");
 
         reapSessions();
         const portal = new Portal();
         try {
           await portal.signIn(String(userId), String(password));
-        } catch (e) {
+        } catch (error) {
           // Nothing to salvage from a failed attempt, so drop the jar entirely.
-          throw e instanceof HttpError ? e : new HttpError(502, messageOf(e));
+          throw error instanceof HttpError
+            ? error
+            : new HttpError(502, messageOf(error));
         }
 
         const id = crypto.randomUUID();
         sessions.set(id, { at: Date.now(), portal });
-        return json(
-          { ok: true } satisfies OkReply,
-          200,
-          { "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}` },
-        );
+        return json({ ok: true } satisfies OkReply, 200, {
+          "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`,
+        });
       }
 
       if (req.method === "POST" && path === "/api/logout") {
         const id = readCookie(req, "ecap_sid");
         if (id) sessions.delete(id);
-        return json({ ok: true } satisfies OkReply, 200, { "set-cookie": "ecap_sid=; Path=/; Max-Age=0" });
+        return json({ ok: true } satisfies OkReply, 200, {
+          "set-cookie": "ecap_sid=; Path=/; Max-Age=0",
+        });
       }
 
       /* ---- everything below needs a signed-in session ---- */
@@ -561,11 +616,14 @@ const server = Bun.serve({
           // page can tell the difference between "not signed in" and "expired".
           const s = getSession(readCookie(req, "ecap_sid"));
           if (!s) return json({ signedIn: false } satisfies SessionReply, 200);
-          return json({ signedIn: s.portal.signedIn } satisfies SessionReply, 200);
+          return json(
+            { signedIn: s.portal.signedIn } satisfies SessionReply,
+            200
+          );
         }
 
         const s = requireSession(req);
-        const portal = s.portal;
+        const { portal } = s;
 
         /**
          * The whole selection is sent each time; only the levels that are now
@@ -576,25 +634,45 @@ const server = Bun.serve({
           const b = await readJson<OptionsRequest>(req);
           // Typed as the contract, so the five assignments below are checked
           // against the same shape the front end reads.
-          const out: OptionsReply = { course: [], semester: [], branch: [], section: [], subject: [] };
+          const out: OptionsReply = {
+            course: [],
+            semester: [],
+            branch: [],
+            section: [],
+            subject: [],
+          };
 
-          out.course = expectLevel(realOptions(await portal.courses()), "courses");
+          out.course = expectLevel(
+            realOptions(await portal.courses()),
+            "courses"
+          );
 
           if (b.course) {
-            const [branches, semesters] = await portal.branchesAndSemesters(b.course);
+            const [branches, semesters] = await portal.branchesAndSemesters(
+              b.course
+            );
             out.branch = expectLevel(realOptions(branches), "branches");
             out.semester = expectLevel(realOptions(semesters), "semesters");
           }
           if (b.course && b.branch && b.semester) {
             out.section = expectLevel(
-              realOptions(await portal.sections(b.course, b.branch, b.semester, b.semesterTitle)),
-              "sections",
+              realOptions(
+                await portal.sections(
+                  b.course,
+                  b.branch,
+                  b.semester,
+                  b.semesterTitle
+                )
+              ),
+              "sections"
             );
           }
           if (b.course && b.branch && b.semester && b.section) {
             out.subject = expectLevel(
-              realOptions(await portal.subjects(b.course, b.branch, b.semester)),
-              "subjects",
+              realOptions(
+                await portal.subjects(b.course, b.branch, b.semester)
+              ),
+              "subjects"
             );
           }
           return json(out);
@@ -602,7 +680,8 @@ const server = Bun.serve({
 
         if (req.method === "POST" && path === "/api/register") {
           const b = await readJson<RegisterRequest>(req);
-          if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
+          if (!b.from || !b.to)
+            throw new HttpError(400, "Choose a date range.");
 
           // Every level arrives whole, because the client is the only side that
           // still holds the labels. Checked here, per level, so the message can
@@ -616,11 +695,13 @@ const server = Bun.serve({
           };
           const { from, to } = b;
 
-          const rows = parseRegister(await portal.register({ ...p, from: b.from, to: b.to }));
+          const rows = parseRegister(
+            await portal.register({ ...p, from: b.from, to: b.to })
+          );
           if (!rows.length) {
             throw new HttpError(
               502,
-              "The register came back empty. Either the subject has no classes in that date range, or ECAP's page layout has changed.",
+              "The register came back empty. Either the subject has no classes in that date range, or ECAP's page layout has changed."
             );
           }
 
@@ -631,7 +712,9 @@ const server = Bun.serve({
           }));
           // The predicate is what lets the average below add without a null
           // check: a plain filter leaves `pct` as number | null either way.
-          const counted = withFlags.filter((r): r is Student & { pct: number } => r.pct != null);
+          const counted = withFlags.filter(
+            (r): r is Student & { pct: number } => r.pct != null
+          );
           const total = withFlags.length;
 
           return json({
@@ -645,7 +728,10 @@ const server = Bun.serve({
               irregularBelow: IRREGULAR_BELOW,
               criticalBelow: CRITICAL_BELOW,
               average: counted.length
-                ? Math.round((counted.reduce((a, r) => a + r.pct, 0) / counted.length) * 10) / 10
+                ? Math.round(
+                    (counted.reduce((a, r) => a + r.pct, 0) / counted.length) *
+                      10
+                  ) / 10
                 : null,
               range: { from, to },
             },
@@ -656,10 +742,13 @@ const server = Bun.serve({
       }
 
       return json({ error: "Not found" } satisfies ErrorReply, 404);
-    } catch (e) {
-      const status = e instanceof HttpError ? e.status : 500;
-      if (status === 500) console.error("[error]", messageOf(e));
-      return json({ error: messageOf(e) || "Something went wrong." }, status);
+    } catch (error) {
+      const status = error instanceof HttpError ? error.status : 500;
+      if (status === 500) console.error("[error]", messageOf(error));
+      return json(
+        { error: messageOf(error) || "Something went wrong." },
+        status
+      );
     }
   },
 });
@@ -668,4 +757,3 @@ console.log(`\n  ECAP Attendance Dashboard`);
 console.log(`  http://127.0.0.1:${server.port}\n`);
 console.log(`  Talking to ECAP over HTTPS directly - no browser is launched.`);
 console.log(`  Your password is used once to sign in and is never stored.\n`);
-

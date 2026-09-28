@@ -15,7 +15,11 @@ import { execFileSync } from "node:child_process";
  * platform, and a hardcoded one breaks on the first machine that disagrees.
  */
 
-const PROJECTS = ["tsconfig.json", "tsconfig.server.json", "tsconfig.test.json"];
+const PROJECTS = [
+  "tsconfig.json",
+  "tsconfig.server.json",
+  "tsconfig.test.json",
+];
 
 export default function globalSetup(): void {
   for (const project of PROJECTS) {

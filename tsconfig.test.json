@@ -8,6 +8,11 @@
     "lib": ["ESNext", "DOM", "DOM.Iterable"],
     "types": ["bun-types"]
   },
-  "include": ["test", "shared", "portal-replies.ts", "playwright.config.ts", "vite.config.ts"]
+  "include": [
+    "test",
+    "shared",
+    "portal-replies.ts",
+    "playwright.config.ts",
+    "vite.config.ts"
+  ]
 }
-

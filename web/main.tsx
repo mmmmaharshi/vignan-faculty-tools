@@ -1,11 +1,11 @@
+import { MantineProvider } from "@mantine/core";
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { MantineProvider } from "@mantine/core";
 
 import "@mantine/core/styles.css";
 import App from "./App";
 
-const root = document.getElementById("root");
+const root = document.querySelector("#root");
 if (!root) throw new Error("web/index.html has no #root element to mount into");
 
 createRoot(root).render(
@@ -14,5 +14,5 @@ createRoot(root).render(
     <MantineProvider defaultColorScheme="light">
       <App />
     </MantineProvider>
-  </React.StrictMode>,
+  </React.StrictMode>
 );
