@@ -179,5 +179,5 @@ dist/               build output, served by server.ts
 - If the portal changes its markup, the `Portal` methods in `server.ts` will need
   revisiting: the endpoint paths and the parameter names. Watch the labels
   especially — when the text `ShowAcademicCalendar` expects stops matching, the
-  register comes back empty rather than erroring, and the 502 blames the date
-  range rather than the reply.
+  register comes back empty rather than erroring, and the 502 says so: either the
+  date range is wrong or the layout has changed.

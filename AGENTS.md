@@ -101,10 +101,17 @@ imported.
   into a local first. This shipped once and blanked the whole page.
 - **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
   `index.html` not at all; changing that pair reintroduces "my fix did nothing".
-- **Nothing typechecks the project.** Vite and Playwright both use esbuild, which
-  strips types without reading them, so `bun run build` passing says nothing about
-  types and `bun run test` will not catch a type error. `bun run typecheck` is the
-  only thing that does, and it does not run itself. See ADR 0002.
+- **`bun run test` typechecks; nothing else does.** Vite and Playwright both use
+  esbuild, which strips types without reading them, so `bun run build` alone says
+  nothing about types. The gate is the `pretest` hook, which runs all three
+  projects before the build. Two things bypass it: `bunx playwright test` and
+  `bun run build` on their own. Use `bun run test`. See ADR 0002.
+- **`runRefresh` is memoised with `[]`, so it closes over render 1.** Anything
+  inside it that reads `sel` or `opts` must go through `selRef` / `optsRef`
+  instead. Reading `opts` directly compiles, runs, and silently yields
+  `EMPTY_OPTS` forever. This shipped: the semester's batch number stopped being
+  sent and the section list came back from the wrong batch, with nothing on
+  screen to show it. `test/smoke.spec.ts` now watches the wire for it.
 - **The three tsconfigs are split on purpose.** `tsconfig.json` (web) pins
   `types` to React alone because `@types/node` is present transitively and would
   otherwise hand `web/` `process` and `Buffer`; `tsconfig.server.json` omits

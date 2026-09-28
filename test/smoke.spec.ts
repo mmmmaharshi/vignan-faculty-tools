@@ -78,6 +78,17 @@ test.describe("ECAP attendance dashboard", () => {
       if (m.type() === "error") problems.push(`console.error: ${m.text()}`);
     });
 
+    // The client is the only side still holding each option's title, so the
+    // batch number for the section list depends on it going over the wire. A
+    // stale read here is invisible on screen - the register still loads - so it
+    // is watched directly.
+    const optionBodies: string[] = [];
+    page.on("request", (r) => {
+      if (r.url().includes("/api/options") && r.method() === "POST") {
+        optionBodies.push(r.postData() ?? "");
+      }
+    });
+
     /* ---- sign in ---- */
     await page.goto("/");
     await page.getByLabel("ECAP user name").fill(USER);
@@ -108,6 +119,22 @@ test.describe("ECAP attendance dashboard", () => {
       expect(state?.disabled, `${level} should be enabled`).toBe(false);
       expect(state?.value, `${level} should have a value`).not.toBe("");
     }
+
+    /* ---- the batch number has to actually be sent ---- */
+    // Once a semester is chosen, its title must appear in the request. A stale
+    // closure drops the key entirely, and the server then computes the section
+    // list from the semester's value instead. The register still loads, so this
+    // is the only place the difference shows.
+    const carriedTitle = optionBodies.some((body) => {
+      const sent = JSON.parse(body) as { semester?: string; semesterTitle?: string };
+      // A string, not necessarily a non-empty one: IV Semester ships an empty
+      // title by design, and the server falls back to the value for that.
+      return !!sent.semester && typeof sent.semesterTitle === "string";
+    });
+    expect(
+      carriedTitle,
+      `an /api/options request should carry semesterTitle once a semester is chosen; saw ${JSON.stringify(optionBodies)}`,
+    ).toBe(true);
 
     /* ---- pick a subject, which is always the user's to choose ---- */
     const subjectOptions = await openSelect(page, "Subject");

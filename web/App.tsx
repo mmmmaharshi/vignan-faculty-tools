@@ -226,6 +226,13 @@ export default function App() {
   // A state-driven effect would re-enter itself every time it committed a pass.
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
+  // runRefresh is memoised with an empty dependency list, so it closes over
+  // render 1's `opts` - which is EMPTY_OPTS, permanently. Anything inside it
+  // that reads the option lists has to go through a ref like this one. It did
+  // not, and the semester's batch number silently arrived as undefined for
+  // every course; see AGENTS.md.
+  const optsRef = useRef<OptionsReply>(opts);
+  optsRef.current = opts;
   const refreshToken = useRef(0);
 
   /* ---- the cascade ---- */
@@ -262,8 +269,9 @@ export default function App() {
         // The semester's `title` carries the batch number the portal wants for
         // the section list, and this side is the only one still holding it.
         // Empty for IV Semester, which the server handles by falling back.
+        // Read through optsRef, not opts - see the note where it is declared.
         const semesterTitle = draft.semester
-          ? opts.semester.find((o) => String(o.value) === String(draft.semester))?.title
+          ? optsRef.current.semester.find((o) => String(o.value) === String(draft.semester))?.title
           : undefined;
 
         const request: OptionsRequest = {

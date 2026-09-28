@@ -432,9 +432,9 @@ function requireSession(req: Request): Session {
  * and returns nothing at all rather than failing when a label is missing. So
  * both are checked here, where the message can name the level that is wrong.
  */
-function chosenLevel(b: Partial<RegisterRequest>, key: Level, label: string): Option {
+function chosenLevel(b: Partial<RegisterRequest>, key: Level): Option {
   const o = b[key];
-  if (!o?.value || !o.label) throw new HttpError(400, `Choose a ${label.toLowerCase()}.`);
+  if (!o?.value || !o.label) throw new HttpError(400, `Choose a ${key}.`);
   return o;
 }
 
@@ -458,12 +458,15 @@ function json(body: unknown, status = 200, headers: Record<string, string> = {})
  *
  * The portal seam is a different matter and is deliberately not narrowed like
  * this. See `#jq` and ADR 0002.
+ *
+ * A body that will not parse is treated as an empty one, which every caller
+ * already handles by rejecting the missing fields.
  */
-async function readJson<T>(req: Request, fallback: T): Promise<T> {
+async function readJson<T>(req: Request): Promise<Partial<T>> {
   try {
-    return (await req.json()) as T;
+    return (await req.json()) as Partial<T>;
   } catch {
-    return fallback;
+    return {};
   }
 }
 
@@ -524,7 +527,7 @@ const server = Bun.serve({
 
       /* ---- sign in ---- */
       if (req.method === "POST" && path === "/api/login") {
-        const { userId, password } = await readJson<Partial<LoginRequest>>(req, {});
+        const { userId, password } = await readJson<LoginRequest>(req);
         if (!userId || !password) throw new HttpError(400, "Enter your user name and password.");
 
         reapSessions();
@@ -570,7 +573,7 @@ const server = Bun.serve({
          * end can disable them.
          */
         if (req.method === "POST" && path === "/api/options") {
-          const b = await readJson<Partial<OptionsRequest>>(req, {});
+          const b = await readJson<OptionsRequest>(req);
           // Typed as the contract, so the five assignments below are checked
           // against the same shape the front end reads.
           const out: OptionsReply = { course: [], semester: [], branch: [], section: [], subject: [] };
@@ -597,18 +600,18 @@ const server = Bun.serve({
         }
 
         if (req.method === "POST" && path === "/api/register") {
-          const b = await readJson<Partial<RegisterRequest>>(req, {});
+          const b = await readJson<RegisterRequest>(req);
           if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
 
           // Every level arrives whole, because the client is the only side that
-          // still holds the labels. checked here, per level, so the message can
+          // still holds the labels. Checked here, per level, so the message can
           // name the one that is wrong.
           const p: Record<Level, Option> = {
-            course: chosenLevel(b, "course", "course"),
-            semester: chosenLevel(b, "semester", "semester"),
-            branch: chosenLevel(b, "branch", "branch"),
-            section: chosenLevel(b, "section", "section"),
-            subject: chosenLevel(b, "subject", "subject"),
+            course: chosenLevel(b, "course"),
+            semester: chosenLevel(b, "semester"),
+            branch: chosenLevel(b, "branch"),
+            section: chosenLevel(b, "section"),
+            subject: chosenLevel(b, "subject"),
           };
           const { from, to } = b;
 
@@ -664,3 +667,4 @@ console.log(`\n  ECAP Attendance Dashboard`);
 console.log(`  http://127.0.0.1:${server.port}\n`);
 console.log(`  Talking to ECAP over HTTPS directly - no browser is launched.`);
 console.log(`  Your password is used once to sign in and is never stored.\n`);
+
