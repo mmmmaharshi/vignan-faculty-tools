@@ -3,7 +3,7 @@ import "@mantine/core/styles.css";
 import { createTheme, MantineProvider } from "@mantine/core";
 import React from "react";
 import { createRoot } from "react-dom/client";
-import { BrowserRouter, Navigate, Route, Routes } from "react-router";
+import { BrowserRouter, Route, Routes } from "react-router";
 
 import App from "./App";
 
@@ -24,26 +24,30 @@ const root = document.querySelector("#root");
 if (!root) throw new Error("web/index.html has no #root element to mount into");
 
 /**
- * Two routes, and one component behind both.
+ * One catch-all, and one component behind it.
  *
- * `App` decides what each path means - the guard, the sign-in form, the
- * dashboard - because splitting it into two routed components would either
- * duplicate the cascade's state or put it in a context. The router's job here is
- * narrower and worth stating: the URL is the answer to "which screen", so a
- * refresh, a bookmark and the back button all agree with the screen, and ending
- * a session is a navigation rather than a state change only `App` can see.
+ * `App` decides what each path means — the guard, the sign-in form, the dashboard —
+ * because splitting it into routed modules would either duplicate the cascade's
+ * state or put it in a context. The router's job here is narrower and worth
+ * stating: the URL is the answer to "which screen", so a refresh, a bookmark and
+ * the back button all agree with the screen, and ending a session is a navigation
+ * rather than a state change only `App` can see.
  *
- * `/` and `/dashboard` both render `App`, and `App` sends each on to whichever
- * screen the session calls for, so the two are interchangeable ways in. Anything
- * unrecognised lands on `/` for the same reason. A 404 page would be wrong for a
- * two-screen app whose only "pages" are the dashboard and the sign-in form.
+ * **One catch-all, not a list of paths.** This used to enumerate `/`, `/dashboard`
+ * and `/login`, each rendering `App`, with a fourth route redirecting unknown paths
+ * to `/`. Every one rendered the same component, so the list carried no behaviour
+ * — and it was a *second* statement of which path is the dashboard, with nothing
+ * connecting it to `DASHBOARD_PATH` in `App.tsx`. When the two disagreed the result
+ * was not a broken link but a **redirect loop**: the unknown path went to `/`, the
+ * guard sent `/` to `/dashboard`, and back and forth — measured at 37 navigations
+ * and 82 API calls in six seconds. It presents as a page that never finishes
+ * loading, so it costs an hour rather than a minute.
  *
- * **These paths must be the ones `DASHBOARD_PATH` and `LOGIN_PATH` name in
- * `App.tsx`.** A dashboard path in one file and not the other is not a broken
- * link, it is a redirect loop: the catch-all sends the unknown path to `/`, the
- * guard sends `/` to `/dashboard`, and the two take turns for ever. It presents
- * as a page that never finishes loading rather than as an error, so it is easy to
- * lose an hour in.
+ * `App` already decides what every path means, from `pathname === LOGIN_PATH`, so a
+ * single catch-all loses nothing and cannot drift. A 404 page would be wrong for a
+ * two-screen app whose only "pages" are the dashboard and the sign-in form. If a
+ * second screen ever needs its own module, the seam belongs here — but a path that
+ * only names `App` does not belong in this file at all.
  *
  * This needs the server to serve index.html for unknown paths, or a deep link
  * 404s before the router ever runs. See the static handling in `server.ts`.
@@ -54,10 +58,7 @@ createRoot(root).render(
     <MantineProvider theme={theme} defaultColorScheme="light">
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<App />} />
-          <Route path="/dashboard" element={<App />} />
-          <Route path="/login" element={<App />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
+          <Route path="*" element={<App />} />
         </Routes>
       </BrowserRouter>
     </MantineProvider>

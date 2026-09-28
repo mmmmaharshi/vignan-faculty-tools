@@ -44,6 +44,7 @@ Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
 server.ts            Bun HTTP server: routing, sessions, static files, the Portal transport
 server-routes.ts     the two route handlers, over a PortalReader; no HTTP in it
 session-store.ts     sessions in the OS credential vault, over an injected backend
+portal-liveness.ts   alive | dead | unknown: is this ECAP session still working?
 portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
 portal-replies.ts    pure string -> data functions, and the seam guards
 attendance-bands.ts  the Regular / Irregular / Critical rule, and the summary
@@ -83,14 +84,16 @@ both** — the router is not asked to split it, because that would duplicate the
 cascade's state or move it into a context, and ADR 0005 rejected a context for
 that reason.
 
-- **The `<Route>` list in `web/main.tsx` and `DASHBOARD_PATH` in `web/App.tsx` must
-  name the same path.** Disagreeing is not a broken link, it is a **redirect
-  loop**: the catch-all sends the unrouted path to `/`, the guard sends `/` to
-  `/dashboard`, and they take turns — measured at 37 navigations and 82 API calls
-  in six seconds. It presents as a page that never finishes loading rather than as
-  an error, so it costs an hour. **The loop only happens while signed in**;
-  signed out the guard's first move is `/` to `/login` and it stops, so a check
-  run signed out passes against the broken build.
+- **`web/main.tsx` has exactly one route, a catch-all rendering `App`.** Do not
+  enumerate paths there. Every path used to render the same component, so the list
+  was a *second* statement of which path is the dashboard with nothing connecting
+  it to `DASHBOARD_PATH` — and when they disagreed the result was a **redirect
+  loop**, measured at 37 navigations and 82 API calls in six seconds. It presents
+  as a page that never finishes loading rather than as an error. `App` decides
+  every path from `pathname === LOGIN_PATH`; a path that only names `App` has no
+  business in that file. **The loop only happens while signed in** — signed out
+  the guard's first move is `/` to `/login` and it stops, so a check run signed out
+  passes against the broken build.
 
 - **The server serves `index.html` for extensionless paths**, or a deep link to
   `/login` 404s before any JavaScript runs. A path *with* a dot is a real file
@@ -182,15 +185,20 @@ theme key means you want a component prop instead.
   jar: `portal.signedIn` only means "an `frmAuth` cookie is in the jar". A **401**
   evicts, and so does an **empty course list** — see the next rule. A 502 evicts
   nothing, because that one really is ambiguous. ADR 0013.
-- **An empty course list means the ECAP session is dead, not that the portal
-  broke.** A signed-out request to convention A answers **HTTP 200 with valid
-  JSON** whose `<select>` holds only `-Select-`, so every sign of life looks good
-  and nothing throws. It is also exactly what `emptyLevels` was built to read as
-  "ECAP's layout has changed", so an expired session shipped as a signed-in
-  dashboard with five dead dropdowns and a warning blaming the portal. Every
-  account has at least one course, so an empty list can only mean the session is
-  gone: `handleOptions` throws 401 and the probe evicts. Do not simplify either
-  check back to looking for a 401 alone.
+- **One module decides whether a session is alive: `portal-liveness.ts`.** It
+  answers `alive | dead | unknown` and both callers ask it — `handleOptions` and
+  the `/api/session` probe. It was written twice, in two layers, and the copy with
+  no test coverage is the one that shipped the bug.
+- **`unknown` is not `dead`, and a 502 must never sign anyone out.** A signed-out
+  request to convention A answers **HTTP 200 with valid JSON** whose `<select>`
+  holds only `-Select-` — every sign of life looks good, which is why the check is
+  not "did it throw" — and every account has at least one course, so an empty list
+  can only mean the session is gone. But a 502 is genuinely ambiguous, and ADR 0002
+  and ADR 0013 both refused to treat it as an expiry.
+- **A caller needing both the verdict and the options must use `courseVerdict`.**
+  Reading `portal.courses()` first and passing the result to `liveness` lets a
+  throw escape *before* the rule is reached, so the 502 refusal holds by accident
+  rather than by decision. That was the first version; a mutation probe caught it.
 - **The store prunes on every write, not only at boot.** A long-running server does
   not boot again, and every sign-in added an entry — seventeen after half an hour
   of test runs, seven of them already dead at the portal. The cutoff is a day: far
@@ -207,11 +215,13 @@ theme key means you want a component prop instead.
   does not, so a daily user was signed out on day 31 anyway. `refreshedCookie` in
   `server.ts` is what makes `Max-Age` mean *thirty days from your last use*. Do
   not "simplify" it back to a single write at sign-in.
-- **Sign-in and sign-out must `await flushSessions()`.** Leaving either to the
-  60-second tick means a restart can undo it, and the sign-out case is the one
-  that matters: the user ends a session, the server dies, and they are signed in
-  again. `dropSession` exists so the delete and the dirty flag cannot be separated
-  again.
+- **Use `forgetSession(id)`, never `dropSession` followed by a flush.** The delete
+  and the write cannot be separated: sign-out shipped calling `sessions.delete`
+  without the dirty flag, then without the flush, and a restart inside sixty
+  seconds brought the session back. Every call site was free to get it half right
+  and one did — `requireSession`, which dropped a 401'd session and left it on
+  disk. `dropSession` is the map half alone, for `reapSessions` where the sweep
+  writes nothing by itself.
 - **`Bun.secrets` cannot be enumerated**, so `VAULT_INDEX` lists the ids and each
   session is its own entry. **One entry for all of them does not work**: Windows
   caps a generic credential at `CRED_MAX_CREDENTIAL_BLOB_SIZE` = 5 × 512 = 2560
@@ -304,14 +314,14 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**118 of the 122 tests need no credentials and run in about six seconds.** They
+**136 of the 143 tests need no credentials and run in about six seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
-handlers over a fake portal, the cascade's rules, and session persistence over a
-fake vault. Only `test/smoke.spec.ts` touches the network — and it skips without
-credentials, so anything testable without a portal must be. **Nothing may touch
-the real Windows Credential Manager**, which is why `session-store.ts` takes its
-backend as an argument; `bunSecrets()` in `server.ts` is the only caller of the
-real thing.
+handlers over a fake portal, the cascade's rules, session liveness, and session
+persistence over a fake vault. Only `test/smoke.spec.ts` touches the network — and
+it skips without credentials, so anything testable without a portal must be.
+**Nothing may touch the real Windows Credential Manager**, which is why
+`session-store.ts` takes its backend as an argument; `bunSecrets()` is the only
+caller of the real thing.
 
 **Never add an assertion that mirrors the implementation.** Such a test passes
 when the code is wrong and proves nothing. Assert a property instead: for the

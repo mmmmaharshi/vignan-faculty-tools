@@ -38,15 +38,22 @@ Add `react-router` and let the URL answer "which screen".
 - `/` is the dashboard, `/login` is the sign-in form, anything else redirects to
   `/`.
 
-  **Amended:** the dashboard moved to `/dashboard`, at the user's request, with
-  `/` kept as a way in. The structure is unchanged — still two screens, still `App`
-  owning both — and `/` still exists so an old bookmark and a typed address do not
-  break. What the change cost was a lesson worth recording: the `<Route>` list in
-  `web/main.tsx` and `DASHBOARD_PATH` in `web/App.tsx` are two statements of the
-  same fact, and they are not connected by anything that would notice them
-  disagreeing. When only one was updated the catch-all redirected `/dashboard` to
-  `/`, the guard redirected `/` back, and the two took turns for ever. It looks
-  like a slow page, not an error.
+  **Amended twice.** First, the dashboard moved to `/dashboard`, at the user's
+  request, with `/` kept as a way in so an old bookmark and a typed address do not
+  break. The structure was unchanged — still two screens, still `App` owning both.
+
+  What that cost was a lesson worth recording: the `<Route>` list in
+  `web/main.tsx` and `DASHBOARD_PATH` in `web/App.tsx` were two statements of the
+  same fact, with nothing that would notice them disagreeing. When only one was
+  updated the catch-all redirected `/dashboard` to `/`, the guard redirected `/`
+  back, and the two took turns for ever. It looks like a slow page, not an error.
+
+  Then the lesson was applied. The list is now a **single catch-all** rendering
+  `App`, because every route in it rendered the same component and therefore
+  carried no behaviour. A path that only names `App` has no business in
+  `main.tsx`, and with one route there is no second statement left to drift. The
+  redirect loop is now impossible by construction rather than prevented by
+  vigilance — the difference between a rule and a comment.
 - `App` still decides what each path means, and still owns all the state. The
   router is not asked to split the component, because splitting it would either
   duplicate the cascade's state or move it into a context — and ADR 0005 already
@@ -96,15 +103,20 @@ catches a session going stale, this one catches the screen going stale.
   and `signedIn` remain, and both are about a fact the URL cannot carry.
 - **A second adapter-free dependency.** `react-router` is the first runtime
   dependency beyond Mantine and React. It is 8.4.0, and `Routes`/`Route`/
-  `Navigate`/`BrowserRouter`/`useNavigate` are all used.
+  `BrowserRouter`/`useLocation`/`useNavigate` are all used. `Navigate` no longer
+  is — see the amendment above, where the catch-all stopped redirecting because
+  `App` was already deciding where every path goes.
 - **The server serves `index.html` for extensionless paths.** Verified: `/`,
-  `/index.html`, `/login` and `/nonsense/deep/path` all return 200 HTML;
-  `/assets/does-not-exist.js` returns 404 JSON; `/api/nope` returns 401; and
+  `/index.html`, `/login`, `/dashboard` and `/nonsense/deep/path` all return 200
+  HTML; `/assets/does-not-exist.js` returns 404 JSON; `/api/nope` returns 401; and
   `/favicon.ico` is still 204.
-- **Three assertions added to the smoke test**, all of which fail if the router
-  is removed: a deep link to `/` lands on `/login`, signing in navigates to `/`,
-  and a reload stays on `/` with the cascade populated. The first is asserted in
-  `submitSignIn`, so every test that signs in checks the guard.
+- **Assertions added to the smoke test**, all of which fail if the router is
+  removed: a deep link to the dashboard lands on `/login`, signing in navigates to
+  `/dashboard`, and a reload stays there with the cascade populated. The first is
+  asserted in `submitSignIn`, so every test that signs in checks the guard. A
+  fourth watches the wire while signed in and fails if any path keeps making
+  requests after settling — the redirect loop presents as a page that merely never
+  finishes loading, so it is counted rather than looked at.
 - **Back after sign-out leaves the app.** `signedOut` replaces rather than pushes,
   so the dashboard entry is gone. That is deliberate — a history entry pointing at
   a screen the user no longer has access to is worse than a dead end — and the

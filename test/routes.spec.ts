@@ -264,6 +264,28 @@ test.describe("the options ladder", () => {
     });
   });
 
+  test("a 502 does not sign anyone out", async () => {
+    // The refusal ADR 0002 and ADR 0013 both record, and this is the layer that
+    // actually decides, so it is pinned here as well as in `liveness.spec.ts`.
+    // `liveness` returning `unknown` is only half the promise: a caller that
+    // treats `unknown` as `dead` would still sign the user out, and that mistake
+    // lives in this file, not in the module.
+    const { reader } = fake({
+      register: undefined,
+    });
+    const flaky: PortalReader = {
+      ...reader,
+      courses: () => Promise.reject(new HttpError(502, "unreadable reply")),
+    };
+    // The refusal survives: a 502 is `unknown`, so the ladder is served with the
+    // course level empty and reported in `emptyLevels` — which is the honest
+    // report for a portal that could not be reached, and what ADR 0002 chose over
+    // refusing outright. Nobody is signed out.
+    const reply = await handleOptions(flaky, {});
+    expect(reply.course).toEqual([]);
+    expect(reply.emptyLevels).toContain("course");
+  });
+
   test("an empty course list is a dead session, not a layout change", async () => {
     // The bug this exists for. A signed-out request to convention A answers HTTP
     // 200 with a well-formed payload whose <select> holds only "-Select-", so

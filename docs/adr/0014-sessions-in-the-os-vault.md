@@ -224,15 +224,22 @@ five dead dropdowns behind the message. That is the one reading that is certainl
 wrong, and the app chose it.
 
 Every account has at least one course, so **an empty course list can only mean the
-session is gone.** Two checks now read it that way, deliberately redundant so
-neither can mask the other:
+session is gone.** **The decision now lives in one place**, `portal-liveness.ts`, answering
+`alive | dead | unknown` from that evidence. Both callers ask it — `handleOptions`
+and the `/api/session` probe — so the rule cannot drift between two layers. It was
+originally written twice, and the copy with no test coverage was the one that
+shipped the bug, which is the whole argument for a module with an interface a test
+can cross rather than a check inlined in a handler.
 
-- `handleOptions` throws **401** rather than returning an empty ladder. The client
-  already turns a 401 into the sign-in form with a reason.
-- The `/api/session` probe **evicts** on an empty list as well as on a 401.
+`handleOptions` throws **401** on `dead`; the probe **evicts** on `dead`. A 502 is
+`unknown` and neither caller acts on it. That case really is ambiguous, and ADR
+0002's refusal to turn uncertainty into a lost session still stands.
 
-A 502 still evicts nothing. That case really is ambiguous, and ADR 0002's refusal
-to turn uncertainty into a lost session still stands.
+One wrinkle worth recording, because the first version got it wrong and a mutation
+probe caught it: a caller that needs both the verdict and the options must ask for
+them together via `courseVerdict`, not read `portal.courses()` itself and hand the
+result to `liveness`. Reading first lets a throw escape *before* the rule is
+reached, so the 502 refusal held by accident rather than by decision.
 
 Measured boundary: a session 19 minutes old returns the real course, one 22
 minutes old returns the empty select. That is ECAP's own timeout, not ours.

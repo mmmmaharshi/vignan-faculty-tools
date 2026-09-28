@@ -19,8 +19,10 @@
  */
 
 import { summarise } from "./attendance-bands";
+import { courseVerdict } from "./portal-liveness";
 import { HttpError, level, parseRegister, realOptions } from "./portal-replies";
 import type {
+  CascadeLevel,
   Option,
   OptionsReply,
   OptionsRequest,
@@ -28,8 +30,17 @@ import type {
   RegisterRequest,
 } from "./shared/api";
 
-/** One position in the cascade. */
-type Level = "course" | "semester" | "branch" | "section" | "subject";
+/**
+ * One position in the cascade.
+ *
+ * The contract's union, not a second copy of it. A re-spelled narrower union is a
+ * subtype, so the assignment into `OptionsReply.emptyLevels` type-checks in exactly
+ * the direction that cannot fail — a sixth level would leave this file's ladder
+ * compiling against five and the server silently never filling it. `web/cascade.ts`
+ * already imports the contract's union rather than re-deriving it; this is the same
+ * move, for the same reason.
+ */
+type Level = CascadeLevel;
 
 /**
  * What a handler needs from the portal.
@@ -102,29 +113,30 @@ export async function handleOptions(
     if (empty) emptyLevels.push(key);
   };
 
-  take("course", await portal.courses());
-
   /**
-   * An empty course list is not a layout change, it is a dead session.
+   * The course list is both the first level's options and the evidence of whether
+   * the session is alive, so it is read once — through `portal-liveness.ts`, which
+   * is the only place the dead-session rule is written.
    *
-   * A signed-out request to convention A does not fail: it answers HTTP 200 with
-   * a well-formed payload whose `<select>` holds nothing but `-Select-`. Measured
-   * against the live portal, a session 19 minutes old returns the real course and
-   * one 22 minutes old returns the empty one — ECAP's own ~20-minute timeout.
+   * `dead` answers 401, which the client turns into the sign-in form with a reason.
+   * `unknown` falls through on purpose: a 502 must not sign anyone out, which is
+   * the refusal ADR 0002 and ADR 0013 both record, and the ladder below reports the
+   * empty levels instead.
    *
-   * So without this, an expired session produced a dashboard with five dead
-   * dropdowns and an `emptyLevels` warning blaming the portal's markup, which is
-   * the one reading that is certainly wrong. Every account has at least one
-   * course, so an empty course list can only mean the session is gone. A 401 is
-   * the honest answer and the client already handles it by sending the user to
-   * the sign-in form with a reason.
+   * `courseVerdict` rather than `liveness` over an already-resolved list, and
+   * rather than reading `portal.courses()` here and passing the result in: a caller
+   * that reads the courses itself lets a throw escape before `liveness` runs, so
+   * the 502 rule would hold by accident rather than by decision. That was the
+   * first version, and the mutation probe caught it.
    */
-  if (!out.course.length) {
+  const { verdict, courses: courseOptions } = await courseVerdict(portal);
+  if (verdict === "dead") {
     throw new HttpError(
       401,
       "Your ECAP session expired. Please sign in again."
     );
   }
+  take("course", courseOptions);
 
   if (b.course) {
     const [branches, semesters] = await portal.branchesAndSemesters(b.course);

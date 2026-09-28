@@ -69,12 +69,12 @@ import {
   portalEncrypt,
   webMethodBody,
 } from "./portal-conventions";
+import { liveness } from "./portal-liveness";
 import {
   hiddenValue,
   HttpError,
   looksLikeHtml,
   options,
-  realOptions,
   unquoteJs,
 } from "./portal-replies";
 import { handleOptions, handleRegister } from "./server-routes";
@@ -474,14 +474,11 @@ function markStoreDirty() {
 }
 
 /**
- * Forget a session, and record that the vault now disagrees with the map.
+ * Forget a session in the map, and record that the vault now disagrees with it.
  *
- * Three callers need exactly this - a deliberate sign-out, an expired portal jar,
- * and the probe's 401 - and writing `if (id && sessions.delete(id))
- * markStoreDirty()` at each of them is how one of them ends up forgetting the
- * second half. That is not hypothetical: sign-out shipped calling `sessions.delete`
- * without the flag, and then without the flush, and a restart resurrected the
- * session the user had just ended.
+ * Not the whole job — see `forgetSession`, which every caller should use. This is
+ * the half that `reapSessions` needs, where the sweep writes nothing by itself and
+ * the tick collects the rest.
  *
  * Returns whether anything was removed, so a caller can decide a write is needed.
  */
@@ -539,6 +536,24 @@ async function flushSessions(): Promise<void> {
     return;
   }
   storeDirty = false;
+}
+
+/**
+ * Drop a session and write it out, in one step.
+ *
+ * The delete and the write cannot be separated, which is the bug this exists to
+ * close: sign-out shipped calling `sessions.delete` without the dirty flag, then
+ * without the flush, and a restart inside sixty seconds brought the session back.
+ * Every call site was free to get it half right, and one did — `requireSession`,
+ * which dropped a 401'd session and left it on disk.
+ *
+ * The flush is awaited rather than left to the tick, because a session the user has
+ * ended is the one loss they would actually notice, and the signal handlers do not
+ * help: they cover a graceful Ctrl-C rather than Task Manager or a power cut.
+ * See ADR 0014.
+ */
+async function forgetSession(id: string | null): Promise<void> {
+  if (dropSession(id)) await flushSessions();
 }
 
 /** Rebuild a session from the vault. The jar is the whole auth state; see CONTEXT.md. */
@@ -605,14 +620,22 @@ function readCookie(req: Request, name: string): string | null {
   return null;
 }
 
-function requireSession(req: Request): Session {
+/**
+ * The session a request needs, or a 401.
+ *
+ * Async because evicting a dead session has to reach the vault, and that is the
+ * whole point of `forgetSession`. This was the one caller that dropped without
+ * writing, so a 401 on a data request left the session on disk to come back on the
+ * next boot.
+ */
+async function requireSession(req: Request): Promise<Session> {
   const id = readCookie(req, "ecap_sid");
   const s = getSession(id);
   if (!s)
     throw new HttpError(401, "Your session expired. Please sign in again.");
   if (!s.portal.signedIn) {
     // The jar is dead. Drop it rather than leave it to fail again next request.
-    dropSession(id);
+    await forgetSession(id);
     throw new HttpError(
       401,
       "Your ECAP session expired. Please sign in again."
@@ -798,13 +821,10 @@ const server = Bun.serve({
 
       if (req.method === "POST" && path === "/api/logout") {
         const id = readCookie(req, "ecap_sid");
-        // Awaited, not left to the tick. Leaving it to the tick meant a sign-out
+        // Awaited, not left to the tick: leaving it to the tick meant a sign-out
         // followed by a hard kill inside sixty seconds restored the session on the
-        // next boot - the exact thing the user asked to stop happening, and the
-        // reason the sign-out path is the one place that cannot defer its write.
-        // The signal handlers do not help: they cover a graceful Ctrl-C, not
-        // Task Manager or a power cut.
-        if (dropSession(id)) await flushSessions();
+        // next boot. `forgetSession` owns both halves — see the note on it.
+        await forgetSession(id);
         return json({ ok: true } satisfies OkReply, 200, {
           "set-cookie": "ecap_sid=; Path=/; Max-Age=0",
         });
@@ -818,50 +838,31 @@ const server = Bun.serve({
           const id = readCookie(req, "ecap_sid");
           const s = getSession(id);
           if (!s) return json({ signedIn: false } satisfies SessionReply, 200);
-          // Ask the portal, rather than trusting the jar. With a 30-day session
-          // the ECAP session dies long before ours does, and `jar.signedIn`
-          // only means "an frmAuth cookie is in the jar" - it stays true after
-          // the portal has forgotten us. Trusting it would show a signed-in
-          // dashboard that then failed every call, which is the one thing a
-          // session probe exists to prevent.
+          // Ask the portal, rather than trusting the jar. Our session is 30 days
+          // and the portal's is about twenty minutes, and `jar.signedIn` only
+          // means "an frmAuth cookie is in the jar" — it stays true long after the
+          // portal has forgotten us. Trusting it would show a signed-in dashboard
+          // that then failed every call, which is the one thing a session probe
+          // exists to prevent.
           //
-          // `courses()` is the cheapest call that genuinely goes to the portal.
+          // Ask the portal, rather than trusting the jar, and let one module answer.
           //
-          // What this does and does not catch, stated plainly because it is the
-          // limit of the check rather than a detail. A 502 evicts nothing: a dead
-          // session on convention A arrives as an unreadable or errored reply, and
-          // a 502 is ambiguous — it could equally be a portal that is down, or
-          // markup that has moved. Signing the user out on that would turn a
-          // transient outage into a lost session, which is precisely the trade
-          // ADR 0002 refused when it chose `emptyLevels` over a 502. So a 502 is
-          // reported as signed-in and the real request surfaces it.
+          // `liveness` is the same decision `handleOptions` makes, from the same
+          // evidence, and it lives in `portal-liveness.ts` so this copy cannot drift
+          // from that one. It is also the copy that shipped the bug: an empty course
+          // list was read as a layout change, so an expired session produced a
+          // signed-in dashboard with five dead dropdowns and a warning blaming the
+          // portal. Read that module before changing anything here.
           //
-          // **An empty course list evicts**, and that case was missed once. A dead
-          // session on convention A does not always produce a 502; it can also
-          // produce a perfectly well-formed 200 whose payload is a `<select>`
-          // holding nothing but the `-Select-` placeholder. Measured: a session
-          // 19 minutes old returns the real course, one 22 minutes old returns the
-          // empty select, and the boundary is ECAP's own ~20-minute timeout. Since
-          // every account has at least one course, an empty list means the session
-          // is gone — and treating it as alive is what produced a signed-in
-          // dashboard with a dead cascade behind it and an `emptyLevels` warning
-          // blaming the portal's layout. Three signs of life are checked instead of
-          // one: a 401, a 502, or a 200 with no real course.
-          try {
-            const offered = await s.portal.courses();
-            if (!realOptions(offered).length) {
-              // The jar authenticates to nothing. Drop it, or the user is left
-              // staring at a dashboard they cannot use.
-              if (dropSession(id)) await flushSessions();
-              return json({ signedIn: false } satisfies SessionReply, 200);
-            }
-          } catch (error) {
-            if (error instanceof HttpError && error.status === 401) {
-              // The jar is dead. Drop it rather than make the next request
-              // discover the same thing.
-              if (dropSession(id)) await flushSessions();
-              return json({ signedIn: false } satisfies SessionReply, 200);
-            }
+          // `unknown` is not signed-out. A 502 is genuinely ambiguous — the portal
+          // down, or markup that has moved — and signing out on it would turn a
+          // transient outage into a lost session. ADR 0002 refused that trade, ADR
+          // 0013 refused it again for this probe, and nothing since has changed it.
+          if ((await liveness(s.portal)) === "dead") {
+            // The jar authenticates to nothing. Drop it, or the user is left
+            // staring at a dashboard they cannot use.
+            await forgetSession(id);
+            return json({ signedIn: false } satisfies SessionReply, 200);
           }
           return json(
             { signedIn: s.portal.signedIn } satisfies SessionReply,
@@ -872,7 +873,7 @@ const server = Bun.serve({
           );
         }
 
-        const s = requireSession(req);
+        const s = await requireSession(req);
         const { portal } = s;
         // Re-issued on both data endpoints and on the probe above, so a tab in
         // active use keeps its `Max-Age` rolling forward. See `refreshedCookie`.
