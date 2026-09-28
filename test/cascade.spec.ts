@@ -26,7 +26,6 @@ import {
   queryToSelection,
   selectionToQuery,
   shouldContinue,
-  statusOf,
   tintFor,
   toPortalDate,
 } from "../web/cascade";
@@ -334,25 +333,25 @@ const student = (pct: number | null): Student => ({
 });
 
 test.describe("the bands", () => {
-  test("worst band first, so a student is never described two ways", () => {
-    // The table's tint and the CSV's word come from this, and a student who is
-    // both must not be reported as merely irregular.
-    expect(statusOf({ ...student(40), irregular: true, critical: true })).toBe(
-      "Critical"
+  test("worst band wins, so a student is never shown as merely irregular", () => {
+    // A student can carry both flags. Reading `irregular` first would tint them
+    // yellow and hide the fact that they are critical, which is the one row a
+    // faculty member most needs to see.
+    expect(tintFor({ ...student(40), irregular: true, critical: true })).toBe(
+      "var(--mantine-color-red-light)"
     );
-    expect(statusOf({ ...student(70), irregular: true, critical: false })).toBe(
-      "Irregular"
+    expect(tintFor({ ...student(70), irregular: true, critical: false })).toBe(
+      "var(--mantine-color-yellow-light)"
     );
-    expect(
-      statusOf({ ...student(90), irregular: false, critical: false })
-    ).toBe("Regular");
+    expect(tintFor({ ...student(90), irregular: false, critical: false })).toBe(
+      undefined
+    );
   });
 
   test("an unparseable percentage is never called critical or irregular", () => {
     // `pct: null` means the portal's cell would not parse. Claiming a band for it
     // would put a student in a list on the strength of nothing.
     const unknown = { ...student(null), irregular: false, critical: false };
-    expect(statusOf(unknown)).toBe("Regular");
     expect(tintFor(unknown)).toBeUndefined();
   });
 

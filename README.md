@@ -55,8 +55,7 @@ describes, so a green run means something.
 
 The table is sorted **lowest attendance first**, with irregular rows tinted and
 the critical one badged. Tick *Show only irregular students* to reduce it to just
-the students you care about. **Save CSV** exports roll, name, attended/held,
-percent, and a Regular / Irregular / Critical flag.
+the students you care about.
 
 The line above the table always names the register that is on screen. With five
 dropdowns in front of you it is easy to read last week's numbers as this week's.

@@ -76,7 +76,6 @@ import {
   queryToSelection,
   selectionToQuery,
   shouldContinue,
-  statusOf,
   toPortalDate,
 } from "./cascade";
 import type { Level, Range, Sel } from "./cascade";
@@ -145,16 +144,6 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
   }
   return body as T;
 }
-
-/**
- * One CSV field, quoted.
- *
- * Every cell reaching this is a string: the portal's combined attended/held is
- * one, and the percentage is formatted or blanked before it gets here. Typing it
- * `string` rather than `unknown` is the check - `unknown` would have let anything
- * through and turned `String()` into the thing doing the work.
- */
-const csvCell = (v: string): string => `"${v.replaceAll('"', '""')}"`;
 
 /* ------------------------------------------------------------------ app */
 
@@ -680,45 +669,6 @@ const App = (): React.JSX.Element => {
     }
   }, [booted, signedIn, onLogin, navigate]);
 
-  /* ---- export ---- */
-
-  const saveCsv = () => {
-    if (!result) return;
-    const head = [
-      "Roll No",
-      "Student Name",
-      "Attend/Held",
-      "Percent",
-      "Status",
-    ];
-    const lines = [head.map(csvCell).join(",")];
-    for (const s of result.students) {
-      const status = statusOf(s);
-      lines.push(
-        [
-          s.roll,
-          s.name,
-          s.attendedOfHeld,
-          s.pct == null ? "" : s.pct.toFixed(2),
-          status,
-        ]
-          .map(csvCell)
-          .join(",")
-      );
-    }
-    // The BOM is what makes Excel read the file as UTF-8.
-    const blob = new Blob([`\uFEFF${lines.join("\r\n")}`], {
-      type: "text/csv;charset=utf-8",
-    });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "ecap-attendance.csv";
-    document.body.append(a);
-    a.click();
-    a.remove();
-    URL.revokeObjectURL(a.href);
-  };
-
   /* ---- derived ---- */
 
   // Both of these are rules, not arithmetic, so both live in cascade.ts. The
@@ -794,13 +744,11 @@ const App = (): React.JSX.Element => {
             disabled={disabled}
             range={range}
             busy={busy}
-            hasResult={result !== null}
             loadNote={loadNote}
             filterNote={filterNote}
             onSelect={onSelectLevel}
             onRange={onRangeChange}
             onLoad={loadRegister}
-            onSaveCsv={saveCsv}
           />
 
           {summary ? (

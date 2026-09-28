@@ -16,7 +16,7 @@ import type { Level, Range, Sel } from "../cascade";
 import type { Note } from "../types";
 
 /**
- * The cascade: five dependent dropdowns, a date range, and the two buttons.
+ * The cascade: five dependent dropdowns, a date range, and the load button.
  *
  * A mode `App` composes, not a component that owns the cascade. It is handed the
  * selection, the options, and which levels are enabled, and it reports changes
@@ -35,13 +35,11 @@ type ClassPickerProps = {
   disabled: Record<Level, boolean>;
   range: Range;
   busy: boolean;
-  hasResult: boolean;
   loadNote: string;
   filterNote: Note | null;
   onSelect: (key: CascadeLevel, value: string) => void;
   onRange: (part: "from" | "to", value: string) => void;
   onLoad: () => void;
-  onSaveCsv: () => void;
 };
 
 /** Mantine wants `{value, label}` pairs; the portal's own Option has a title too. */
@@ -64,13 +62,11 @@ export const ClassPicker = ({
   disabled,
   range,
   busy,
-  hasResult,
   loadNote,
   filterNote,
   onSelect,
   onRange,
   onLoad,
-  onSaveCsv,
 }: ClassPickerProps): React.JSX.Element => (
   <Paper withBorder p="lg" mb="md">
     <Stack>
@@ -109,9 +105,6 @@ export const ClassPicker = ({
       <Group>
         <Button onClick={onLoad} loading={busy}>
           Load register
-        </Button>
-        <Button variant="default" onClick={onSaveCsv} disabled={!hasResult}>
-          Save CSV
         </Button>
         {loadNote && (
           <Text c="dimmed" size="sm">

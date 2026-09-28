@@ -305,22 +305,15 @@ export function chosenText(opts: OptionsReply, sel: Sel): string {
   }).join("   ·   ");
 }
 
-/** The status word for a student, worst first. See CONTEXT.md for the bands. */
-export function statusOf(
-  s: RegisterReply["students"][number]
-): "Critical" | "Irregular" | "Regular" {
-  if (s.critical) return "Critical";
-  return s.irregular ? "Irregular" : "Regular";
-}
-
 /**
  * The row tint, reading Mantine's own colour tokens.
  *
  * `Table.Tr`'s `bg` prop is the whole mechanism - there is no custom CSS
  * anywhere in this project, so this returns a token or nothing at all.
  *
- * It lives here rather than beside the table because the CSV export needs the
- * same word, and both have to agree on which band a student is in.
+ * It reads the two flags rather than the percentage, so it cannot disagree with
+ * `withBands` about which band a student is in: the flags are what the server
+ * sent, and `attendance-bands.ts` is what set them.
  */
 export function tintFor(
   s: RegisterReply["students"][number]
