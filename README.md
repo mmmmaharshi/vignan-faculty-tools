@@ -70,6 +70,15 @@ dropdowns in front of you it is easy to read last week's numbers as this week's.
 - Sign-in keeps a session alive for **up to 30 days** of not using it — the timer
   resets on every request, and the browser cookie is set to match. When it does
   expire you sign in again. There is no stored password to leak or reuse.
+- **Restarting the server does not sign you out.** The sign-in token lives in the
+  **Windows Credential Manager** (via `Bun.secrets`), not in a file next to the
+  source, so nothing gets synced to cloud storage by accident. It is still not
+  the password — see above.
+- **The 30 days is a ceiling on our side, not a promise from ECAP.** Both of the
+  portal's cookies are session cookies with no expiry, and the credential turns
+  out to be bound to ECAP's own in-memory session. If ECAP forgets you, you sign
+  in again no matter what is stored. This was measured against the live portal,
+  not assumed — see ADR 0014.
 
 ## The front end
 

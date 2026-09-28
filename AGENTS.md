@@ -43,6 +43,7 @@ Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
 ```
 server.ts            Bun HTTP server: routing, sessions, static files, the Portal transport
 server-routes.ts     the two route handlers, over a PortalReader; no HTTP in it
+session-store.ts     sessions in the OS credential vault, over an injected backend
 portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
 portal-replies.ts    pure string -> data functions, and the seam guards
 attendance-bands.ts  the Regular / Irregular / Critical rule, and the summary
@@ -62,6 +63,7 @@ test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
 test/bands.spec.ts   where the attendance lines sit
 test/routes.spec.ts  the options ladder and the register handler, over a fake portal
 test/cascade.spec.ts the cascade's rules
+test/session-store.spec.ts  session persistence, over a fake vault
 test/smoke.spec.ts   one end-to-end pass against the live portal
 tsconfig*.json       three projects, split so web/ has DOM and server.ts does not
 dist/                build output, served by server.ts (not source)
@@ -169,6 +171,25 @@ theme key means you want a component prop instead.
   jar: `portal.signedIn` only means "an `frmAuth` cookie is in the jar". Only a
   401 evicts — a dead session on convention A arrives as a 502, and 502 is
   ambiguous. ADR 0013.
+- **The 30 days is a ceiling on *our* session, not a promise from ECAP.** A live
+  spike proved both portal cookies are session cookies with no `Expires` and no
+  `Max-Age`, and that **neither authenticates alone** — so the credential is
+  bound to ECAP's in-memory ASP.NET session, and a restored token whose session
+  has lapsed is simply signed out. Do not let any UI copy imply otherwise. ADR
+  0014.
+- **`Bun.secrets` cannot be enumerated** — `get`, `set`, `delete`, and no list.
+  That is why every session lives in **one** fixed entry rather than one entry
+  each: one-per-session would need an index, and an index is a second thing that
+  can fall out of step. A session is removed by rewriting the entry, so `delete`
+  is deliberately unused.
+- **Credential Manager is not a process boundary.** A separate process running as
+  the same user reads an entry straight back. The vault narrows *at-rest*
+  exposure — backups, cloud sync, disk imaging — and nothing else. Do not describe
+  it as protecting against a compromised machine; it does not.
+- **Restore must happen before `Bun.serve`**, and the top-level `await` is what
+  makes that true. `Bun.serve` listens the moment it is called, so a restore after
+  it leaves a window where a request finds an empty map and signs a signed-in user
+  out.
 - **`signedOut(why)` takes a reason, and an empty one means no note.** A note
   object with empty text is truthy, so passing `""` took the `note` branch and
   replaced the sign-in reassurance with a blank alert.
@@ -241,11 +262,14 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**107 of the 110 tests need no credentials and run in about two seconds.** They
+**118 of the 121 tests need no credentials and run in about six seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
-handlers over a fake portal, and the cascade's rules. Only
-`test/smoke.spec.ts` touches the network — and it skips without credentials, so
-anything testable without a portal must be.
+handlers over a fake portal, the cascade's rules, and session persistence over a
+fake vault. Only `test/smoke.spec.ts` touches the network — and it skips without
+credentials, so anything testable without a portal must be. **Nothing may touch
+the real Windows Credential Manager**, which is why `session-store.ts` takes its
+backend as an argument; `bunSecrets()` in `server.ts` is the only caller of the
+real thing.
 
 **Never add an assertion that mirrors the implementation.** Such a test passes
 when the code is wrong and proves nothing. Assert a property instead: for the

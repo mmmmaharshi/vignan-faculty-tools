@@ -78,6 +78,8 @@ import {
 } from "./portal-replies";
 import { handleOptions, handleRegister } from "./server-routes";
 import type { PortalReader } from "./server-routes";
+import { bunSecrets, loadSessions, saveSessions, sweep } from "./session-store";
+import type { StoredSession } from "./session-store";
 import type {
   CascadeLevel,
   ErrorReply,
@@ -434,11 +436,103 @@ type Session = {
 
 const sessions = new Map<string, Session>();
 
+/**
+ * Where the sessions are written, and how often.
+ *
+ * Sixty seconds is not a guess about durability, it is a statement that the
+ * timestamp's precision is irrelevant: `at` is stamped on every request, and
+ * rounding it to the nearest minute against a thirty-day window changes nothing
+ * anybody can observe. Sign-in and sign-out flush immediately instead, because
+ * those are the two moments where losing the write would actually be noticed.
+ */
+const SESSION_FLUSH_MS = 60_000;
+
+/**
+ * The OS credential vault, or null if this runtime has none.
+ *
+ * Null is a supported state, not a failure: persistence is a convenience, so a
+ * build without `Bun.secrets` keeps today's behaviour — sessions in memory, gone
+ * on restart — instead of refusing to start. The banner says which one you got.
+ */
+const vault = bunSecrets();
+
+/** Set when the in-memory map and the vault disagree; cleared by a good write. */
+let storeDirty = false;
+
+function markStoreDirty() {
+  storeDirty = true;
+}
+
+/** The map, reduced to the shape the store writes. */
+function snapshotSessions(): StoredSession[] {
+  return [...sessions].map(([id, s]) => ({
+    id,
+    at: s.at,
+    cookies: [...s.portal.jar.entries],
+  }));
+}
+
+/**
+ * Write the vault, if it is out of date.
+ *
+ * A failure is logged and the flag stays set, so the next tick tries again. It is
+ * deliberately not fatal: the in-memory session is the live one, and the vault
+ * only exists so the *next* boot is convenient. Losing it costs one sign-in, and
+ * refusing to serve a working session over a failed convenience write would be
+ * the worse trade.
+ */
+async function flushSessions(): Promise<void> {
+  if (!vault || !storeDirty) return;
+  const problem = await saveSessions(vault, snapshotSessions());
+  if (problem) {
+    console.error(`[sessions] ${problem}`);
+    return;
+  }
+  storeDirty = false;
+}
+
+/** Rebuild a session from the vault. The jar is the whole auth state; see CONTEXT.md. */
+function restoreSession(stored: StoredSession): Session {
+  const portal = new Portal();
+  for (const [name, value] of stored.cookies)
+    portal.jar.entries.set(name, value);
+  return { at: stored.at, portal };
+}
+
 function reapSessions() {
   const now = Date.now();
+  let dropped = false;
   for (const [id, s] of sessions) {
-    if (now - s.at > SESSION_TTL_MS) sessions.delete(id);
+    if (now - s.at > SESSION_TTL_MS) {
+      sessions.delete(id);
+      dropped = true;
+    }
   }
+  if (dropped) markStoreDirty();
+}
+
+/**
+ * Load whatever survived the last run, then sweep.
+ *
+ * The sweep runs after the load, not before, because an entry written three weeks
+ * ago by a build with a shorter TTL should be held to *this* build's TTL rather
+ * than restored on trust. Anything past it is dropped and never written back, so
+ * a stale token cannot accumulate in the vault across restarts.
+ */
+async function restoreSessions(): Promise<{
+  restored: number;
+  dropped: number;
+  persisted: boolean;
+}> {
+  if (!vault) return { restored: 0, dropped: 0, persisted: false };
+  const loaded = await loadSessions(vault);
+  const { kept, dropped } = sweep(loaded, Date.now(), SESSION_TTL_MS);
+  for (const stored of kept) {
+    if (sessions.has(stored.id)) continue;
+    sessions.set(stored.id, restoreSession(stored));
+  }
+  if (dropped) markStoreDirty();
+  return { restored: kept.length, dropped, persisted: true };
 }
 
 function getSession(id: string | null): Session | null {
@@ -446,7 +540,10 @@ function getSession(id: string | null): Session | null {
   reapSessions();
   const s = sessions.get(id);
   if (!s) return null;
+  // The sliding stamp is a change worth recording, but not one worth a write on
+  // its own - `flushSessions` collects them into the next tick.
   s.at = Date.now();
+  markStoreDirty();
   return s;
 }
 
@@ -465,7 +562,7 @@ function requireSession(req: Request): Session {
     throw new HttpError(401, "Your session expired. Please sign in again.");
   if (!s.portal.signedIn) {
     // The jar is dead. Drop it rather than leave it to fail again next request.
-    if (id) sessions.delete(id);
+    if (id && sessions.delete(id)) markStoreDirty();
     throw new HttpError(
       401,
       "Your ECAP session expired. Please sign in again."
@@ -535,6 +632,31 @@ async function readJson<T>(req: Request): Promise<Partial<T>> {
   } catch {
     return {};
   }
+}
+
+/**
+ * Restore, sweep, and start the flush tick — all before `Bun.serve`.
+ *
+ * Order matters, and the top-level `await` is what enforces it. `Bun.serve`
+ * begins listening the moment it is called, so a restore placed after it leaves a
+ * window in which a request finds an empty map and signs a signed-in user out.
+ * The await is what makes "before" real rather than a comment.
+ */
+const restoredSessions = await restoreSessions();
+// `flushSessions` reports failure through its return value and never rejects, so
+// an async tick cannot produce an unhandled rejection.
+setInterval(async () => {
+  await flushSessions();
+}, SESSION_FLUSH_MS);
+
+// A sign-out or a sign-in that has not reached the tick yet should not be lost
+// to Ctrl-C. `flushSessions` is a no-op when nothing is dirty, so this costs
+// nothing on the common path.
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.on(signal, async () => {
+    await flushSessions();
+    process.exit(0);
+  });
 }
 
 const server = Bun.serve({
@@ -613,6 +735,11 @@ const server = Bun.serve({
 
         const id = crypto.randomUUID();
         sessions.set(id, { at: Date.now(), portal });
+        // Flushed here rather than left to the tick: this is the one write whose
+        // loss is immediately visible, because the next boot would ask for a
+        // password the user believes they already gave.
+        markStoreDirty();
+        await flushSessions();
         return json({ ok: true } satisfies OkReply, 200, {
           "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`,
         });
@@ -620,7 +747,7 @@ const server = Bun.serve({
 
       if (req.method === "POST" && path === "/api/logout") {
         const id = readCookie(req, "ecap_sid");
-        if (id) sessions.delete(id);
+        if (id && sessions.delete(id)) markStoreDirty();
         return json({ ok: true } satisfies OkReply, 200, {
           "set-cookie": "ecap_sid=; Path=/; Max-Age=0",
         });
@@ -666,7 +793,7 @@ const server = Bun.serve({
               // The jar is dead. Drop it rather than make the next request
               // discover the same thing.
               const id = readCookie(req, "ecap_sid");
-              if (id) sessions.delete(id);
+              if (id && sessions.delete(id)) markStoreDirty();
               return json({ signedIn: false } satisfies SessionReply, 200);
             }
           }
@@ -718,4 +845,22 @@ const server = Bun.serve({
 console.log(`\n  ECAP Attendance Dashboard`);
 console.log(`  http://127.0.0.1:${server.port}\n`);
 console.log(`  Talking to ECAP over HTTPS directly - no browser is launched.`);
-console.log(`  Your password is used once to sign in and is never stored.\n`);
+console.log(
+  `  Your password is used once to sign in and is never written to disk.`
+);
+console.log(
+  restoredSessions.persisted
+    ? `  Sign-in tokens are kept in the OS credential vault, so a restart keeps you signed in.`
+    : `  No OS credential vault on this runtime, so a restart signs you out.`
+);
+console.log(
+  `  ${
+    restoredSessions.restored
+      ? `Restored ${restoredSessions.restored} signed-in session(s)${
+          restoredSessions.dropped
+            ? `, dropped ${restoredSessions.dropped} that had expired`
+            : ""
+        }.`
+      : `No saved sessions found.`
+  }\n`
+);
