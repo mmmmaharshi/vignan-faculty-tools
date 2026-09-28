@@ -76,10 +76,21 @@ credential-free suite unreachable.
 
 ## Routing
 
-Two routes: `/` is the dashboard, `/login` is the sign-in form. Anything else
-redirects to `/`. **`App` owns both** — the router is not asked to split it,
-because that would duplicate the cascade's state or move it into a context, and
-ADR 0005 rejected a context for that reason.
+Two screens, at two paths: `/dashboard` is the dashboard, `/login` is the sign-in
+form. `/` also renders the dashboard and the guard sends it on, so it is a second
+way in rather than a third screen; anything else redirects to `/`. **`App` owns
+both** — the router is not asked to split it, because that would duplicate the
+cascade's state or move it into a context, and ADR 0005 rejected a context for
+that reason.
+
+- **The `<Route>` list in `web/main.tsx` and `DASHBOARD_PATH` in `web/App.tsx` must
+  name the same path.** Disagreeing is not a broken link, it is a **redirect
+  loop**: the catch-all sends the unrouted path to `/`, the guard sends `/` to
+  `/dashboard`, and they take turns — measured at 37 navigations and 82 API calls
+  in six seconds. It presents as a page that never finishes loading rather than as
+  an error, so it costs an hour. **The loop only happens while signed in**;
+  signed out the guard's first move is `/` to `/login` and it stops, so a check
+  run signed out passes against the broken build.
 
 - **The server serves `index.html` for extensionless paths**, or a deep link to
   `/login` 404s before any JavaScript runs. A path *with* a dot is a real file

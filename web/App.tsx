@@ -91,7 +91,7 @@ import type { Note } from "./types";
 
 /** The two screens. Which one is showing is the URL, not a state variable. */
 const LOGIN_PATH = "/login";
-const DASHBOARD_PATH = "/";
+const DASHBOARD_PATH = "/dashboard";
 
 /**
  * How often to ask whether the session is still alive.

@@ -99,13 +99,14 @@ async function openSelect(page: Page, label: string): Promise<Locator> {
  * this one.
  */
 async function submitSignIn(page: Page): Promise<void> {
-  // The guard: a deep link to / while signed out must land on /login rather
-  // than flashing the cascade first. Asserted here so every test that signs in
-  // also checks it.
+  // The guard: a deep link to the dashboard while signed out must land on /login
+  // rather than flashing the cascade first. Asserted here so every test that signs
+  // in also checks it.
   await expect(page.getByLabel("ECAP user name")).toBeVisible();
-  expect(new URL(page.url()).pathname, "guard should send / to /login").toBe(
-    "/login"
-  );
+  expect(
+    new URL(page.url()).pathname,
+    "guard should send the dashboard to /login"
+  ).toBe("/login");
 
   await page.getByLabel("ECAP user name").fill(USER);
   await page.locator('input[type="password"]').fill(PASS);
@@ -114,7 +115,7 @@ async function submitSignIn(page: Page): Promise<void> {
   // Signing in navigates, so the URL is the answer to "which screen" now.
   await expect
     .poll(() => new URL(page.url()).pathname, { timeout: 30_000 })
-    .toBe("/");
+    .toBe("/dashboard");
 
   // Waiting for Subject to unlock waits for the last auto-advance pass.
   await expect
@@ -145,7 +146,7 @@ async function loadFirstSubject(page: Page): Promise<string> {
 
 /** The whole journey from a cold page: sign in, pick a subject, load a register. */
 async function signInAndLoad(page: Page): Promise<string> {
-  await page.goto("/");
+  await page.goto("/dashboard");
   await submitSignIn(page);
   return loadFirstSubject(page);
 }
@@ -213,7 +214,7 @@ test.describe("ECAP attendance dashboard", () => {
     });
 
     /* ---- sign in ---- */
-    await page.goto("/");
+    await page.goto("/dashboard");
     await page.getByLabel("ECAP user name").fill(USER);
     await page.locator('input[type="password"]').fill(PASS);
     await page.getByRole("button", { name: "Sign in" }).click();
@@ -408,7 +409,7 @@ test.describe("ECAP attendance dashboard", () => {
     // The subject is the hard one: the cascade never auto-fills it, so replaying
     // it is a separate step, and this assertion is really about that.
     const url = new URL(page.url());
-    expect(url.pathname, "the dashboard is the route").toBe("/");
+    expect(url.pathname, "the dashboard is the route").toBe("/dashboard");
     // The URL carries each level's identifier, never its label. The identifier is
     // not asserted here because nothing on screen shows it - the proof is below,
     // where the label comes back, which can only happen if the identifier still
@@ -440,7 +441,66 @@ test.describe("ECAP attendance dashboard", () => {
         { timeout: 90_000 }
       )
       .toBe(subject);
-    expect(new URL(page.url()).pathname, "reload should stay on /").toBe("/");
+    expect(
+      new URL(page.url()).pathname,
+      "reload should stay on the dashboard"
+    ).toBe("/dashboard");
+  });
+
+  test("every path reaches a screen, and a signed-in one does not loop", async ({
+    page,
+  }) => {
+    // The redirect loop this exists for: the router's catch-all sent `/dashboard`
+    // to `/`, the boot guard sent `/` back to `/dashboard`, and the two took turns
+    // for ever - 37 navigations and 82 API calls in six seconds, measured.
+    //
+    // **It only loops while signed in.** Signed out, the guard's first move is
+    // `/` to `/login` and it stops there, so a signed-out check passes against the
+    // broken build - which is exactly what the first version of this test did. The
+    // session is signed in below, and asserted, because a check that cannot see
+    // the bug is worse than no check.
+    //
+    // Counted on the wire rather than from a screenshot: a slow page and a looping
+    // page look identical in a snapshot, and the symptom a user sees is a page
+    // that never finishes loading rather than an error. Counting *boots* is also
+    // wrong - the loop is client-side, so one document load drives hundreds of
+    // iterations while `/api/session` is called once, because the boot effect's
+    // `booted` guard holds. Request count is what separates the two.
+    // A cold load, because `submitSignIn` asserts it was on the sign-in form first
+    // and this test starts signed out.
+    await page.goto("/dashboard");
+    await submitSignIn(page);
+    expect(
+      new URL(page.url()).pathname,
+      "signed in, so the loop below can actually happen"
+    ).toBe("/dashboard");
+
+    for (const path of ["/", "/dashboard", "/nonsense"]) {
+      let calls = 0;
+      const countApi = (req: { url: () => string }) => {
+        if (new URL(req.url()).pathname.startsWith("/api/")) calls += 1;
+      };
+      page.on("request", countApi);
+      await page.goto(path, { waitUntil: "domcontentloaded" });
+      await expect(
+        page.getByRole("button", { name: "Load register" })
+      ).toBeVisible();
+      // Let the cascade finish, then check it goes quiet. The loop is a redirect
+      // storm, so it keeps working long after the page looks settled.
+      await page.waitForTimeout(3000);
+      const afterSettle = calls;
+      await page.waitForTimeout(3000);
+      const later = calls;
+      page.off("request", countApi);
+      expect(
+        later,
+        `${path} kept making requests after settling: ${afterSettle} then ${later}`
+      ).toBe(afterSettle);
+    }
+
+    // And the sign-in form is still reachable for someone who is not signed in.
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
   });
 
   test("a link opens the register, and arriving by hand does not", async ({
@@ -462,7 +522,7 @@ test.describe("ECAP attendance dashboard", () => {
       }
     });
 
-    await page.goto("/");
+    await page.goto("/dashboard");
     await submitSignIn(page);
 
     // Arrived with no subject in the URL, so nothing should have been loaded.

@@ -748,11 +748,14 @@ const server = Bun.serve({
         /**
          * Client-side routes are not files.
          *
-         * The front end has two routes, `/` and `/login`, and the router picks
-         * between them in the browser - so a reload of `/login`, a bookmark or a
-         * link to either has to reach index.html. Without this a deep link 404s
-         * before any JavaScript runs, and the back button leaves the app
-         * entirely.
+         * The front end has two screens, `/login` and `/dashboard`, and the router
+         * picks between them in the browser - so a reload of either, a bookmark or
+         * a link to either has to reach index.html. Without this a deep link 404s
+         * before any JavaScript runs, and the back button leaves the app entirely.
+         *
+         * `/dashboard` is the canonical address; `/` also serves the shell and the
+         * client sends it on to whichever screen the session calls for. That is
+         * why the check is `!path.includes(".")` and not a list of known routes.
          *
          * Only for paths that could be a route: a request for a missing file
          * under `/assets/` is a genuine typo in a build, and answering it with

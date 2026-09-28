@@ -37,6 +37,16 @@ Add `react-router` and let the URL answer "which screen".
 
 - `/` is the dashboard, `/login` is the sign-in form, anything else redirects to
   `/`.
+
+  **Amended:** the dashboard moved to `/dashboard`, at the user's request, with
+  `/` kept as a way in. The structure is unchanged — still two screens, still `App`
+  owning both — and `/` still exists so an old bookmark and a typed address do not
+  break. What the change cost was a lesson worth recording: the `<Route>` list in
+  `web/main.tsx` and `DASHBOARD_PATH` in `web/App.tsx` are two statements of the
+  same fact, and they are not connected by anything that would notice them
+  disagreeing. When only one was updated the catch-all redirected `/dashboard` to
+  `/`, the guard redirected `/` back, and the two took turns for ever. It looks
+  like a slow page, not an error.
 - `App` still decides what each path means, and still owns all the state. The
   router is not asked to split the component, because splitting it would either
   duplicate the cascade's state or move it into a context — and ADR 0005 already

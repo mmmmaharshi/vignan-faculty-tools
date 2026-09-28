@@ -33,9 +33,17 @@ if (!root) throw new Error("web/index.html has no #root element to mount into");
  * refresh, a bookmark and the back button all agree with the screen, and ending
  * a session is a navigation rather than a state change only `App` can see.
  *
- * Anything unrecognised lands on `/`, which then redirects to `/login` if the
- * session is not there. A 404 page would be wrong for a two-screen app whose
- * only "pages" are the dashboard and the sign-in form.
+ * `/` and `/dashboard` both render `App`, and `App` sends each on to whichever
+ * screen the session calls for, so the two are interchangeable ways in. Anything
+ * unrecognised lands on `/` for the same reason. A 404 page would be wrong for a
+ * two-screen app whose only "pages" are the dashboard and the sign-in form.
+ *
+ * **These paths must be the ones `DASHBOARD_PATH` and `LOGIN_PATH` name in
+ * `App.tsx`.** A dashboard path in one file and not the other is not a broken
+ * link, it is a redirect loop: the catch-all sends the unknown path to `/`, the
+ * guard sends `/` to `/dashboard`, and the two take turns for ever. It presents
+ * as a page that never finishes loading rather than as an error, so it is easy to
+ * lose an hour in.
  *
  * This needs the server to serve index.html for unknown paths, or a deep link
  * 404s before the router ever runs. See the static handling in `server.ts`.
@@ -47,6 +55,7 @@ createRoot(root).render(
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<App />} />
+          <Route path="/dashboard" element={<App />} />
           <Route path="/login" element={<App />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
