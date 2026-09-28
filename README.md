@@ -83,7 +83,8 @@ dropdowns in front of you it is easy to read last week's numbers as this week's.
   the 30 days is a ceiling nothing will reach, and what this app's persistence
   actually buys is surviving its own restart. If you leave for half an hour you
   sign in again, because ECAP has forgotten you — not because of anything stored
-  here. See ADR 0014.
+  here. The app notices and sends you to the sign-in form with a reason, rather
+  than showing you a dashboard that cannot load anything. See ADR 0014.
 
 ## The front end
 

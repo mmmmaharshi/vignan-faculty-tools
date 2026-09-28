@@ -283,9 +283,25 @@ export async function loadSessions(backend: Secrets): Promise<StoredSession[]> {
  */
 export async function saveSessions(
   backend: Secrets,
-  sessions: readonly StoredSession[]
+  sessions: readonly StoredSession[],
+  staleAfterMs = 24 * 60 * 60 * 1000
 ): Promise<string | null> {
-  const wanted = new Set(sessions.map((s) => s.id));
+  // Prune on the way in, not only at boot.
+  //
+  // A boot-time sweep alone was not enough: a long-running server never boots
+  // again, and every sign-in from another browser added an entry. Measured after
+  // half an hour of test runs - seventeen sessions, seven of them already dead at
+  // the portal. A store that only tidies itself on restart does not get tidied.
+  //
+  // The default cutoff is a day, which is far more than ECAP needs and far less
+  // than the TTL: the portal's own session ends at about twenty minutes, measured,
+  // so anything older than a day could not authenticate whatever we did with it.
+  // It is generous on purpose — deleting a session that would still have worked is
+  // a worse failure than keeping one that will not.
+  const now = Date.now();
+  const live = sessions.filter((s) => now - s.at <= staleAfterMs);
+
+  const wanted = new Set(live.map((s) => s.id));
   // Read what the index names *before* replacing it. Reading afterwards would find
   // only the ids just written, and the sweep below would have nothing to remove.
   const previous = await readIndex(backend);
@@ -294,7 +310,7 @@ export async function saveSessions(
   // still resolves to a session that is on disk. The reverse order would leave an
   // index naming entries that were never written, and a load would drop live
   // sessions with nothing to show why.
-  for (const session of sessions) {
+  for (const session of live) {
     try {
       await backend.set(sessionKey(session.id), JSON.stringify(session));
     } catch (error) {

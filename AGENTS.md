@@ -179,9 +179,23 @@ theme key means you want a component prop instead.
 - **A session is 30 days of *not using it*, and the cookie's `Max-Age` is derived
   from that** so the two cannot disagree. Longer than the ECAP session by
   design, which is why `/api/session` asks the portal rather than trusting the
-  jar: `portal.signedIn` only means "an `frmAuth` cookie is in the jar". Only a
-  401 evicts — a dead session on convention A arrives as a 502, and 502 is
-  ambiguous. ADR 0013.
+  jar: `portal.signedIn` only means "an `frmAuth` cookie is in the jar". A **401**
+  evicts, and so does an **empty course list** — see the next rule. A 502 evicts
+  nothing, because that one really is ambiguous. ADR 0013.
+- **An empty course list means the ECAP session is dead, not that the portal
+  broke.** A signed-out request to convention A answers **HTTP 200 with valid
+  JSON** whose `<select>` holds only `-Select-`, so every sign of life looks good
+  and nothing throws. It is also exactly what `emptyLevels` was built to read as
+  "ECAP's layout has changed", so an expired session shipped as a signed-in
+  dashboard with five dead dropdowns and a warning blaming the portal. Every
+  account has at least one course, so an empty list can only mean the session is
+  gone: `handleOptions` throws 401 and the probe evicts. Do not simplify either
+  check back to looking for a 401 alone.
+- **The store prunes on every write, not only at boot.** A long-running server does
+  not boot again, and every sign-in added an entry — seventeen after half an hour
+  of test runs, seven of them already dead at the portal. The cutoff is a day: far
+  more than ECAP's ~20 minutes, far less than the TTL, and deliberately generous
+  because deleting a session that would still work is the worse failure.
 - **The 30 days is a ceiling on *our* session, not a promise from ECAP.** A live
   spike proved both portal cookies are session cookies with no `Expires` and no
   `Max-Age`, and that **neither authenticates alone** — so the credential is

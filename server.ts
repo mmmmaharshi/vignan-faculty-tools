@@ -74,6 +74,7 @@ import {
   HttpError,
   looksLikeHtml,
   options,
+  realOptions,
   unquoteJs,
 } from "./portal-replies";
 import { handleOptions, handleRegister } from "./server-routes";
@@ -827,24 +828,33 @@ const server = Bun.serve({
           // `courses()` is the cheapest call that genuinely goes to the portal.
           //
           // What this does and does not catch, stated plainly because it is the
-          // limit of the check rather than a detail: only a 401 evicts. A dead
-          // session is detected on convention B, which inspects its reply for
-          // HTML and answers 401 (see `#webMethod`). Convention A has no such
-          // check, so a dead session there arrives as a 502 - an unreadable or
-          // errored reply - and a 502 is ambiguous. It could equally be a portal
-          // that is down, or markup that has moved. Signing the user out on
-          // that would turn a transient outage into a lost session, which is
-          // precisely the trade ADR 0002 refused when it chose `emptyLevels`
-          // over a 502. So a 502 is reported as signed-in and the real request
-          // surfaces it.
+          // limit of the check rather than a detail. A 502 evicts nothing: a dead
+          // session on convention A arrives as an unreadable or errored reply, and
+          // a 502 is ambiguous — it could equally be a portal that is down, or
+          // markup that has moved. Signing the user out on that would turn a
+          // transient outage into a lost session, which is precisely the trade
+          // ADR 0002 refused when it chose `emptyLevels` over a 502. So a 502 is
+          // reported as signed-in and the real request surfaces it.
           //
-          // The guaranteed path is therefore unchanged: a dead session is caught
-          // by the 401 on the next convention-B call, which is what
-          // `/api/register` and `/api/options`'s subject step do. This probe
-          // turns that from "the first thing the user does fails" into "the
-          // dashboard notices first".
+          // **An empty course list evicts**, and that case was missed once. A dead
+          // session on convention A does not always produce a 502; it can also
+          // produce a perfectly well-formed 200 whose payload is a `<select>`
+          // holding nothing but the `-Select-` placeholder. Measured: a session
+          // 19 minutes old returns the real course, one 22 minutes old returns the
+          // empty select, and the boundary is ECAP's own ~20-minute timeout. Since
+          // every account has at least one course, an empty list means the session
+          // is gone — and treating it as alive is what produced a signed-in
+          // dashboard with a dead cascade behind it and an `emptyLevels` warning
+          // blaming the portal's layout. Three signs of life are checked instead of
+          // one: a 401, a 502, or a 200 with no real course.
           try {
-            await s.portal.courses();
+            const offered = await s.portal.courses();
+            if (!realOptions(offered).length) {
+              // The jar authenticates to nothing. Drop it, or the user is left
+              // staring at a dashboard they cannot use.
+              if (dropSession(id)) await flushSessions();
+              return json({ signedIn: false } satisfies SessionReply, 200);
+            }
           } catch (error) {
             if (error instanceof HttpError && error.status === 401) {
               // The jar is dead. Drop it rather than make the next request

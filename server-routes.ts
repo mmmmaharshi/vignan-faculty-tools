@@ -75,6 +75,12 @@ export type PortalReader = {
  * that covers only the one course this account can see, and a 502 on an
  * unobserved course would block the screen for everyone. See `level` in
  * portal-replies.ts and ADR 0003.
+ *
+ * **The course level is the exception, and it was found the hard way.** A
+ * signed-out request answers 200 with an empty `<select>` rather than failing, so
+ * the rule above would report a dead session as "ECAP returned no Course for this
+ * combination" — a message that is certainly wrong, and blamed on the portal
+ * rather than on the session. See the note at the check below.
  */
 export async function handleOptions(
   portal: PortalReader,
@@ -97,6 +103,28 @@ export async function handleOptions(
   };
 
   take("course", await portal.courses());
+
+  /**
+   * An empty course list is not a layout change, it is a dead session.
+   *
+   * A signed-out request to convention A does not fail: it answers HTTP 200 with
+   * a well-formed payload whose `<select>` holds nothing but `-Select-`. Measured
+   * against the live portal, a session 19 minutes old returns the real course and
+   * one 22 minutes old returns the empty one — ECAP's own ~20-minute timeout.
+   *
+   * So without this, an expired session produced a dashboard with five dead
+   * dropdowns and an `emptyLevels` warning blaming the portal's markup, which is
+   * the one reading that is certainly wrong. Every account has at least one
+   * course, so an empty course list can only mean the session is gone. A 401 is
+   * the honest answer and the client already handles it by sending the user to
+   * the sign-in form with a reason.
+   */
+  if (!out.course.length) {
+    throw new HttpError(
+      401,
+      "Your ECAP session expired. Please sign in again."
+    );
+  }
 
   if (b.course) {
     const [branches, semesters] = await portal.branchesAndSemesters(b.course);

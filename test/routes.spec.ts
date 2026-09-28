@@ -263,6 +263,36 @@ test.describe("the options ladder", () => {
       expect(reply.emptyLevels).not.toContain("branch");
     });
   });
+
+  test("an empty course list is a dead session, not a layout change", async () => {
+    // The bug this exists for. A signed-out request to convention A answers HTTP
+    // 200 with a well-formed payload whose <select> holds only "-Select-", so
+    // every sign of life looks good and nothing throws. The app then showed a
+    // signed-in dashboard with five dead dropdowns and an `emptyLevels` warning
+    // blaming ECAP's markup — the one reading that is certainly wrong.
+    //
+    // Every account has at least one course, so an empty course list can only mean
+    // the session is gone. 401 is the honest answer, and the client turns it into
+    // the sign-in form with a reason.
+    const { reader: noCourses } = fake({ course: [] });
+    await expect(handleOptions(noCourses, {})).rejects.toThrow(
+      /session expired/i
+    );
+
+    // The placeholder on its own is still an empty list, so it is the same case.
+    const { reader: placeholderOnly } = fake({
+      course: [opt("0", "-Select-")],
+    });
+    await expect(handleOptions(placeholderOnly, {})).rejects.toThrow(
+      /session expired/i
+    );
+
+    // And a real course still works, so this does not simply refuse everything.
+    const { reader: real } = fake();
+    const reply = await handleOptions(real, {});
+    expect(reply.course.length).toBeGreaterThan(0);
+    expect(reply.emptyLevels).not.toContain("course");
+  });
 });
 
 test.describe("the register handler", () => {

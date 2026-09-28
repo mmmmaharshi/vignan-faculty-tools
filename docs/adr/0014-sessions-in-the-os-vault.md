@@ -194,16 +194,69 @@ that have ended, so the store does not grow without bound.
 - **A failed write is never fatal.** The in-memory session is the live one; the
   vault is a convenience for the next boot. Losing it costs one sign-in, and
   refusing to serve a working session over that would be the worse trade.
+- **An empty course list means the session is dead, not that the portal broke.**
+  A signed-out request to convention A answers **200 with valid JSON** whose
+  `<select>` holds only `-Select-`. Every sign of life looks good, which is why
+  this was missed. Do not "simplify" the check in `handleOptions` or the
+  `/api/session` probe back to looking only for a 401.
 - **A jar with no `frmAuth` is refused on restore.** It is indistinguishable from
   a signed-out one, and keeping it would produce a signed-in-looking dashboard
   where every portal call fails.
 - **The TTL sweep runs after the load, not before**, so an entry written by a
   build with a shorter TTL is held to *this* build's TTL rather than trusted.
 
+### A dead session is answered 200 with an empty list
+
+Measured, and it is the third failure mode, not the second.
+
+| How a dead session arrives | Shape |
+|---|---|
+| convention B (`#webMethod`) | 401 — the reply is HTML and is caught |
+| convention A, occasionally | 502 — unreadable, and genuinely ambiguous |
+| **convention A, usually** | **200, valid JSON, `<select>` holding only `-Select-`** |
+
+The third is the one that matters and the one this ADR originally got wrong. Every
+sign of life looks good: the status is 200, the payload parses, the shape is
+right. Only the contents are gone. And "the courses came back empty" is precisely
+what `emptyLevels` was built to interpret as *"ECAP's layout has changed"* — so an
+expired session was reported as a broken portal, with a signed-in dashboard and
+five dead dropdowns behind the message. That is the one reading that is certainly
+wrong, and the app chose it.
+
+Every account has at least one course, so **an empty course list can only mean the
+session is gone.** Two checks now read it that way, deliberately redundant so
+neither can mask the other:
+
+- `handleOptions` throws **401** rather than returning an empty ladder. The client
+  already turns a 401 into the sign-in form with a reason.
+- The `/api/session` probe **evicts** on an empty list as well as on a 401.
+
+A 502 still evicts nothing. That case really is ambiguous, and ADR 0002's refusal
+to turn uncertainty into a lost session still stands.
+
+Measured boundary: a session 19 minutes old returns the real course, one 22
+minutes old returns the empty select. That is ECAP's own timeout, not ours.
+
+### Sessions are pruned on every write, not only at boot
+
+A boot-time sweep was not enough. A long-running server does not boot again, and
+every sign-in from another browser added an entry — **seventeen after half an hour
+of test runs, seven of them already dead at the portal.** With one entry per
+session that also spends the 2560-byte cap.
+
+The cutoff is a day, which is far more than ECAP needs and far less than the TTL:
+the portal's session ends at about twenty minutes, so anything older could not
+authenticate whatever we did with it. It is generous on purpose — deleting a
+session that would still have worked is the worse failure.
+
 ## Consequences
 
 - **The password is still never written to disk.** Stated in three places and
   shown on every boot.
+- **An expired session no longer looks signed-in.** The symptom the user hit was a
+  dashboard with dead dropdowns and a warning blaming ECAP's layout; it is now a
+  sign-in form with a reason. Verified end to end with a real 24-minute wait, not
+  only against a fixture.
 - **A restart no longer signs you out.** Proven end to end: sign in, `SIGKILL`
   the server, start it again, and the old cookie still reaches ECAP. The banner
   reads `Restored 1 signed-in session(s)`.

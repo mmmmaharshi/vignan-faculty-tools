@@ -44,7 +44,14 @@ const JAR: [string, string][] = [
   ["frmAuth", "DEADBEEF"],
 ];
 
-const SESSION: StoredSession = { id: "s1", at: 1000, cookies: JAR };
+/**
+ * A session as of a moment ago, rather than at a fixed timestamp.
+ *
+ * `at` is a wall-clock time and `saveSessions` prunes on it, so a literal would
+ * age past the cutoff as the suite runs. Six failures in this file were exactly
+ * that: the fixture had quietly become stale and the store was right to drop it.
+ */
+const SESSION: StoredSession = { id: "s1", at: Date.now(), cookies: JAR };
 
 test.describe("the session store", () => {
   test("a session written by one process is readable by the next", async () => {
@@ -85,7 +92,9 @@ test.describe("the session store", () => {
     const cap = 5 * 512;
     const realistic: StoredSession[] = Array.from({ length: 20 }, (_, i) => ({
       id: `session-${i}`,
-      at: 1,
+      // Now, not a literal: the store prunes on age, so a fixed timestamp here
+      // would be stale and the twenty sessions would be pruned to none.
+      at: Date.now(),
       cookies: [
         ["ASP.NET_SessionId", "k".repeat(24)],
         ["frmAuth", "A".repeat(384)],
@@ -106,6 +115,38 @@ test.describe("the session store", () => {
     ).toBeLessThan(cap);
     const all = await loadSessions(vault);
     expect(all.length).toBe(20);
+  });
+
+  test("a stale session is not rewritten, however often the store is saved", async () => {
+    // A boot-time sweep alone was not enough: a long-running server never boots
+    // again, and every sign-in from another browser added an entry. Measured after
+    // half an hour of test runs - seventeen sessions, seven already dead at the
+    // portal. A store that only tidies itself on restart does not get tidied, and
+    // one entry per session means that also eats the 2560-byte size cap.
+    const day = 24 * 60 * 60 * 1000;
+    const now = Date.now();
+    const vault = fakeVault();
+    await saveSessions(vault, [
+      { id: "fresh", at: now - 1000, cookies: JAR },
+      { id: "ancient", at: now - 30 * day, cookies: JAR },
+    ]);
+    const after = await loadSessions(vault);
+    expect(after.map((s) => s.id)).toEqual(["fresh"]);
+    // And the entry is gone, not merely unindexed.
+    expect(vault.store.has(sessionKey("ancient"))).toBe(false);
+  });
+
+  test("a session just inside the cutoff is kept, because it might still work", async () => {
+    // ECAP's own session ends at about twenty minutes, measured, so a day is
+    // generous - and it has to be. Deleting a session that would still have
+    // authenticated is a worse failure than keeping one that will not.
+    const hour = 60 * 60 * 1000;
+    const vault = fakeVault();
+    await saveSessions(vault, [
+      { id: "old", at: Date.now() - 23 * hour, cookies: JAR },
+    ]);
+    const kept = await loadSessions(vault);
+    expect(kept.map((s) => s.id)).toEqual(["old"]);
   });
 
   test("an ended session's entry is removed, not left orphaned", async () => {
