@@ -60,9 +60,16 @@
  * re-use. If the portal session dies you sign in again.
  */
 
-import { createCipheriv } from "node:crypto";
-
 import { summarise } from "./attendance-bands";
+import {
+  absorbResponse,
+  calendarPairs,
+  CookieJar,
+  jqBody,
+  nextHop,
+  portalEncrypt,
+  webMethodBody,
+} from "./portal-conventions";
 import {
   hiddenValue,
   HttpError,
@@ -117,31 +124,15 @@ const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
 
-// Hardcoded in the portal's page source. It is a client-side constant, so it
-// protects nothing on the wire; HTTPS is what actually protects the password.
-const AES_KEY = "8701661282118308";
+// The AES key and the body shapes live in portal-conventions.ts, with the tests
+// that hold them. The key itself is a client-side constant hardcoded in the
+// portal's page source, so it protects nothing on the wire; HTTPS is what
+// actually protects the password.
 
 const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const HTTP_TIMEOUT_MS = 60_000;
 
 /* ------------------------------------------------------------------ helpers */
-
-/** Reproduce the portal's CryptoJS output: raw AES-128-CBC, base64, no salt. */
-function portalEncrypt(plaintext: string): string {
-  const cipher = createCipheriv(
-    "aes-128-cbc",
-    Buffer.from(AES_KEY, "utf-8"),
-    Buffer.from(AES_KEY, "utf-8")
-  );
-  return Buffer.concat([
-    cipher.update(Buffer.from(plaintext, "utf-8")),
-    cipher.final(),
-  ]).toString("base64");
-}
-
-/** The portal's enc(): escapes only % and =. Values are deliberately not url-encoded. */
-const enc = (v: string | number): string =>
-  String(v).replaceAll("%", "%26").replaceAll("=", "%3D");
 
 /** A thrown value's message, without assuming it was an Error. */
 function messageOf(e: unknown): string {
@@ -165,32 +156,23 @@ function asRecord(value: unknown): Record<string, unknown> {
 /* ------------------------------------------------------------------ portal session */
 
 /**
- * One cookie jar per signed-in user.
+ * One signed-in user's portal, and the only thing that talks to the network.
  *
- * A jar is all the auth state there is: the portal issues frmAuth on success
- * and nothing else is needed to keep the session. Separate jars per user mean
- * two people can be signed in at once without stepping on each other.
+ * The jar is all the auth state there is: the portal issues frmAuth on success
+ * and nothing else is needed to keep the session. Separate instances per user
+ * mean two people can be signed in at once without stepping on each other.
+ *
+ * The wire conventions - the two calling conventions, the cipher, the body
+ * shapes - are in `portal-conventions.ts`, which does no I/O and is where their
+ * tests live. What stays here is the transport: carrying the cookie, absorbing
+ * what comes back, and following redirects by hand.
  */
 class Portal {
-  /** Cookie name -> value. The jar is the whole auth state; see CONTEXT.md. */
-  cookies = new Map<string, string>();
+  /** The jar is the whole auth state; see CONTEXT.md. */
+  readonly jar = new CookieJar();
 
   get signedIn(): boolean {
-    return this.cookies.has("frmAuth");
-  }
-
-  #cookieHeader(): string {
-    return [...this.cookies].map(([k, v]) => `${k}=${v}`).join("; ");
-  }
-
-  #absorb(res: Response): void {
-    for (const raw of res.headers.getSetCookie?.() ?? []) {
-      const [pair] = raw.split(";");
-      if (!pair) continue;
-      const eq = pair.indexOf("=");
-      if (eq > 0)
-        this.cookies.set(pair.slice(0, eq).trim(), pair.slice(eq + 1).trim());
-    }
+    return this.jar.signedIn;
   }
 
   /**
@@ -202,37 +184,37 @@ class Portal {
    * does not store Set-Cookie: the 302 after login would be replayed without
    * the frmAuth cookie that was just issued, the portal would treat it as
    * anonymous, and a successful sign-in would come back looking like a failure.
+   *
+   * The hop rule itself is `nextHop` in portal-conventions.ts, tested against
+   * real Responses with real Location headers.
    */
   async #request(
     url: string,
     init: RequestInit = {},
     maxHops = 6
   ): Promise<Response> {
-    const withCookie = (
-      headers: RequestInit["headers"]
-    ): Record<string, string> => ({
-      ...Object.fromEntries(new Headers(headers).entries()),
-      ...(this.#cookieHeader() ? { cookie: this.#cookieHeader() } : {}),
-    });
-
-    let target = url;
-    let res = await fetch(target, {
-      ...init,
-      headers: withCookie(init.headers),
-      redirect: "manual",
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
-    this.#absorb(res);
-    for (let i = 0; res.status >= 300 && res.status < 400 && i < maxHops; i++) {
-      const loc = res.headers.get("location");
-      if (!loc) break;
-      target = new URL(loc, target).toString();
-      res = await fetch(target, {
-        headers: withCookie(init.headers),
+    const send = (target: string): Promise<Response> => {
+      const cookie = this.jar.header();
+      return fetch(target, {
+        ...init,
+        headers: {
+          ...Object.fromEntries(new Headers(init.headers).entries()),
+          ...(cookie ? { cookie } : {}),
+        },
         redirect: "manual",
         signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
       });
-      this.#absorb(res);
+    };
+
+    let target = url;
+    let res = await send(target);
+    absorbResponse(this.jar, res);
+    for (let hops = 0; hops < maxHops; hops++) {
+      const next = nextHop(res, target, maxHops - hops);
+      if (!next) break;
+      target = next;
+      res = await send(target);
+      absorbResponse(this.jar, res);
     }
     return res;
   }
@@ -279,12 +261,6 @@ class Portal {
     method: string,
     data: Record<string, string | number | boolean>
   ): Promise<PortalPayload> {
-    const body = Object.entries(data)
-      .map(
-        ([k, v]) =>
-          `'${k}':${typeof v === "string" ? `'${v.replaceAll("'", "\\'")}'` : v}`
-      )
-      .join(",");
     const res = await this.#request(`${JQ}/${method}`, {
       method: "POST",
       headers: {
@@ -293,7 +269,7 @@ class Portal {
         "x-requested-with": "XMLHttpRequest",
         "user-agent": UA,
       },
-      body: `{${body}}`,
+      body: jqBody(data),
     });
     const text = await res.text();
     if (!res.ok) {
@@ -319,7 +295,6 @@ class Portal {
     name: string,
     pairs: [string, string | number][]
   ): Promise<string> {
-    const body = pairs.map(([k, v]) => `${k}=${enc(v)}`).join("\r\n");
     const res = await this.#request(
       `${REGISTER_PROXY}?_method=${name}&_session=no`,
       {
@@ -329,7 +304,7 @@ class Portal {
           referer: REGISTER_PAGE_URL,
           "user-agent": UA,
         },
-        body,
+        body: webMethodBody(pairs),
       }
     );
     const text = await res.text();
@@ -417,26 +392,13 @@ class Portal {
 
   /**
    * Every level is needed twice over - by value and by visible label - plus the
-   * subject's title. See the module header, note 3.
+   * subject's title. `calendarPairs` builds that, and is tested; see
+   * portal-conventions.ts and the module header, note 3.
    */
   register(
     p: Record<Level, Option> & { from: string; to: string }
   ): Promise<string> {
-    return this.#webMethod("ShowAcademicCalendar", [
-      ["SubjectId", p.subject.value],
-      ["Section", p.section.value],
-      ["Course", p.course.value],
-      ["CourseName", p.course.label],
-      ["Branch", p.branch.value],
-      ["BranchName", p.branch.label],
-      ["Semester", p.semester.value],
-      ["SemesterName", p.semester.label],
-      ["SubjectShortCode", p.subject.label],
-      ["SubjectType", p.subject.title ?? ""],
-      ["AllowPrint", "false"],
-      ["fromdate", p.from],
-      ["todate", p.to],
-    ]);
+    return this.#webMethod("ShowAcademicCalendar", calendarPairs(p));
   }
 }
 
