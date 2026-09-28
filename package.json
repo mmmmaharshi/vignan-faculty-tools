@@ -10,8 +10,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json && tsc -p tsconfig.test.json",
     "test": "bun run build && playwright test",
     "lint": "ultracite check",
-    "lint:fix": "ultracite fix",
-    "lint:config": "bun scripts/write-oxlint-config.ts"
+    "lint:fix": "ultracite fix"
   },
   "dependencies": {
     "@mantine/core": "^9.6.3",

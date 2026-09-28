@@ -22,6 +22,8 @@ bun run build              # front end -> dist/
 bun server.ts              # http://127.0.0.1:8787
 bun run dev                # Vite on :5173, proxies /api to :8787 (run both)
 bun run typecheck          # tsc over all three projects - see the trap below
+bun run lint               # oxlint + oxfmt check, no writes
+bun run lint:fix           # oxlint --fix + oxfmt, writes
 ```
 
 ### Background servers
@@ -50,6 +52,8 @@ web/App.tsx         cascade, table, CSV export
 shared/api.ts       the server/client contract; both sides import it
 vite.config.ts      build config
 playwright.config.ts  test runner config
+oxlint.config.ts    linter rules, from the Ultracite preset; 92 rules off with reasons
+oxfmt.config.ts     formatter, from the Ultracite preset; markdown excluded
 test/seam.spec.ts   pure-function tests over fixture markup; no portal needed
 test/smoke.spec.ts  one end-to-end pass against the live portal
 tsconfig*.json      three projects, split so web/ has DOM and server.ts does not
