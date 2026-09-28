@@ -11,26 +11,14 @@ import {
 import type { RegisterReply, Student } from "../../shared/api";
 import { tintFor } from "../cascade";
 
-/**
- * The register itself: the filter, the line naming what is on screen, and the
- * roster.
- *
- * The row tint is Mantine's own `bg` prop reading Mantine's own colour tokens.
- * There is no custom CSS in this project, so `tintFor` returns a token or
- * nothing at all.
- */
-
 type RegisterTableProps = {
   rows: Student[];
-  /** How many the server returned, before the irregular-only filter. */
   total: number;
   summary: RegisterReply["summary"];
   onlyIrregular: boolean;
   onToggleIrregular: (value: boolean) => void;
-  /** "Course: B.Tech · Section: A" - names the register so a stale read is visible. */
   chosenText: string;
 };
-
 export const RegisterTable = ({
   rows,
   total,
@@ -47,11 +35,6 @@ export const RegisterTable = ({
         onChange={(e) => onToggleIrregular(e.currentTarget.checked)}
       />
     </Group>
-
-    {/*
-        Name the register on screen. With five dropdowns in front of you it is
-        easy to read last week's numbers as this week's.
-      */}
     {chosenText && (
       <>
         <Text c="dimmed" size="sm" mb="sm">
@@ -63,7 +46,6 @@ export const RegisterTable = ({
         <Divider mb="sm" />
       </>
     )}
-
     {rows.length === 0 ? (
       <Text c="dimmed" size="sm">
         {onlyIrregular

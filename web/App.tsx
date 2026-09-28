@@ -1,52 +1,3 @@
-/**
- * Vignan Faculty Tools - front end
- *
- * React 19 + Mantine 9. There is no custom CSS in this project: not a
- * stylesheet, not a CSS module, not an inline `style` prop. Every visual
- * decision is a Mantine component or a Mantine colour token, read through
- * Mantine's own `bg` and `c` props. The row tint on the register table is
- * Mantine's `Table.Tr bg`, pointed at `--mantine-color-*-light`.
- *
- * The cascade below is a deliberate line-for-line port of the imperative
- * version, not a redesign. It was wrong three separate times before it was
- * right, and the mistakes it is guarding against are structural, not stylistic:
- *
- *   - /api/session answers 200 with {signedIn:false}, not 401. Checking the
- *     status code alone runs the signed-in path while signed out.
- *   - Two refreshes can overlap. refreshToken makes the newer call win, so a
- *     stale response can never repopulate the dropdowns.
- *   - Every level above the subject auto-fills to its first option, so the chain
- *     populates itself and the user overrides whatever they disagree with. The
- *     subject is the one exception and is left for the user, because it decides
- *     which register loads.
- *
- * See docs/adr/0001-port-ui-to-react-and-mantine.md,
- * docs/adr/0005-give-the-cascade-rules-a-module.md, and
- * docs/adr/0009-routes-instead-of-a-mode-switch.md.
- *
- * Structure: this file owns the state and the refresh loop. The cascade's
- * *rules* - which level auto-fills, when to keep looping, what is ready - live
- * in `web/cascade.ts`, where a test can reach them without mounting React. What
- * stays here is the part that is about time rather than data: the
- * `refreshToken` that makes a newer pass win, and the ref pattern that feeds
- * `runRefresh` the current selection. A reader debugging *why a dropdown is
- * empty* should read `cascade.ts`; a reader debugging *why two requests raced*
- * should read this file.
- *
- * Which screen is showing is the URL, not a state variable: `/dashboard` is the
- * cascade and the register, `/profile` is the panel, and `/login` is the sign-in
- * form. A refresh, a bookmark and the back button therefore agree with what is on
- * screen, and ending a session is a navigation rather than a `setPhase` only this
- * file can observe.
- *
- * The sidebar holds navigation and nothing else. The cascade and the register are
- * in the main area, which is where they have the width to be readable - the rail
- * was 320px, and "Information Technology" truncated to "Infc" in it.
- *
- * The children under `web/components/` are told what to render and report
- * changes upwards; none of them holds state.
- */
-
 import {
   AppShell,
   Burger,
@@ -93,58 +44,21 @@ import { RegisterTable } from "./components/RegisterTable";
 import { SignInPanel } from "./components/SignInPanel";
 import type { Note } from "./types";
 
-// The irregular/critical thresholds belong to the server, which is what applies
-// them. They arrive in the summary so the labels below can never drift from the
-// flags the server actually set.
-
-/** The three screens. Which one is showing is the URL, not a state variable. */
 const LOGIN_PATH = "/login";
 const DASHBOARD_PATH = "/dashboard";
 const PROFILE_PATH = "/profile";
-
-/**
- * How often to ask whether the session is still alive.
- *
- * Five minutes, not seconds, and the reason is the server's side of it: the
- * probe now costs a real round trip to ECAP, so thirty seconds would be two
- * requests a minute to someone else's server for as long as the tab is open.
- * That is rude, and with a thirty-day session there is nothing it would catch
- * sooner anyway.
- *
- * A page that has just been focused is probed immediately regardless, which is
- * when a stale register is most likely to be read as current.
- */
 const SESSION_PROBE_MS = 5 * 60_000;
-
-/* ------------------------------------------------------------------ helpers */
-
-/** An HTTP failure, carrying the status so callers can tell 401 from 400. */
 class ApiError extends Error {
   status: number;
-
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
     this.name = "ApiError";
   }
 }
-
-/**
- * Call the server and return the typed reply.
- *
- * `T` is an assertion, not a check, and the reason it is a sound one is that the
- * server is compiled against the same declarations in `shared/api.ts`: a reply
- * that drifts from what this side expects is a build error over there. Before
- * the contract existed, the two halves agreed about these shapes by memory.
- */
 async function api<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(path, options);
-  let body: { error?: string } = {};
-  try {
-    body = (await res.json()) as { error?: string };
-  } catch {
-    /* an empty body is not fatal here */
-  }
+  const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
     throw new ApiError(
       res.status,
@@ -153,118 +67,43 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
   }
   return body as T;
 }
-
-/* ------------------------------------------------------------------ app */
-
 const App = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const onLogin = pathname === LOGIN_PATH;
   const onProfile = pathname === PROFILE_PATH;
-
-  /**
-   * Whether the session has been asked about yet.
-   *
-   * Not a third screen: until `/api/session` answers, the URL could be either,
-   * and rendering the dashboard for someone who is not signed in would flash the
-   * whole cascade before bouncing them. So the shell renders and the decision
-   * waits one round trip.
-   */
   const [booted, setBooted] = useState(false);
-  /**
-   * Whether we believe there is a session.
-   *
-   * Separate from `booted` because the two answer different questions: `booted`
-   * is "have we asked yet", this is "what did the answer say". The URL is not
-   * enough on its own - `/login` can be reached by Back from a signed-in
-   * dashboard - and without this the guard below only ever ran at mount.
-   */
   const [signedIn, setSignedIn] = useState(false);
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
-
   const [loginNote, setLoginNote] = useState<Note | null>(null);
   const [filterNote, setFilterNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadNote, setLoadNote] = useState("");
-
-  /**
-   * Whether the sidebar is open, on a narrow screen.
-   *
-   * Desktop ignores it - the navbar is pinned and `collapsed.desktop` is left
-   * undefined, so this is purely the mobile drawer. `useDisclosure` rather than a
-   * `useState`, because it is a boolean with a name and this is the one place in
-   * the app that is purely presentational.
-   */
   const [navOpen, nav] = useDisclosure();
-
-  /**
-   * Whether this server keeps sessions in the OS credential vault.
-   *
-   * Read from the server rather than assumed, because it is a claim about what
-   * happens to the user after a restart, and on a runtime without `Bun.secrets` the
-   * answer is no. The profile panel prints whichever it is. Defaults to false so
-   * the first paint before the answer arrives is the cautious one.
-   */
   const [persisted, setPersisted] = useState(false);
-  // Read by the session probe below, which must not be re-armed on every busy
-  // flip - otherwise a user who keeps loading registers is never probed at all.
-  // Written during render for the same reason the two refs below are.
   /* oxlint-disable react/refs */
   const busyRef = useRef(busy);
   busyRef.current = busy;
   /* oxlint-enable react/refs */
-
   const [sel, setSel] = useState<Sel>(EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
-
   const [range, setRange] = useState<Range>(defaultRange);
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
-
-  // The cascade is driven imperatively, not from an effect watching `sel`.
-  // A state-driven effect would re-enter itself every time it committed a pass.
-  //
-  // These two write a ref during render, which react(refs) flags. That is the
-  // point: runRefresh is memoised with [] and needs the *current* selection and
-  // option lists, and a ref written during render is how it gets them. Reading
-  // them from state instead is the stale-closure bug AGENTS.md describes.
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
-  // runRefresh is memoised with an empty dependency list, so it closes over
-  // render 1's `opts` - which is EMPTY_OPTS, permanently. Anything inside it
-  // that reads the option lists has to go through a ref like this one. It did
-  // not, and the semester's batch number silently arrived as undefined for
-  // every course; see AGENTS.md.
   const optsRef = useRef<OptionsReply>(opts);
   optsRef.current = opts;
   /* oxlint-enable react/refs */
   const refreshToken = useRef(0);
-
-  /**
-   * Give up the session: drop everything it produced and show the login form.
-   *
-   * One function, because three things end a session and the state to clear is a
-   * dozen setters. Doing it inline per call site is how the "expired" path came
-   * to skip most of it: the screen changed to the login form while the previous
-   * session's filter, options and register stayed in state, so signing back in
-   * produced a table already narrowed by a choice the user made against a
-   * session that no longer existed. Signing out deliberately and being timed
-   * out should leave the app in the same state, so they share this.
-   */
   const signedOut = useCallback(
     (why: string) => {
-      // Invalidate anything in flight. A response that arrived after this would
-      // otherwise repopulate the very state being cleared.
       refreshToken.current += 1;
       setUserId("");
       setPassword("");
       setSignedIn(false);
-      // Only a note when there is a reason for one. Signing out deliberately
-      // passes an empty string, and a note object with empty text is truthy - so
-      // setting one rendered an empty alert under the sign-in form. An expiry
-      // explains itself; a deliberate sign-out needs no excuse.
       setLoginNote(why ? { kind: "warning", text: why } : null);
       setFilterNote(null);
       setBusy(false);
@@ -273,35 +112,14 @@ const App = (): React.JSX.Element => {
       setOpts(EMPTY_OPTS);
       setResult(null);
       setOnlyIrregular(false);
-      // `replace` so the back button does not walk into the session that just
-      // ended and find its state still in the DOM behind it.
       navigate(LOGIN_PATH, { replace: true });
     },
     [navigate]
   );
-
-  /* ---- register ---- */
-
-  /**
-   * Fetch a register and put it on screen.
-   *
-   * Takes the levels as arguments rather than reading them, and that is the whole
-   * point. The cascade computes a selection and has it in hand before React has
-   * committed a render for it, so a function closing over `sel` would send the
-   * *previous* selection - which is why the auto-load below arrived with "Choose
-   * a course first" on a link whose course was plainly set.
-   *
-   * One function, two callers: the button, and the cascade. So there is one place
-   * that talks to `/api/register`, and one place that can go wrong.
-   */
   const fetchRegister = useCallback(
     async (levels: Record<Level, Option>, dates: Range) => {
       setBusy(true);
       setLoadNote("Reading the register from ECAP...");
-      // The same counter the refresh loop uses, so a session that ends while this
-      // is in flight invalidates the reply rather than letting it land on the
-      // login screen - which is how the previous session's register used to
-      // survive into the next one.
       const token = ++refreshToken.current;
       try {
         const request: RegisterRequest = {
@@ -334,13 +152,6 @@ const App = (): React.JSX.Element => {
     },
     [signedOut]
   );
-
-  /**
-   * What `Load register` does: check the current selection, then fetch it.
-   *
-   * Memoised so `runRefresh` can call it as an honest dependency. A fresh function
-   * every render would make the cascade re-run on every change.
-   */
   const loadRegister = useCallback(async () => {
     setFilterNote(null);
     if (!range.from || !range.to) {
@@ -357,21 +168,9 @@ const App = (): React.JSX.Element => {
     }
     await fetchRegister(chosen.levels, range);
   }, [fetchRegister, opts, range, sel]);
-
-  /* ---- the cascade ---- */
-
   const runRefresh = useCallback(
     async (changed: Level | null) => {
       const token = ++refreshToken.current;
-
-      // Drop everything below the level that changed *before* asking, so the
-      // request only ever carries a valid prefix of the chain. A stale semester
-      // left in place would make the server compute a section list for a
-      // combination the user can no longer see.
-      //
-      // `draft` and `reply` are deliberately not named `sel` and `opts`: those are
-      // the state above, and shadowing them made `setOpts(opts)` ambiguous about
-      // whether it was storing the state or the server's answer.
       let draft = { ...selRef.current };
       if (changed === "course") {
         draft = {
@@ -388,24 +187,16 @@ const App = (): React.JSX.Element => {
       }
       selRef.current = draft;
       setSel(draft);
-
       setBusy(true);
       setLoadNote("Loading options...");
-
       try {
         for (const _pass of LEVEL_KEYS) {
           if (token !== refreshToken.current) return;
-
-          // The semester's `title` carries the batch number the portal wants for
-          // the section list, and this side is the only one still holding it.
-          // Empty for IV Semester, which the server handles by falling back.
-          // Read through optsRef, not opts - see the note where it is declared.
           const semesterTitle = draft.semester
             ? optsRef.current.semester.find(
                 (o) => String(o.value) === String(draft.semester)
               )?.title
             : undefined;
-
           const request: OptionsRequest = {
             course: draft.course || undefined,
             semester: draft.semester || undefined,
@@ -419,37 +210,13 @@ const App = (): React.JSX.Element => {
             body: JSON.stringify(request),
           });
           if (token !== refreshToken.current) return;
-
           const before = draft;
           draft = applyOptions(draft, reply);
           selRef.current = draft;
           setSel(draft);
           setOpts(reply);
-
-          // Whether to ask again is a rule, not a race, so it lives in cascade.ts
-          // with the other cascade rules and has its own tests. The reasoning -
-          // why stopping early dead-ends the chain, and why `gained` is what stops
-          // the loop running forever - is documented on `shouldContinue`.
           if (!shouldContinue(draft, before, reply)) break;
         }
-        /*
-         * The passes have finished, and there is nothing left to do.
-         *
-         * This used to end with two steps: restore a subject the URL had named,
-         * and open the register it asked for. Both existed only to make a shared
-         * link work, and with the selection no longer in the query string there
-         * is no URL to restore from and nothing to open on arrival.
-         *
-         * The subject is now chosen by the person and nowhere else, which is the
-         * rule `applyOptions` already enforced: it is never auto-filled, because
-         * it decides which register loads and quietly picking one would show
-         * someone the wrong roster. `Load register` is the only way a register
-         * is ever fetched, so it is a decision every single time.
-         *
-         * What this costs, plainly: a register can no longer be sent to a
-         * colleague as a link, and a refresh re-picks the cascade from the top.
-         * That was the feature, and it is gone by request.
-         */
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           signedOut("Your session expired. Please sign in again.");
@@ -466,15 +233,8 @@ const App = (): React.JSX.Element => {
         }
       }
     },
-    // Only `signedOut` now. It used to depend on `fetchRegister` and `range` for
-    // the auto-load at the end of the loop, and that is gone with the query
-    // string. `runRefresh`'s identity changing is not a problem either way: every
-    // effect that depends on it early-returns on `booted` or is keyed off a ref.
     [signedOut]
   );
-
-  /* ---- sign in ---- */
-
   const signIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoginNote(null);
@@ -486,7 +246,7 @@ const App = (): React.JSX.Element => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(body),
       });
-      setPassword(""); // do not keep it in the DOM
+      setPassword("");
       setSignedIn(true);
       navigate(DASHBOARD_PATH, { replace: true });
       await runRefresh(null);
@@ -499,56 +259,23 @@ const App = (): React.JSX.Element => {
       setBusy(false);
     }
   };
-
   const signOut = async () => {
-    try {
-      await api<OkReply>("/api/logout", { method: "POST" });
-    } catch {
-      /* the cookie is cleared either way */
-    }
+    await api<OkReply>("/api/logout", { method: "POST" }).catch(() => null);
     signedOut("");
   };
-
-  /**
-   * Notice a dead session without waiting for a click.
-   *
-   * The 401 paths only fire when something asks the server for something. A user
-   * who leaves a register open and comes back to it hours later would otherwise
-   * be reading numbers produced by a session that no longer exists, with
-   * nothing on screen to say so - which is the exact failure the register's own
-   * name line exists to prevent.
-   *
-   * The probe stays quiet about failure. A network blip is not evidence that the
-   * session died, and signing the user out over one would be worse than the
-   * problem; the next real request answers 401 and settles it.
-   */
   useEffect(() => {
     if (onLogin) return;
     let cancelled = false;
     const probe = async () => {
-      // A request already in flight reports a dead session itself, and two
-      // probes at once would only race each other.
       if (busyRef.current) return;
-      try {
-        const s = await api<SessionReply>("/api/session");
-        if (!cancelled && s) {
-          // Whether sessions survive a restart does not change while the page is
-          // open, so it is read once here rather than on every render. Kept out of
-          // the branch above deliberately: a signed-out session is about to be
-          // replaced by the sign-in form, and updating this on the way past would
-          // be a setState during a navigation.
-          setPersisted(s.persisted);
-          if (!s.signedIn) {
-            signedOut("Your session expired. Please sign in again.");
-          }
-        }
-      } catch {
-        /* not evidence of anything; the next request decides */
+      const s = await api<SessionReply>("/api/session").catch(() => null);
+      if (cancelled || !s) return;
+      setPersisted(s.persisted);
+      if (!s.signedIn) {
+        signedOut("Your session expired. Please sign in again.");
       }
     };
     const id = setInterval(probe, SESSION_PROBE_MS);
-    // Coming back to the tab is when a stale register is most likely to be read
-    // as current, so it is worth a probe even between intervals.
     document.addEventListener("visibilitychange", probe);
     return () => {
       cancelled = true;
@@ -556,14 +283,6 @@ const App = (): React.JSX.Element => {
       document.removeEventListener("visibilitychange", probe);
     };
   }, [onLogin, signedOut]);
-
-  /**
-   * Decide which screen the URL is allowed to show, on first load.
-   *
-   * Asks `/api/session` once, then leaves the URL in charge: the probe above is
-   * what catches it going stale. Deep-linking to `/` while signed out lands on
-   * `/login`, and deep-linking to `/login` while signed in lands on `/`.
-   */
   useEffect(() => {
     if (booted) return;
     (async () => {
@@ -571,13 +290,7 @@ const App = (): React.JSX.Element => {
       let kept = false;
       try {
         const s = await api<SessionReply>("/api/session");
-        // The endpoint answers 200 with {signedIn:false} when signed out, so the
-        // check is on the payload and never on the status.
         alive = !!(s && s.signedIn);
-        // Read here as well as in the probe: this is the one call that happens on a
-        // cold load, so a user who signs in and goes straight to Profile is not
-        // waiting five minutes for the probe to tell them whether their session
-        // survives a restart.
         kept = Boolean(s?.persisted);
       } catch {
         alive = false;
@@ -587,114 +300,38 @@ const App = (): React.JSX.Element => {
       setSignedIn(alive);
       setPersisted(kept);
       if (alive) {
-        /*
-         * `/` and an unknown path are ways in to the dashboard, so the guard
-         * sends them there. `/profile` is a screen in its own right and is left
-         * alone: redirecting it would make the link un-bookmarkable, which is
-         * the only reason it is a path rather than a tab.
-         *
-         * The catch-all in `main.tsx` renders `App` for every path, so this is
-         * the only place that says what an unrecognised one means. Two
-         * statements of that fact is what produced the loop ADR 0009 records.
-         */
         if (!onLogin && !onProfile) {
-          // `replace`, so a dead /login in the history is not what Back returns
-          // to after a sign-in.
           navigate(DASHBOARD_PATH, { replace: true });
         }
-        /*
-         * The cascade runs on the profile screen as well as the dashboard.
-         *
-         * That costs a few portal round trips for dropdowns nobody is looking
-         * at, and it is still the right trade: the selection and the option
-         * lists are properties of the signed-in session rather than of a
-         * screen, so filling them once at boot is what makes the dashboard
-         * already populated when Dashboard is clicked. Deferring it to that
-         * click would need a "has the cascade run" ref and an effect keyed on
-         * the path - more machinery than the round trips, for a worse failure
-         * if it went wrong: five empty dropdowns on the screen the user came
-         * for.
-         */
         if (!onLogin) await runRefresh(null);
       } else if (!onLogin) {
         navigate(LOGIN_PATH, { replace: true });
       }
     })();
   }, [booted, onLogin, onProfile, navigate, runRefresh]);
-
-  /**
-   * A signed-in user who lands on `/login` belongs on the dashboard.
-   *
-   * Reached by Back from a signed-in dashboard, by a stale bookmark, or by typing
-   * the path. The boot guard cannot catch any of them, because it runs once and
-   * by then the answer is known - and without this the login form was offered to
-   * someone who already had a session, which is the mirror image of the bug the
-   * probe fixes.
-   */
   useEffect(() => {
     if (booted && signedIn && onLogin) {
       navigate(DASHBOARD_PATH, { replace: true });
     }
   }, [booted, signedIn, onLogin, navigate]);
-
-  /* ---- derived ---- */
-
-  // Both of these are rules, not arithmetic, so both live in cascade.ts. The
-  // `disabled` map in particular is the same dependency condition the server
-  // uses to decide what it may derive, and deriving it in one place keeps the
-  // two in step.
   const disabled = disabledLevels(sel);
-
   const summary = result?.summary;
   const rows = result
     ? result.students
         .filter((s) => !onlyIrregular || s.irregular)
         .toSorted((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
     : [];
-
   const registerName = chosenText(opts, sel);
-
-  /* ---- what the children call back into ---- */
-
-  /**
-   * A level changed. The value is read here and passed on, never inside a
-   * `setState` updater: React clears `event.currentTarget` once the handler
-   * returns, and an updater runs later, so deferring the read throws "Cannot
-   * read properties of null". That shipped once and blanked the whole page.
-   */
   const onSelectLevel = (key: Level, value: string) => {
     setSel((s) => ({ ...s, [key]: value }));
     selRef.current = { ...selRef.current, [key]: value };
-    // Subject is filled by the server, not by a change handler.
     if (key !== "subject") runRefresh(key);
   };
-
   const onRangeChange = (part: "from" | "to", value: string) => {
     setRange((r) => ({ ...r, [part]: value }));
   };
-
-  /* ---- render ---- */
-
-  // Three routes, not four modes. Each child is told what to render and reports
-  // changes upwards; none of them holds state, so the cascade below stays the
-  // single place any of it is decided.
-  //
-  // Three named screens rather than a nested ternary, because there genuinely
-  // are three: `booting` renders the header alone, so a deep link to / while
-  // signed out does not flash the whole cascade before the guard sends the user
-  // to /login. `/dashboard` and `/profile` are both `app` - same shell, same
-  // cascade, different body - so `onProfile` picks between them below rather
-  // than becoming a fourth screen here.
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
-
-  /**
-   * The cascade.
-   *
-   * A local rather than inline, so the dashboard body below reads as one piece.
-   * It is stateful data with handlers attached, and nothing else on this screen
-   * refers to it.
-   */
   const picker = (
     <ClassPicker
       levels={LEVELS}
@@ -710,7 +347,6 @@ const App = (): React.JSX.Element => {
       onLoad={loadRegister}
     />
   );
-
   let body: React.JSX.Element | null = null;
   switch (screen) {
     case "login": {
@@ -728,25 +364,12 @@ const App = (): React.JSX.Element => {
       break;
     }
     case "app": {
-      /*
-       * Profile replaces the dashboard rather than sitting beside it. The two
-       * have nothing in common to stack - one is a table of students, the other
-       * is four lines about a session - and a rail of navigation is not a place
-       * to leave a register on screen.
-       *
-       * The cascade stays mounted across the switch by not being unmounted here
-       * at all: it is above this branch, so Profile replaces what is *below* it
-       * and the selection survives the round trip. Clicking Dashboard back shows
-       * the dropdowns as they were rather than five empty ones.
-       */
       body = onProfile ? (
         <ProfilePanel userId={userId} persisted={persisted} />
       ) : (
         <>
           {picker}
-
           {summary ? <RegisterSummary summary={summary} /> : null}
-
           {summary ? (
             <RegisterTable
               rows={rows}
@@ -765,24 +388,10 @@ const App = (): React.JSX.Element => {
       break;
     }
   }
-
   return (
     <AppShell
       header={{ height: 60 }}
       padding="lg"
-      // `sm`, so the rail is pinned from tablet width up and becomes a drawer
-      // below it. `collapsed.desktop` is false while signed in and true on the
-      // sign-in form: the sign-in form has nothing to navigate between, so a
-      // rail of two links would be a layout for its own sake there.
-      //
-      // A number, as the AppShell docs' own example uses. Not a `theme.spacing`
-      // key: that scale runs xs 10, sm 12, md 16, lg 20, xl 32, so `width: "md"`
-      // would give a 16px rail and hide both buttons. Verified against
-      // `default-theme.mjs` rather than assumed.
-      //
-      // 200 rather than the 320 the cascade needed. Two full-width buttons and
-      // their padding fit with room to spare, and the width this rail gives up
-      // goes to a table of student names.
       navbar={{
         width: 200,
         breakpoint: "sm",
@@ -792,8 +401,6 @@ const App = (): React.JSX.Element => {
       <AppShell.Header>
         <Group h="100%" px="md" justify="space-between" align="center">
           <Group gap="sm">
-            {/* Mobile only. On desktop the rail is pinned, so a button to open it
-                would be a control for something already on screen. */}
             {screen === "app" ? (
               <Burger
                 opened={navOpen}
@@ -819,85 +426,7 @@ const App = (): React.JSX.Element => {
           </Group>
         </Group>
       </AppShell.Header>
-
-      {/*
-        Always rendered, never conditionally. The rail is hidden by `collapsed`
-        above rather than by not existing, so `AppShell.Main`'s offset is computed
-        the same way on both screens and signing in does not shift the content
-        sideways. That transition is the one the guard performs most often, and a
-        layout jump on it would be the most visible possible symptom of the
-        sign-in working.
-      */}
       <AppShell.Navbar p="md">
-        {/*
-          Two links and nothing else. The rail navigates; the screens it names
-          live in the main area.
-
-          It held the cascade until this changed, which is worth recording as the
-          reason it no longer does. Five dependent dropdowns in a 320px column
-          forced one-per-row and truncated "Information Technology" to "Infc", so
-          the control that tells you which class you picked was the one control
-          you could not read. Full width in the main area is what fixes it, and
-          the rail is what it leaves behind.
-
-          **These are buttons, but the screen they name is still a path.**
-          `/profile` is a screen, so it gets a URL: a refresh, a bookmark and the
-          back button all agree with what is on screen, which is the property
-          ADR 0009 bought and the reason this is a route rather than the tab it
-          used to be.
-
-          **These are `Button`s, and the screen they name is still a path.**
-          `/profile` is a screen, so it gets a URL: a refresh, a bookmark and the
-          back button all agree with what is on screen, which is the property
-          ADR 0009 bought and the reason this is a route rather than the tab it
-          used to be.
-
-          A button is the right control for "go to a screen in this app": it
-          takes focus in tab order and both Enter and Space activate it, which
-          an anchor does not. `onClick` calls `navigate` without `replace`, so
-          Back walks between the two screens exactly as it did when these were
-          links.
-
-          The cost is real and worth naming: there is no `href`, so the browser's
-          own link affordances are gone - no middle-click, no "open in new tab",
-          no copying the address from the control. `/profile` is still
-          bookmarkable, because the screen is still a path; it just cannot be
-          shared by right-clicking the button. That is the trade, taken at the
-          user's request.
-
-          **The current screen is the `filled` one, and that is the whole active
-          state.** `Button` has no `active` prop, so this is expressed as a
-          variant chosen from `pathname` on every render - which means it cannot
-          drift from the URL, and the test asserts the variant rather than a
-          colour. `aria-current` says the same thing to a screen reader, which
-          the visual difference alone would not.
-
-          `fullWidth` and `justify="flex-start"`, and nothing else. No `style`,
-          no `className`, no custom variant, no second `createTheme` key - the
-          rail looks the way it looks because it is two stock Mantine buttons
-          with stock props. `justify` is Mantine's own, documented on `Button`
-          and defaulting to `center`; a rail of centred labels reads as two
-          unrelated buttons rather than a list, and the icon and the label should
-          start on the same line every time.
-
-          The icons are Phosphor, which is the library Mantine's own docs use
-          throughout, and they come in through `leftSection` - the slot Mantine
-          provides for exactly this. Nothing is positioned by hand.
-
-          Each icon is named for what the screen *is*, not for what it looks
-          like. `SquaresFour` is the dashboard because that is the register's
-          shape and the shape of the app's home; `UserCircle` is the profile
-          because it is a person and there is nothing else it could be. Neither
-          is a house or a gear, which is what a nav rail usually reaches for and
-          what tells you nothing about where you are going.
-
-          `size={18}` rather than a token, because icon components take pixels and
-          this is Mantine's own documented size for a button's left section.
-
-          Both are `aria-hidden`. The button already has its name in text, and an
-          unlabelled inline SVG left exposed is one more thing for a screen reader
-          to announce or trip over. The icon is there for someone who sees it.
-        */}
         <Button
           onClick={() => navigate(DASHBOARD_PATH)}
           variant={!onLogin && !onProfile ? "filled" : "subtle"}
@@ -919,14 +448,7 @@ const App = (): React.JSX.Element => {
           Profile
         </Button>
       </AppShell.Navbar>
-
       <AppShell.Main>
-        {/*
-          The main area is allowed past `Container`'s usual width: the register is
-          a table of names, and the previous `size="lg"` was clipping the widest
-          ones. `Container` is kept for the sign-in form, which should stay
-          centred and narrow.
-        */}
         {screen === "app" ? (
           body
         ) : (
@@ -938,5 +460,4 @@ const App = (): React.JSX.Element => {
     </AppShell>
   );
 };
-
 export default App;

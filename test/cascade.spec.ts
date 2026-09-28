@@ -1,18 +1,3 @@
-/**
- * The cascade's rules, tested without a portal or a browser.
- *
- * These are the rules ADR 0001 records as "wrong three separate times before it
- * was right", and until now no test could reach them: they lived in `App.tsx`,
- * which exports one symbol and mounts React when imported. Every case here is a
- * property of the rule - what it must never do - rather than a restatement of
- * its implementation, per CODING_STANDARDS.md.
- *
- * The end-to-end smoke test still covers the journey. It cannot cover these
- * branches, because reaching them means driving five dropdowns in a specific
- * order against a live portal, and the ones that matter most are the ones that
- * must NOT happen.
- */
-
 import { test, expect } from "@playwright/test";
 
 import type { Option, OptionsReply, Student } from "../shared/api";
@@ -29,14 +14,11 @@ import {
 } from "../web/cascade";
 import type { Level, Sel } from "../web/cascade";
 
-/** An option, with the three fields the portal actually gives. */
 const opt = (value: string, label = `L${value}`, title = ""): Option => ({
   value,
   label,
   title,
 });
-
-/** A reply where every level has the given values, labelled L<value>. */
 const reply = (perLevel: Record<Level, string[]>): OptionsReply => ({
   course: perLevel.course.map((v) => opt(v)),
   semester: perLevel.semester.map((v) => opt(v)),
@@ -45,7 +27,6 @@ const reply = (perLevel: Record<Level, string[]>): OptionsReply => ({
   subject: perLevel.subject.map((v) => opt(v)),
   emptyLevels: [],
 });
-
 const sel = (partial: Partial<Sel> = {}): Sel => ({
   course: "",
   semester: "",
@@ -54,7 +35,6 @@ const sel = (partial: Partial<Sel> = {}): Sel => ({
   subject: "",
   ...partial,
 });
-
 const nothing = reply({
   course: [],
   semester: [],
@@ -62,12 +42,8 @@ const nothing = reply({
   section: [],
   subject: [],
 });
-
 test.describe("the cascade's selection rules", () => {
   test("every level above the subject auto-fills, so the chain populates itself", () => {
-    // The rule that dead-ended the chain before. Stopping at the first
-    // multi-option level means the user has to drive all five; this way the
-    // whole chain arrives and they override what they disagree with.
     const next = applyOptions(
       sel(),
       reply({
@@ -78,15 +54,12 @@ test.describe("the cascade's selection rules", () => {
         subject: ["6", "7"],
       })
     );
-
     expect(next.course).toBe("1");
     expect(next.semester).toBe("3");
     expect(next.branch).toBe("4");
     expect(next.section).toBe("5");
   });
-
   test("the subject is never auto-chosen, because it decides which register loads", () => {
-    // One option or fifty: pre-selecting risks showing the wrong roster.
     for (const count of [1, 2, 9]) {
       const subjects = Array.from({ length: count }, (_, i) => String(i));
       const next = applyOptions(
@@ -102,10 +75,7 @@ test.describe("the cascade's selection rules", () => {
       expect(next.subject).toBe("");
     }
   });
-
   test("a choice the server still offers survives a refresh", () => {
-    // Re-asserting the user's pick on every pass would reset a dropdown the
-    // moment they moved to the level below it.
     const next = applyOptions(
       sel({ course: "2", branch: "4" }),
       reply({
@@ -116,14 +86,9 @@ test.describe("the cascade's selection rules", () => {
         subject: [],
       })
     );
-
     expect(next.course).toBe("2");
   });
-
   test("a choice the server no longer offers falls to the first option", () => {
-    // The old <select> behaved this way: a value not in the list cannot be
-    // selected, so the browser showed the first entry. Keeping a dead value
-    // would send it to the portal on the next request.
     const next = applyOptions(
       sel({ course: "99" }),
       reply({
@@ -134,13 +99,9 @@ test.describe("the cascade's selection rules", () => {
         subject: [],
       })
     );
-
     expect(next.course).toBe("1");
   });
-
   test("a level with no options is cleared, not left holding a dead value", () => {
-    // emptyLevels reports this to the user; keeping the old value would let a
-    // register load against a level the server says is empty.
     const next = applyOptions(
       sel({ course: "1", branch: "4" }),
       reply({
@@ -151,33 +112,20 @@ test.describe("the cascade's selection rules", () => {
         subject: [],
       })
     );
-
     expect(next.branch).toBe("");
   });
-
   test("a level is ready only when every level above it is chosen", () => {
-    // Cascade order is course, semester, branch, section, subject - so semester
-    // depends on course alone. A level's dependencies are its position in
-    // LEVELS, not the field order of the request body, and the two differ.
     const full = sel({ course: "1", semester: "3", branch: "4", section: "5" });
-
-    expect(isReady(full, "course")).toBe(true); // nothing above it
+    expect(isReady(full, "course")).toBe(true);
     expect(isReady(sel({ course: "1" }), "semester")).toBe(true);
     expect(isReady(sel(), "semester")).toBe(false);
-
-    // Branch needs course AND semester. Choosing branch without semester does
-    // not make it ready, and this is the case that guards the server's ladder.
     expect(isReady(sel({ course: "1", branch: "4" }), "branch")).toBe(false);
     expect(isReady(sel({ course: "1", semester: "3" }), "branch")).toBe(true);
-
     expect(isReady(sel({ course: "1", branch: "4" }), "section")).toBe(false);
     expect(isReady(full, "section")).toBe(true);
     expect(isReady(full, "subject")).toBe(true);
   });
-
   test("a dropdown is enabled exactly when the server could answer for it", () => {
-    // The same dependency condition, derived once. A hand-written five-boolean
-    // map is where the two halves drift apart.
     expect(disabledLevels(sel())).toEqual({
       course: false,
       semester: true,
@@ -185,7 +133,6 @@ test.describe("the cascade's selection rules", () => {
       section: true,
       subject: true,
     });
-
     const full = sel({ course: "1", semester: "3", branch: "4", section: "5" });
     expect(disabledLevels(full)).toEqual({
       course: false,
@@ -196,26 +143,17 @@ test.describe("the cascade's selection rules", () => {
     });
   });
 });
-
 test.describe("the loop's decision", () => {
   test("asks again when a pass settled a level and something below is now ready", () => {
-    // This is what makes the chain populate itself in one user action. Without
-    // it the user would have to touch all five dropdowns by hand.
     const before = sel({ course: "1" });
     const after = sel({ course: "1", semester: "3", branch: "4" });
     expect(shouldContinue(after, before, nothing)).toBe(true);
   });
-
   test("stops when a pass settled nothing, however ready the levels look", () => {
-    // Without this the dropdowns would spin forever the moment the server has
-    // nothing left to give. The dead end is a quiet one - a spinner that never
-    // stops - which is why it needs a test more than a comment.
     const unchanged = sel({ course: "1", semester: "3" });
     expect(shouldContinue(unchanged, unchanged, nothing)).toBe(false);
   });
-
   test("stops when a pass gained something but every level below is filled", () => {
-    // Gained something, so a naive `gained` check would loop forever here.
     const before = sel();
     const after = sel({ course: "1" });
     const full = reply({
@@ -225,13 +163,9 @@ test.describe("the loop's decision", () => {
       section: ["5"],
       subject: ["6"],
     });
-
     expect(shouldContinue(after, before, full)).toBe(false);
   });
-
   test("stops when the deepest ready level came back populated but gained nothing", () => {
-    // Course always has options and is never auto-advanced past, so a reply
-    // that only fills course must not keep the loop alive.
     const unchanged = sel();
     expect(
       shouldContinue(
@@ -248,11 +182,8 @@ test.describe("the loop's decision", () => {
     ).toBe(false);
   });
 });
-
 test.describe("the register, before it is sent", () => {
   test("names the level that has no choice, so the warning can point at it", () => {
-    // "Choose a branch first" beats "choose a level first", and the portal needs
-    // every level whole or it answers with nothing at all.
     const chosen = chosenLevels(
       reply({
         course: ["1"],
@@ -263,14 +194,10 @@ test.describe("the register, before it is sent", () => {
       }),
       sel({ course: "1", semester: "3" })
     );
-
     expect(chosen.ok).toBe(false);
     if (!chosen.ok) expect(chosen.label).toBe("Branch");
   });
-
   test("returns each level whole, labels included, not as a bare value", () => {
-    // The label-cache bug: the portal needs value AND visible text, and returns
-    // nothing rather than failing when the text is missing.
     const opts = reply({
       course: ["1"],
       semester: ["3"],
@@ -288,14 +215,12 @@ test.describe("the register, before it is sent", () => {
         subject: "6",
       })
     );
-
     expect(chosen.ok).toBe(true);
     if (chosen.ok) {
       expect(chosen.levels.course).toEqual(opts.course[0]);
       expect(chosen.levels.subject.label).toBe("L6");
     }
   });
-
   test("names the register on screen, so a stale read is visible", () => {
     const text = chosenText(
       reply({
@@ -313,13 +238,10 @@ test.describe("the register, before it is sent", () => {
         subject: "6",
       })
     );
-
     expect(text).toContain("Course: L1");
     expect(text).toContain("Subject: L6");
   });
 });
-
-/** A student at a given percentage, flagged the way the server flags them. */
 const student = (pct: number | null): Student => ({
   sl: "1",
   roll: "21CS001",
@@ -329,12 +251,8 @@ const student = (pct: number | null): Student => ({
   irregular: pct != null && pct < 75,
   critical: pct != null && pct < 60,
 });
-
 test.describe("the bands", () => {
   test("worst band wins, so a student is never shown as merely irregular", () => {
-    // A student can carry both flags. Reading `irregular` first would tint them
-    // yellow and hide the fact that they are critical, which is the one row a
-    // faculty member most needs to see.
     expect(tintFor({ ...student(40), irregular: true, critical: true })).toBe(
       "var(--mantine-color-red-light)"
     );
@@ -345,17 +263,11 @@ test.describe("the bands", () => {
       undefined
     );
   });
-
   test("an unparseable percentage is never called critical or irregular", () => {
-    // `pct: null` means the portal's cell would not parse. Claiming a band for it
-    // would put a student in a list on the strength of nothing.
     const unknown = { ...student(null), irregular: false, critical: false };
     expect(tintFor(unknown)).toBeUndefined();
   });
-
   test("tint is a Mantine token or nothing, never a custom rule", () => {
-    // AGENTS.md: no custom CSS anywhere. A raw colour here would be the only
-    // one in the project, and the smoke test would not catch it.
     expect(tintFor({ ...student(40), critical: true })).toBe(
       "var(--mantine-color-red-light)"
     );
@@ -365,30 +277,20 @@ test.describe("the bands", () => {
     expect(tintFor(student(90))).toBeUndefined();
   });
 });
-
 test.describe("dates", () => {
   test("the portal's format is day first, and a partial date is refused", () => {
-    // A short date silently becoming "01/undefined/2026" would ask the portal
-    // for a range it answers with nothing.
     expect(toPortalDate("2026-01-05")).toBe("05/01/2026");
     expect(toPortalDate("")).toBe("");
     expect(toPortalDate("2026-01")).toBe("");
     expect(toPortalDate("nonsense")).toBe("");
   });
-
   test("the app opens on the 1st of this month, not the year or a rolling window", () => {
-    // The default is month-to-date. A term or a calendar year would dilute the
-    // percentage with classes a student attended before something changed, and
-    // the number would stop answering "how are they doing now".
     expect(defaultRange(new Date(2026, 8, 28, 12, 0, 0))).toEqual({
       from: "2026-09-01",
       to: "2026-09-28",
     });
   });
-
   test("the 1st of the month is the 1st, in a 30-day month and a 31-day one", () => {
-    // The day argument is always 1, so month length cannot reach it - but a
-    // month that begins on the 1st is the case that broke before.
     expect(defaultRange(new Date(2026, 3, 30, 12, 0, 0)).from).toBe(
       "2026-04-01"
     );
@@ -399,35 +301,24 @@ test.describe("dates", () => {
       "2024-02-01"
     );
   });
-
   test("in January the 1st of the month is also the 1st of the year", () => {
-    // The two defaults are indistinguishable here, which is the one case where
-    // a change in the rule would not show up.
     expect(defaultRange(new Date(2026, 0, 15, 12, 0, 0))).toEqual({
       from: "2026-01-01",
       to: "2026-01-15",
     });
   });
-
   test("on the 1st itself the range is a single day, not a negative one", () => {
     expect(defaultRange(new Date(2026, 8, 1, 0, 0, 0))).toEqual({
       from: "2026-09-01",
       to: "2026-09-01",
     });
   });
-
   test("midnight on the 1st does not slip back into the previous month", () => {
-    // The exact instant the old toISOString() version got wrong: local midnight
-    // read back through UTC is the day before, east of Greenwich. The 1st of
-    // the month is where that costs a day of the range.
     const range = defaultRange(new Date(2026, 8, 1, 0, 0, 0));
     expect(range.from).toBe("2026-09-01");
     expect(range.to).toBe("2026-09-01");
   });
-
   test("a single-digit month and day are zero-padded, so the input accepts them", () => {
-    // A date input hands back "2026-01-05"; an unpadded "2026-1-5" is not a
-    // value the input will accept, so the field would clear itself.
     const range = defaultRange(new Date(2026, 0, 5, 9, 30, 0));
     expect(range.to).toBe("2026-01-05");
   });

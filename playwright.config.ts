@@ -1,19 +1,12 @@
 import { defineConfig } from "@playwright/test";
 
-// The suite drives the built front end the same way a faculty member does, so
-// `dist/` has to exist first. The `test` script builds it.
 export default defineConfig({
   testDir: "./test",
-  // Typechecks all three projects before anything runs. See the file for why
-  // this is here rather than a `pretest` script.
   globalSetup: "./test/global-setup.ts",
-  // Every step is a live round trip to the ECAP portal, which is slow but never
-  // takes minutes. Generous, because a timeout here reads as a failure when it
-  // is really just the portal being slow.
   timeout: 180_000,
   expect: { timeout: 45_000 },
   fullyParallel: false,
-  workers: 1, // one browser and one portal session at a time
+  workers: 1,
   reporter: [["list"]],
   use: {
     baseURL: "http://127.0.0.1:8787",

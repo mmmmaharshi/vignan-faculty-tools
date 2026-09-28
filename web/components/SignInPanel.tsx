@@ -12,15 +12,6 @@ import type { FormEvent } from "react";
 
 import type { Note } from "../types";
 
-/**
- * The sign-in screen.
- *
- * One of the three modes `App` composes, extracted so that reading it does not
- * require scrolling past the cascade. It owns no state of its own - every value
- * and handler arrives as a prop - which keeps `App` the only place the session
- * lifecycle is decided.
- */
-
 type SignInPanelProps = {
   userId: string;
   password: string;
@@ -30,7 +21,6 @@ type SignInPanelProps = {
   onPassword: (value: string) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
 };
-
 export const SignInPanel = ({
   userId,
   password,
@@ -63,15 +53,6 @@ export const SignInPanel = ({
             Sign in
           </Button>
         </Group>
-        {/* Nothing at all when there is no note. There used to be a standing
-            reassurance here - that credentials are never stored, and how long the
-            session lasts - and it was cut for two reasons. It was noise on a form
-            with two fields. And the session claim was the one number on the
-            screen this app could not back: the portal's own cookies are session
-            cookies, so ECAP can end the session long before ours does (ADR 0014).
-            A standing claim we cannot keep is worse than no claim. The
-            "never stored" promise is still true, and still printed on every
-            server start. */}
         {note && (
           <Alert color={note.kind === "error" ? "red" : "yellow"}>
             {note.text}
