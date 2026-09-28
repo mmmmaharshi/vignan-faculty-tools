@@ -211,6 +211,20 @@ function tintFor(s: Student): string | undefined {
   return s.irregular ? "var(--mantine-color-yellow-light)" : undefined;
 }
 
+/**
+ * The sign-in reassurance, hoisted because it never varies.
+ *
+ * It is a React element, so building it at module scope means the same
+ * descriptor is reused on every render instead of a new one being allocated each
+ * time the login form shows.
+ */
+const SIGN_IN_NOTE = (
+  <Alert color="blue">
+    Your credentials are used once to sign in and are never stored by this app.
+    Signing in opens a session that stays active for up to 12 hours.
+  </Alert>
+);
+
 /** The status word for a student, worst first. */
 function statusOf(s: Student): "Critical" | "Irregular" | "Regular" {
   if (s.critical) return "Critical";
@@ -553,12 +567,12 @@ const App = (): React.JSX.Element => {
         .toSorted((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
     : [];
 
-  const chosenText = LEVELS.map(([key, label]) => {
+  // flatMap rather than map().filter(Boolean): one pass and no intermediate
+  // array of nulls, which is what the two-step version builds and throws away.
+  const chosenText = LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
-    return hit ? `${label}: ${hit.label}` : null;
-  })
-    .filter(Boolean)
-    .join("   ·   ");
+    return hit ? [`${label}: ${hit.label}`] : [];
+  }).join("   ·   ");
 
   /* ---- render ---- */
 
@@ -614,11 +628,7 @@ const App = (): React.JSX.Element => {
                   {loginNote.text}
                 </Alert>
               ) : (
-                <Alert color="blue">
-                  Your credentials are used once to sign in and are never stored
-                  by this app. Signing in opens a session that stays active for
-                  up to 12 hours.
-                </Alert>
+                SIGN_IN_NOTE
               )}
             </Stack>
           </form>

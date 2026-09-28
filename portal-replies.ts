@@ -88,6 +88,54 @@ export function unquoteJs(text: string): string {
 }
 
 /**
+ * Every pattern the parsers use, built once.
+ *
+ * These were literals inside the loops. A regex literal is a fresh object each
+ * time it is evaluated, so a 63-row register was allocating on the order of
+ * 1,300 of them per load - `cellText` alone runs three per call, and it is
+ * called once per table cell. Hoisting them is the whole of the fix.
+ *
+ * Sharing a `/g` pattern is only safe for the methods that do not carry
+ * `lastIndex` across calls, and that is worth stating because it is the trap:
+ * `test` and `exec` advance it on a global pattern and would make every call
+ * after the first start from the wrong place. Everything below is used with
+ * `match`, `matchAll`, `replaceAll`, or `test` on a *non*-global pattern, all of
+ * which either ignore or reset `lastIndex`. If one of these is ever switched to
+ * `exec` or given a `/g` test, it has to go back inside its function.
+ */
+const OPTION = /<option\b(?<attrs>[^>]*)>(?<text>[\s\S]*?)<\/option>/gi;
+const TAG = /<[^>]*>/g;
+const WHITESPACE = /\s+/g;
+const PLACEHOLDER = /^-?\s*select\s*-?$/i;
+const TABLE = /<table[\s\S]*?<\/table>/gi;
+const FIRST_ROW = /<tr[\s\S]*?<\/tr>/i;
+const ROLL_HEADER = /roll\s*\.?\s*no/i;
+const ROW = /<tr[\s\S]*?<\/tr>/gi;
+const CELL = /<t[dh]\b[^>]*>(?<cell>[\s\S]*?)<\/t[dh]>/gi;
+const INPUT = /<input[^>]*>/gi;
+const ATTRIBUTE_VALUE = /value\s*=\s*"(?<v>[^"]*)"/i;
+
+/**
+ * Attribute patterns, by name.
+ *
+ * `pick` used to build two `RegExp` objects per attribute per option, and it
+ * runs twice per option. Only two names are ever asked for, so they are written
+ * out rather than interpolated.
+ */
+const ATTRIBUTE = {
+  value: {
+    single: /value\s*=\s*'(?<v>[^']*)'/i,
+    double: /value\s*=\s*"(?<v>[^"]*)"/i,
+  },
+  title: {
+    single: /title\s*=\s*'(?<v>[^']*)'/i,
+    double: /title\s*=\s*"(?<v>[^"]*)"/i,
+  },
+} as const;
+
+type AttributeName = keyof typeof ATTRIBUTE;
+
+/**
  * Read a `<select>` fragment into options.
  *
  * `unknown` on purpose: this is the one function every convention-A payload
@@ -95,18 +143,20 @@ export function unquoteJs(text: string): string {
  */
 export function options(html: unknown): Option[] {
   const out: Option[] = [];
-  for (const m of String(html ?? "").matchAll(
-    /<option\b(?<attrs>[^>]*)>(?<text>[\s\S]*?)<\/option>/gi
-  )) {
+  for (const m of String(html ?? "").matchAll(OPTION)) {
     const attrs = m.groups?.attrs ?? "";
-    const pick = (n: string): string =>
-      attrs.match(new RegExp(`${n}\\s*=\\s*'(?<v>[^']*)'`, "i"))?.groups?.v ??
-      attrs.match(new RegExp(`${n}\\s*=\\s*"(?<v>[^"]*)"`, "i"))?.groups?.v ??
-      "";
+    const pick = (name: AttributeName): string => {
+      const p = ATTRIBUTE[name];
+      return (
+        attrs.match(p.single)?.groups?.v ??
+        attrs.match(p.double)?.groups?.v ??
+        ""
+      );
+    };
     const label = (m.groups?.text ?? "")
-      .replaceAll(/<[^>]*>/g, "")
+      .replaceAll(TAG, "")
       .replaceAll("&nbsp;", " ")
-      .replaceAll(/\s+/g, " ")
+      .replaceAll(WHITESPACE, " ")
       .trim();
     const value = pick("value");
     // Both halves, or nothing. An entry with visible text but no identifier
@@ -121,7 +171,7 @@ export function options(html: unknown): Option[] {
 
 /** The "-Select-" / "Select" entry is a placeholder, not a real choice. */
 export const isPlaceholder = (o: Option): boolean =>
-  o.value === "0" || /^-?\s*select\s*-?$/i.test(o.label);
+  o.value === "0" || PLACEHOLDER.test(o.label);
 
 export const realOptions = (list: Option[]): Option[] =>
   list.filter((o) => !isPlaceholder(o));
@@ -147,9 +197,9 @@ export function level(list: Option[]): { choices: Option[]; empty: boolean } {
 /** Strip tags and collapse whitespace, for table scraping. */
 export function cellText(html: string): string {
   return html
-    .replaceAll(/<[^>]*>/g, " ")
+    .replaceAll(TAG, " ")
     .replaceAll("&nbsp;", " ")
-    .replaceAll(/\s+/g, " ")
+    .replaceAll(WHITESPACE, " ")
     .trim();
 }
 
@@ -167,9 +217,9 @@ export function cellText(html: string): string {
  */
 export function parseRegister(html: string): RegisterRow[] {
   let table: string | null = null;
-  for (const t of html.match(/<table[\s\S]*?<\/table>/gi) ?? []) {
-    const head = cellText((t.match(/<tr[\s\S]*?<\/tr>/i) ?? [""])[0] ?? "");
-    if (/roll\s*\.?\s*no/i.test(head)) {
+  for (const t of html.match(TABLE) ?? []) {
+    const head = cellText((t.match(FIRST_ROW) ?? [""])[0] ?? "");
+    if (ROLL_HEADER.test(head)) {
       table = t;
       break;
     }
@@ -177,10 +227,10 @@ export function parseRegister(html: string): RegisterRow[] {
   if (!table) return [];
 
   const rows: RegisterRow[] = [];
-  for (const tr of (table.match(/<tr[\s\S]*?<\/tr>/gi) ?? []).slice(1)) {
-    const cells = [
-      ...tr.matchAll(/<t[dh]\b[^>]*>(?<cell>[\s\S]*?)<\/t[dh]>/gi),
-    ].map((m) => cellText(m.groups?.cell ?? ""));
+  for (const tr of (table.match(ROW) ?? []).slice(1)) {
+    const cells = [...tr.matchAll(CELL)].map((m) =>
+      cellText(m.groups?.cell ?? "")
+    );
     if (cells.length < 4) continue;
     const roll = cells[1] ?? "";
     if (!roll) continue;
@@ -203,9 +253,9 @@ export function parseRegister(html: string): RegisterRow[] {
 
 /** Read one hidden input's value out of a page, for the login POST. */
 export function hiddenValue(html: string, name: string): string {
-  for (const tag of html.match(/<input[^>]*>/gi) ?? []) {
+  for (const tag of html.match(INPUT) ?? []) {
     if (new RegExp(`name="${name}"`, "i").test(tag)) {
-      return tag.match(/value="(?<v>[^"]*)"/i)?.groups?.v ?? "";
+      return tag.match(ATTRIBUTE_VALUE)?.groups?.v ?? "";
     }
   }
   return "";
