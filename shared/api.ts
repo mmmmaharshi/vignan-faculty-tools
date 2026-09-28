@@ -25,6 +25,12 @@ export interface Option {
 /** `POST /api/session`. Answers 200 with `signedIn: false` when signed out. */
 export interface SessionReply {
   signedIn: boolean;
+  /**
+   * Whether this server holds sessions in the OS credential vault, so a restart
+   * keeps the user signed in. False on a runtime without one, and the profile
+   * panel says so rather than promising something untrue.
+   */
+  persisted: boolean;
 }
 
 /** `POST /api/login` and `POST /api/logout`. */

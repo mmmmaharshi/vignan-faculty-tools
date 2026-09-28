@@ -837,7 +837,14 @@ const server = Bun.serve({
           // page can tell "not signed in" from "expired".
           const id = readCookie(req, "ecap_sid");
           const s = getSession(id);
-          if (!s) return json({ signedIn: false } satisfies SessionReply, 200);
+          if (!s)
+            return json(
+              {
+                signedIn: false,
+                persisted: Boolean(vault),
+              } satisfies SessionReply,
+              200
+            );
           // Ask the portal, rather than trusting the jar. Our session is 30 days
           // and the portal's is about twenty minutes, and `jar.signedIn` only
           // means "an frmAuth cookie is in the jar" — it stays true long after the
@@ -862,10 +869,19 @@ const server = Bun.serve({
             // The jar authenticates to nothing. Drop it, or the user is left
             // staring at a dashboard they cannot use.
             await forgetSession(id);
-            return json({ signedIn: false } satisfies SessionReply, 200);
+            return json(
+              {
+                signedIn: false,
+                persisted: Boolean(vault),
+              } satisfies SessionReply,
+              200
+            );
           }
           return json(
-            { signedIn: s.portal.signedIn } satisfies SessionReply,
+            {
+              signedIn: s.portal.signedIn,
+              persisted: Boolean(vault),
+            } satisfies SessionReply,
             200,
             // The probe runs every five minutes, so a tab left open keeps rolling
             // its cookie forward without anyone touching it.
