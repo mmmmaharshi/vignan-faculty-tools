@@ -305,14 +305,13 @@ export function chosenText(opts: OptionsReply, sel: Sel): string {
   }).join("   ·   ");
 }
 
-/** The status word for a student, worst first. */
-export function statusOf(s: RegisterReply["students"][number]): Status {
+/** The status word for a student, worst first. See CONTEXT.md for the bands. */
+export function statusOf(
+  s: RegisterReply["students"][number]
+): "Critical" | "Irregular" | "Regular" {
   if (s.critical) return "Critical";
   return s.irregular ? "Irregular" : "Regular";
 }
-
-/** The three attendance bands. See CONTEXT.md. */
-export type Status = "Critical" | "Irregular" | "Regular";
 
 /**
  * The row tint, reading Mantine's own colour tokens.

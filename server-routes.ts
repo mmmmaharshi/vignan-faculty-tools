@@ -125,7 +125,7 @@ export async function handleOptions(
  * both are checked here, where the message can name the level that is wrong -
  * "Choose a branch first" rather than "choose a level first".
  */
-export function chosenLevel(b: Partial<RegisterRequest>, key: Level): Option {
+function chosenLevel(b: Partial<RegisterRequest>, key: Level): Option {
   const o = b[key];
   if (!o?.value || !o?.label) throw new HttpError(400, `Choose a ${key}.`);
   return o;

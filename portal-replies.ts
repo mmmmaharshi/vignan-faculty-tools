@@ -178,7 +178,7 @@ export function options(html: unknown): Option[] {
 }
 
 /** The "-Select-" / "Select" entry is a placeholder, not a real choice. */
-export const isPlaceholder = (o: Option): boolean =>
+const isPlaceholder = (o: Option): boolean =>
   o.value === "0" || PLACEHOLDER.test(o.label);
 
 export const realOptions = (list: Option[]): Option[] =>
@@ -203,7 +203,7 @@ export function level(list: Option[]): { choices: Option[]; empty: boolean } {
 }
 
 /** Strip tags and collapse whitespace, for table scraping. */
-export function cellText(html: string): string {
+function cellText(html: string): string {
   return html
     .replaceAll(TAG, " ")
     .replaceAll("&nbsp;", " ")
