@@ -127,29 +127,21 @@ export const realOptions = (list: Option[]): Option[] =>
   list.filter((o) => !isPlaceholder(o));
 
 /**
- * Options for a level that cannot legitimately be empty.
+ * Options for a level, and whether it came back empty.
  *
- * Checked against every branch and semester the portal offers — twelve
- * combinations — and no level has ever come back empty. Subjects are not scoped
- * to a section, so the twelve cover those too. The one thing not covered is a
- * course this account cannot see, because the portal offers it only one.
+ * Every branch and semester the portal offers has been checked - twelve
+ * combinations, the entire space this account can reach - and no level has ever
+ * come back empty. Subjects are not scoped to a section, so those twelve cover
+ * them too. The one thing the survey cannot cover is a course this account cannot
+ * see, and the portal offers it exactly one.
  *
- * So an empty list means the reply was not the markup we asked for. The message
- * names both plausible causes rather than assuming, because from here they are
- * indistinguishable.
- *
- * If this is ever wrong the cost is a 502 where the user previously got an empty
- * dropdown. That is a worse symptom, and the message is what makes it
- * diagnosable rather than baffling.
+ * So an empty level is worth reporting, and this reports it rather than refusing.
+ * The caller decides what to do with it. Throwing here would mean a course nobody
+ * has observed could block the screen for everyone, which is a worse failure than
+ * the silent one this replaced.
  */
-export function expectLevel(list: Option[], what: string): Option[] {
-  if (!list.length) {
-    throw new HttpError(
-      502,
-      `ECAP returned no ${what}. The portal's layout may have changed, or the session may have expired - sign in again and try again.`
-    );
-  }
-  return list;
+export function level(list: Option[]): { choices: Option[]; empty: boolean } {
+  return { choices: list, empty: list.length === 0 };
 }
 
 /** Strip tags and collapse whitespace, for table scraping. */

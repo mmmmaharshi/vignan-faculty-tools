@@ -26,8 +26,7 @@
 import { test, expect } from "@playwright/test";
 
 import {
-  expectLevel,
-  HttpError,
+  level,
   looksLikeHtml,
   options,
   parseRegister,
@@ -44,6 +43,9 @@ const SELECT = `<select id="ddlcourse">
 </select>`;
 
 const LOGIN_PAGE = `<!DOCTYPE html><html><head><title>ECAP</title></head><body>Sign in</body></html>`;
+
+/** Parses fine, and every entry is the placeholder - so nothing is a choice. */
+const SELECT_ONLY_PLACEHOLDER = `<select><option value="-Select-">-Select-</option></select>`;
 
 test.describe("portal replies", () => {
   test("a dead session's markup is told apart from real data", () => {
@@ -97,25 +99,28 @@ test.describe("portal replies", () => {
     expect(options("<p>no selects here</p>")).toEqual([]);
   });
 
-  test("expectLevel raises for an empty level and names both causes", () => {
+  test("level reports an empty list instead of blocking on it", () => {
     const real = realOptions(options(SELECT));
-    expect(expectLevel(real, "courses")).toBe(real);
 
-    let caught: unknown;
-    try {
-      expectLevel([], "courses");
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught, "an empty level should raise").toBeInstanceOf(HttpError);
-    const err = caught as HttpError;
-    expect(err.status).toBe(502);
-    // Neither cause is assumed. Naming only the layout change would send the
-    // reader looking in the wrong place every time the session had simply died.
-    expect(err.message).toContain("layout may have changed");
-    expect(err.message).toContain("session may have expired");
-    // And it must not blame the level the user can do something about.
-    expect(err.message).not.toMatch(/date range/i);
+    // A real level passes through untouched, and is not reported.
+    const ok = level(real);
+    expect(ok.empty).toBe(false);
+    expect(ok.choices).toBe(real);
+
+    // An empty one is *reported*, not thrown. This is the whole point: the
+    // survey behind "no level is ever empty" only covers the one course this
+    // account can see, and a 502 on an unobserved course would block the screen
+    // for everyone. Returning the empty list keeps the app usable and still
+    // surfaces the problem, which is what emptyLevels is for.
+    const empty = level([]);
+    expect(empty.empty).toBe(true);
+    expect(empty.choices).toEqual([]);
+
+    // A level that parsed but was all placeholders is still empty, and the
+    // placeholder filter must not be mistaken for a populated level.
+    expect(level(realOptions(options(SELECT_ONLY_PLACEHOLDER))).empty).toBe(
+      true
+    );
   });
 
   test("parseRegister keeps a student whose percentage will not parse", () => {

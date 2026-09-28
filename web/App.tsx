@@ -45,6 +45,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import type {
+  CascadeLevel,
   LoginRequest,
   OkReply,
   Option,
@@ -60,8 +61,8 @@ import type {
 // them. They arrive in the summary so the labels below can never drift from the
 // flags the server actually set.
 
-/** One position in the cascade. Derived from the contract, so the two cannot drift. */
-type Level = keyof OptionsReply;
+/** One position in the cascade, straight from the contract. */
+type Level = CascadeLevel;
 
 /** What the user has chosen at each level. Every level is present, possibly "". */
 type Sel = Record<Level, string>;
@@ -98,6 +99,7 @@ const EMPTY_OPTS: OptionsReply = {
   branch: [],
   section: [],
   subject: [],
+  emptyLevels: [],
 };
 
 /* ------------------------------------------------------------------ helpers */
@@ -685,6 +687,17 @@ const App = (): React.JSX.Element => {
               {filterNote && (
                 <Alert color={filterNote.kind === "error" ? "red" : "yellow"}>
                   {filterNote.text}
+                </Alert>
+              )}
+              {opts.emptyLevels.length > 0 && (
+                <Alert color="yellow">
+                  ECAP returned no{" "}
+                  {opts.emptyLevels
+                    .map((k) => LEVELS.find(([key]) => key === k)?.[1] ?? k)
+                    .join(" or ")}{" "}
+                  for this combination. Either the portal&apos;s layout has
+                  changed, or this branch does not run in this semester. Other
+                  levels are unaffected.
                 </Alert>
               )}
             </Stack>

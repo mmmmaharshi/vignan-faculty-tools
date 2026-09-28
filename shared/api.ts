@@ -42,6 +42,19 @@ export interface LoginRequest {
 }
 
 /**
+ * One position in the cascade.
+ *
+ * Spelled out rather than derived from `OptionsReply`, because that interface
+ * also carries `emptyLevels` - a report *about* the levels, not one of them.
+ */
+export type CascadeLevel =
+  | "course"
+  | "semester"
+  | "branch"
+  | "section"
+  | "subject";
+
+/**
  * `POST /api/options`.
  *
  * All five levels come back on every call. Levels below the deepest one chosen
@@ -54,6 +67,20 @@ export interface OptionsReply {
   branch: Option[];
   section: Option[];
   subject: Option[];
+  /**
+   * Levels that were asked for and came back empty, which should not happen.
+   *
+   * The server reports rather than refuses. Every combination the portal offers
+   * has been checked and none is empty, but that survey only covers the courses
+   * this account can see - which is one. So this field exists for the case the
+   * survey could not reach: the list comes back empty, the user is told which
+   * level and why it might have happened, and the rest of the app keeps working.
+   *
+   * A 502 would have been the other option and was worse. It turns a level that
+   * is merely empty into a blocked screen, on the strength of an assumption
+   * about a course nobody here has seen.
+   */
+  emptyLevels: CascadeLevel[];
 }
 
 /** One student in a register. */

@@ -33,28 +33,26 @@ Both failures are silent, and both point somewhere other than the cause.
 Assert emptiness only where emptiness is not a legitimate answer, and say what
 was actually received when it happens.
 
-1. **Every level is guarded, because none of them is ever empty.** One guard
-   covers all five, and it raises a 502 naming both plausible causes — the portal
-   has changed, or the session has expired.
+1. **Every level is checked, and an empty one is reported rather than
+   refused.** `OptionsReply` carries `emptyLevels`: the levels that were asked
+   for and came back nothing. The front end shows which, and carries on.
 
-   This was originally written to guard three levels and leave sections and
-   subjects alone, on the strength of a note in `README.md` saying some
-   combinations are genuinely empty. That note has been checked against the
-   portal: across all four branches and all three semesters — twelve
-   combinations, which is the entire space this account can reach — sections
-   return between one and four options and subjects between fifteen and fifty-one.
-   Nothing is ever empty. Subjects are not scoped to a section, so those twelve
-   cover them too. The one thing the check cannot cover is a course this account
+   Every branch and semester the portal offers has been checked — twelve
+   combinations, the entire space this account can reach — and nothing has ever
+   come back empty. Subjects are not scoped to a section, so those twelve cover
+   them too. The one thing the survey cannot cover is a course this account
    cannot see, and the portal offers it exactly one.
 
-   `README.md` said "genuinely empty" about IV Semester, which has *one* section.
-   That is a statement about count, not about emptiness, and it was the source of
-   the wrong assumption.
-2. **If the guard is ever wrong, the message is what limits the damage.** A 502
-   where the user previously got an empty dropdown is a worse symptom. It is
-   accepted because the alternative is the silent stall this ADR exists to
-   remove, and because the message names both causes, so the report is
-   diagnosable rather than baffling.
+   That gap decided the shape. An earlier version of this ADR threw a 502 for an
+   empty level, which meant a course nobody here has observed could block the
+   screen for everyone, on the strength of an assumption. Reporting degrades
+   instead: the user sees which level is empty, is told it may be a layout
+   change or a branch that does not run this semester, and every other level
+   keeps working.
+
+   `README.md` said "some combinations are genuinely empty" about IV Semester,
+   which has *one* section. That is a statement about count, not about emptiness,
+   and it was the source of the wrong assumption.
 3. **A reply that is an HTML page is named as one.** Convention B answers with a
    JavaScript literal. When the portal session dies it can answer with markup
    instead, and `unquoteJs()` currently hands that straight on, where it becomes
@@ -79,11 +77,12 @@ session, and a fixture string is all a test needs.
   no credentials. That is the first thing in this project that is testable in
   milliseconds, and it is the reason the guards are shaped as pure functions
   rather than inline checks.
-- An empty level now always raises, at every level, rather than only at three.
-  The cost is that a genuinely empty one becomes a 502 rather than an empty
-  dropdown. Decision 1 records the measurement behind that trade.
-- A markup change now produces "ECAP returned no courses" instead of a dead
-  dropdown. That is a better error, not a fixed bug.
+- An empty level no longer stops anything. It is named on screen, the reason is
+  given as two possibilities rather than one, and the rest of the cascade carries
+  on. That is a better error *and* a better degradation than either throwing or
+  staying silent.
+- A markup change now produces a named warning rather than a dead dropdown. That
+  is a better error, not a fixed bug.
 
 ## Alternatives considered
 

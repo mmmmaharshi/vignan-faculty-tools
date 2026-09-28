@@ -63,9 +63,9 @@
 import { createCipheriv } from "node:crypto";
 
 import {
-  expectLevel,
   hiddenValue,
   HttpError,
+  level,
   looksLikeHtml,
   options,
   parseRegister,
@@ -73,6 +73,7 @@ import {
   unquoteJs,
 } from "./portal-replies";
 import type {
+  CascadeLevel,
   ErrorReply,
   LoginRequest,
   OkReply,
@@ -85,8 +86,8 @@ import type {
   Student,
 } from "./shared/api";
 
-/** One position in the cascade. Derived from the contract, so the two cannot drift. */
-type Level = keyof OptionsReply;
+/** One position in the cascade, straight from the contract. */
+type Level = CascadeLevel;
 
 /**
  * Whatever a portal method produced.
@@ -652,12 +653,17 @@ const server = Bun.serve({
          */
         if (req.method === "POST" && path === "/api/options") {
           const b = await readJson<OptionsRequest>(req);
-          // Typed as the contract, so the five assignments below are checked
-          // against the same shape the front end reads.
           // Every level comes back on every call, deeper ones empty rather than
           // absent, so the front end can tell "not yet derivable" from "chosen,
           // and genuinely empty". Filled in place because each level is
           // conditional on the ones above it, so it cannot be one literal.
+          //
+          // A level that *was* asked for and came back empty is recorded in
+          // `emptyLevels` rather than thrown. Nothing observable has ever been
+          // empty, but the survey behind that only covers the one course this
+          // account can see, and a 502 on an unobserved course would block the
+          // screen for everyone. See `level` in portal-replies.ts.
+          const emptyLevels: Level[] = [];
           /* oxlint-disable unicorn/no-immediate-mutation -- filled per branch */
           const out: OptionsReply = {
             course: [],
@@ -665,22 +671,27 @@ const server = Bun.serve({
             branch: [],
             section: [],
             subject: [],
+            emptyLevels,
           };
 
-          out.course = expectLevel(
-            realOptions(await portal.courses()),
-            "courses"
-          );
+          const take = (key: Level, list: Option[]): void => {
+            const { choices, empty } = level(list);
+            out[key] = choices;
+            if (empty) emptyLevels.push(key);
+          };
+
+          take("course", realOptions(await portal.courses()));
 
           if (b.course) {
             const [branches, semesters] = await portal.branchesAndSemesters(
               b.course
             );
-            out.branch = expectLevel(realOptions(branches), "branches");
-            out.semester = expectLevel(realOptions(semesters), "semesters");
+            take("branch", realOptions(branches));
+            take("semester", realOptions(semesters));
           }
           if (b.course && b.branch && b.semester) {
-            out.section = expectLevel(
+            take(
+              "section",
               realOptions(
                 await portal.sections(
                   b.course,
@@ -688,16 +699,13 @@ const server = Bun.serve({
                   b.semester,
                   b.semesterTitle
                 )
-              ),
-              "sections"
+              )
             );
           }
           if (b.course && b.branch && b.semester && b.section) {
-            out.subject = expectLevel(
-              realOptions(
-                await portal.subjects(b.course, b.branch, b.semester)
-              ),
-              "subjects"
+            take(
+              "subject",
+              realOptions(await portal.subjects(b.course, b.branch, b.semester))
             );
           }
           /* oxlint-enable unicorn/no-immediate-mutation */
