@@ -89,9 +89,22 @@ async function openSelect(page: Page, label: string): Promise<Locator> {
  * this one.
  */
 async function submitSignIn(page: Page): Promise<void> {
+  // The guard: a deep link to / while signed out must land on /login rather
+  // than flashing the cascade first. Asserted here so every test that signs in
+  // also checks it.
+  await expect(page.getByLabel("ECAP user name")).toBeVisible();
+  expect(new URL(page.url()).pathname, "guard should send / to /login").toBe(
+    "/login"
+  );
+
   await page.getByLabel("ECAP user name").fill(USER);
   await page.locator('input[type="password"]').fill(PASS);
   await page.getByRole("button", { name: "Sign in" }).click();
+
+  // Signing in navigates, so the URL is the answer to "which screen" now.
+  await expect
+    .poll(() => new URL(page.url()).pathname, { timeout: 30_000 })
+    .toBe("/");
 
   // Waiting for Subject to unlock waits for the last auto-advance pass.
   await expect
@@ -340,6 +353,19 @@ test.describe("ECAP attendance dashboard", () => {
       problems,
       `browser reported problems: ${problems.join("; ")}`
     ).toEqual([]);
+
+    /* ---- the URL survives a reload ---- */
+    // A refresh used to re-ask the server from scratch, and the guard used to
+    // decide the screen rather than the URL. Now `/` is the screen, and a reload
+    // has to land back on it - which only works because the session is a cookie
+    // and the server serves index.html for the route rather than 404ing it.
+    await page.reload({ waitUntil: "networkidle" });
+    await expect(
+      page.locator("input.mantine-Select-input").first()
+    ).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(new URL(page.url()).pathname, "reload should stay on /").toBe("/");
   });
 
   test("ending a session leaves nothing of it behind", async ({ page }) => {

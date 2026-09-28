@@ -72,6 +72,23 @@ with a decision in it therefore lives in a file importable without one, and
 `server.ts` is HTTP plumbing only. A network call in any of those files makes the
 credential-free suite unreachable.
 
+## Routing
+
+Two routes: `/` is the dashboard, `/login` is the sign-in form. Anything else
+redirects to `/`. **`App` owns both** — the router is not asked to split it,
+because that would duplicate the cascade's state or move it into a context, and
+ADR 0005 rejected a context for that reason.
+
+- **The server serves `index.html` for extensionless paths**, or a deep link to
+  `/login` 404s before any JavaScript runs. A path *with* a dot is a real file
+  request and still 404s, so a broken asset reference is not answered with HTML.
+- **The guard has two halves.** The boot check handles deep links. A second effect
+  sends a *signed-in* user from `/login` to `/`, because the first only runs on
+  mount and Back from a signed-in dashboard lands on `/login` — verified in a
+  browser, and it showed the login form to someone who already had a session.
+- `booted` and `signedIn` are not screens. They are the two facts the URL cannot
+  carry: whether `/api/session` has been asked, and what it said.
+
 ## The front end is Mantine-only
 
 There is no custom CSS in this project: no stylesheet, no CSS module, no inline

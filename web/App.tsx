@@ -20,17 +20,23 @@
  *     subject is the one exception and is left for the user, because it decides
  *     which register loads.
  *
- * See docs/adr/0001-port-ui-to-react-and-mantine.md, and
- * docs/adr/0005-give-the-cascade-rules-a-module.md.
+ * See docs/adr/0001-port-ui-to-react-and-mantine.md,
+ * docs/adr/0005-give-the-cascade-rules-a-module.md, and
+ * docs/adr/0009-routes-instead-of-a-mode-switch.md.
  *
- * Structure: this file owns the state, the three modes, and the refresh loop.
- * The cascade's *rules* - which level auto-fills, when to keep looping, what is
- * ready - live in `web/cascade.ts`, where a test can reach them without mounting
- * React. What stays here is the part that is about time rather than data: the
+ * Structure: this file owns the state and the refresh loop. The cascade's
+ * *rules* - which level auto-fills, when to keep looping, what is ready - live
+ * in `web/cascade.ts`, where a test can reach them without mounting React. What
+ * stays here is the part that is about time rather than data: the
  * `refreshToken` that makes a newer pass win, and the ref pattern that feeds
  * `runRefresh` the current selection. A reader debugging *why a dropdown is
  * empty* should read `cascade.ts`; a reader debugging *why two requests raced*
  * should read this file.
+ *
+ * Which screen is showing is the URL, not a state variable: `/` is the dashboard
+ * and `/login` is the sign-in form. A refresh, a bookmark and the back button
+ * therefore agree with what is on screen, and ending a session is a navigation
+ * rather than a `setPhase` only this file can observe.
  *
  * The children under `web/components/` are told what to render and report
  * changes upwards; none of them holds state.
@@ -39,6 +45,7 @@
 import { Button, Container, Group, Text, Title } from "@mantine/core";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
+import { useLocation, useNavigate } from "react-router";
 
 import type {
   LoginRequest,
@@ -74,8 +81,9 @@ import type { Note } from "./types";
 // them. They arrive in the summary so the labels below can never drift from the
 // flags the server actually set.
 
-/** Which screen is showing. */
-type Phase = "boot" | "login" | "app";
+/** The two screens. Which one is showing is the URL, not a state variable. */
+const LOGIN_PATH = "/login";
+const DASHBOARD_PATH = "/";
 
 /**
  * How often to ask whether the session is still alive.
@@ -138,7 +146,28 @@ const csvCell = (v: string): string => `"${v.replaceAll('"', '""')}"`;
 /* ------------------------------------------------------------------ app */
 
 const App = (): React.JSX.Element => {
-  const [phase, setPhase] = useState<Phase>("boot"); // boot | login | app
+  const navigate = useNavigate();
+  const { pathname } = useLocation();
+  const onLogin = pathname === LOGIN_PATH;
+
+  /**
+   * Whether the session has been asked about yet.
+   *
+   * Not a third screen: until `/api/session` answers, the URL could be either,
+   * and rendering the dashboard for someone who is not signed in would flash the
+   * whole cascade before bouncing them. So the shell renders and the decision
+   * waits one round trip.
+   */
+  const [booted, setBooted] = useState(false);
+  /**
+   * Whether we believe there is a session.
+   *
+   * Separate from `booted` because the two answer different questions: `booted`
+   * is "have we asked yet", this is "what did the answer say". The URL is not
+   * enough on its own - `/login` can be reached by Back from a signed-in
+   * dashboard - and without this the guard below only ever ran at mount.
+   */
+  const [signedIn, setSignedIn] = useState(false);
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
 
@@ -194,22 +223,28 @@ const App = (): React.JSX.Element => {
    * session that no longer existed. Signing out deliberately and being timed
    * out should leave the app in the same state, so they share this.
    */
-  const signedOut = useCallback((why: string) => {
-    // Invalidate anything in flight. A response that arrived after this would
-    // otherwise repopulate the very state being cleared.
-    refreshToken.current += 1;
-    setPhase("login");
-    setUserId("");
-    setPassword("");
-    setLoginNote({ kind: "warning", text: why });
-    setFilterNote(null);
-    setBusy(false);
-    setLoadNote("");
-    setSel(EMPTY_SEL);
-    setOpts(EMPTY_OPTS);
-    setResult(null);
-    setOnlyIrregular(false);
-  }, []);
+  const signedOut = useCallback(
+    (why: string) => {
+      // Invalidate anything in flight. A response that arrived after this would
+      // otherwise repopulate the very state being cleared.
+      refreshToken.current += 1;
+      setUserId("");
+      setPassword("");
+      setSignedIn(false);
+      setLoginNote({ kind: "warning", text: why });
+      setFilterNote(null);
+      setBusy(false);
+      setLoadNote("");
+      setSel(EMPTY_SEL);
+      setOpts(EMPTY_OPTS);
+      setResult(null);
+      setOnlyIrregular(false);
+      // `replace` so the back button does not walk into the session that just
+      // ended and find its state still in the DOM behind it.
+      navigate(LOGIN_PATH, { replace: true });
+    },
+    [navigate]
+  );
 
   /* ---- the cascade ---- */
 
@@ -318,7 +353,8 @@ const App = (): React.JSX.Element => {
         body: JSON.stringify(body),
       });
       setPassword(""); // do not keep it in the DOM
-      setPhase("app");
+      setSignedIn(true);
+      navigate(DASHBOARD_PATH, { replace: true });
       await runRefresh(null);
     } catch (error) {
       setLoginNote({
@@ -353,7 +389,7 @@ const App = (): React.JSX.Element => {
    * problem; the next real request answers 401 and settles it.
    */
   useEffect(() => {
-    if (phase !== "app") return;
+    if (onLogin) return;
     let cancelled = false;
     const probe = async () => {
       // A request already in flight reports a dead session itself, and two
@@ -377,25 +413,57 @@ const App = (): React.JSX.Element => {
       clearInterval(id);
       document.removeEventListener("visibilitychange", probe);
     };
-  }, [phase, signedOut]);
+  }, [onLogin, signedOut]);
 
-  // Resume: the endpoint answers 200 with {signedIn:false} when signed out,
-  // so the check has to be on the payload, not the status.
+  /**
+   * Decide which screen the URL is allowed to show, on first load.
+   *
+   * Asks `/api/session` once, then leaves the URL in charge: the probe above is
+   * what catches it going stale. Deep-linking to `/` while signed out lands on
+   * `/login`, and deep-linking to `/login` while signed in lands on `/`.
+   */
   useEffect(() => {
+    if (booted) return;
     (async () => {
+      let alive = false;
       try {
         const s = await api<SessionReply>("/api/session");
-        if (s && s.signedIn) {
-          setPhase("app");
-          await runRefresh(null);
-        } else {
-          setPhase("login");
-        }
+        // The endpoint answers 200 with {signedIn:false} when signed out, so the
+        // check is on the payload and never on the status.
+        alive = !!(s && s.signedIn);
       } catch {
-        setPhase("login");
+        alive = false;
+      }
+      if (booted) return;
+      setBooted(true);
+      setSignedIn(alive);
+      if (alive) {
+        if (!onLogin) {
+          // `replace`, so a dead /login in the history is not what Back returns
+          // to after a sign-in.
+          navigate(DASHBOARD_PATH, { replace: true });
+          await runRefresh(null);
+        }
+      } else if (!onLogin) {
+        navigate(LOGIN_PATH, { replace: true });
       }
     })();
-  }, [runRefresh]);
+  }, [booted, onLogin, navigate, runRefresh]);
+
+  /**
+   * A signed-in user who lands on `/login` belongs on the dashboard.
+   *
+   * Reached by Back from a signed-in dashboard, by a stale bookmark, or by typing
+   * the path. The boot guard cannot catch any of them, because it runs once and
+   * by then the answer is known - and without this the login form was offered to
+   * someone who already had a session, which is the mirror image of the bug the
+   * probe fixes.
+   */
+  useEffect(() => {
+    if (booted && signedIn && onLogin) {
+      navigate(DASHBOARD_PATH, { replace: true });
+    }
+  }, [booted, signedIn, onLogin, navigate]);
 
   /* ---- register ---- */
 
@@ -529,33 +597,35 @@ const App = (): React.JSX.Element => {
 
   /* ---- render ---- */
 
-  // Three modes, composed rather than switched with booleans. Each child is
-  // told what to render and reports changes upwards; none of them holds state,
-  // so the cascade below stays the single place any of it is decided.
-  return (
-    <Container size="lg" py="lg">
-      <Group justify="space-between" align="baseline" mb="lg">
-        <div>
-          <Title order={1}>ECAP Attendance Dashboard</Title>
-          <Text c="dimmed" size="sm">
-            Vignan Institute of Technology
-          </Text>
-        </div>
-        <Group gap="sm">
-          {phase === "app" && userId.trim() ? (
-            <Text c="dimmed" size="sm">
-              {userId.trim()}
-            </Text>
-          ) : null}
-          {phase === "app" ? (
-            <Button variant="default" onClick={signOut}>
-              Sign out
-            </Button>
-          ) : null}
-        </Group>
-      </Group>
+  // Two routes, not three modes. Each child is told what to render and reports
+  // changes upwards; none of them holds state, so the cascade below stays the
+  // single place any of it is decided.
+  //
+  // Three named screens rather than a nested ternary, because there genuinely
+  // are three: `booting` renders the header alone, so a deep link to / while
+  // signed out does not flash the whole cascade before the guard sends the user
+  // to /login.
+  let screen: "booting" | "login" | "app" = "booting";
+  if (booted) screen = onLogin ? "login" : "app";
 
-      {phase === "app" ? (
+  let body: React.JSX.Element | null = null;
+  switch (screen) {
+    case "login": {
+      body = (
+        <SignInPanel
+          userId={userId}
+          password={password}
+          busy={busy}
+          note={loginNote}
+          onUserId={setUserId}
+          onPassword={setPassword}
+          onSubmit={signIn}
+        />
+      );
+      break;
+    }
+    case "app": {
+      body = (
         <>
           <ClassPicker
             levels={LEVELS}
@@ -587,17 +657,38 @@ const App = (): React.JSX.Element => {
             </>
           ) : null}
         </>
-      ) : (
-        <SignInPanel
-          userId={userId}
-          password={password}
-          busy={busy}
-          note={loginNote}
-          onUserId={setUserId}
-          onPassword={setPassword}
-          onSubmit={signIn}
-        />
-      )}
+      );
+      break;
+    }
+    default: {
+      break;
+    }
+  }
+
+  return (
+    <Container size="lg" py="lg">
+      <Group justify="space-between" align="baseline" mb="lg">
+        <div>
+          <Title order={1}>ECAP Attendance Dashboard</Title>
+          <Text c="dimmed" size="sm">
+            Vignan Institute of Technology
+          </Text>
+        </div>
+        <Group gap="sm">
+          {screen === "app" && userId.trim() ? (
+            <Text c="dimmed" size="sm">
+              {userId.trim()}
+            </Text>
+          ) : null}
+          {screen === "app" ? (
+            <Button variant="default" onClick={signOut}>
+              Sign out
+            </Button>
+          ) : null}
+        </Group>
+      </Group>
+
+      {body}
     </Container>
   );
 };

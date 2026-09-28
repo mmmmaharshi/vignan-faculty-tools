@@ -3,6 +3,7 @@ import "@mantine/core/styles.css";
 import { createTheme, MantineProvider } from "@mantine/core";
 import React from "react";
 import { createRoot } from "react-dom/client";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router";
 
 import App from "./App";
 
@@ -22,11 +23,34 @@ const theme = createTheme({
 const root = document.querySelector("#root");
 if (!root) throw new Error("web/index.html has no #root element to mount into");
 
+/**
+ * Two routes, and one component behind both.
+ *
+ * `App` decides what each path means - the guard, the sign-in form, the
+ * dashboard - because splitting it into two routed components would either
+ * duplicate the cascade's state or put it in a context. The router's job here is
+ * narrower and worth stating: the URL is the answer to "which screen", so a
+ * refresh, a bookmark and the back button all agree with the screen, and ending
+ * a session is a navigation rather than a state change only `App` can see.
+ *
+ * Anything unrecognised lands on `/`, which then redirects to `/login` if the
+ * session is not there. A 404 page would be wrong for a two-screen app whose
+ * only "pages" are the dashboard and the sign-in form.
+ *
+ * This needs the server to serve index.html for unknown paths, or a deep link
+ * 404s before the router ever runs. See the static handling in `server.ts`.
+ */
 createRoot(root).render(
   <React.StrictMode>
     {/* Stock Mantine theme, plus the font family. See the note above. */}
     <MantineProvider theme={theme} defaultColorScheme="light">
-      <App />
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<App />} />
+          <Route path="/login" element={<App />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </BrowserRouter>
     </MantineProvider>
   </React.StrictMode>
 );

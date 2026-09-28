@@ -463,6 +463,30 @@ function requireSession(req: Request): Session {
 
 /* ------------------------------------------------------------------ http */
 
+/**
+ * The built index.html, for `/` and for every client-side route.
+ *
+ * `no-store`, not the immutable caching the hashed assets get, because this is
+ * the document that points at them: a cached index.html keeps referencing the
+ * previous bundle and a rebuild looks like it silently did nothing. ADR 0004
+ * records that pair as a decision.
+ */
+async function indexHtml(): Promise<Response> {
+  const index = Bun.file(`${DIST}/index.html`);
+  if (!(await index.exists())) {
+    return new Response(
+      "The front end has not been built yet.\n\nRun:  bun run build\n",
+      { status: 503, headers: { "content-type": "text/plain; charset=utf-8" } }
+    );
+  }
+  return new Response(index, {
+    headers: {
+      "content-type": "text/html; charset=utf-8",
+      "cache-control": "no-store, must-revalidate",
+    },
+  });
+}
+
 function json(
   body: unknown,
   status = 200,
@@ -517,29 +541,14 @@ const server = Bun.serve({
        * like it silently did nothing.
        */
       if (req.method === "GET" && (path === "/" || path === "/index.html")) {
-        const index = Bun.file(`${DIST}/index.html`);
-        if (!(await index.exists())) {
-          return new Response(
-            "The front end has not been built yet.\n\nRun:  bun run build\n",
-            {
-              status: 503,
-              headers: { "content-type": "text/plain; charset=utf-8" },
-            }
-          );
-        }
-        return new Response(index, {
-          headers: {
-            "content-type": "text/html; charset=utf-8",
-            "cache-control": "no-store, must-revalidate",
-          },
-        });
+        return indexHtml();
       }
       if (req.method === "GET" && path === "/favicon.ico") {
         return new Response(null, { status: 204 });
       }
       if (req.method === "GET" && !path.startsWith("/api/")) {
-        // Vite's hashed bundle. A miss here is a typo rather than a route, so
-        // fall through to 404 instead of quietly returning HTML for it.
+        // Vite's hashed bundle. A miss here is a typo or a deep link, so the
+        // distinction is made below rather than by returning HTML for both.
         const asset = Bun.file(DIST + path);
         if (await asset.exists()) {
           return new Response(asset, {
@@ -550,6 +559,25 @@ const server = Bun.serve({
                 : "no-store, must-revalidate",
             },
           });
+        }
+
+        /**
+         * Client-side routes are not files.
+         *
+         * The front end has two routes, `/` and `/login`, and the router picks
+         * between them in the browser - so a reload of `/login`, a bookmark or a
+         * link to either has to reach index.html. Without this a deep link 404s
+         * before any JavaScript runs, and the back button leaves the app
+         * entirely.
+         *
+         * Only for paths that could be a route: a request for a missing file
+         * under `/assets/` is a genuine typo in a build, and answering it with
+         * HTML would turn a broken bundle reference into a confusing parse error
+         * in the browser instead of a clear 404 here. `/api/` is excluded above
+         * and falls through to the JSON 404.
+         */
+        if (!path.includes(".")) {
+          return indexHtml();
         }
       }
 

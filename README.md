@@ -148,14 +148,14 @@ url-encoded.
 ## Project layout
 
 ```
-server.ts             Bun HTTP server: routing, sessions, static files, the transport
+server.ts             Bun HTTP server: routing, sessions, static files, SPA fallback, transport
 server-routes.ts      the two route handlers, over a PortalReader; no HTTP in it
 portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar
 portal-replies.ts     pure string -> data functions, and the seam guards
 attendance-bands.ts   the Regular / Irregular / Critical rule, and the summary
 web/index.html        Vite entry point
 web/main.tsx          React root + MantineProvider
-web/App.tsx           state, the three modes, and the refresh loop
+web/App.tsx           state, the routes, and the refresh loop
 web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
 web/components/       four presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
@@ -198,4 +198,5 @@ anything with a decision in it lives in a file that can be imported without one.
   especially — when the text `ShowAcademicCalendar` expects stops matching, the
   register comes back empty rather than erroring, and the 502 says so: either the
   date range is wrong or the layout has changed.
+
 
