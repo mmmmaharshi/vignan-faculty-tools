@@ -23,6 +23,8 @@ import {
   defaultRange,
   disabledLevels,
   isReady,
+  queryToSelection,
+  selectionToQuery,
   shouldContinue,
   statusOf,
   tintFor,
@@ -431,5 +433,115 @@ test.describe("dates", () => {
     // value the input will accept, so the field would clear itself.
     const range = defaultRange(new Date(2026, 0, 5, 9, 30, 0));
     expect(range.to).toBe("2026-01-05");
+  });
+});
+
+test.describe("the selection in the URL", () => {
+  const range = { from: "2026-09-01", to: "2026-09-28" };
+  const full = sel({
+    course: "1",
+    semester: "3",
+    branch: "6",
+    section: "1",
+    subject: "57",
+  });
+
+  test("a full selection survives the round trip", () => {
+    // The point of the whole exercise: a link sent to a colleague opens on the
+    // same register, not on a fresh app.
+    const { sel: back, range: backRange } = queryToSelection(
+      selectionToQuery(full, range)
+    );
+    expect(back).toEqual(full);
+    expect(backRange).toEqual(range);
+  });
+
+  test("a fresh app has no query string at all, not a row of empty values", () => {
+    // `?course=&semester=&branch=` in the address bar is noise, and it would be
+    // a URL worth being embarrassed to send someone.
+    expect(selectionToQuery(sel(), range).toString()).toBe(
+      "from=2026-09-01&to=2026-09-28"
+    );
+    expect(selectionToQuery(sel(), { from: "", to: "" }).toString()).toBe("");
+  });
+
+  test("only the value travels, never the label", () => {
+    // The labels are what ShowAcademicCalendar needs twice over, and the server
+    // can be asked for them. A second copy in the URL is a copy free to
+    // disagree with the first.
+    const q = selectionToQuery(full, range).toString();
+    expect(q).toContain("subject=57");
+    expect(q).not.toContain("MFCS");
+    expect(q).not.toContain("B.Tech");
+  });
+
+  test("a partial selection keeps only what it was given", () => {
+    // A link naming just the course is legitimate: the cascade fills the rest
+    // the same way it does for someone clicking through.
+    const { sel: back } = queryToSelection(
+      new URLSearchParams("course=1&branch=6")
+    );
+    expect(back.course).toBe("1");
+    expect(back.branch).toBe("6");
+    expect(back.semester).toBe("");
+    expect(back.subject).toBe("");
+  });
+
+  test("an unrecognised parameter is ignored rather than refused", () => {
+    // The input is a URL a person can edit. The worst a bad parameter can do is
+    // leave a dropdown on its default; refusing would mean a broken link with no
+    // way forward.
+    const { sel: back } = queryToSelection(
+      new URLSearchParams("course=1&colour=blue&subject=57")
+    );
+    expect(back.course).toBe("1");
+    expect(back.subject).toBe("57");
+  });
+
+  test("a repeated parameter takes the first, as the server would", () => {
+    const { sel: back } = queryToSelection(
+      new URLSearchParams("course=1&course=2")
+    );
+    expect(back.course).toBe("1");
+  });
+
+  test("a date the input would reject is dropped, not passed on", () => {
+    // `2026-9-1` and `01/09/2026` are not values a date input accepts, so
+    // passing one through would clear the field on the way in. Empty lets the
+    // app's own default apply.
+    for (const bad of [
+      "2026-9-1",
+      "01/09/2026",
+      "yesterday",
+      "",
+      "2026-13-45x",
+    ]) {
+      const { range: back } = queryToSelection(
+        new URLSearchParams(`from=${encodeURIComponent(bad)}`)
+      );
+      expect(back.from, `"${bad}" should be rejected`).toBe("");
+    }
+  });
+
+  test("the level keys are the ones the contract declares, in cascade order", () => {
+    // If a level is added to the contract and not here, the URL would silently
+    // drop it. This is the assertion that notices.
+    const q = selectionToQuery(
+      sel({
+        course: "c",
+        semester: "s",
+        branch: "b",
+        section: "x",
+        subject: "j",
+      }),
+      { from: "", to: "" }
+    );
+    expect([...q.keys()]).toEqual([
+      "course",
+      "semester",
+      "branch",
+      "section",
+      "subject",
+    ]);
   });
 });

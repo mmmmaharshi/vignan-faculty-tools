@@ -354,17 +354,44 @@ test.describe("ECAP attendance dashboard", () => {
       `browser reported problems: ${problems.join("; ")}`
     ).toEqual([]);
 
-    /* ---- the URL survives a reload ---- */
-    // A refresh used to re-ask the server from scratch, and the guard used to
-    // decide the screen rather than the URL. Now `/` is the screen, and a reload
-    // has to land back on it - which only works because the session is a cookie
-    // and the server serves index.html for the route rather than 404ing it.
+    /* ---- the URL is the snapshot, and it survives a reload ---- */
+    // The five levels and the date range live in the query string, so a link can
+    // be sent to a colleague and a refresh does not throw the selection away.
+    // The subject is the hard one: the cascade never auto-fills it, so replaying
+    // it is a separate step, and this assertion is really about that.
+    const url = new URL(page.url());
+    expect(url.pathname, "the dashboard is the route").toBe("/");
+    // The URL carries each level's identifier, never its label. The identifier is
+    // not asserted here because nothing on screen shows it - the proof is below,
+    // where the label comes back, which can only happen if the identifier still
+    // matches an option the server is offering.
+    for (const key of ["course", "semester", "branch", "section", "subject"]) {
+      expect(
+        url.searchParams.get(key),
+        `${key} should be in the URL`
+      ).toBeTruthy();
+    }
+    expect(url.searchParams.get("subject")).not.toBe(subject);
+    expect(url.searchParams.get("from")).toBe("2026-06-01");
+
     await page.reload({ waitUntil: "networkidle" });
     await expect(
       page.locator("input.mantine-Select-input").first()
     ).toBeVisible({
       timeout: 30_000,
     });
+    // The subject has to come back on its own, or the link is no use to whoever
+    // it was sent to. A label appearing again means the identifier in the URL
+    // matched a real option - so this also catches a URL carrying the label.
+    await expect
+      .poll(
+        async () => {
+          const state = await selectState(page, "Subject");
+          return state?.value;
+        },
+        { timeout: 90_000 }
+      )
+      .toBe(subject);
     expect(new URL(page.url()).pathname, "reload should stay on /").toBe("/");
   });
 

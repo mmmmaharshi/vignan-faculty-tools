@@ -43,9 +43,15 @@
  */
 
 import { Button, Container, Group, Text, Title } from "@mantine/core";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router";
+import { useLocation, useNavigate, useSearchParams } from "react-router";
 
 import type {
   LoginRequest,
@@ -66,6 +72,8 @@ import {
   EMPTY_SEL,
   LEVEL_KEYS,
   LEVELS,
+  queryToSelection,
+  selectionToQuery,
   shouldContinue,
   statusOf,
   toPortalDate,
@@ -183,14 +191,41 @@ const App = (): React.JSX.Element => {
   busyRef.current = busy;
   /* oxlint-enable react/refs */
 
-  const [sel, setSel] = useState<Sel>(EMPTY_SEL);
+  /**
+   * What the URL asked for on the way in, read once.
+   *
+   * Seeded into state rather than tracked, because the URL is read at mount and
+   * from then on it is *written* by the effect below. Tracking it would mean two
+   * directions of travel between the query string and `sel`, and a loop.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const query = searchParams;
+  const seeded = useMemo(() => queryToSelection(query), [query]);
+
+  const [sel, setSel] = useState<Sel>(seeded.sel);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
 
-  const [range, setRange] = useState<{ from: string; to: string }>(() =>
-    defaultRange()
-  );
+  const [range, setRange] = useState<{ from: string; to: string }>(() => ({
+    from: seeded.range.from || defaultRange().from,
+    to: seeded.range.to || defaultRange().to,
+  }));
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
+
+  /**
+   * The subject the URL named, if any, to be re-chosen once the cascade settles.
+   *
+   * The subject is never auto-filled - it decides which register loads, so
+   * quietly picking one would show a faculty member the wrong roster. That rule
+   * applies here too, which means a shared link has to put the subject back
+   * *after* the passes have run, or every refresh would land on an empty subject
+   * and the link would be no use to the person it was sent to.
+   *
+   * Kept in a ref rather than state: it is read once, by the effect that runs
+   * after the first cascade completes, and re-rendering to consume it would be
+   * a loop of its own.
+   */
+  const wantedSubject = useRef(seeded.sel.subject);
 
   // The cascade is driven imperatively, not from an effect watching `sel`.
   // A state-driven effect would re-enter itself every time it committed a pass.
@@ -449,6 +484,63 @@ const App = (): React.JSX.Element => {
       }
     })();
   }, [booted, onLogin, navigate, runRefresh]);
+
+  /**
+   * Put the subject back, once, after the cascade has settled.
+   *
+   * The rule that a subject is never auto-chosen is about *inventing* one. A
+   * subject the URL named was chosen by a person, and replaying it is restoring
+   * their choice rather than making one for them - which is the whole difference
+   * between a shared link being useful and being a dead end.
+   *
+   * The `stillOffered` check keeps `sel` honest - a subject withdrawn since the
+   * link was shared is not a choice the app should be holding, and re-adding it
+   * later must not silently select it.
+   *
+   * It is deliberately *not* the thing that stops a bad subject being loaded, and
+   * this guard cannot be tested as though it were. `chosenLevels` is that gate,
+   * and it already refuses an unknown subject with "Choose a subject first"
+   * whichever way the selection got there. Without this check the two paths look
+   * identical on screen - Mantine renders a value it has no option for as an
+   * empty input - so an assertion here would pass with the guard removed. It
+   * stays because the state should be true, not because a test needs it.
+   */
+  useEffect(() => {
+    const wanted = wantedSubject.current;
+    if (!wanted) return;
+    // Nothing to re-choose until the cascade has cleared the subject, and until
+    // the subject list has actually arrived.
+    if (sel.subject || !opts.subject.length) return;
+    wantedSubject.current = "";
+    const stillOffered = opts.subject.some(
+      (o) => String(o.value) === String(wanted)
+    );
+    if (!stillOffered) return;
+    const draft = { ...selRef.current, subject: wanted };
+    selRef.current = draft;
+    setSel(draft);
+  }, [opts.subject, sel.subject]);
+
+  /**
+   * The URL is a snapshot of the selection, not a history of it.
+   *
+   * `replace`, always, for two reasons. The auto-fill commits `sel` several
+   * times in a row as the passes land, and `push` would leave a trail of
+   * half-populated cascades for Back to walk through. And walking Back through
+   * five dropdowns is not a thing anyone wants on a dashboard - the register on
+   * screen is the state, and a bookmark is the thing worth keeping.
+   *
+   * Skipped while empty, so a fresh app has no query string at all, and skipped
+   * when nothing changed, so this cannot navigate on every render.
+   */
+  useEffect(() => {
+    if (onLogin) return;
+    const q = selectionToQuery(sel, range).toString();
+    // `replace` and no comparison against the function: the string is compared
+    // against the current query above, so this cannot navigate on every render.
+    if (q === query.toString()) return;
+    setSearchParams(q, { replace: true });
+  }, [onLogin, query, range, sel, setSearchParams]);
 
   /**
    * A signed-in user who lands on `/login` belongs on the dashboard.

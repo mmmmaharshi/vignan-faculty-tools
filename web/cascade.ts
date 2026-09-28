@@ -196,6 +196,71 @@ export function toPortalDate(iso: string): string {
   return `${d}/${m}/${y}`;
 }
 
+/* ------------------------------------------------------------------ the URL */
+
+/**
+ * The selection and the date range, in a query string.
+ *
+ * The URL is a *snapshot*, not a history: it says what is on screen now, so a
+ * bookmark or a shared link reproduces the register, and a refresh does not throw
+ * the selection away. It is written with `replace` for that reason — see App.
+ *
+ * Only the level *values* travel, never the labels. The labels are what
+ * `ShowAcademicCalendar` needs twice over, and the server can be asked for them:
+ * `/api/options` returns every level with its label, so putting a label in the
+ * URL would be a second copy free to disagree with the first.
+ *
+ * Empty values are left out entirely, so a fresh app has no query string at all
+ * rather than a row of `course=&semester=`.
+ */
+/** Whether a `yyyy-mm-dd` string is one. */
+function isIsoDay(v: string | null): v is string {
+  return !!v && /^\d{4}-\d{2}-\d{2}$/.test(v);
+}
+
+export function selectionToQuery(sel: Sel, range: Range): URLSearchParams {
+  const q = new URLSearchParams();
+  for (const [key] of LEVELS) {
+    const v = sel[key];
+    if (v) q.set(key, v);
+  }
+  if (range.from) q.set("from", range.from);
+  if (range.to) q.set("to", range.to);
+  return q;
+}
+
+/**
+ * A query string as a selection, ignoring anything unrecognised.
+ *
+ * Forgiving on purpose, because the input is a URL a person can edit. An unknown
+ * key, a repeated key, or a level that is not a real cascade level is dropped
+ * rather than refused — the worst a bad parameter can do is leave a dropdown on
+ * its default, and refusing would mean a broken link with no way forward.
+ *
+ * The dates are only accepted if they look like `yyyy-mm-dd`. A date input will
+ * not take anything else, so an unparseable value here would clear the field on
+ * the way in; falling back to the app's own default is better than an empty one.
+ */
+export function queryToSelection(q: URLSearchParams): {
+  sel: Sel;
+  range: Range;
+} {
+  const sel: Sel = { ...EMPTY_SEL };
+  for (const [key] of LEVELS) {
+    const v = q.get(key);
+    if (v) sel[key] = v;
+  }
+  const from = q.get("from");
+  const to = q.get("to");
+  return {
+    sel,
+    range: {
+      from: isIsoDay(from) ? from : "",
+      to: isIsoDay(to) ? to : "",
+    },
+  };
+}
+
 /** A `Date` as `yyyy-mm-dd` in the reader's own timezone. */
 function isoDay(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");

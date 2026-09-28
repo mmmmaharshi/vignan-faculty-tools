@@ -89,6 +89,26 @@ ADR 0005 rejected a context for that reason.
 - `booted` and `signedIn` are not screens. They are the two facts the URL cannot
   carry: whether `/api/session` has been asked, and what it said.
 
+The **selection and the date range live in the query string** too, so a register
+can be bookmarked, shared, and survives a refresh:
+
+```
+/?course=1&semester=3&branch=6&section=1&subject=2946&from=2026-09-01&to=2026-09-28
+```
+
+- **Only identifiers travel, never labels.** `/api/options` returns every level
+  with its label, so a label in the URL is a second copy free to disagree.
+- **Written with `replace`, always.** The URL is a snapshot, not a history: the
+  auto-fill commits `sel` several times, and Back through five dropdowns is not
+  something anyone wants.
+- **The subject is replayed after the passes settle**, because the cascade clears
+  it on every pass and it is never auto-filled. Restoring a subject someone chose
+  is not the same as picking one.
+- **Loading stays a click.** The link restores the selection; it does not spend a
+  portal round trip on every page open.
+- `selectionToQuery` / `queryToSelection` are in `web/cascade.ts` and tested
+  there, not in `App`.
+
 ## The front end is Mantine-only
 
 There is no custom CSS in this project: no stylesheet, no CSS module, no inline
@@ -196,7 +216,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**99 of the 100 tests need no credentials and run in about two seconds.** They
+**107 of the 109 tests need no credentials and run in about two seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, and the cascade's rules. Only
 `test/smoke.spec.ts` touches the network — and it skips without credentials, so

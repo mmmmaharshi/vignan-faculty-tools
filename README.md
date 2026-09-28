@@ -31,15 +31,15 @@ bunx playwright install chromium                          # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**99 of the 100 tests need no credentials and no network, and run in about two
+**107 of the 109 tests need no credentials and no network, and run in about two
 seconds.** They cover the portal's parsing, its wire conventions, the attendance
 bands, the two route handlers (over a fake portal), and the cascade's rules.
 
-The 97th is an end-to-end smoke test that signs in to the live portal and loads a
-real register. It skips without credentials rather than passing vacuously, which
-is why everything reachable without a portal is tested there. A DOM stub is not
-sufficient for that one — a stub was tried against the previous build and it
-passed code that was broken in a real browser.
+The other two are end-to-end smoke tests that sign in to the live portal and load a
+real register. They skip without credentials rather than passing vacuously, which
+is why everything reachable without a portal is tested above. A DOM stub is not
+sufficient for them — a stub was tried against the previous build and it passed
+code that was broken in a real browser.
 
 Every test in the fast suite was proven to fail by breaking the rule it
 describes, so a green run means something.
@@ -161,7 +161,7 @@ web/components/       four presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build config
 playwright.config.ts  test runner config
-test/*.spec.ts        99 fast tests, no credentials; plus one live smoke test
+test/*.spec.ts        107 fast tests, no credentials; plus two live smoke tests
 tsconfig*.json        three projects, split so web/ has DOM and server.ts does not
 dist/                 build output, served by server.ts
 ```
@@ -190,7 +190,7 @@ anything with a decision in it lives in a file that can be imported without one.
   the client in the summary, so the stat cards and the row flags cannot disagree.
   A percentage the portal would not give is in no band at all and is left out of
   the class average — a parsing failure is not evidence of bad attendance.
-- 99 fast tests with no credentials, and one end-to-end smoke test against the
+- 107 fast tests with no credentials, and two end-to-end smoke tests against the
   live portal. Every fast test was proven to fail by breaking the rule it
   describes.
 - If the portal changes its markup, the `Portal` methods in `server.ts` will need
