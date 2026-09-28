@@ -1,4 +1,4 @@
-# ECAP Attendance Dashboard
+# Vignan Faculty Tools
 
 A local web app for faculty. Sign in with your own ECAP credentials, pick a
 course / semester / branch / section / subject and a date range, and get the class

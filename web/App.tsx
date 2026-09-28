@@ -1,5 +1,5 @@
 /**
- * ECAP Attendance Dashboard - front end
+ * Vignan Faculty Tools - front end
  *
  * React 19 + Mantine 9. There is no custom CSS in this project: not a
  * stylesheet, not a CSS module, not an inline `style` prop. Every visual
@@ -777,10 +777,7 @@ const App = (): React.JSX.Element => {
     <Container size="lg" py="lg">
       <Group justify="space-between" align="baseline" mb="lg">
         <div>
-          <Title order={1}>ECAP Attendance Dashboard</Title>
-          <Text c="dimmed" size="sm">
-            Vignan Institute of Technology
-          </Text>
+          <Title order={1}>Vignan Faculty Tools</Title>
         </div>
         <Group gap="sm">
           {screen === "app" && userId.trim() ? (

@@ -1,4 +1,4 @@
-# ECAP Attendance Dashboard
+# Vignan Faculty Tools
 
 The language of reading a class's attendance out of the ECAP portal, and acting on
 it. Terms here are the ones the code and the portal both use; prefer them over

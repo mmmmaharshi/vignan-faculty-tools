@@ -1,5 +1,5 @@
 /**
- * ECAP Attendance Dashboard
+ * Vignan Faculty Tools
  * ------------------------
  * A local web app for faculty: sign in with your own ECAP credentials, pick a
  * semester / section / subject / date range, and see the class roster with
@@ -920,7 +920,7 @@ const server = Bun.serve({
   },
 });
 
-console.log(`\n  ECAP Attendance Dashboard`);
+console.log(`\n  Vignan Faculty Tools`);
 console.log(`  http://127.0.0.1:${server.port}\n`);
 console.log(`  Talking to ECAP over HTTPS directly - no browser is launched.`);
 console.log(

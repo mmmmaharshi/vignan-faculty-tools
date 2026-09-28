@@ -1,4 +1,4 @@
-# ECAP Attendance Dashboard
+# Vignan Faculty Tools
 
 A local, read-only web app that reads class attendance from the ECAP portal so a
 faculty member can see who is drifting in a class early enough to act on it.
@@ -314,7 +314,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**136 of the 143 tests need no credentials and run in about six seconds.** They
+**136 of the 144 tests need no credentials and run in about six seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, the cascade's rules, session liveness, and session
 persistence over a fake vault. Only `test/smoke.spec.ts` touches the network — and

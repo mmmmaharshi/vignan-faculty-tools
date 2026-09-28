@@ -189,7 +189,7 @@ function vaultSessions(): { id: string }[] | null {
   return Array.isArray(parsed) ? (parsed as { id: string }[]) : null;
 }
 
-test.describe("ECAP attendance dashboard", () => {
+test.describe("Vignan Faculty Tools", () => {
   test.skip(
     !USER || !PASS,
     "set ECAP_USER and ECAP_PASS to run against the live portal"
@@ -447,6 +447,24 @@ test.describe("ECAP attendance dashboard", () => {
     ).toBe("/dashboard");
   });
 
+  test("the header carries the app name and nothing else", async ({ page }) => {
+    // The name is the first thing a faculty member reads, in two places: the
+    // heading and the browser tab. They are stated separately, so nothing enforces
+    // they agree - the same shape as the route list that caused the redirect loop.
+    // Cheap to pin, so pin it.
+    await page.goto("/dashboard");
+    await expect(
+      page.getByRole("heading", { level: 1, name: "Vignan Faculty Tools" })
+    ).toBeVisible();
+    await expect(page).toHaveTitle("Vignan Faculty Tools");
+    // And the subtitle is gone, so the name is not competing with the college
+    // name a few pixels under it. Asserted as an absence, because a test that only
+    // checks the heading would pass with the subtitle still there.
+    await expect(page.getByText("Vignan Institute of Technology")).toHaveCount(
+      0
+    );
+  });
+
   test("every path reaches a screen, and a signed-in one does not loop", async ({
     page,
   }) => {
@@ -480,13 +498,19 @@ test.describe("ECAP attendance dashboard", () => {
       const countApi = (req: { url: () => string }) => {
         if (new URL(req.url()).pathname.startsWith("/api/")) calls += 1;
       };
-      page.on("request", countApi);
       await page.goto(path, { waitUntil: "domcontentloaded" });
-      await expect(
-        page.getByRole("button", { name: "Load register" })
-      ).toBeVisible();
-      // Let the cascade finish, then check it goes quiet. The loop is a redirect
-      // storm, so it keeps working long after the page looks settled.
+      // The cascade must reach Subject on its own — that is the loop's whole
+      // effect — and with no interaction from us, so the counting below measures
+      // the app's traffic rather than a test driving it.
+      await expect(page.getByRole("combobox", { name: "Subject" })).toBeEnabled(
+        {
+          timeout: 90_000,
+        }
+      );
+      // Now count, from a page that has settled. Attaching the listener earlier
+      // would have included the cascade's own passes, which are *supposed* to
+      // happen, and the comparison below could never distinguish them from a loop.
+      page.on("request", countApi);
       await page.waitForTimeout(3000);
       const afterSettle = calls;
       await page.waitForTimeout(3000);
