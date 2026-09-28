@@ -131,8 +131,8 @@ Three details that are not obvious, and cost real time to find:
 3. **`ShowAcademicCalendar` wants every level twice** — the option's `value` *and*
    its visible label (`Course`/`CourseName`, `Branch`/`BranchName`,
    `Semester`/`SemesterName`) plus the subject's `title` attribute. Passing only
-   values returns nothing. Labels are cached per session as the dropdowns fill,
-   because the browser only ever sends values.
+   values returns nothing. The front end sends each level whole — the `Option` it
+   already holds from `/api/options` — so the server needs no cache of its own.
 
 The portal's `enc()` escapes only `%` and `=`, so values are deliberately **not**
 url-encoded.
@@ -170,6 +170,7 @@ dist/               build output, served by server.ts
   sufficient here: one was tried against the previous vanilla build and it passed
   code that was broken in a real browser.
 - If the portal changes its markup, the `Portal` methods in `server.ts` will need
-  revisiting: the endpoint paths, the parameter names, and the label cache that
-  feeds `ShowAcademicCalendar`. That last one is the most fragile, because the
-  register comes back empty rather than erroring when the labels stop matching.
+  revisiting: the endpoint paths and the parameter names. Watch the labels
+  especially — when the text `ShowAcademicCalendar` expects stops matching, the
+  register comes back empty rather than erroring, and the 502 blames the date
+  range rather than the reply.

@@ -43,7 +43,16 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import type { LoginRequest, OkReply, Option, OptionsReply, RegisterReply, SessionReply } from "../shared/api";
+import type {
+  LoginRequest,
+  OkReply,
+  Option,
+  OptionsReply,
+  OptionsRequest,
+  RegisterReply,
+  RegisterRequest,
+  SessionReply,
+} from "../shared/api";
 
 // The irregular/critical thresholds belong to the server, which is what applies
 // them. They arrive in the summary so the labels below can never drift from the
@@ -163,6 +172,29 @@ function toSelectData(list: Option[]): { value: string; label: string }[] {
 }
 
 /**
+ * The full option behind each level's current value, or the label of the first
+ * level that has none.
+ *
+ * `ShowAcademicCalendar` needs every level by identifier *and* by visible text,
+ * and returns nothing at all rather than failing when a label is missing - so
+ * this is checked once, here, instead of five times at the call site.
+ */
+function chosenLevels(
+  opts: OptionsReply,
+  sel: Sel,
+): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
+  // Sound because the loop below assigns every member of Level: LEVELS and
+  // OptionsReply have the same five keys, and Level is derived from the latter.
+  const levels = {} as Record<Level, Option>;
+  for (const [key, label] of LEVELS) {
+    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
+    if (!hit) return { ok: false, label };
+    levels[key] = hit;
+  }
+  return { ok: true, levels };
+}
+
+/**
  * Whether every level above `key` has a choice, i.e. whether the server could
  * now answer for it.
  */
@@ -227,15 +259,24 @@ export default function App() {
       for (let pass = 0; pass < LEVEL_KEYS.length; pass++) {
         if (token !== refreshToken.current) return;
 
+        // The semester's `title` carries the batch number the portal wants for
+        // the section list, and this side is the only one still holding it.
+        // Empty for IV Semester, which the server handles by falling back.
+        const semesterTitle = draft.semester
+          ? opts.semester.find((o) => String(o.value) === String(draft.semester))?.title
+          : undefined;
+
+        const request: OptionsRequest = {
+          course: draft.course || undefined,
+          semester: draft.semester || undefined,
+          semesterTitle,
+          branch: draft.branch || undefined,
+          section: draft.section || undefined,
+        };
         const reply = await api<OptionsReply>("/api/options", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({
-            course: draft.course || undefined,
-            semester: draft.semester || undefined,
-            branch: draft.branch || undefined,
-            section: draft.section || undefined,
-          }),
+          body: JSON.stringify(request),
         });
         if (token !== refreshToken.current) return;
 
@@ -336,30 +377,29 @@ export default function App() {
 
   const loadRegister = async () => {
     setFilterNote(null);
-    if (!sel.subject) {
-      setFilterNote({ kind: "warning", text: "Choose a subject first." });
-      return;
-    }
     if (!range.from || !range.to) {
       setFilterNote({ kind: "warning", text: "Choose a date range." });
+      return;
+    }
+
+    const chosen = chosenLevels(opts, sel);
+    if (!chosen.ok) {
+      setFilterNote({ kind: "warning", text: `Choose a ${chosen.label.toLowerCase()} first.` });
       return;
     }
 
     setBusy(true);
     setLoadNote("Reading the register from ECAP...");
     try {
+      const request: RegisterRequest = {
+        ...chosen.levels,
+        from: toPortalDate(range.from),
+        to: toPortalDate(range.to),
+      };
       const body = await api<RegisterReply>("/api/register", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          course: sel.course || undefined,
-          semester: sel.semester,
-          branch: sel.branch || undefined,
-          section: sel.section || undefined,
-          subject: sel.subject,
-          from: toPortalDate(range.from),
-          to: toPortalDate(range.to),
-        }),
+        body: JSON.stringify(request),
       });
       setResult(body);
     } catch (err) {

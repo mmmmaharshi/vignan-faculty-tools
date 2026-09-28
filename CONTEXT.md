@@ -26,10 +26,12 @@ _Avoid_: Filters, dropdown chain, selector chain
 One position in the cascade.
 _Avoid_: Field, dropdown, step
 
-**Label cache**:
-The per-session map from a dropdown option's value to its visible text. Required
-because `ShowAcademicCalendar` wants both, and the browser only ever sends values.
-_Avoid_: Option map, metadata cache
+**Option**:
+One entry in a level's dropdown: the identifier, the visible text, and the
+portal's own `title` attribute. `ShowAcademicCalendar` needs the first two of
+those for every level, so a chosen level travels whole rather than as a bare
+value.
+_Avoid_: Choice, entry, item
 
 **Calling convention**:
 The portal has two mutually incompatible ways of invoking a remote method, and

@@ -49,8 +49,10 @@
  *  3. ShowAcademicCalendar wants every level twice - the option's value AND its
  *     visible label (Course/CourseName, Branch/BranchName, Semester/
  *     SemesterName) plus the subject's title attribute. Passing only values
- *     returns nothing. Labels are therefore cached per session as the
- *     dropdowns are filled, because the browser sends values only.
+ *     returns nothing, with no error. The front end therefore sends each
+ *     chosen level whole, and this server keeps no labels of its own: it used
+ *     to cache them per session, which was the most fragile part of the
+ *     integration and turned out to be unnecessary.
  * ------------------------------------------------------------------
  * Credential handling: the password arrives in the request body, is used once
  * to encrypt the login payload, and is never written to disk, logged, or
@@ -78,9 +80,6 @@ type Level = keyof OptionsReply;
 
 /** A parsed register row, before the irregular/critical flags are attached. */
 type RegisterRow = Omit<Student, "irregular" | "critical">;
-
-/** A label-cache entry: the visible option for each value the browser sent. */
-type LabelCache = Partial<Record<Level, Record<string, Option>>>;
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
@@ -298,18 +297,18 @@ class Portal {
   }
 
   /**
-   * Sections need a batch number, which the page reads from the chosen
-   * semester option's title attribute. IV Semester ships an empty title, so
-   * fall back to the semester's own value rather than sending a blank batch.
+   * Sections need a batch number, which the page reads from the chosen semester
+   * option's title attribute. IV Semester ships an empty title, so fall back to
+   * the semester's own value rather than sending a blank batch. Both arrive from
+   * the client, which is the only side still holding the option.
    */
   async sections(
     courseId: string | number,
     branchId: string | number,
-    semester: Option | null,
+    semester: string | number,
+    semesterTitle?: string,
   ): Promise<Option[]> {
-    const batch = semester?.title !== "" && semester?.title != null
-      ? semester.title
-      : semester?.value;
+    const batch = semesterTitle ? semesterTitle : semester;
     return options(
       await this.#jq("LoadBranchSections", {
         courseid: Number(courseId),
@@ -502,12 +501,11 @@ function parseRegister(html: string): RegisterRow[] {
 
 /* ------------------------------------------------------------------ sessions */
 
-/** One signed-in user: their portal jar, and the labels their dropdowns produced. */
+/** One signed-in user: their portal jar. */
 type Session = {
   /** Last seen, for the TTL sweep. Touched on every request. */
   at: number;
   portal: Portal;
-  labels: LabelCache;
 };
 
 const sessions = new Map<string, Session>();
@@ -549,20 +547,16 @@ function requireSession(req: Request): Session {
 }
 
 /**
- * Labels for every level, cached per session.
+ * The level the client named, checked for both halves.
  *
- * ShowAcademicCalendar needs each selection's visible text as well as its
- * value, but the browser only ever sends values, so the mapping is remembered
- * here as the dropdowns are filled.
+ * `ShowAcademicCalendar` needs every level by identifier *and* by visible text,
+ * and returns nothing at all rather than failing when a label is missing. So
+ * both are checked here, where the message can name the level that is wrong.
  */
-function remember(session: Session, level: Level, list: Option[]): Option[] {
-  session.labels[level] = Object.fromEntries(list.map((o) => [String(o.value), o]));
-  return list;
-}
-
-function lookup(session: Session, level: Level, value: string | null | undefined): Option | null {
-  if (value == null || value === "") return null;
-  return session.labels[level]?.[String(value)] ?? null;
+function chosenLevel(b: Partial<RegisterRequest>, key: Level, label: string): Option {
+  const o = b[key];
+  if (!o?.value || !o.label) throw new HttpError(400, `Choose a ${label.toLowerCase()}.`);
+  return o;
 }
 
 /* ------------------------------------------------------------------ http */
@@ -664,7 +658,7 @@ const server = Bun.serve({
         }
 
         const id = crypto.randomUUID();
-        sessions.set(id, { at: Date.now(), portal, labels: {} });
+        sessions.set(id, { at: Date.now(), portal });
         return json(
           { ok: true } satisfies OkReply,
           200,
@@ -702,54 +696,39 @@ const server = Bun.serve({
           // against the same shape the front end reads.
           const out: OptionsReply = { course: [], semester: [], branch: [], section: [], subject: [] };
 
-          out.course = remember(s, "course", realOptions(await portal.courses()));
+          out.course = realOptions(await portal.courses());
 
           if (b.course) {
             const [branches, semesters] = await portal.branchesAndSemesters(b.course);
-            out.branch = remember(s, "branch", realOptions(branches));
-            out.semester = remember(s, "semester", realOptions(semesters));
+            out.branch = realOptions(branches);
+            out.semester = realOptions(semesters);
           }
           if (b.course && b.branch && b.semester) {
-            const semester = lookup(s, "semester", b.semester);
-            out.section = remember(s, "section", realOptions(await portal.sections(b.course, b.branch, semester)));
+            out.section = realOptions(
+              await portal.sections(b.course, b.branch, b.semester, b.semesterTitle),
+            );
           }
           if (b.course && b.branch && b.semester && b.section) {
-            out.subject = remember(s, "subject", realOptions(await portal.subjects(b.course, b.branch, b.semester)));
+            out.subject = realOptions(await portal.subjects(b.course, b.branch, b.semester));
           }
           return json(out);
         }
 
         if (req.method === "POST" && path === "/api/register") {
           const b = await readJson<Partial<RegisterRequest>>(req, {});
-          if (!b.course) throw new HttpError(400, "Choose a course.");
-          if (!b.semester) throw new HttpError(400, "Choose a semester.");
-          if (!b.branch) throw new HttpError(400, "Choose a branch.");
-          if (!b.section) throw new HttpError(400, "Choose a section.");
-          if (!b.subject) throw new HttpError(400, "Choose a subject.");
           if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
 
-          // Captured here because the guard is what narrows them, and the awaits
-          // below would otherwise discard that narrowing.
-          const { from, to } = b;
-
-          // Every level is needed as both a value and its visible label.
-          const found: Record<Level, Option | null> = {
-            course: lookup(s, "course", b.course),
-            branch: lookup(s, "branch", b.branch),
-            semester: lookup(s, "semester", b.semester),
-            section: lookup(s, "section", b.section),
-            subject: lookup(s, "subject", b.subject),
+          // Every level arrives whole, because the client is the only side that
+          // still holds the labels. checked here, per level, so the message can
+          // name the one that is wrong.
+          const p: Record<Level, Option> = {
+            course: chosenLevel(b, "course", "course"),
+            semester: chosenLevel(b, "semester", "semester"),
+            branch: chosenLevel(b, "branch", "branch"),
+            section: chosenLevel(b, "section", "section"),
+            subject: chosenLevel(b, "subject", "subject"),
           };
-          const missing = Object.entries(found).filter(([, v]) => !v).map(([k]) => k);
-          if (missing.length) {
-            throw new HttpError(
-              400,
-              `Pick ${missing.join(", ")} again - the list of choices was refreshed.`,
-            );
-          }
-          // Sound because of the check directly above: every entry is non-null
-          // here, and the map is total over Level.
-          const p = found as Record<Level, Option>;
+          const { from, to } = b;
 
           const rows = parseRegister(await portal.register({ ...p, from: b.from, to: b.to }));
           if (!rows.length) {

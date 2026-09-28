@@ -75,9 +75,12 @@ imported.
   output is bare ciphertext, base64'd — not the OpenSSL `Salted__` form that
   stock CryptoJS produces. This portal's `JSFiles/jsaes.js` is a custom build.
 - **`ShowAcademicCalendar` needs every level twice**, value *and* visible label.
-  Passing only values returns nothing rather than failing. Labels are cached per
-  session for exactly this reason, and that cache is the most fragile part of
-  the integration.
+  Passing only values returns nothing rather than failing, with no error to
+  explain it. The front end therefore sends each chosen level **whole** — the
+  `Option` it already holds — rather than a bare value, and the server checks
+  both halves are present. There used to be a per-session label cache for this;
+  it was removed once the smoke test could prove the portal accepts labels from
+  the client. Do not reintroduce it.
 - **`Bun.fetch` does not store `Set-Cookie`.** Redirects have to be followed by
   hand or the auth cookie is dropped mid-flow and a successful sign-in looks
   like a failure.

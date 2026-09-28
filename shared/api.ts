@@ -99,24 +99,36 @@ export interface ErrorReply {
 /**
  * `POST /api/options` body. A level is absent when it has not been chosen yet;
  * the server derives everything it can from the deepest one present.
+ *
+ * The levels travel as values, because that is all the dropdown queries need.
+ * The one exception is the semester's `title`, which carries the batch number
+ * the portal wants for the section list - so the client sends it rather than
+ * making the server remember it.
  */
 export interface OptionsRequest {
   course?: string;
   semester?: string;
+  /** Empty for IV Semester, which is why the server falls back to the value. */
+  semesterTitle?: string;
   branch?: string;
   section?: string;
 }
 
 /**
- * `POST /api/register` body. Every level is required, because the portal's
- * `ShowAcademicCalendar` needs all of them by value *and* by label.
+ * `POST /api/register` body.
+ *
+ * Every level is sent whole rather than as a bare value, because
+ * `ShowAcademicCalendar` needs each one twice - by identifier and by visible
+ * text - and only the client still holds the labels. Passing values alone
+ * returns nothing at all rather than failing, which is what the per-session
+ * label cache used to solve.
  */
 export interface RegisterRequest {
-  course: string;
-  semester: string;
-  branch: string;
-  section: string;
-  subject: string;
+  course: Option;
+  semester: Option;
+  branch: Option;
+  section: Option;
+  subject: Option;
   /** dd/mm/yyyy, the format the portal expects. */
   from: string;
   to: string;
