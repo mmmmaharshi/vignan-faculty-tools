@@ -110,6 +110,13 @@ theme key means you want a component prop instead.
 - **`Bun.fetch` does not store `Set-Cookie`.** Redirects have to be followed by
   hand or the auth cookie is dropped mid-flow and a successful sign-in looks
   like a failure.
+- **End a session through `signedOut`, never a bare `setPhase("login")`.** A 401
+  only fires when something asks the server for something, so a user who leaves a
+  register open comes back to numbers from a session that no longer exists. The
+  probe on `SESSION_PROBE_MS` covers that; `signedOut` covers the rest, because a
+  bare phase change changes the screen while the old session's filter, options
+  and register stay in state — signing back in then produced a table already
+  narrowed by a choice made against a session that no longer existed.
 - **`/api/session` answers 200 with `{signedIn: false}`** when signed out, not
   401. Checking the status code alone silently runs the signed-in path.
 - **Do not read `event.currentTarget` inside a `setState` updater.** React clears
@@ -194,9 +201,17 @@ browser, since it modelled neither `selectedIndex`/`value` coupling nor
 
 A test never seen to fail is a decoration. Break the rule it describes, run it,
 and confirm the *named* test is the one that turns red. That is how the
-`defaultRange` timezone bug was found, and how two holes in the cipher tests were
-found. Use a Playwright config without `globalSetup` for the probe, because the
-lint gate refuses the deliberate breakage first.
+`defaultRange` timezone bug was found, how two holes in the cipher tests were
+found, and how a session-state test that silently could not fail was caught.
+Use a Playwright config without `globalSetup` for the probe, because the lint
+gate refuses the deliberate breakage first.
+
+Two traps in that probe, both hit the hard way. **The smoke test drives
+`dist/`, not the source**, so a mutation to `web/` needs `bun run build` before it
+will be observed — without the rebuild, four mutations "passed". And **a test that
+signs in again after `page.goto` cannot see leaked state at all**, because a
+reload discards it; inspect state in the same document, or the test passes
+whatever the code does.
 
 ## Agent skills
 

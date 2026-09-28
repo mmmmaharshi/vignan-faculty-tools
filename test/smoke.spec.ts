@@ -79,6 +79,54 @@ async function openSelect(page: Page, label: string): Promise<Locator> {
   return options;
 }
 
+/**
+ * Fill the sign-in form already on screen and submit it. No navigation.
+ *
+ * Deliberately separate from `signInAndLoad`: a page load discards React state,
+ * and the test that checks a session leaves nothing behind can only observe that
+ * if the second sign-in happens in the same document. Anything that wants a
+ * cold page uses `signInAndLoad`; anything inspecting leftover state must use
+ * this one.
+ */
+async function submitSignIn(page: Page): Promise<void> {
+  await page.getByLabel("ECAP user name").fill(USER);
+  await page.locator('input[type="password"]').fill(PASS);
+  await page.getByRole("button", { name: "Sign in" }).click();
+
+  // Waiting for Subject to unlock waits for the last auto-advance pass.
+  await expect
+    .poll(
+      async () => {
+        const state = await selectState(page, "Subject");
+        return state?.disabled;
+      },
+      { timeout: 90_000 }
+    )
+    .toBe(false);
+}
+
+/** Pick the first subject and load its register. Returns the subject's text. */
+async function loadFirstSubject(page: Page): Promise<string> {
+  const options = await openSelect(page, "Subject");
+  const first = await options.first().innerText();
+  const subject = first.trim();
+  expect(subject).not.toBe("");
+  await page.getByRole("option", { name: subject, exact: true }).click();
+
+  await page.getByRole("button", { name: "Load register" }).click();
+  await expect(page.locator("tbody tr").first()).toBeVisible({
+    timeout: 90_000,
+  });
+  return subject;
+}
+
+/** The whole journey from a cold page: sign in, pick a subject, load a register. */
+async function signInAndLoad(page: Page): Promise<string> {
+  await page.goto("/");
+  await submitSignIn(page);
+  return loadFirstSubject(page);
+}
+
 test.describe("ECAP attendance dashboard", () => {
   test.skip(
     !USER || !PASS,
@@ -292,5 +340,44 @@ test.describe("ECAP attendance dashboard", () => {
       problems,
       `browser reported problems: ${problems.join("; ")}`
     ).toEqual([]);
+  });
+
+  test("ending a session leaves nothing of it behind", async ({ page }) => {
+    // A dead session used to change the screen and keep the state: signing back
+    // in produced a table already narrowed by a filter ticked against the
+    // session that no longer existed. "Sign out" reaches the same function as
+    // the 401 path, so this holds the clearing for both - a 401 cannot be
+    // provoked from inside one run, because the suite's own server would have
+    // to be restarted mid-test.
+    await signInAndLoad(page);
+    const total = await page.locator("tbody tr").count();
+    expect(total).toBeGreaterThan(0);
+
+    await page.getByLabel("Show only irregular students").click();
+    await expect
+      .poll(() => page.locator("tbody tr").count())
+      .toBeLessThan(total);
+
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
+
+    // Sign in again in the SAME document. A page load would discard React state
+    // and the test would pass whatever signedOut did or did not clear, which is
+    // the mistake this test exists to prevent.
+    await submitSignIn(page);
+
+    // Checked before loading anything, because a fresh register would overwrite
+    // the stale one and hide it: no register has been asked for in this session
+    // yet, so none should be on screen.
+    await expect(page.locator("tbody tr")).toHaveCount(0);
+
+    await loadFirstSubject(page);
+
+    // Unticked, unfiltered, and the full class back - not the previous
+    // session's view of it.
+    await expect(
+      page.getByLabel("Show only irregular students")
+    ).not.toBeChecked();
+    await expect(page.locator("tbody tr")).toHaveCount(total);
   });
 });

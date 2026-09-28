@@ -77,6 +77,16 @@ import type { Note } from "./types";
 /** Which screen is showing. */
 type Phase = "boot" | "login" | "app";
 
+/**
+ * How often to ask whether the session is still alive.
+ *
+ * Comfortably longer than a round trip to a local server, and short enough that
+ * a user who left a register open comes back to the login form rather than to
+ * numbers produced by a session that ended hours ago. The server's own TTL is 12
+ * hours, so this is not racing it - it is noticing the moment it passes.
+ */
+const SESSION_PROBE_MS = 30_000;
+
 /* ------------------------------------------------------------------ helpers */
 
 /** An HTTP failure, carrying the status so callers can tell 401 from 400. */
@@ -136,6 +146,13 @@ const App = (): React.JSX.Element => {
   const [filterNote, setFilterNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadNote, setLoadNote] = useState("");
+  // Read by the session probe below, which must not be re-armed on every busy
+  // flip - otherwise a user who keeps loading registers is never probed at all.
+  // Written during render for the same reason the two refs below are.
+  /* oxlint-disable react/refs */
+  const busyRef = useRef(busy);
+  busyRef.current = busy;
+  /* oxlint-enable react/refs */
 
   const [sel, setSel] = useState<Sel>(EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
@@ -166,89 +183,126 @@ const App = (): React.JSX.Element => {
   /* oxlint-enable react/refs */
   const refreshToken = useRef(0);
 
+  /**
+   * Give up the session: drop everything it produced and show the login form.
+   *
+   * One function, because three things end a session and the state to clear is a
+   * dozen setters. Doing it inline per call site is how the "expired" path came
+   * to skip most of it: the screen changed to the login form while the previous
+   * session's filter, options and register stayed in state, so signing back in
+   * produced a table already narrowed by a choice the user made against a
+   * session that no longer existed. Signing out deliberately and being timed
+   * out should leave the app in the same state, so they share this.
+   */
+  const signedOut = useCallback((why: string) => {
+    // Invalidate anything in flight. A response that arrived after this would
+    // otherwise repopulate the very state being cleared.
+    refreshToken.current += 1;
+    setPhase("login");
+    setUserId("");
+    setPassword("");
+    setLoginNote({ kind: "warning", text: why });
+    setFilterNote(null);
+    setBusy(false);
+    setLoadNote("");
+    setSel(EMPTY_SEL);
+    setOpts(EMPTY_OPTS);
+    setResult(null);
+    setOnlyIrregular(false);
+  }, []);
+
   /* ---- the cascade ---- */
 
-  const runRefresh = useCallback(async (changed: Level | null) => {
-    const token = ++refreshToken.current;
+  const runRefresh = useCallback(
+    async (changed: Level | null) => {
+      const token = ++refreshToken.current;
 
-    // Drop everything below the level that changed *before* asking, so the
-    // request only ever carries a valid prefix of the chain. A stale semester
-    // left in place would make the server compute a section list for a
-    // combination the user can no longer see.
-    //
-    // `draft` and `reply` are deliberately not named `sel` and `opts`: those are
-    // the state above, and shadowing them made `setOpts(opts)` ambiguous about
-    // whether it was storing the state or the server's answer.
-    let draft = { ...selRef.current };
-    if (changed === "course") {
-      draft = { ...draft, semester: "", branch: "", section: "", subject: "" };
-    } else if (changed === "semester" || changed === "branch") {
-      draft = { ...draft, section: "", subject: "" };
-    } else if (changed === "section") {
-      draft = { ...draft, subject: "" };
-    }
-    selRef.current = draft;
-    setSel(draft);
-
-    setBusy(true);
-    setLoadNote("Loading options...");
-
-    try {
-      for (const _pass of LEVEL_KEYS) {
-        if (token !== refreshToken.current) return;
-
-        // The semester's `title` carries the batch number the portal wants for
-        // the section list, and this side is the only one still holding it.
-        // Empty for IV Semester, which the server handles by falling back.
-        // Read through optsRef, not opts - see the note where it is declared.
-        const semesterTitle = draft.semester
-          ? optsRef.current.semester.find(
-              (o) => String(o.value) === String(draft.semester)
-            )?.title
-          : undefined;
-
-        const request: OptionsRequest = {
-          course: draft.course || undefined,
-          semester: draft.semester || undefined,
-          semesterTitle,
-          branch: draft.branch || undefined,
-          section: draft.section || undefined,
+      // Drop everything below the level that changed *before* asking, so the
+      // request only ever carries a valid prefix of the chain. A stale semester
+      // left in place would make the server compute a section list for a
+      // combination the user can no longer see.
+      //
+      // `draft` and `reply` are deliberately not named `sel` and `opts`: those are
+      // the state above, and shadowing them made `setOpts(opts)` ambiguous about
+      // whether it was storing the state or the server's answer.
+      let draft = { ...selRef.current };
+      if (changed === "course") {
+        draft = {
+          ...draft,
+          semester: "",
+          branch: "",
+          section: "",
+          subject: "",
         };
-        const reply = await api<OptionsReply>("/api/options", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(request),
+      } else if (changed === "semester" || changed === "branch") {
+        draft = { ...draft, section: "", subject: "" };
+      } else if (changed === "section") {
+        draft = { ...draft, subject: "" };
+      }
+      selRef.current = draft;
+      setSel(draft);
+
+      setBusy(true);
+      setLoadNote("Loading options...");
+
+      try {
+        for (const _pass of LEVEL_KEYS) {
+          if (token !== refreshToken.current) return;
+
+          // The semester's `title` carries the batch number the portal wants for
+          // the section list, and this side is the only one still holding it.
+          // Empty for IV Semester, which the server handles by falling back.
+          // Read through optsRef, not opts - see the note where it is declared.
+          const semesterTitle = draft.semester
+            ? optsRef.current.semester.find(
+                (o) => String(o.value) === String(draft.semester)
+              )?.title
+            : undefined;
+
+          const request: OptionsRequest = {
+            course: draft.course || undefined,
+            semester: draft.semester || undefined,
+            semesterTitle,
+            branch: draft.branch || undefined,
+            section: draft.section || undefined,
+          };
+          const reply = await api<OptionsReply>("/api/options", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(request),
+          });
+          if (token !== refreshToken.current) return;
+
+          const before = draft;
+          draft = applyOptions(draft, reply);
+          selRef.current = draft;
+          setSel(draft);
+          setOpts(reply);
+
+          // Whether to ask again is a rule, not a race, so it lives in cascade.ts
+          // with the other cascade rules and has its own tests. The reasoning -
+          // why stopping early dead-ends the chain, and why `gained` is what stops
+          // the loop running forever - is documented on `shouldContinue`.
+          if (!shouldContinue(draft, before, reply)) return;
+        }
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          signedOut("Your session expired. Please sign in again.");
+          return;
+        }
+        setFilterNote({
+          kind: "error",
+          text: error instanceof Error ? error.message : String(error),
         });
-        if (token !== refreshToken.current) return;
-
-        const before = draft;
-        draft = applyOptions(draft, reply);
-        selRef.current = draft;
-        setSel(draft);
-        setOpts(reply);
-
-        // Whether to ask again is a rule, not a race, so it lives in cascade.ts
-        // with the other cascade rules and has its own tests. The reasoning -
-        // why stopping early dead-ends the chain, and why `gained` is what stops
-        // the loop running forever - is documented on `shouldContinue`.
-        if (!shouldContinue(draft, before, reply)) return;
+      } finally {
+        if (token === refreshToken.current) {
+          setBusy(false);
+          setLoadNote("");
+        }
       }
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        setPhase("login");
-        return;
-      }
-      setFilterNote({
-        kind: "error",
-        text: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      if (token === refreshToken.current) {
-        setBusy(false);
-        setLoadNote("");
-      }
-    }
-  }, []);
+    },
+    [signedOut]
+  );
 
   /* ---- sign in ---- */
 
@@ -282,11 +336,48 @@ const App = (): React.JSX.Element => {
     } catch {
       /* the cookie is cleared either way */
     }
-    setPhase("login");
-    setSel(EMPTY_SEL);
-    setOpts(EMPTY_OPTS);
-    setResult(null);
+    signedOut("");
   };
+
+  /**
+   * Notice a dead session without waiting for a click.
+   *
+   * The 401 paths only fire when something asks the server for something. A user
+   * who leaves a register open and comes back to it hours later would otherwise
+   * be reading numbers produced by a session that no longer exists, with
+   * nothing on screen to say so - which is the exact failure the register's own
+   * name line exists to prevent.
+   *
+   * The probe stays quiet about failure. A network blip is not evidence that the
+   * session died, and signing the user out over one would be worse than the
+   * problem; the next real request answers 401 and settles it.
+   */
+  useEffect(() => {
+    if (phase !== "app") return;
+    let cancelled = false;
+    const probe = async () => {
+      // A request already in flight reports a dead session itself, and two
+      // probes at once would only race each other.
+      if (busyRef.current) return;
+      try {
+        const s = await api<SessionReply>("/api/session");
+        if (!cancelled && s && !s.signedIn) {
+          signedOut("Your session expired. Please sign in again.");
+        }
+      } catch {
+        /* not evidence of anything; the next request decides */
+      }
+    };
+    const id = setInterval(probe, SESSION_PROBE_MS);
+    // Coming back to the tab is when a stale register is most likely to be read
+    // as current, so it is worth a probe even between intervals.
+    document.addEventListener("visibilitychange", probe);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", probe);
+    };
+  }, [phase, signedOut]);
 
   // Resume: the endpoint answers 200 with {signedIn:false} when signed out,
   // so the check has to be on the payload, not the status.
@@ -326,6 +417,11 @@ const App = (): React.JSX.Element => {
 
     setBusy(true);
     setLoadNote("Reading the register from ECAP...");
+    // The same counter the refresh loop uses, so a session that ends while this
+    // is in flight invalidates the reply rather than letting it land on the
+    // login screen - which is how the previous session's register used to
+    // survive into the next one.
+    const token = ++refreshToken.current;
     try {
       const request: RegisterRequest = {
         ...chosen.levels,
@@ -337,10 +433,11 @@ const App = (): React.JSX.Element => {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(request),
       });
+      if (token !== refreshToken.current) return;
       setResult(body);
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
-        setPhase("login");
+        signedOut("Your session expired. Please sign in again.");
         return;
       }
       setFilterNote({
@@ -348,8 +445,10 @@ const App = (): React.JSX.Element => {
         text: error instanceof Error ? error.message : String(error),
       });
     } finally {
-      setBusy(false);
-      setLoadNote("");
+      if (token === refreshToken.current) {
+        setBusy(false);
+        setLoadNote("");
+      }
     }
   };
 
