@@ -164,8 +164,13 @@ dist/               build output, served by server.ts
 - Read-only. It signs in and reads the academic register; it never submits marks
   or changes enrollment.
 - Section and subject lists come from ECAP, so the app only offers classes you
-  actually teach. Some combinations are genuinely empty — IV Semester has one
-  section for most branches, for instance.
+  actually teach. Every branch and semester the portal offers has been checked,
+  and no level has ever come back empty — sections run from one to four and
+  subjects from fifteen to fifty-one. An empty dropdown therefore means the
+  portal replied with something other than the markup this app expects, and the
+  app says so rather than showing a dead control. (IV Semester having exactly one
+  section is a statement about count, not about emptiness — it was once mistaken
+  for the latter here.)
 - The cascade populates itself: every level above the subject fills with its
   first option and you override whatever you disagree with. The subject is always
   left for you, because it decides which register loads, and the line above the

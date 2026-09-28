@@ -4,6 +4,9 @@ import { defineConfig } from "@playwright/test";
 // `dist/` has to exist first. The `test` script builds it.
 export default defineConfig({
   testDir: "./test",
+  // Typechecks all three projects before anything runs. See the file for why
+  // this is here rather than a `pretest` script.
+  globalSetup: "./test/global-setup.ts",
   // Every step is a live round trip to the ECAP portal, which is slow but never
   // takes minutes. Generous, because a timeout here reads as a failure when it
   // is really just the portal being slow.

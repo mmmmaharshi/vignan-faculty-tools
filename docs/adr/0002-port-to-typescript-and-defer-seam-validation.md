@@ -81,8 +81,7 @@ Port the whole codebase to TypeScript. Five decisions, each costing something:
 
 The first consequence above was wrong, and it was wrong because the decision it
 described was made before there was anything to enforce. `tsc` is no longer
-advisory: `package.json` has `pretest`, so `bun run test` typechecks all three
-projects before it builds or launches a browser.
+advisory: every Playwright run typechecks all three projects first.
 
 The reasoning that changed it is not "types are good". It is that once ADR 0003
 landed, the type checker became the *only* thing verifying the shared contract
@@ -91,9 +90,15 @@ turns into a build failure or does not, and nothing else in the toolchain is
 watching. A checker that only runs when a human remembers is not enforcing
 anything; it is advice.
 
+The first attempt was a `pretest` script in `package.json`, which was not
+enough. `pretest` only fires for `bun run test`, so `bunx playwright test` and
+`bun run build` both skipped the gate — leaving a way to run the tests against
+code that does not typecheck, which is the one thing the gate exists to prevent.
+The check moved to `test/global-setup.ts`, which Playwright loads for every
+invocation, and `pretest` was removed rather than left to double the work.
+
 `bun run typecheck` still exists on its own, for the editor-driven loop. The
-`pretest` hook is what makes the gate real. The consequence text above is left
-as originally written so the change is visible.
+consequence text above is left as originally written so the change is visible.
 - A field renamed on the server without the client changing is now a build
   error. Before this port it was a blank cell.
 - This port reverses `CODING_STANDARDS.md` on YAGNI and on leaning on existing

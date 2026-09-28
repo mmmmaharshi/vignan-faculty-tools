@@ -33,24 +33,28 @@ Both failures are silent, and both point somewhere other than the cause.
 Assert emptiness only where emptiness is not a legitimate answer, and say what
 was actually received when it happens.
 
-1. **Three levels are treated as never-empty**: courses, and the branches and
-   semesters for a chosen course. One guard covers all three, and it raises a 502
-   naming both plausible causes — the portal has changed, or the session has
-   expired.
+1. **Every level is guarded, because none of them is ever empty.** One guard
+   covers all five, and it raises a 502 naming both plausible causes — the portal
+   has changed, or the session has expired.
 
-   This rests on an assumption, not a guarantee: that every course has at least
-   one branch and one semester. That holds for everything observed so far, which
-   is one course, so it is weak evidence. The failure mode if the assumption is
-   wrong is a 502 where the user previously got an empty dropdown — worse, and
-   worth revisiting if anyone reports it. It is accepted because the alternative
-   is the silent stall this ADR exists to remove.
-2. **Two levels are left unguarded**: sections for a course/branch/semester, and
-   subjects for one. `README.md` already records that some combinations are
-   genuinely empty, and gives IV Semester as an example — one section, and that
-   section may teach nothing, so the subject list is legitimately `[]`. Whether
-   any combination yields *zero* sections is not established either way, which is
-   the same reason to leave it alone. The front end already handles an empty
-   level by leaving the dropdown empty.
+   This was originally written to guard three levels and leave sections and
+   subjects alone, on the strength of a note in `README.md` saying some
+   combinations are genuinely empty. That note has been checked against the
+   portal: across all four branches and all three semesters — twelve
+   combinations, which is the entire space this account can reach — sections
+   return between one and four options and subjects between fifteen and fifty-one.
+   Nothing is ever empty. Subjects are not scoped to a section, so those twelve
+   cover them too. The one thing the check cannot cover is a course this account
+   cannot see, and the portal offers it exactly one.
+
+   `README.md` said "genuinely empty" about IV Semester, which has *one* section.
+   That is a statement about count, not about emptiness, and it was the source of
+   the wrong assumption.
+2. **If the guard is ever wrong, the message is what limits the damage.** A 502
+   where the user previously got an empty dropdown is a worse symptom. It is
+   accepted because the alternative is the silent stall this ADR exists to
+   remove, and because the message names both causes, so the report is
+   diagnosable rather than baffling.
 3. **A reply that is an HTML page is named as one.** Convention B answers with a
    JavaScript literal. When the portal session dies it can answer with markup
    instead, and `unquoteJs()` currently hands that straight on, where it becomes
@@ -75,10 +79,9 @@ session, and a fixture string is all a test needs.
   no credentials. That is the first thing in this project that is testable in
   milliseconds, and it is the reason the guards are shaped as pure functions
   rather than inline checks.
-- The two legitimate-empty levels stay unguarded, so a genuinely empty subject
-  list remains a silent empty dropdown. That is the accepted cost of not
-  asserting where emptiness is real. It is also why the *client* shows a disabled
-  subject dropdown rather than an error.
+- An empty level now always raises, at every level, rather than only at three.
+  The cost is that a genuinely empty one becomes a 502 rather than an empty
+  dropdown. Decision 1 records the measurement behind that trade.
 - A markup change now produces "ECAP returned no courses" instead of a dead
   dropdown. That is a better error, not a fixed bug.
 

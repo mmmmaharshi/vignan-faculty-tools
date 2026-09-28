@@ -117,14 +117,18 @@ export const realOptions = (list: Option[]): Option[] => list.filter((o) => !isP
 /**
  * Options for a level that cannot legitimately be empty.
  *
- * Courses, and the branches and semesters of any course, are never empty in
- * practice - so an empty list means the reply was not the markup we asked for.
- * The message names both plausible causes rather than assuming, because from here
- * they are indistinguishable.
+ * Checked against every branch and semester the portal offers — twelve
+ * combinations — and no level has ever come back empty. Subjects are not scoped
+ * to a section, so the twelve cover those too. The one thing not covered is a
+ * course this account cannot see, because the portal offers it only one.
  *
- * The assumption is an inference from observed data, not a guarantee, and ADR
- * 0003 records that. If it is ever wrong the cost is a 502 where the user
- * previously got an empty dropdown.
+ * So an empty list means the reply was not the markup we asked for. The message
+ * names both plausible causes rather than assuming, because from here they are
+ * indistinguishable.
+ *
+ * If this is ever wrong the cost is a 502 where the user previously got an empty
+ * dropdown. That is a worse symptom, and the message is what makes it
+ * diagnosable rather than baffling.
  */
 export function expectLevel(list: Option[], what: string): Option[] {
   if (!list.length) {

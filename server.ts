@@ -585,16 +585,17 @@ const server = Bun.serve({
             out.branch = expectLevel(realOptions(branches), "branches");
             out.semester = expectLevel(realOptions(semesters), "semesters");
           }
-          // Sections and subjects are deliberately not guarded. Some
-          // combinations genuinely teach nothing, and an empty level is the
-          // honest answer for those. See docs/adr/0003.
           if (b.course && b.branch && b.semester) {
-            out.section = realOptions(
-              await portal.sections(b.course, b.branch, b.semester, b.semesterTitle),
+            out.section = expectLevel(
+              realOptions(await portal.sections(b.course, b.branch, b.semester, b.semesterTitle)),
+              "sections",
             );
           }
           if (b.course && b.branch && b.semester && b.section) {
-            out.subject = realOptions(await portal.subjects(b.course, b.branch, b.semester));
+            out.subject = expectLevel(
+              realOptions(await portal.subjects(b.course, b.branch, b.semester)),
+              "subjects",
+            );
           }
           return json(out);
         }
