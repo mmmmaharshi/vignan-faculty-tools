@@ -52,7 +52,7 @@ web/index.html       Vite entry point
 web/main.tsx         React root + MantineProvider; the only createTheme call
 web/App.tsx          state, the three modes, and the refresh loop
 web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping
-web/components/      four presentational modules; none of them holds state
+web/components/      five presentational modules; none of them holds state
 web/types.ts         Note, the one shape three modules share
 shared/api.ts        the server/client contract; both sides import it
 vite.config.ts       build config
@@ -77,12 +77,13 @@ credential-free suite unreachable.
 
 ## Routing
 
-Two screens, at two paths: `/dashboard` is the dashboard, `/login` is the sign-in
-form. `/` also renders the dashboard and the guard sends it on, so it is a second
-way in rather than a third screen; anything else redirects to `/`. **`App` owns
-both** — the router is not asked to split it, because that would duplicate the
-cascade's state or move it into a context, and ADR 0005 rejected a context for
-that reason.
+Three screens, at three paths: `/dashboard` is the cascade and the register,
+`/profile` is the profile panel, `/login` is the sign-in form. `/` also renders
+the dashboard and the guard sends it on, so it is a second way in rather than a
+fourth screen; anything else redirects to `/`. **`App` owns all three** — the
+router is not asked to split it, because that would duplicate the cascade's
+state or move it into a context, and ADR 0005 rejected a context for that
+reason.
 
 - **`web/main.tsx` has exactly one route, a catch-all rendering `App`.** Do not
   enumerate paths there. Every path used to render the same component, so the list
@@ -105,34 +106,26 @@ that reason.
 - `booted` and `signedIn` are not screens. They are the two facts the URL cannot
   carry: whether `/api/session` has been asked, and what it said.
 
-The **selection and the date range live in the query string** too, so a register
-can be bookmarked, shared, and survives a refresh:
+**The selection does not live in the URL.** The path names the screen and nothing
+else travels; there are no query parameters. This replaced ADR 0010 and ADR 0011,
+both deleted — see ADR 0015 for what it cost. Consequences worth knowing before
+you touch the cascade:
 
-```
-/?course=1&semester=3&branch=6&section=1&subject=2946&from=2026-09-01&to=2026-09-28
-```
+- **A register cannot be shared or bookmarked, and a refresh starts over.** The
+  subject is gone rather than restored, and the cascade refills from the top. The
+  dates come back, because `range` starts at `defaultRange()`.
+- **`Load register` is the only way `/api/register` is ever called.** Nothing on
+  the tail of the refresh loop fetches one, so a register is a decision every
+  time. The smoke test pins this by counting requests on the wire.
+- **`fetchRegister(levels, dates)` still takes the selection as arguments**, not
+  from state. The cascade computes values before React commits a render for them,
+  so a version closing over `sel` would send the previous selection. That bug
+  shipped once and said "Choose a course first" on a link whose course was plainly
+  set. Same class as the `optsRef` one below, from a different direction.
+- **The URL-write effect is gone, and that is the point.** It used to compete
+  with `signedOut`'s navigation for the history, which is a class of bug that has
+  already bitten this app once. Do not add a second writer.
 
-- **Only identifiers travel, never labels.** `/api/options` returns every level
-  with its label, so a label in the URL is a second copy free to disagree.
-- **Written with `replace`, always.** The URL is a snapshot, not a history: the
-  auto-fill commits `sel` several times, and Back through five dropdowns is not
-  something anyone wants.
-- **The subject is replayed after the passes settle**, because the cascade clears
-  it on every pass and it is never auto-filled. Restoring a subject someone chose
-  is not the same as picking one.
-- **A link opens the register; a click is not doubled.** When the cascade settles
-  with a subject chosen, the register is fetched. There is deliberately no flag for
-  this — `draft.subject` *is* the condition, because `applyOptions` clears the
-  subject on every pass and only the URL seed ever sets it. Picking a subject from
-  a dropdown never reaches that point, so `Load register` stays the user's click.
-  ADR 0011.
-- `fetchRegister(levels, dates)` takes the selection as **arguments**, not from
-  state. The cascade calls it before React commits a render, so a version closing
-  over `sel` sends the previous selection — which is how the auto-load first
-  arrived saying "Choose a course first" on a link whose course was plainly set.
-  Same class of bug as the `optsRef` one below, from a new direction.
-- `selectionToQuery` / `queryToSelection` are in `web/cascade.ts` and tested
-  there, not in `App`.
 
 ## The front end is Mantine-only
 
@@ -146,6 +139,14 @@ The Mantine theme is stock, with **one** exception: `fontFamily`, set in
 `web/main.tsx` to Scoutie Sans. `main.tsx` holds the only `createTheme` call in the
 project, and it is the single place a theme decision may go. Wanting a second
 theme key means you want a component prop instead.
+
+**Icons are Phosphor, and Phosphor only.** `@phosphor-icons/react` is the one
+icon library, and it is the one Mantine's own documentation uses throughout. It
+ships per-icon entry points, so import the icon and not the barrel —
+`import { SquaresFour } from "@phosphor-icons/react"` costs about 7kB in the
+bundle, while the package is 33MB unpacked. A second icon library is a decision
+that needs an ADR, not a `bun add`. Icons are `aria-hidden`: every control that
+carries one also has its name in text.
 
 ## React
 
@@ -245,9 +246,12 @@ theme key means you want a component prop instead.
   died while you were working explains itself. Both halves have a mutation check
   — assert on `getByRole("alert")`, which counts the box, not its text, because
   the bug being guarded is precisely an alert with *no* text.
-- **The URL-write effect must skip while the selection is empty.** It and
-  `signedOut`'s navigation are competing history writers; without that guard,
-  signing out navigated to `/login` and was immediately dragged back to `/`.
+- **There is exactly one writer of the URL, and it is not an effect.** The
+  selection used to be written back by an effect, and it and `signedOut`'s
+  navigation were competing history writers: signing out navigated to `/login`
+  and was immediately dragged back to `/`. The selection is no longer in the URL
+  (ADR 0015), which is what removed the second writer. If anything starts writing
+  the address bar again, that bug is the one to expect.
 - **`/api/session` answers 200 with `{signedIn: false}`** when signed out, not
   401. Checking the status code alone silently runs the signed-in path.
 - **Do not read `event.currentTarget` inside a `setState` updater.** React clears
@@ -314,7 +318,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**136 of the 144 tests need no credentials and run in about six seconds.** They
+**128 of the 139 tests need no credentials and run in about six seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, the cascade's rules, session liveness, and session
 persistence over a fake vault. Only `test/smoke.spec.ts` touches the network — and

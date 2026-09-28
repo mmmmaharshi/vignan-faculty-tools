@@ -6,8 +6,13 @@ Date: 2026-09-28
 
 Accepted
 
-Refines ADR 0001's structure and builds on the session work in ADR 0010's
-predecessor (the `signedOut` commit, 7672e49). The cascade is untouched.
+Refines ADR 0001's structure and builds on the `signedOut` commit, 7672e49. The
+cascade is untouched.
+
+*Later amendment.* ADR 0010 and ADR 0011, which put the selection in the query
+string, have both been deleted; see ADR 0015. Nothing in this decision depended
+on them — the URL naming the *screen* is what ADR 0009 is about, and that still
+holds. Dropping the query parameters from a route is not a reversal of it.
 
 ## Context
 
@@ -38,9 +43,10 @@ Add `react-router` and let the URL answer "which screen".
 - `/` is the dashboard, `/login` is the sign-in form, anything else redirects to
   `/`.
 
-  **Amended twice.** First, the dashboard moved to `/dashboard`, at the user's
-  request, with `/` kept as a way in so an old bookmark and a typed address do not
-  break. The structure was unchanged — still two screens, still `App` owning both.
+  **Amended three times.** First, the dashboard moved to `/dashboard`, at the
+  user's request, with `/` kept as a way in so an old bookmark and a typed address
+  do not break. The structure was unchanged — still two screens, still `App`
+  owning both.
 
   What that cost was a lesson worth recording: the `<Route>` list in
   `web/main.tsx` and `DASHBOARD_PATH` in `web/App.tsx` were two statements of the

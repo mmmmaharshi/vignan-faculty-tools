@@ -33,25 +33,34 @@
  * empty* should read `cascade.ts`; a reader debugging *why two requests raced*
  * should read this file.
  *
- * Which screen is showing is the URL, not a state variable: `/` is the dashboard
- * and `/login` is the sign-in form. A refresh, a bookmark and the back button
- * therefore agree with what is on screen, and ending a session is a navigation
- * rather than a `setPhase` only this file can observe.
+ * Which screen is showing is the URL, not a state variable: `/dashboard` is the
+ * cascade and the register, `/profile` is the panel, and `/login` is the sign-in
+ * form. A refresh, a bookmark and the back button therefore agree with what is on
+ * screen, and ending a session is a navigation rather than a `setPhase` only this
+ * file can observe.
+ *
+ * The sidebar holds navigation and nothing else. The cascade and the register are
+ * in the main area, which is where they have the width to be readable - the rail
+ * was 320px, and "Information Technology" truncated to "Infc" in it.
  *
  * The children under `web/components/` are told what to render and report
  * changes upwards; none of them holds state.
  */
 
-import { Button, Container, Group, Text, Title } from "@mantine/core";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import {
+  AppShell,
+  Burger,
+  Button,
+  Container,
+  Group,
+  Text,
+  Title,
+} from "@mantine/core";
+import { useDisclosure } from "@mantine/hooks";
+import { SquaresFour, UserCircle } from "@phosphor-icons/react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate, useSearchParams } from "react-router";
+import { useLocation, useNavigate } from "react-router";
 
 import type {
   LoginRequest,
@@ -73,13 +82,12 @@ import {
   EMPTY_SEL,
   LEVEL_KEYS,
   LEVELS,
-  queryToSelection,
-  selectionToQuery,
   shouldContinue,
   toPortalDate,
 } from "./cascade";
 import type { Level, Range, Sel } from "./cascade";
 import { ClassPicker } from "./components/ClassPicker";
+import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
 import { SignInPanel } from "./components/SignInPanel";
@@ -89,9 +97,10 @@ import type { Note } from "./types";
 // them. They arrive in the summary so the labels below can never drift from the
 // flags the server actually set.
 
-/** The two screens. Which one is showing is the URL, not a state variable. */
+/** The three screens. Which one is showing is the URL, not a state variable. */
 const LOGIN_PATH = "/login";
 const DASHBOARD_PATH = "/dashboard";
+const PROFILE_PATH = "/profile";
 
 /**
  * How often to ask whether the session is still alive.
@@ -151,6 +160,7 @@ const App = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const onLogin = pathname === LOGIN_PATH;
+  const onProfile = pathname === PROFILE_PATH;
 
   /**
    * Whether the session has been asked about yet.
@@ -177,6 +187,26 @@ const App = (): React.JSX.Element => {
   const [filterNote, setFilterNote] = useState<Note | null>(null);
   const [busy, setBusy] = useState(false);
   const [loadNote, setLoadNote] = useState("");
+
+  /**
+   * Whether the sidebar is open, on a narrow screen.
+   *
+   * Desktop ignores it - the navbar is pinned and `collapsed.desktop` is left
+   * undefined, so this is purely the mobile drawer. `useDisclosure` rather than a
+   * `useState`, because it is a boolean with a name and this is the one place in
+   * the app that is purely presentational.
+   */
+  const [navOpen, nav] = useDisclosure();
+
+  /**
+   * Whether this server keeps sessions in the OS credential vault.
+   *
+   * Read from the server rather than assumed, because it is a claim about what
+   * happens to the user after a restart, and on a runtime without `Bun.secrets` the
+   * answer is no. The profile panel prints whichever it is. Defaults to false so
+   * the first paint before the answer arrives is the cautious one.
+   */
+  const [persisted, setPersisted] = useState(false);
   // Read by the session probe below, which must not be re-armed on every busy
   // flip - otherwise a user who keeps loading registers is never probed at all.
   // Written during render for the same reason the two refs below are.
@@ -185,41 +215,12 @@ const App = (): React.JSX.Element => {
   busyRef.current = busy;
   /* oxlint-enable react/refs */
 
-  /**
-   * What the URL asked for on the way in, read once.
-   *
-   * Seeded into state rather than tracked, because the URL is read at mount and
-   * from then on it is *written* by the effect below. Tracking it would mean two
-   * directions of travel between the query string and `sel`, and a loop.
-   */
-  const [searchParams, setSearchParams] = useSearchParams();
-  const query = searchParams;
-  const seeded = useMemo(() => queryToSelection(query), [query]);
-
-  const [sel, setSel] = useState<Sel>(seeded.sel);
+  const [sel, setSel] = useState<Sel>(EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
 
-  const [range, setRange] = useState<Range>(() => ({
-    from: seeded.range.from || defaultRange().from,
-    to: seeded.range.to || defaultRange().to,
-  }));
+  const [range, setRange] = useState<Range>(defaultRange);
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
-
-  /**
-   * The subject the URL named, if any, to be re-chosen once the cascade settles.
-   *
-   * The subject is never auto-filled - it decides which register loads, so
-   * quietly picking one would show a faculty member the wrong roster. That rule
-   * applies here too, which means a shared link has to put the subject back
-   * *after* the passes have run, or every refresh would land on an empty subject
-   * and the link would be no use to the person it was sent to.
-   *
-   * Kept in a ref rather than state: it is read once, by the effect that runs
-   * after the first cascade completes, and re-rendering to consume it would be
-   * a loop of its own.
-   */
-  const wantedSubject = useRef(seeded.sel.subject);
 
   // The cascade is driven imperatively, not from an effect watching `sel`.
   // A state-driven effect would re-enter itself every time it committed a pass.
@@ -392,7 +393,6 @@ const App = (): React.JSX.Element => {
       setLoadNote("Loading options...");
 
       try {
-        let lastReply: OptionsReply = EMPTY_OPTS;
         for (const _pass of LEVEL_KEYS) {
           if (token !== refreshToken.current) return;
 
@@ -430,69 +430,26 @@ const App = (): React.JSX.Element => {
           // with the other cascade rules and has its own tests. The reasoning -
           // why stopping early dead-ends the chain, and why `gained` is what stops
           // the loop running forever - is documented on `shouldContinue`.
-          lastReply = reply;
           if (!shouldContinue(draft, before, reply)) break;
         }
-
-        /**
-         * The passes have finished. Two things are left to do, and both are here
-         * rather than in an effect because "the passes have finished" is something
-         * only this function knows.
-         *
-         * First, put the subject back. A subject is never auto-filled - it decides
-         * which register loads, so picking one quietly would show a faculty member
-         * the wrong roster - and `applyOptions` therefore clears it on every
-         * pass. So a link naming a subject would otherwise land on an empty
-         * dropdown after every refresh. Restoring a subject a person chose is not
-         * the same as picking one: that is the whole difference between a shared
-         * link being useful and being a dead end.
-         *
-         * The `stillOffered` check keeps `sel` honest. It is deliberately not the
-         * thing that stops a bad subject loading - `chosenLevels` is that gate,
-         * and it already refuses an unknown subject with "Choose a subject
-         * first" however the selection got there. This one is here because the
-         * state should be true.
-         *
-         * Then, open the register, but only if the URL asked for one. Picking a
-         * subject from a dropdown is a choice being made now, and `Load register`
-         * is the click the user makes it with.
-         */
-        const wanted = wantedSubject.current;
-        wantedSubject.current = "";
-        if (wanted && draft.subject === "") {
-          const stillOffered = lastReply.subject.some(
-            (o) => String(o.value) === String(wanted)
-          );
-          if (stillOffered) {
-            draft = { ...draft, subject: wanted };
-            selRef.current = draft;
-            setSel(draft);
-          }
-        }
         /*
-         * Open the register, if the URL asked for one.
+         * The passes have finished, and there is nothing left to do.
          *
-         * There is deliberately no flag here. `draft.subject` is already the
-         * whole condition: `applyOptions` clears the subject on every pass and
-         * nothing else ever sets it, so the only way a subject survives to this
-         * point is if the URL seeded it. Picking a subject from a dropdown does
-         * not call this function, so a user choosing one never arrives here with
-         * it set - and `Load register` stays the click they make it with.
+         * This used to end with two steps: restore a subject the URL had named,
+         * and open the register it asked for. Both existed only to make a shared
+         * link work, and with the selection no longer in the query string there
+         * is no URL to restore from and nothing to open on arrival.
          *
-         * An earlier version carried a ref for this, and a mutation check showed
-         * it could not be observed either way: with the ref removed, nothing
-         * changed. A guard that cannot fail is not a guard.
+         * The subject is now chosen by the person and nowhere else, which is the
+         * rule `applyOptions` already enforced: it is never auto-filled, because
+         * it decides which register loads and quietly picking one would show
+         * someone the wrong roster. `Load register` is the only way a register
+         * is ever fetched, so it is a decision every single time.
          *
-         * `draft` and `lastReply` are in hand here and are not in React state
-         * yet, so they are what gets sent. Reading `sel` here would send the
-         * selection as it was before this pass, which is how the auto-load first
-         * arrived with "Choose a course first" on a link whose course was plainly
-         * set.
+         * What this costs, plainly: a register can no longer be sent to a
+         * colleague as a link, and a refresh re-picks the cascade from the top.
+         * That was the feature, and it is gone by request.
          */
-        if (draft.subject) {
-          const chosen = chosenLevels(lastReply, draft);
-          if (chosen.ok) void fetchRegister(chosen.levels, range);
-        }
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           signedOut("Your session expired. Please sign in again.");
@@ -509,10 +466,11 @@ const App = (): React.JSX.Element => {
         }
       }
     },
-    // `fetchRegister` and `range` because the tail of the loop opens the register
-    // a link pointed at. `runRefresh`'s identity changing is not a problem: every
+    // Only `signedOut` now. It used to depend on `fetchRegister` and `range` for
+    // the auto-load at the end of the loop, and that is gone with the query
+    // string. `runRefresh`'s identity changing is not a problem either way: every
     // effect that depends on it early-returns on `booted` or is keyed off a ref.
-    [fetchRegister, range, signedOut]
+    [signedOut]
   );
 
   /* ---- sign in ---- */
@@ -573,8 +531,16 @@ const App = (): React.JSX.Element => {
       if (busyRef.current) return;
       try {
         const s = await api<SessionReply>("/api/session");
-        if (!cancelled && s && !s.signedIn) {
-          signedOut("Your session expired. Please sign in again.");
+        if (!cancelled && s) {
+          // Whether sessions survive a restart does not change while the page is
+          // open, so it is read once here rather than on every render. Kept out of
+          // the branch above deliberately: a signed-out session is about to be
+          // replaced by the sign-in form, and updating this on the way past would
+          // be a setState during a navigation.
+          setPersisted(s.persisted);
+          if (!s.signedIn) {
+            signedOut("Your session expired. Please sign in again.");
+          }
         }
       } catch {
         /* not evidence of anything; the next request decides */
@@ -602,57 +568,59 @@ const App = (): React.JSX.Element => {
     if (booted) return;
     (async () => {
       let alive = false;
+      let kept = false;
       try {
         const s = await api<SessionReply>("/api/session");
         // The endpoint answers 200 with {signedIn:false} when signed out, so the
         // check is on the payload and never on the status.
         alive = !!(s && s.signedIn);
+        // Read here as well as in the probe: this is the one call that happens on a
+        // cold load, so a user who signs in and goes straight to Profile is not
+        // waiting five minutes for the probe to tell them whether their session
+        // survives a restart.
+        kept = Boolean(s?.persisted);
       } catch {
         alive = false;
       }
       if (booted) return;
       setBooted(true);
       setSignedIn(alive);
+      setPersisted(kept);
       if (alive) {
-        if (!onLogin) {
+        /*
+         * `/` and an unknown path are ways in to the dashboard, so the guard
+         * sends them there. `/profile` is a screen in its own right and is left
+         * alone: redirecting it would make the link un-bookmarkable, which is
+         * the only reason it is a path rather than a tab.
+         *
+         * The catch-all in `main.tsx` renders `App` for every path, so this is
+         * the only place that says what an unrecognised one means. Two
+         * statements of that fact is what produced the loop ADR 0009 records.
+         */
+        if (!onLogin && !onProfile) {
           // `replace`, so a dead /login in the history is not what Back returns
           // to after a sign-in.
           navigate(DASHBOARD_PATH, { replace: true });
-          await runRefresh(null);
         }
+        /*
+         * The cascade runs on the profile screen as well as the dashboard.
+         *
+         * That costs a few portal round trips for dropdowns nobody is looking
+         * at, and it is still the right trade: the selection and the option
+         * lists are properties of the signed-in session rather than of a
+         * screen, so filling them once at boot is what makes the dashboard
+         * already populated when Dashboard is clicked. Deferring it to that
+         * click would need a "has the cascade run" ref and an effect keyed on
+         * the path - more machinery than the round trips, for a worse failure
+         * if it went wrong: five empty dropdowns on the screen the user came
+         * for.
+         */
+        if (!onLogin) await runRefresh(null);
       } else if (!onLogin) {
         navigate(LOGIN_PATH, { replace: true });
       }
     })();
-  }, [booted, onLogin, navigate, runRefresh]);
-
-  /**
-   * The URL is a snapshot of the selection, not a history of it.
-   *
-   * `replace`, always, for two reasons. The auto-fill commits `sel` several
-   * times in a row as the passes land, and `push` would leave a trail of
-   * half-populated cascades for Back to walk through. And walking Back through
-   * five dropdowns is not a thing anyone wants on a dashboard - the register on
-   * screen is the state, and a bookmark is the thing worth keeping.
-   *
-   * Skipped while the selection is empty, which covers two cases that both want
-   * the same behaviour: a fresh app has no query string at all, and a session
-   * that has just ended must not have one written back. The second is not
-   * obvious and was a real bug - `signedOut` navigates to /login, and this
-   * effect was landing *after* that navigation and dragging the path back to
-   * `/`, so signing out bounced straight back to a signed-in-looking dashboard.
-   *
-   * Skipped when nothing changed, so this cannot navigate on every render.
-   */
-  useEffect(() => {
-    // `onLogin` is not enough on its own: the two navigations race, and this one
-    // is scheduled after it. An empty selection is the honest signal that there
-    // is no register to name - and there is nothing to lose by not writing one.
-    if (onLogin || !sel.course) return;
-    const q = selectionToQuery(sel, range).toString();
-    if (q === query.toString()) return;
-    setSearchParams(q, { replace: true });
-  }, [onLogin, query, range, sel, setSearchParams]);
+  }, [booted, onLogin, onProfile, navigate, runRefresh]);
 
   /**
    * A signed-in user who lands on `/login` belongs on the dashboard.
@@ -707,16 +675,41 @@ const App = (): React.JSX.Element => {
 
   /* ---- render ---- */
 
-  // Two routes, not three modes. Each child is told what to render and reports
+  // Three routes, not four modes. Each child is told what to render and reports
   // changes upwards; none of them holds state, so the cascade below stays the
   // single place any of it is decided.
   //
   // Three named screens rather than a nested ternary, because there genuinely
   // are three: `booting` renders the header alone, so a deep link to / while
   // signed out does not flash the whole cascade before the guard sends the user
-  // to /login.
+  // to /login. `/dashboard` and `/profile` are both `app` - same shell, same
+  // cascade, different body - so `onProfile` picks between them below rather
+  // than becoming a fourth screen here.
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
+
+  /**
+   * The cascade.
+   *
+   * A local rather than inline, so the dashboard body below reads as one piece.
+   * It is stateful data with handlers attached, and nothing else on this screen
+   * refers to it.
+   */
+  const picker = (
+    <ClassPicker
+      levels={LEVELS}
+      opts={opts}
+      sel={sel}
+      disabled={disabled}
+      range={range}
+      busy={busy}
+      loadNote={loadNote}
+      filterNote={filterNote}
+      onSelect={onSelectLevel}
+      onRange={onRangeChange}
+      onLoad={loadRegister}
+    />
+  );
 
   let body: React.JSX.Element | null = null;
   switch (screen) {
@@ -735,34 +728,34 @@ const App = (): React.JSX.Element => {
       break;
     }
     case "app": {
-      body = (
+      /*
+       * Profile replaces the dashboard rather than sitting beside it. The two
+       * have nothing in common to stack - one is a table of students, the other
+       * is four lines about a session - and a rail of navigation is not a place
+       * to leave a register on screen.
+       *
+       * The cascade stays mounted across the switch by not being unmounted here
+       * at all: it is above this branch, so Profile replaces what is *below* it
+       * and the selection survives the round trip. Clicking Dashboard back shows
+       * the dropdowns as they were rather than five empty ones.
+       */
+      body = onProfile ? (
+        <ProfilePanel userId={userId} persisted={persisted} />
+      ) : (
         <>
-          <ClassPicker
-            levels={LEVELS}
-            opts={opts}
-            sel={sel}
-            disabled={disabled}
-            range={range}
-            busy={busy}
-            loadNote={loadNote}
-            filterNote={filterNote}
-            onSelect={onSelectLevel}
-            onRange={onRangeChange}
-            onLoad={loadRegister}
-          />
+          {picker}
+
+          {summary ? <RegisterSummary summary={summary} /> : null}
 
           {summary ? (
-            <>
-              <RegisterSummary summary={summary} />
-              <RegisterTable
-                rows={rows}
-                total={result?.students.length ?? 0}
-                summary={summary}
-                onlyIrregular={onlyIrregular}
-                onToggleIrregular={setOnlyIrregular}
-                chosenText={registerName}
-              />
-            </>
+            <RegisterTable
+              rows={rows}
+              total={result?.students.length ?? 0}
+              summary={summary}
+              onlyIrregular={onlyIrregular}
+              onToggleIrregular={setOnlyIrregular}
+              chosenText={registerName}
+            />
           ) : null}
         </>
       );
@@ -774,27 +767,175 @@ const App = (): React.JSX.Element => {
   }
 
   return (
-    <Container size="lg" py="lg">
-      <Group justify="space-between" align="baseline" mb="lg">
-        <div>
-          <Title order={1}>Vignan Faculty Tools</Title>
-        </div>
-        <Group gap="sm">
-          {screen === "app" && userId.trim() ? (
-            <Text c="dimmed" size="sm">
-              {userId.trim()}
-            </Text>
-          ) : null}
-          {screen === "app" ? (
-            <Button variant="default" onClick={signOut}>
-              Sign out
-            </Button>
-          ) : null}
+    <AppShell
+      header={{ height: 60 }}
+      padding="lg"
+      // `sm`, so the rail is pinned from tablet width up and becomes a drawer
+      // below it. `collapsed.desktop` is false while signed in and true on the
+      // sign-in form: the sign-in form has nothing to navigate between, so a
+      // rail of two links would be a layout for its own sake there.
+      //
+      // A number, as the AppShell docs' own example uses. Not a `theme.spacing`
+      // key: that scale runs xs 10, sm 12, md 16, lg 20, xl 32, so `width: "md"`
+      // would give a 16px rail and hide both buttons. Verified against
+      // `default-theme.mjs` rather than assumed.
+      //
+      // 200 rather than the 320 the cascade needed. Two full-width buttons and
+      // their padding fit with room to spare, and the width this rail gives up
+      // goes to a table of student names.
+      navbar={{
+        width: 200,
+        breakpoint: "sm",
+        collapsed: { mobile: !navOpen, desktop: screen !== "app" },
+      }}
+    >
+      <AppShell.Header>
+        <Group h="100%" px="md" justify="space-between" align="center">
+          <Group gap="sm">
+            {/* Mobile only. On desktop the rail is pinned, so a button to open it
+                would be a control for something already on screen. */}
+            {screen === "app" ? (
+              <Burger
+                opened={navOpen}
+                onClick={() => nav.toggle()}
+                hiddenFrom="sm"
+                size="sm"
+                aria-label="Show the navigation"
+              />
+            ) : null}
+            <Title order={3}>Vignan Faculty Tools</Title>
+          </Group>
+          <Group gap="sm">
+            {screen === "app" && userId.trim() ? (
+              <Text c="dimmed" size="sm">
+                {userId.trim()}
+              </Text>
+            ) : null}
+            {screen === "app" ? (
+              <Button variant="default" onClick={signOut}>
+                Sign out
+              </Button>
+            ) : null}
+          </Group>
         </Group>
-      </Group>
+      </AppShell.Header>
 
-      {body}
-    </Container>
+      {/*
+        Always rendered, never conditionally. The rail is hidden by `collapsed`
+        above rather than by not existing, so `AppShell.Main`'s offset is computed
+        the same way on both screens and signing in does not shift the content
+        sideways. That transition is the one the guard performs most often, and a
+        layout jump on it would be the most visible possible symptom of the
+        sign-in working.
+      */}
+      <AppShell.Navbar p="md">
+        {/*
+          Two links and nothing else. The rail navigates; the screens it names
+          live in the main area.
+
+          It held the cascade until this changed, which is worth recording as the
+          reason it no longer does. Five dependent dropdowns in a 320px column
+          forced one-per-row and truncated "Information Technology" to "Infc", so
+          the control that tells you which class you picked was the one control
+          you could not read. Full width in the main area is what fixes it, and
+          the rail is what it leaves behind.
+
+          **These are buttons, but the screen they name is still a path.**
+          `/profile` is a screen, so it gets a URL: a refresh, a bookmark and the
+          back button all agree with what is on screen, which is the property
+          ADR 0009 bought and the reason this is a route rather than the tab it
+          used to be.
+
+          **These are `Button`s, and the screen they name is still a path.**
+          `/profile` is a screen, so it gets a URL: a refresh, a bookmark and the
+          back button all agree with what is on screen, which is the property
+          ADR 0009 bought and the reason this is a route rather than the tab it
+          used to be.
+
+          A button is the right control for "go to a screen in this app": it
+          takes focus in tab order and both Enter and Space activate it, which
+          an anchor does not. `onClick` calls `navigate` without `replace`, so
+          Back walks between the two screens exactly as it did when these were
+          links.
+
+          The cost is real and worth naming: there is no `href`, so the browser's
+          own link affordances are gone - no middle-click, no "open in new tab",
+          no copying the address from the control. `/profile` is still
+          bookmarkable, because the screen is still a path; it just cannot be
+          shared by right-clicking the button. That is the trade, taken at the
+          user's request.
+
+          **The current screen is the `filled` one, and that is the whole active
+          state.** `Button` has no `active` prop, so this is expressed as a
+          variant chosen from `pathname` on every render - which means it cannot
+          drift from the URL, and the test asserts the variant rather than a
+          colour. `aria-current` says the same thing to a screen reader, which
+          the visual difference alone would not.
+
+          `fullWidth` and `justify="flex-start"`, and nothing else. No `style`,
+          no `className`, no custom variant, no second `createTheme` key - the
+          rail looks the way it looks because it is two stock Mantine buttons
+          with stock props. `justify` is Mantine's own, documented on `Button`
+          and defaulting to `center`; a rail of centred labels reads as two
+          unrelated buttons rather than a list, and the icon and the label should
+          start on the same line every time.
+
+          The icons are Phosphor, which is the library Mantine's own docs use
+          throughout, and they come in through `leftSection` - the slot Mantine
+          provides for exactly this. Nothing is positioned by hand.
+
+          Each icon is named for what the screen *is*, not for what it looks
+          like. `SquaresFour` is the dashboard because that is the register's
+          shape and the shape of the app's home; `UserCircle` is the profile
+          because it is a person and there is nothing else it could be. Neither
+          is a house or a gear, which is what a nav rail usually reaches for and
+          what tells you nothing about where you are going.
+
+          `size={18}` rather than a token, because icon components take pixels and
+          this is Mantine's own documented size for a button's left section.
+
+          Both are `aria-hidden`. The button already has its name in text, and an
+          unlabelled inline SVG left exposed is one more thing for a screen reader
+          to announce or trip over. The icon is there for someone who sees it.
+        */}
+        <Button
+          onClick={() => navigate(DASHBOARD_PATH)}
+          variant={!onLogin && !onProfile ? "filled" : "subtle"}
+          aria-current={!onLogin && !onProfile ? "page" : undefined}
+          leftSection={<SquaresFour size={18} aria-hidden />}
+          fullWidth
+          justify="flex-start"
+        >
+          Dashboard
+        </Button>
+        <Button
+          onClick={() => navigate(PROFILE_PATH)}
+          variant={onProfile ? "filled" : "subtle"}
+          aria-current={onProfile ? "page" : undefined}
+          leftSection={<UserCircle size={18} aria-hidden />}
+          fullWidth
+          justify="flex-start"
+        >
+          Profile
+        </Button>
+      </AppShell.Navbar>
+
+      <AppShell.Main>
+        {/*
+          The main area is allowed past `Container`'s usual width: the register is
+          a table of names, and the previous `size="lg"` was clipping the widest
+          ones. `Container` is kept for the sign-in form, which should stay
+          centred and narrow.
+        */}
+        {screen === "app" ? (
+          body
+        ) : (
+          <Container size="sm" py="xl">
+            {body}
+          </Container>
+        )}
+      </AppShell.Main>
+    </AppShell>
   );
 };
 

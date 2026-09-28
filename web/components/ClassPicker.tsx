@@ -71,7 +71,25 @@ export const ClassPicker = ({
   <Paper withBorder p="lg" mb="md">
     <Stack>
       <Title order={4}>Class</Title>
-      <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }}>
+      {/*
+        Two across, and one on a phone.
+
+        The cascade spent its life in a 320px rail at `cols={1}`, because that is
+        all five labels fit into. The main area is roughly three times as wide,
+        and one-per-row there is a column of seven controls pushed above a table
+        nobody has scrolled to yet - so the width is used, at two.
+
+        Not three, and the reason is the labels rather than taste. "B.Tec" and
+        "Information Technology" truncated to "B.Te" and "Infc" at three across,
+        and a register is picked by reading the level names: a level name that
+        does not fit is a level nobody can pick. Two leaves each label roughly
+        half the main area, which is far more than the longest one needs.
+
+        `base: 1` is the phone case and is not optional. At two across on a
+        narrow screen the same truncation comes straight back, and the rail is
+        not what would have saved it this time.
+      */}
+      <SimpleGrid cols={{ base: 1, sm: 2 }}>
         {levels.map(([key, label]) => (
           <Select
             key={key}

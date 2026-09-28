@@ -173,11 +173,11 @@ web/index.html        Vite entry point
 web/main.tsx          React root + MantineProvider
 web/App.tsx           state, the routes, and the refresh loop
 web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
-web/components/       four presentational modules; none of them holds state
+web/components/       five presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build config
 playwright.config.ts  test runner config
-test/*.spec.ts        107 fast tests, no credentials; plus three live smoke tests
+test/*.spec.ts        128 fast tests, no credentials; plus eleven live smoke tests
 tsconfig*.json        three projects, split so web/ has DOM and server.ts does not
 dist/                 build output, served by server.ts
 ```
@@ -206,9 +206,13 @@ anything with a decision in it lives in a file that can be imported without one.
   the client in the summary, so the stat cards and the row flags cannot disagree.
   A percentage the portal would not give is in no band at all and is left out of
   the class average — a parsing failure is not evidence of bad attendance.
-- 107 fast tests with no credentials, and three end-to-end smoke tests against the
-  live portal. Every fast test was proven to fail by breaking the rule it
+- 128 fast tests with no credentials, and eleven end-to-end smoke tests against
+  the live portal. Every fast test was proven to fail by breaking the rule it
   describes.
+- **The selection is not in the URL.** The address bar names the screen and
+  nothing else. A register cannot be sent as a link, and a refresh re-picks the
+  cascade from the top. `Load register` is the only thing that fetches one. See
+  ADR 0015 for what this replaced and what it cost.
 - If the portal changes its markup, the `Portal` methods in `server.ts` will need
   revisiting: the endpoint paths and the parameter names. Watch the labels
   especially — when the text `ShowAcademicCalendar` expects stops matching, the

@@ -403,48 +403,168 @@ test.describe("Vignan Faculty Tools", () => {
       `browser reported problems: ${problems.join("; ")}`
     ).toEqual([]);
 
-    /* ---- the URL is the snapshot, and it survives a reload ---- */
-    // The five levels and the date range live in the query string, so a link can
-    // be sent to a colleague and a refresh does not throw the selection away.
-    // The subject is the hard one: the cascade never auto-fills it, so replaying
-    // it is a separate step, and this assertion is really about that.
+    /* ---- the URL names the screen and carries nothing else ---- */
+    // The selection is not in the URL any more - that was ADR 0010 and 0011, both
+    // removed by request. What is left is that the path names the screen, and
+    // that the app does not leak the selection into the address bar as a side
+    // effect of loading a register. Asserted as an absence deliberately: nothing
+    // writes the query string, so anything in it would be a regression.
     const url = new URL(page.url());
     expect(url.pathname, "the dashboard is the route").toBe("/dashboard");
-    // The URL carries each level's identifier, never its label. The identifier is
-    // not asserted here because nothing on screen shows it - the proof is below,
-    // where the label comes back, which can only happen if the identifier still
-    // matches an option the server is offering.
-    for (const key of ["course", "semester", "branch", "section", "subject"]) {
-      expect(
-        url.searchParams.get(key),
-        `${key} should be in the URL`
-      ).toBeTruthy();
-    }
-    expect(url.searchParams.get("subject")).not.toBe(subject);
-    expect(url.searchParams.get("from")).toBe("2026-06-01");
+    expect(
+      [...url.searchParams.keys()],
+      "nothing should be written to the query string"
+    ).toEqual([]);
 
+    // A reload starts over, because that is what removing the feature means. The
+    // subject is gone rather than restored, and the cascade refills from the
+    // top - this is the cost of not having a shareable link, pinned so it cannot
+    // be reintroduced by accident.
     await page.reload({ waitUntil: "networkidle" });
     await expect(
       page.locator("input.mantine-Select-input").first()
     ).toBeVisible({
       timeout: 30_000,
     });
-    // The subject has to come back on its own, or the link is no use to whoever
-    // it was sent to. A label appearing again means the identifier in the URL
-    // matched a real option - so this also catches a URL carrying the label.
     await expect
-      .poll(
-        async () => {
-          const state = await selectState(page, "Subject");
-          return state?.value;
-        },
-        { timeout: 90_000 }
-      )
-      .toBe(subject);
+      .poll(() => selectState(page, "Subject"), { timeout: 90_000 })
+      .toMatchObject({ value: "" });
     expect(
       new URL(page.url()).pathname,
       "reload should stay on the dashboard"
     ).toBe("/dashboard");
+  });
+
+  test("the rail has a Dashboard button and a Profile button", async ({
+    page,
+  }) => {
+    // Buttons, because these move between screens inside the app rather than
+    // pointing at documents. The screen is still a *path*, and the two facts are
+    // asserted separately below: a button is what you click, the URL is what
+    // survives a reload. A tab was neither, and lost the second.
+    await page.goto("/dashboard");
+    await submitSignIn(page);
+
+    const dashboard = page.getByRole("button", { name: "Dashboard" });
+    const profile = page.getByRole("button", { name: "Profile" });
+    await expect(dashboard).toBeVisible();
+    await expect(profile).toBeVisible();
+    // The cascade starts on the dashboard, so a user signing in lands where the
+    // work is rather than on a profile they did not ask for.
+    await expect(page.getByRole("combobox", { name: "Course" })).toBeVisible();
+    // Each button carries one icon, and the icon is hidden from assistive tech.
+    // Two separate failures, so two assertions: dropping the icon loses the
+    // visual cue, and dropping `aria-hidden` leaves a screen reader announcing a
+    // graphic next to a label that already says the same thing. The name
+    // assertion above cannot see either - an SVG with no title contributes
+    // nothing to the accessible name whether it is hidden or not.
+    for (const button of [dashboard, profile]) {
+      const icon = button.locator("svg");
+      await expect(icon).toHaveCount(1);
+      await expect(icon).toHaveAttribute("aria-hidden", "true");
+    }
+    // Exactly one is marked current, and it is the one whose screen is showing.
+    // `aria-current` is the accessible half of the active state and
+    // `data-variant` is the visible half - `Button` has no `active` prop, so the
+    // two are set from `pathname` and could in principle disagree. Asserting
+    // both means this fails if the highlight is dropped *or* if it stops
+    // matching the screen, which is the bug a hand-rolled variant invites.
+    await expect(dashboard).toHaveAttribute("aria-current", "page");
+    await expect(profile).not.toHaveAttribute("aria-current", "page");
+    await expect(dashboard).toHaveAttribute("data-variant", "filled");
+    await expect(profile).toHaveAttribute("data-variant", "subtle");
+
+    await profile.click();
+    await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
+    // The rail holds navigation and nothing else, so the cascade is not on
+    // screen here at all - not beside the profile, not under it.
+    await expect(page.getByRole("combobox", { name: "Course" })).toHaveCount(0);
+    // And the URL named it, which is the property a tab could not offer.
+    expect(new URL(page.url()).pathname).toBe("/profile");
+    // The highlight followed the screen rather than sticking to the control that
+    // was last pressed. Both are "the profile button" from the DOM's point of
+    // view, so only these attributes tell them apart.
+    await expect(profile).toHaveAttribute("aria-current", "page");
+    await expect(dashboard).not.toHaveAttribute("aria-current", "page");
+    await expect(profile).toHaveAttribute("data-variant", "filled");
+    await expect(dashboard).toHaveAttribute("data-variant", "subtle");
+
+    await dashboard.click();
+    await expect(page.getByRole("combobox", { name: "Course" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Profile" })).toHaveCount(0);
+    expect(new URL(page.url()).pathname).toBe("/dashboard");
+    // The selection survived the round trip, because the cascade was never
+    // unmounted - it sits above the branch that swaps the screens.
+    await expect(dashboard).toHaveAttribute("aria-current", "page");
+    await expect(dashboard).toHaveAttribute("data-variant", "filled");
+
+    // A reload stays on the profile. This is the assertion a tab could not make:
+    // a tab lives in component state, which a reload throws away.
+    await profile.click();
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(new URL(page.url()).pathname, "the profile survives a reload").toBe(
+      "/profile"
+    );
+    await expect(profile).toHaveAttribute("aria-current", "page");
+  });
+
+  test("a deep link to the profile is reachable, and reaches the dashboard", async ({
+    page,
+  }) => {
+    // Two guards meet at `/profile`, and either one written wrongly puts the app
+    // in a loop or on the wrong screen.
+    //
+    // Cold, signed out: the boot check must send it to `/login` rather than
+    // flash a profile panel for a session that does not exist. Asserted first,
+    // because `submitSignIn` asserts it for every other path and this is the one
+    // path that is new.
+    await page.goto("/profile");
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
+    expect(
+      new URL(page.url()).pathname,
+      "signed out, so the profile is not reachable"
+    ).toBe("/login");
+
+    // Cold, signed in: the boot check must NOT redirect `/profile` to
+    // `/dashboard`. That redirect is what the old `!onLogin` condition did, and
+    // a guard that sends every app path to the dashboard would make the profile
+    // un-bookmarkable - the exact reason it is a path.
+    await submitSignIn(page);
+    await page.goto("/profile", { waitUntil: "domcontentloaded" });
+    await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible({
+      timeout: 30_000,
+    });
+    expect(
+      new URL(page.url()).pathname,
+      "the boot guard must leave /profile alone"
+    ).toBe("/profile");
+  });
+
+  test("the profile says what is stored, and does not invent a name", async ({
+    page,
+  }) => {
+    // ECAP hands us no profile at all: `signIn` checks only that an `frmAuth`
+    // cookie appeared. So the panel must show the account id the user typed and
+    // the facts this app is authoritative about, and nothing more. Asserted
+    // because a plausible-looking invented name is the failure mode here, and it
+    // would be the kind that makes every other claim on the screen suspect.
+    await page.goto("/dashboard");
+    await submitSignIn(page);
+    await page.getByRole("button", { name: "Profile" }).click();
+
+    // Scoped to the profile panel: the user name is also in the header, and
+    // asserting on the page would pass on either. Which is the point - the panel
+    // has to be the one showing it.
+    const panel = page.getByRole("heading", { name: "Profile" }).locator("..");
+    await expect(panel.getByText(USER, { exact: true })).toBeVisible();
+    // The two claims this app can actually back.
+    await expect(page.getByText(/credential vault/i)).toBeVisible();
+    await expect(page.getByText(/never written to disk/i)).toBeVisible();
+    // And the portal's own limit, which is the thing that actually surprises people.
+    await expect(page.getByText(/twenty minutes/i)).toBeVisible();
   });
 
   test("the header carries the app name and nothing else", async ({ page }) => {
@@ -452,9 +572,17 @@ test.describe("Vignan Faculty Tools", () => {
     // heading and the browser tab. They are stated separately, so nothing enforces
     // they agree - the same shape as the route list that caused the redirect loop.
     // Cheap to pin, so pin it.
+    //
+    // `level: 3` because that is what the header renders, at the user's request -
+    // as an h1 it was by far the loudest thing on a page whose job is a table of
+    // student names. The consequence is stated here because it is not visible from
+    // the assertion: **the page has no h1 at all.** `Title` takes `order` and
+    // `size` separately, so `order={1} size="h3"` would look identical and keep
+    // the h1. If this is ever read as an oversight rather than a decision, that
+    // prop is the fix.
     await page.goto("/dashboard");
     await expect(
-      page.getByRole("heading", { level: 1, name: "Vignan Faculty Tools" })
+      page.getByRole("heading", { level: 3, name: "Vignan Faculty Tools" })
     ).toBeVisible();
     await expect(page).toHaveTitle("Vignan Faculty Tools");
     // And the subtitle is gone, so the name is not competing with the college
@@ -493,7 +621,7 @@ test.describe("Vignan Faculty Tools", () => {
       "signed in, so the loop below can actually happen"
     ).toBe("/dashboard");
 
-    for (const path of ["/", "/dashboard", "/nonsense"]) {
+    for (const path of ["/", "/dashboard", "/nonsense", "/profile"]) {
       let calls = 0;
       const countApi = (req: { url: () => string }) => {
         if (new URL(req.url()).pathname.startsWith("/api/")) calls += 1;
@@ -502,11 +630,19 @@ test.describe("Vignan Faculty Tools", () => {
       // The cascade must reach Subject on its own — that is the loop's whole
       // effect — and with no interaction from us, so the counting below measures
       // the app's traffic rather than a test driving it.
-      await expect(page.getByRole("combobox", { name: "Subject" })).toBeEnabled(
-        {
-          timeout: 90_000,
-        }
-      );
+      //
+      // `/profile` settles on the profile panel instead: the cascade still runs
+      // there (the selection belongs to the session, not the screen) but it is
+      // not rendered, so there is no combobox to wait on. It is in the list
+      // because it is a path the boot guard has to leave alone, and a guard that
+      // redirected it would show up here as traffic that never stops.
+      await (path === "/profile"
+        ? expect(page.getByRole("heading", { name: "Profile" })).toBeVisible({
+            timeout: 90_000,
+          })
+        : expect(page.getByRole("combobox", { name: "Subject" })).toBeEnabled({
+            timeout: 90_000,
+          }));
       // Now count, from a page that has settled. Attaching the listener earlier
       // would have included the cascade's own passes, which are *supposed* to
       // happen, and the comparison below could never distinguish them from a loop.
@@ -527,18 +663,18 @@ test.describe("Vignan Faculty Tools", () => {
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
   });
 
-  test("a link opens the register, and arriving by hand does not", async ({
+  test("the click is the only way a register is ever fetched", async ({
     page,
   }) => {
-    // The rule: a *link* is followed, a click is not doubled. Someone who
-    // arrives with a subject in the URL came from a link or a refresh, and wants
-    // the register rather than an empty table to click. Someone who picks a
-    // subject from a dropdown is making a choice now, and `Load register` is the
-    // click they make it with.
+    // This used to be two tests' worth of rule: a *link* opens the register, a
+    // click is not doubled. Both halves belonged to ADR 0011, which is gone with
+    // the query string. What survives is simpler and worth more: there is now
+    // exactly one path to a register, and it is the button.
     //
-    // Asserted by counting the requests, not by looking at the screen: the thing
-    // under test is whether a portal round trip happens, and a table that happens
-    // to be on screen does not distinguish one request from two.
+    // Counted on the wire rather than by looking at the screen: the thing under
+    // test is whether a portal round trip happens, and a table that happens to be
+    // on screen cannot tell one request from two. A screen-based version of this
+    // would pass with a duplicate fetch still in place.
     const registerCalls: unknown[] = [];
     page.on("request", (r) => {
       if (r.url().includes("/api/register") && r.method() === "POST") {
@@ -549,43 +685,25 @@ test.describe("Vignan Faculty Tools", () => {
     await page.goto("/dashboard");
     await submitSignIn(page);
 
-    // Arrived with no subject in the URL, so nothing should have been loaded.
-    expect(registerCalls, "arriving by hand must not auto-load").toHaveLength(
+    // 1. Signing in and watching the cascade fill itself spends no register
+    // fetch. Four passes of /api/options happen on the way; a register is not
+    // one of them, because nothing has been asked for.
+    expect(registerCalls, "the cascade must not fetch a register").toHaveLength(
       0
     );
     await expect(page.locator("tbody tr")).toHaveCount(0);
 
-    // Assemble a link by hand, the way a user would.
+    // 2. The click fetches it, exactly once, and shows what it asked for.
     const subjectText = await loadFirstSubject(page);
-    expect(registerCalls).toHaveLength(1);
-    const link = page.url();
-
-    // 1. Following the link opens the register with no click at all.
-    registerCalls.length = 0;
-    await page.goto(link, { waitUntil: "networkidle" });
-    await expect(page.locator("tbody tr").first()).toBeVisible({
-      timeout: 90_000,
-    });
-    expect(registerCalls, "a link should open the register once").toHaveLength(
-      1
-    );
+    expect(registerCalls, "one click, one request").toHaveLength(1);
     await expect(
       page.locator("p").filter({ hasText: /^Course:/ })
     ).toContainText(`Subject: ${subjectText}`);
 
-    // 2. Reloading the same link must not send a second request. This is the
-    // one that catches a ref being cleared after the call rather than before it.
-    registerCalls.length = 0;
-    await page.reload({ waitUntil: "networkidle" });
-    await expect(page.locator("tbody tr").first()).toBeVisible({
-      timeout: 90_000,
-    });
-    await page.waitForTimeout(1500);
-    expect(registerCalls, "a reload should not double-load").toHaveLength(1);
-
     // 3. Changing a level is the user changing their mind, so nothing is loaded
     // for them. The old register stays on screen; the name line above it is what
-    // says it is stale.
+    // says it is stale. This is the assertion that would fail if auto-loading
+    // were ever reintroduced on the cascade's tail.
     registerCalls.length = 0;
     const branch = page.getByRole("combobox", { name: "Branch" });
     const before = await branch.inputValue();
