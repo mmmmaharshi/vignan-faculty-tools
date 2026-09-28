@@ -13,6 +13,7 @@
     "lint:fix": "ultracite fix"
   },
   "dependencies": {
+    "@fontsource-variable/scoutie-sans": "^5.3.1",
     "@mantine/core": "^9.6.3",
     "@mantine/hooks": "^9.6.3",
     "react": "^19.3.0",

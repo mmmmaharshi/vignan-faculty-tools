@@ -74,8 +74,13 @@ read through Mantine's own `bg` and `c` props. If you find yourself wanting a
 custom rule, the answer is usually a component prop that already exists — check
 `Table.Tr bg`, `Table striped`, `Badge color` before reaching for CSS.
 
-The default Mantine theme is used untouched. `createTheme` is deliberately not
-imported.
+The Mantine theme is stock, with **one** exception: `fontFamily` is set in
+`web/main.tsx` to Scoutie Sans, from `@fontsource-variable/scoutie-sans`. That is
+the only `createTheme` call in the project. If you find yourself wanting a second
+theme key, stop — the answer is a component prop, the same as above.
+
+`main.tsx` is the single place theme decisions live. Keep it that way, so
+"what does this app's Mantine config look like" has a one-line answer.
 
 ## Things that will bite you
 

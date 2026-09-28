@@ -5,6 +5,7 @@
     "": {
       "name": "ecap-attendance-app",
       "dependencies": {
+        "@fontsource-variable/scoutie-sans": "^5.3.1",
         "@mantine/core": "^9.6.3",
         "@mantine/hooks": "^9.6.3",
         "react": "^19.3.0",
@@ -19,7 +20,7 @@
         "oxfmt": "^0.70.0",
         "oxlint": "^1.85.0",
         "typescript": "^7.0.2",
-        "ultracite": "7.12.1",
+        "ultracite": "^7.12.1",
         "vite": "^8.3.1",
       },
     },
@@ -46,6 +47,8 @@
     "@floating-ui/react-dom": ["@floating-ui/react-dom@2.1.9", "", { "dependencies": { "@floating-ui/dom": "^1.8.0" }, "peerDependencies": { "react": ">=16.8.0", "react-dom": ">=16.8.0" } }, "sha512-JDjEFGCpImxDCA7JJKviA0M9+RtmJdj0m/NVU5IMgBK+AmZouAQQ7/+2GLH0GXXY0YMw9oXPB8hKdbPYg5QLYg=="],
 
     "@floating-ui/utils": ["@floating-ui/utils@0.2.12", "", {}, "sha512-HpCo8tmWzLVad5s2d19EhAz5zqrrQ6s69qd6moPMQvkOuSwDT1YgRfWSVuc4ennqrgv3OHppiOGMQ7oC13yIww=="],
+
+    "@fontsource-variable/scoutie-sans": ["@fontsource-variable/scoutie-sans@5.3.1", "", {}, "sha512-plZCeph/WMpxFa2XKROmZdouGYvb+hAOGfRhKY1kgMw5JSbYComiHHjidmvs6j+36fc5pJRSso+yCTirLhxq7g=="],
 
     "@mantine/core": ["@mantine/core@9.6.3", "", { "dependencies": { "@floating-ui/react": "^0.27.20", "clsx": "^2.1.1", "react-number-format": "^5.4.5", "react-remove-scroll": "^2.7.2", "type-fest": "^5.8.0" }, "peerDependencies": { "@mantine/hooks": "9.6.3", "react": "^19.2.0", "react-dom": "^19.2.0" } }, "sha512-o9xzpkma6RiLbENNU4VoxKnCU4VaFlB6Yh6wAjAUiU329ypPV6tBY7VkVeQQ5Z+e12D3I+NTPrUw43onlYCqTg=="],
 
