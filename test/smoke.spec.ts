@@ -45,10 +45,7 @@ const PASS = process.env.ECAP_PASS ?? "";
 type SelectState = { index: number; value: string; disabled: boolean };
 
 /** The Select whose label reads exactly `label`, or null if there is none. */
-async function selectState(
-  page: Page,
-  label: string
-): Promise<SelectState | null> {
+function selectState(page: Page, label: string): Promise<SelectState | null> {
   return page.evaluate((text) => {
     const inputs = [
       ...document.querySelectorAll<HTMLInputElement>(
@@ -162,11 +159,15 @@ test.describe("ECAP attendance dashboard", () => {
 
     /* ---- pick a subject, which is always the user's to choose ---- */
     const subjectOptions = await openSelect(page, "Subject");
-    const subject = (await subjectOptions.first().innerText()).trim();
+    const subjectText = await subjectOptions.first().innerText();
+    const subject = subjectText.trim();
     expect(subject).not.toBe("");
     await page.getByRole("option", { name: subject, exact: true }).click();
     await expect
-      .poll(async () => (await selectState(page, "Subject"))?.value)
+      .poll(async () => {
+        const state = await selectState(page, "Subject");
+        return state?.value;
+      })
       .toBe(subject);
 
     /* ---- load the register ---- */
@@ -185,7 +186,12 @@ test.describe("ECAP attendance dashboard", () => {
           c.innerText.replaceAll(/\s+/g, " ").trim()
         );
         const pctText = cells.at(-1) ?? "";
-        const num = Number.parseFloat(pctText);
+        // The cell renders as "84.44% critical" for a flagged student - the
+        // percentage and the badge share it. parseFloat used to stop at the "%"
+        // and read 84.44 out of that by accident; Number does not, so the number
+        // is pulled out on purpose. The 63-row register has 15 flagged students,
+        // and those were exactly the rows this silently lost.
+        const num = Number(pctText.match(/[\d.]+/)?.[0] ?? "");
         return {
           roll: cells[1] ?? "",
           name: cells[2] ?? "",
@@ -212,10 +218,16 @@ test.describe("ECAP attendance dashboard", () => {
       // sound. It is written as an assertion rather than a guard on purpose: a
       // guard that skipped a row would let the suite pass without ever checking
       // it, which is the one failure mode a test must not have.
+      // The loop bound puts both indices in range, so the assertion below is
+      // sound. It is written as an assertion rather than a guard on purpose: a
+      // guard that skipped a row would let the suite pass without ever checking
+      // it, which is the one failure mode a test must not have.
+      /* oxlint-disable typescript/no-non-null-assertion -- loop bound */
       expect(
         pcts[i],
         `row ${i} (${pcts[i]}%) should not be worse than the row above it`
       ).toBeGreaterThanOrEqual(pcts[i - 1]!);
+      /* oxlint-enable typescript/no-non-null-assertion */
     }
     expect(pcts[0], "the worst student should be listed first").toBe(
       Math.min(...pcts)
@@ -250,11 +262,10 @@ test.describe("ECAP attendance dashboard", () => {
           .replaceAll(/\s+/g, " ")
           .trim()
           .toUpperCase();
-        if (!/^(STUDENTS|CLASS AVERAGE|BELOW \d+%)$/.test(caption)) continue;
-        const n = Number.parseInt(
-          p.previousElementSibling?.textContent?.trim() ?? "",
-          10
-        );
+        if (!/^(?<card>STUDENTS|CLASS AVERAGE|BELOW \d+%)$/.test(caption)) {
+          continue;
+        }
+        const n = Number(p.previousElementSibling?.textContent?.trim() ?? "");
         if (!Number.isNaN(n)) out[caption] = n;
       }
       return out;

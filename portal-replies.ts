@@ -80,7 +80,7 @@ export function unquoteJs(text: string): string {
   ) {
     return t
       .slice(1, -1)
-      .replaceAll(/\\(['"\\])/g, "$1")
+      .replaceAll(/\\(?<escaped>['"\\])/g, "$<escaped>")
       .replaceAll("\\r", "\r")
       .replaceAll("\\n", "\n");
   }
@@ -96,14 +96,14 @@ export function unquoteJs(text: string): string {
 export function options(html: unknown): Option[] {
   const out: Option[] = [];
   for (const m of String(html ?? "").matchAll(
-    /<option\b([^>]*)>([\s\S]*?)<\/option>/gi
+    /<option\b(?<attrs>[^>]*)>(?<text>[\s\S]*?)<\/option>/gi
   )) {
-    const attrs = m[1] ?? "";
+    const attrs = m.groups?.attrs ?? "";
     const pick = (n: string): string =>
-      attrs.match(new RegExp(`${n}\\s*=\\s*'([^']*)'`, "i"))?.[1] ??
-      attrs.match(new RegExp(`${n}\\s*=\\s*"([^"]*)"`, "i"))?.[1] ??
+      attrs.match(new RegExp(`${n}\\s*=\\s*'(?<v>[^']*)'`, "i"))?.groups?.v ??
+      attrs.match(new RegExp(`${n}\\s*=\\s*"(?<v>[^"]*)"`, "i"))?.groups?.v ??
       "";
-    const label = (m[2] ?? "")
+    const label = (m.groups?.text ?? "")
       .replaceAll(/<[^>]*>/g, "")
       .replaceAll("&nbsp;", " ")
       .replaceAll(/\s+/g, " ")
@@ -186,15 +186,18 @@ export function parseRegister(html: string): RegisterRow[] {
 
   const rows: RegisterRow[] = [];
   for (const tr of (table.match(/<tr[\s\S]*?<\/tr>/gi) ?? []).slice(1)) {
-    const cells = [...tr.matchAll(/<t[dh]\b[^>]*>([\s\S]*?)<\/t[dh]>/gi)].map(
-      (m) => cellText(m[1] ?? "")
-    );
+    const cells = [
+      ...tr.matchAll(/<t[dh]\b[^>]*>(?<cell>[\s\S]*?)<\/t[dh]>/gi),
+    ].map((m) => cellText(m.groups?.cell ?? ""));
     if (cells.length < 4) continue;
     const roll = cells[1] ?? "";
     if (!roll) continue;
     const attendedOfHeld = cells.at(-2) ?? "";
     const pct = cells.at(-1) ?? "";
-    const num = Number.parseFloat(String(pct).replace("%", ""));
+    // Number rather than parseFloat, deliberately. parseFloat("12abc") is 12;
+    // Number("12abc") is NaN, and a cell reading "12abc" is not a percentage, so
+    // it belongs in the null branch below rather than being reported as 12%.
+    const num = Number(String(pct).replace("%", ""));
     rows.push({
       sl: cells[0] ?? "",
       roll,
@@ -210,7 +213,7 @@ export function parseRegister(html: string): RegisterRow[] {
 export function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(/<input[^>]*>/gi) ?? []) {
     if (new RegExp(`name="${name}"`, "i").test(tag)) {
-      return tag.match(/value="([^"]*)"/i)?.[1] ?? "";
+      return tag.match(/value="(?<v>[^"]*)"/i)?.groups?.v ?? "";
     }
   }
   return "";

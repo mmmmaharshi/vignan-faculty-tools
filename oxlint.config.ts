@@ -92,6 +92,11 @@ const OFF = {
   // the rewrite does not compile - caught by tsc, not by oxlint. It is also a
   // different question: innerText is the rendered text, textContent is the raw.
   "unicorn/prefer-dom-node-text-content": "",
+
+  // Wants `app.tsx`. React's own convention is PascalCase for a component file,
+  // and the import in main.tsx is written to match. Renaming to satisfy a
+  // filename rule would be the tail wagging the dog.
+  "unicorn/filename-case": "",
 };
 
 const rules: Record<string, unknown> = { ...core.rules, ...react.rules };

@@ -53,6 +53,7 @@ import type {
   RegisterReply,
   RegisterRequest,
   SessionReply,
+  Student,
 } from "../shared/api";
 
 // The irregular/critical thresholds belong to the server, which is what applies
@@ -171,7 +172,7 @@ function applyOptions(sel: Sel, opts: OptionsReply): Sel {
       next.subject = "";
       continue;
     }
-    const first = opts[key][0];
+    const [first] = opts[key];
     if (!first) {
       next[key] = "";
       continue;
@@ -185,6 +186,33 @@ function applyOptions(sel: Sel, opts: OptionsReply): Sel {
 
 function toSelectData(list: Option[]): { value: string; label: string }[] {
   return list.map((o) => ({ value: String(o.value), label: o.label }));
+}
+
+/**
+ * One CSV field, quoted.
+ *
+ * Every cell reaching this is a string: the portal's combined attended/held is
+ * one, and the percentage is formatted or blanked before it gets here. Typing it
+ * `string` rather than `unknown` is the check - `unknown` would have let anything
+ * through and turned `String()` into the thing doing the work.
+ */
+const csvCell = (v: string): string => `"${v.replaceAll('"', '""')}"`;
+
+/**
+ * The row tint, reading Mantine's own colour tokens.
+ *
+ * `Table.Tr`'s `bg` prop is the whole mechanism - there is no custom CSS
+ * anywhere in this file, so this returns a token or nothing.
+ */
+function tintFor(s: Student): string | undefined {
+  if (s.critical) return "var(--mantine-color-red-light)";
+  return s.irregular ? "var(--mantine-color-yellow-light)" : undefined;
+}
+
+/** The status word for a student, worst first. */
+function statusOf(s: Student): "Critical" | "Irregular" | "Regular" {
+  if (s.critical) return "Critical";
+  return s.irregular ? "Irregular" : "Regular";
 }
 
 /**
@@ -221,7 +249,7 @@ function isReady(sel: Sel, key: Level): boolean {
 
 /* ------------------------------------------------------------------ app */
 
-export default function App() {
+const App = (): React.JSX.Element => {
   const [phase, setPhase] = useState<Phase>("boot"); // boot | login | app
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
@@ -242,6 +270,12 @@ export default function App() {
 
   // The cascade is driven imperatively, not from an effect watching `sel`.
   // A state-driven effect would re-enter itself every time it committed a pass.
+  //
+  // These two write a ref during render, which react(refs) flags. That is the
+  // point: runRefresh is memoised with [] and needs the *current* selection and
+  // option lists, and a ref written during render is how it gets them. Reading
+  // them from state instead is the stale-closure bug AGENTS.md describes.
+  /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
   // runRefresh is memoised with an empty dependency list, so it closes over
@@ -251,6 +285,7 @@ export default function App() {
   // every course; see AGENTS.md.
   const optsRef = useRef<OptionsReply>(opts);
   optsRef.current = opts;
+  /* oxlint-enable react/refs */
   const refreshToken = useRef(0);
 
   /* ---- the cascade ---- */
@@ -281,7 +316,7 @@ export default function App() {
     setLoadNote("Loading options...");
 
     try {
-      for (let pass = 0; pass < LEVEL_KEYS.length; pass++) {
+      for (const _pass of LEVEL_KEYS) {
         if (token !== refreshToken.current) return;
 
         // The semester's `title` carries the batch number the portal wants for
@@ -458,10 +493,6 @@ export default function App() {
 
   const saveCsv = () => {
     if (!result) return;
-    // Every cell is a string: the portal's combined attended/held is one, and the
-    // percentage is formatted or blanked before it gets here. `unknown` would have
-    // let anything through and turned String() into the thing doing the checking.
-    const q = (v: string): string => `"${v.replaceAll('"', '""')}"`;
     const head = [
       "Roll No",
       "Student Name",
@@ -469,13 +500,9 @@ export default function App() {
       "Percent",
       "Status",
     ];
-    const lines = [head.map(q).join(",")];
+    const lines = [head.map(csvCell).join(",")];
     for (const s of result.students) {
-      const status = s.critical
-        ? "Critical"
-        : s.irregular
-          ? "Irregular"
-          : "Regular";
+      const status = statusOf(s);
       lines.push(
         [
           s.roll,
@@ -484,7 +511,7 @@ export default function App() {
           s.pct == null ? "" : s.pct.toFixed(2),
           status,
         ]
-          .map(q)
+          .map(csvCell)
           .join(",")
       );
     }
@@ -519,9 +546,9 @@ export default function App() {
 
   const summary = result?.summary;
   const rows = result
-    ? [...result.students]
+    ? result.students
         .filter((s) => !onlyIrregular || s.irregular)
-        .sort((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
+        .toSorted((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
     : [];
 
   const chosenText = LEVELS.map(([key, label]) => {
@@ -608,10 +635,9 @@ export default function App() {
                     label={label}
                     data={toSelectData(opts[key])}
                     value={sel[key] || null}
-                    onChange={(value) => {
-                      const v = value ?? "";
-                      setSel((s) => ({ ...s, [key]: v }));
-                      selRef.current = { ...selRef.current, [key]: v };
+                    onChange={(value = "") => {
+                      setSel((s) => ({ ...s, [key]: value }));
+                      selRef.current = { ...selRef.current, [key]: value };
                       // Subject is filled by the server, not by a change handler.
                       if (key !== "subject") runRefresh(key);
                     }}
@@ -760,18 +786,7 @@ export default function App() {
                         </Table.Thead>
                         <Table.Tbody>
                           {rows.map((s) => (
-                            <Table.Tr
-                              key={s.roll}
-                              // Mantine's own `bg` prop, reading its own colour
-                              // tokens. No custom CSS anywhere in this file.
-                              bg={
-                                s.critical
-                                  ? "var(--mantine-color-red-light)"
-                                  : s.irregular
-                                    ? "var(--mantine-color-yellow-light)"
-                                    : undefined
-                              }
-                            >
+                            <Table.Tr key={s.roll} bg={tintFor(s)}>
                               <Table.Td c="dimmed">{s.sl}</Table.Td>
                               <Table.Td>
                                 <Text ff="monospace" size="sm">
@@ -835,4 +850,6 @@ export default function App() {
       )}
     </Container>
   );
-}
+};
+
+export default App;

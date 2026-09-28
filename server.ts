@@ -61,7 +61,6 @@
  */
 
 import { createCipheriv } from "node:crypto";
-import { readdirSync } from "node:fs";
 
 import {
   expectLevel,
@@ -73,7 +72,6 @@ import {
   realOptions,
   unquoteJs,
 } from "./portal-replies";
-import type { RegisterRow } from "./portal-replies";
 import type {
   ErrorReply,
   LoginRequest,
@@ -90,6 +88,19 @@ import type {
 /** One position in the cascade. Derived from the contract, so the two cannot drift. */
 type Level = keyof OptionsReply;
 
+/**
+ * Whatever a portal method produced.
+ *
+ * `any` is deliberate and load-bearing rather than lazy. `JSON.parse` gives
+ * nothing better, and the payload's shape depends on which method produced it.
+ * All three callers of `#jq` hand it straight to `options()`, which stringifies
+ * whatever arrives, so nothing downstream depends on its type. ADR 0002 records
+ * the validation that has deliberately not been done yet; this alias is the
+ * first thing that changes when it is.
+ */
+// oxlint-disable-next-line typescript/no-explicit-any -- the debt ADR 0002 records
+type PortalPayload = any;
+
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
 const DIST = `${ROOT}/dist`;
@@ -98,6 +109,7 @@ const BASE = "https://webprosindia.com";
 const LOGIN_PAGE = `${BASE}/vignanit/main.aspx`;
 const LOGIN_POST = `${BASE}/vignanit/Default.aspx?ReturnUrl=%2fvignanit%2fmain.aspx`;
 const JQ = `${BASE}/vignanit/jqmethods.aspx`;
+const REGISTER_PAGE_URL = `${BASE}/vignanit/ACADEMICS/AcademicRegister.aspx?scrid=335`;
 const REGISTER_PROXY = `${BASE}/vignanit/ajax/Academics_AcademicRegister,App_Web_academicregister.aspx.a2a1b31c.ashx`;
 
 const UA =
@@ -112,6 +124,44 @@ const SESSION_TTL_MS = 12 * 60 * 60 * 1000;
 const IRREGULAR_BELOW = 75; // attendance % considered irregular
 const CRITICAL_BELOW = 60; // attendance % considered critical
 const HTTP_TIMEOUT_MS = 60_000;
+
+/* ------------------------------------------------------------------ helpers */
+
+/** Reproduce the portal's CryptoJS output: raw AES-128-CBC, base64, no salt. */
+function portalEncrypt(plaintext: string): string {
+  const cipher = createCipheriv(
+    "aes-128-cbc",
+    Buffer.from(AES_KEY, "utf-8"),
+    Buffer.from(AES_KEY, "utf-8")
+  );
+  return Buffer.concat([
+    cipher.update(Buffer.from(plaintext, "utf-8")),
+    cipher.final(),
+  ]).toString("base64");
+}
+
+/** The portal's enc(): escapes only % and =. Values are deliberately not url-encoded. */
+const enc = (v: string | number): string =>
+  String(v).replaceAll("%", "%26").replaceAll("=", "%3D");
+
+/** A thrown value's message, without assuming it was an Error. */
+function messageOf(e: unknown): string {
+  return e instanceof Error ? e.message : String(e);
+}
+
+/**
+ * A parsed JSON value as a record, or an empty one.
+ *
+ * `JSON.parse` hands back `unknown`, and the portal's reply is whatever shape the
+ * method that produced it implies. This narrows to something readable without an
+ * assertion at the call site, and gives the empty object back when the value is
+ * not an object at all - which is a reply with no `error` and no `d`.
+ */
+function asRecord(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
+}
 
 /* ------------------------------------------------------------------ portal session */
 
@@ -225,20 +275,11 @@ class Portal {
     }
   }
 
-  /**
-   * Convention A. Returns the `.d` payload, which may be a string or an array.
-   *
-   * `any` here is deliberate and load-bearing rather than lazy. `JSON.parse`
-   * gives nothing better, and the payload's shape depends on which portal method
-   * produced it. All three callers below hand it straight to `options()`, which
-   * stringifies whatever arrives, so nothing downstream depends on its type.
-   * ADR 0002 records the validation that has deliberately not been done yet;
-   * this return type is the first thing that changes when it is.
-   */
+  /** Convention A: the `.d` payload, which may be a string or an array. */
   async #jq(
     method: string,
     data: Record<string, string | number | boolean>
-  ): Promise<any> {
+  ): Promise<PortalPayload> {
     const body = Object.entries(data)
       .map(
         ([k, v]) =>
@@ -262,14 +303,16 @@ class Portal {
         `ECAP rejected the ${method} request (HTTP ${res.status}).`
       );
     }
-    let json;
+    let parsed: unknown;
     try {
-      json = JSON.parse(text);
+      parsed = JSON.parse(text);
     } catch {
       throw new HttpError(502, `ECAP sent an unreadable reply to ${method}.`);
     }
-    if (json.error) throw new HttpError(502, `ECAP reported: ${json.error}`);
-    return json.d;
+    const reply = asRecord(parsed);
+    if (reply.error)
+      throw new HttpError(502, `ECAP reported: ${String(reply.error)}`);
+    return reply.d;
   }
 
   /** Convention B. `pairs` is [name, value] in the proxy's declared order. */
@@ -347,7 +390,7 @@ class Portal {
     semester: string | number,
     semesterTitle?: string
   ): Promise<Option[]> {
-    const batch = semesterTitle ? semesterTitle : semester;
+    const batch = semesterTitle || semester;
     return options(
       await this.#jq("LoadBranchSections", {
         courseid: Number(courseId),
@@ -377,7 +420,7 @@ class Portal {
    * Every level is needed twice over - by value and by visible label - plus the
    * subject's title. See the module header, note 3.
    */
-  async register(
+  register(
     p: Record<Level, Option> & { from: string; to: string }
   ): Promise<string> {
     return this.#webMethod("ShowAcademicCalendar", [
@@ -397,27 +440,6 @@ class Portal {
     ]);
   }
 }
-
-const REGISTER_PAGE_URL = `${BASE}/vignanit/ACADEMICS/AcademicRegister.aspx?scrid=335`;
-
-/* ------------------------------------------------------------------ helpers */
-
-/** Reproduce the portal's CryptoJS output: raw AES-128-CBC, base64, no salt. */
-function portalEncrypt(plaintext: string): string {
-  const cipher = createCipheriv(
-    "aes-128-cbc",
-    Buffer.from(AES_KEY, "utf-8"),
-    Buffer.from(AES_KEY, "utf-8")
-  );
-  return Buffer.concat([
-    cipher.update(Buffer.from(plaintext, "utf-8")),
-    cipher.final(),
-  ]).toString("base64");
-}
-
-/** The portal's enc(): escapes only % and =. Values are deliberately not url-encoded. */
-const enc = (v: string | number): string =>
-  String(v).replaceAll("%", "%26").replaceAll("=", "%3D");
 
 /* ------------------------------------------------------------------ sessions */
 
@@ -490,7 +512,10 @@ function json(
   status = 200,
   headers: Record<string, string> = {}
 ): Response {
-  return new Response(JSON.stringify(body), {
+  // The charset is spelled out rather than left to Response.json's default,
+  // because student names come back from the portal and the browser is told how
+  // to read them.
+  return Response.json(body, {
     status,
     headers: { "content-type": "application/json; charset=utf-8", ...headers },
   });
@@ -517,11 +542,6 @@ async function readJson<T>(req: Request): Promise<Partial<T>> {
   } catch {
     return {};
   }
-}
-
-/** A thrown value's message, without assuming it was an Error. */
-function messageOf(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
 }
 
 const server = Bun.serve({
@@ -634,6 +654,11 @@ const server = Bun.serve({
           const b = await readJson<OptionsRequest>(req);
           // Typed as the contract, so the five assignments below are checked
           // against the same shape the front end reads.
+          // Every level comes back on every call, deeper ones empty rather than
+          // absent, so the front end can tell "not yet derivable" from "chosen,
+          // and genuinely empty". Filled in place because each level is
+          // conditional on the ones above it, so it cannot be one literal.
+          /* oxlint-disable unicorn/no-immediate-mutation -- filled per branch */
           const out: OptionsReply = {
             course: [],
             semester: [],
@@ -675,6 +700,7 @@ const server = Bun.serve({
               "subjects"
             );
           }
+          /* oxlint-enable unicorn/no-immediate-mutation */
           return json(out);
         }
 
