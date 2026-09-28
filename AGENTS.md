@@ -74,6 +74,17 @@ read through Mantine's own `bg` and `c` props. If you find yourself wanting a
 custom rule, the answer is usually a component prop that already exists — check
 `Table.Tr bg`, `Table striped`, `Badge color` before reaching for CSS.
 
+- **The cascade's rules live in `web/cascade.ts`, its loop lives in `App.tsx`.**
+  A dropdown that will not fill is a *rule* bug: read `cascade.ts`. Two requests
+  racing, or a stale answer winning, is a *loop* bug: read `App.tsx`. Both sets of
+  rules are pure functions with tests that run in under a second, so a change to
+  either is checked without a portal. ADR 0005.
+- **`defaultRange` used `toISOString()` and shipped a 31 December.** Local
+  midnight converted to UTC is the previous day east of Greenwich, so every
+  reader in IST opened the app a day early. It now builds from local date parts.
+  The general trap: `toISOString()` is a UTC conversion, and a date a human means
+  is local. Do not reintroduce it.
+
 The Mantine theme is stock, with **one** exception: `fontFamily` is set in
 `web/main.tsx` to Scoutie Sans, from `@fontsource-variable/scoutie-sans`. That is
 the only `createTheme` call in the project. If you find yourself wanting a second

@@ -20,14 +20,20 @@
  *     subject is the one exception and is left for the user, because it decides
  *     which register loads.
  *
- * See docs/adr/0001-port-ui-to-react-and-mantine.md.
+ * See docs/adr/0001-port-ui-to-react-and-mantine.md, and
+ * docs/adr/0005-give-the-cascade-rules-a-module.md.
  *
- * Structure: this file owns the state and the three modes, and composes four
- * presentational components under `web/components/`. It owns the cascade
- * outright - `runRefresh` and the ref pattern stay here, not in a child, because
- * that logic is load-bearing and a reader debugging the chain should find it in
- * one place. The children are told what to render and report changes upwards;
- * none of them holds state.
+ * Structure: this file owns the state, the three modes, and the refresh loop.
+ * The cascade's *rules* - which level auto-fills, when to keep looping, what is
+ * ready - live in `web/cascade.ts`, where a test can reach them without mounting
+ * React. What stays here is the part that is about time rather than data: the
+ * `refreshToken` that makes a newer pass win, and the ref pattern that feeds
+ * `runRefresh` the current selection. A reader debugging *why a dropdown is
+ * empty* should read `cascade.ts`; a reader debugging *why two requests raced*
+ * should read this file.
+ *
+ * The children under `web/components/` are told what to render and report
+ * changes upwards; none of them holds state.
  */
 
 import { Button, Container, Group, Text, Title } from "@mantine/core";
@@ -35,61 +41,41 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 
 import type {
-  CascadeLevel,
   LoginRequest,
   OkReply,
-  Option,
   OptionsReply,
   OptionsRequest,
   RegisterReply,
   RegisterRequest,
   SessionReply,
 } from "../shared/api";
+import {
+  applyOptions,
+  chosenLevels,
+  chosenText,
+  defaultRange,
+  disabledLevels,
+  EMPTY_OPTS,
+  EMPTY_SEL,
+  LEVEL_KEYS,
+  LEVELS,
+  shouldContinue,
+  statusOf,
+  toPortalDate,
+} from "./cascade";
+import type { Level, Sel } from "./cascade";
 import { ClassPicker } from "./components/ClassPicker";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
-import { statusOf } from "./components/rowStyle";
 import { SignInPanel } from "./components/SignInPanel";
-import type { Disabled, Note, Range, Sel } from "./types";
+import type { Note } from "./types";
 
 // The irregular/critical thresholds belong to the server, which is what applies
 // them. They arrive in the summary so the labels below can never drift from the
 // flags the server actually set.
 
-/** One position in the cascade, straight from the contract. */
-type Level = CascadeLevel;
-
 /** Which screen is showing. */
 type Phase = "boot" | "login" | "app";
-
-/** The full chain, in cascade order. */
-const LEVELS: readonly (readonly [Level, string])[] = [
-  ["course", "Course"],
-  ["semester", "Semester"],
-  ["branch", "Branch"],
-  ["section", "Section"],
-  ["subject", "Subject"],
-];
-const LEVEL_KEYS: readonly Level[] = LEVELS.map(([k]) => k);
-
-// Written out rather than assembled with Object.fromEntries, so adding a level to
-// the contract is a compile error here until someone decides what an unset one
-// looks like.
-const EMPTY_SEL: Sel = {
-  course: "",
-  semester: "",
-  branch: "",
-  section: "",
-  subject: "",
-};
-const EMPTY_OPTS: OptionsReply = {
-  course: [],
-  semester: [],
-  branch: [],
-  section: [],
-  subject: [],
-  emptyLevels: [],
-};
 
 /* ------------------------------------------------------------------ helpers */
 
@@ -129,52 +115,6 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
   return body as T;
 }
 
-/** The portal wants dd/mm/yyyy. */
-function toPortalDate(iso: string): string {
-  if (!iso) return "";
-  const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return "";
-  return `${d}/${m}/${y}`;
-}
-
-function defaultRange(): { from: string; to: string } {
-  const now = new Date();
-  return {
-    to: now.toISOString().slice(0, 10),
-    from: new Date(now.getFullYear(), 0, 1).toISOString().slice(0, 10),
-  };
-}
-
-/**
- * Merge a fresh option set into the current selection.
- *
- * This reproduces what a browser did to the old <select> elements: a value that
- * is still a valid option survives, and anything else falls to the first option,
- * because a populated select always has something selected.
- *
- * The subject is the exception. It is the choice that matters, and quietly
- * pre-selecting the first one risks loading the wrong register, so it is left
- * empty for the user to pick.
- */
-function applyOptions(sel: Sel, opts: OptionsReply): Sel {
-  const next = { ...sel };
-  for (const key of LEVEL_KEYS) {
-    if (key === "subject") {
-      next.subject = "";
-      continue;
-    }
-    const [first] = opts[key];
-    if (!first) {
-      next[key] = "";
-      continue;
-    }
-    if (!opts[key].some((o) => String(o.value) === String(next[key]))) {
-      next[key] = first.value;
-    }
-  }
-  return next;
-}
-
 /**
  * One CSV field, quoted.
  *
@@ -184,38 +124,6 @@ function applyOptions(sel: Sel, opts: OptionsReply): Sel {
  * through and turned `String()` into the thing doing the work.
  */
 const csvCell = (v: string): string => `"${v.replaceAll('"', '""')}"`;
-
-/**
- * The full option behind each level's current value, or the label of the first
- * level that has none.
- *
- * `ShowAcademicCalendar` needs every level by identifier *and* by visible text,
- * and returns nothing at all rather than failing when a label is missing - so
- * this is checked once, here, instead of five times at the call site.
- */
-function chosenLevels(
-  opts: OptionsReply,
-  sel: Sel
-): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
-  // Sound because the loop below assigns every member of Level: LEVELS and
-  // OptionsReply have the same five keys, and Level is derived from the latter.
-  const levels = {} as Record<Level, Option>;
-  for (const [key, label] of LEVELS) {
-    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
-    if (!hit) return { ok: false, label };
-    levels[key] = hit;
-  }
-  return { ok: true, levels };
-}
-
-/**
- * Whether every level above `key` has a choice, i.e. whether the server could
- * now answer for it.
- */
-function isReady(sel: Sel, key: Level): boolean {
-  const i = LEVEL_KEYS.indexOf(key);
-  return LEVEL_KEYS.slice(0, i).every((k) => !!sel[k]);
-}
 
 /* ------------------------------------------------------------------ app */
 
@@ -319,25 +227,11 @@ const App = (): React.JSX.Element => {
         setSel(draft);
         setOpts(reply);
 
-        // Keep going while this pass settled a level AND some level below it is
-        // now ready but still empty.
-        //
-        // The tempting shortcut - stop as soon as a level has more than one
-        // option, because the user ought to choose - dead-ends the chain.
-        // Changing a branch clears section and subject, so the request goes out
-        // with no section and the server answers with no subjects; applyOptions
-        // then fills section to its only option and nothing ever asks again. If
-        // that section has just the one option the user cannot change it, so
-        // the subject list becomes unreachable.
-        //
-        // Populating the whole chain and letting the user override any level is
-        // both simpler and what a user expects. Requiring `gained` stops this
-        // looping when the server genuinely has nothing to give.
-        const gained = LEVEL_KEYS.some((k) => draft[k] !== before[k]);
-        const pending = LEVEL_KEYS.find(
-          (k) => k !== "course" && isReady(draft, k) && reply[k].length === 0
-        );
-        if (!gained || !pending) return;
+        // Whether to ask again is a rule, not a race, so it lives in cascade.ts
+        // with the other cascade rules and has its own tests. The reasoning -
+        // why stopping early dead-ends the chain, and why `gained` is what stops
+        // the loop running forever - is documented on `shouldContinue`.
+        if (!shouldContinue(draft, before, reply)) return;
       }
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -500,19 +394,11 @@ const App = (): React.JSX.Element => {
 
   /* ---- derived ---- */
 
-  const has = (k: Level): boolean => !!sel[k];
-  const disabled: Disabled = {
-    course: false,
-    semester: !has("course"),
-    branch: !has("course"),
-    section: !(has("course") && has("branch") && has("semester")),
-    subject: !(
-      has("course") &&
-      has("branch") &&
-      has("semester") &&
-      has("section")
-    ),
-  };
+  // Both of these are rules, not arithmetic, so both live in cascade.ts. The
+  // `disabled` map in particular is the same dependency condition the server
+  // uses to decide what it may derive, and deriving it in one place keeps the
+  // two in step.
+  const disabled = disabledLevels(sel);
 
   const summary = result?.summary;
   const rows = result
@@ -521,12 +407,7 @@ const App = (): React.JSX.Element => {
         .toSorted((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
     : [];
 
-  // flatMap rather than map().filter(Boolean): one pass and no intermediate
-  // array of nulls, which is what the two-step version builds and throws away.
-  const chosenText = LEVELS.flatMap(([key, label]) => {
-    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
-    return hit ? [`${label}: ${hit.label}`] : [];
-  }).join("   ·   ");
+  const registerName = chosenText(opts, sel);
 
   /* ---- what the children call back into ---- */
 
@@ -543,7 +424,7 @@ const App = (): React.JSX.Element => {
     if (key !== "subject") runRefresh(key);
   };
 
-  const onRangeChange = (part: keyof Range, value: string) => {
+  const onRangeChange = (part: "from" | "to", value: string) => {
     setRange((r) => ({ ...r, [part]: value }));
   };
 
@@ -602,7 +483,7 @@ const App = (): React.JSX.Element => {
                 summary={summary}
                 onlyIrregular={onlyIrregular}
                 onToggleIrregular={setOnlyIrregular}
-                chosenText={chosenText}
+                chosenText={registerName}
               />
             </>
           ) : null}

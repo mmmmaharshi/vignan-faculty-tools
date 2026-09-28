@@ -9,7 +9,7 @@ import {
 } from "@mantine/core";
 
 import type { RegisterReply, Student } from "../../shared/api";
-import { tintFor } from "./rowStyle";
+import { tintFor } from "../cascade";
 
 /**
  * The register itself: the filter, the line naming what is on screen, and the

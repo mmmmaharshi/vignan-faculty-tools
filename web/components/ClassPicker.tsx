@@ -12,7 +12,8 @@ import {
 } from "@mantine/core";
 
 import type { CascadeLevel, Option, OptionsReply } from "../../shared/api";
-import type { Disabled, Note, Range, Sel } from "../types";
+import type { Level, Range, Sel } from "../cascade";
+import type { Note } from "../types";
 
 /**
  * The cascade: five dependent dropdowns, a date range, and the two buttons.
@@ -27,10 +28,11 @@ import type { Disabled, Note, Range, Sel } from "../types";
 
 type ClassPickerProps = {
   /** The level key and its visible label, in cascade order. */
-  levels: readonly (readonly [CascadeLevel, string])[];
+  levels: readonly (readonly [Level, string])[];
   opts: OptionsReply;
   sel: Sel;
-  disabled: Disabled;
+  /** From `disabledLevels` in `web/cascade.ts`; keyed by level. */
+  disabled: Record<Level, boolean>;
   range: Range;
   busy: boolean;
   hasResult: boolean;
