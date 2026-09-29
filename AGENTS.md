@@ -502,11 +502,15 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**159 of the 173 tests need no credentials and run in about eight seconds.** They
-cover the portal's seam, its wire conventions, the attendance bands, the route
-handlers over a fake portal, the cascade's rules, session liveness, and session
-persistence over a fake vault. Only `test/smoke.spec.ts` touches the network — and
-it skips without credentials, so anything testable without a portal must be.
+**Almost every test needs no credentials, and the whole suite runs in seconds.**
+Only `test/smoke.spec.ts` touches the network, so everything else — the portal's
+seam, its wire conventions, the attendance bands, the route handlers over a fake
+portal, the cascade's rules, session liveness, and session persistence over a fake
+vault — runs with `bunx playwright test` and no environment at all. As of
+2026-09-29 that is 160 passing and 14 skipped, 174 in total, in about eight
+seconds. **Do not trust that count**: it went stale twice in one session, so
+read it off the run rather than off this file.
+
 **Nothing may touch the real Windows Credential Manager**, which is why
 `session-store.ts` takes its backend as an argument; `bunSecrets()` is the only
 caller of the real thing.
