@@ -360,7 +360,19 @@ carries one also has its name in text.
 - **Restore must happen before `Bun.serve`**, and the top-level `await` is what
   makes that true. `Bun.serve` listens the moment it is called, so a restore after
   it leaves a window where a request finds an empty map and signs a signed-in user
-  out.
+  out. This is also what makes **`bun --watch` safe** for the dev task: the
+  restart drops every in-memory session, and the restore puts them back, so
+  saving a file does not sign anyone out.
+- **The dev API hot-reloads; the Playwright one does not.** `dev:all` runs the
+  `api` task as `bun --watch server.ts`, so a change to anything the server
+  computes — a band threshold, an option list, a summary figure — is live on the
+  next request, same as the front end. Measured: a one-line edit changed the
+  listening process and re-printed the banner. Two things follow, both learned
+  the hard way. `bun server.ts` on its own **does not** watch, and Playwright's
+  `webServer` deliberately does not either, so anything started that way still
+  needs a manual restart. And because a stale process answers correctly on every
+  field except the one that changed, it reads as a broken edit rather than a
+  stale server — it did, three times in one session.
 - **`signedOut(why)` takes a reason, and an empty one means no alert at all.** A
   note object with empty text is *truthy*, so passing `""` rendered an empty
   alert under the sign-in form. The sign-in form now shows **nothing** unless

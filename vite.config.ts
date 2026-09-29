@@ -33,7 +33,10 @@ export default defineConfig({
   run: {
     tasks: {
       api: {
-        command: "bun server.ts",
+        // --watch, because the front end reloads on save and the API should not
+        // be the one thing that needs a manual restart. A restart reloads the
+        // session from the vault, so nobody is signed out by saving a file.
+        command: "bun --watch server.ts",
         cache: false,
       },
       "dev:all": {
