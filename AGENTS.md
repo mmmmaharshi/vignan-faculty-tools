@@ -482,13 +482,16 @@ that will not fill is a rule bug, two requests racing is a loop bug.
   request goes out with no section, the server returns no subjects, section then
   auto-fills to its only option, and the subject list is unreachable because you
   cannot change a single-option dropdown.
-- **Every level above the subject auto-fills to its first option.** The chain
-  populates itself end to end and the user overrides any level. Earlier this only
-  happened for single-option levels, which dead-ended: a level with one option
-  cannot be changed, so nothing below it was ever fetched. The subject is the
-  one exception and is never auto-chosen, because it decides which register
-  loads. The line above the table names the register on screen so a wrong pick is
-  visible rather than silent.
+- **Every level auto-fills to its first option.** The chain populates itself end
+  to end and the user overrides any level. Earlier this only happened for
+  single-option levels, which dead-ended: a level with one option cannot be
+  changed, so nothing below it was ever fetched. **The subject is no longer the
+  exception.** It used to be left empty, on the grounds that it decides which
+  register loads; that is now carried by `All subjects` leading the list, so the
+  auto-fill lands on the section-wide view and the user narrows from there. A
+  section with no subjects at all still leaves it empty, which is what keeps the
+  cascade loop honest. The line above the table names the register on screen so
+  a wrong pick is visible rather than silent.
 - **A newer refresh always wins.** `refreshToken` makes an older in-flight
   request bail rather than write to the DOM.
 

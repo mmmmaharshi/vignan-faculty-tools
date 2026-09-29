@@ -36,10 +36,6 @@ export const EMPTY_OPTS: OptionsReply = {
 export function applyOptions(sel: Sel, opts: OptionsReply): Sel {
   const next = { ...sel };
   for (const key of LEVEL_KEYS) {
-    if (key === "subject") {
-      next.subject = "";
-      continue;
-    }
     const [first] = opts[key];
     if (!first) {
       next[key] = "";

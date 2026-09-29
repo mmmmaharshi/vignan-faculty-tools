@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 import type { Option, OptionsReply, Student } from "../shared/api";
+import { ALL_SUBJECTS } from "../shared/api";
 import {
   applyOptions,
   chosenLevels,
@@ -43,7 +44,7 @@ const nothing = reply({
   subject: [],
 });
 test.describe("the cascade's selection rules", () => {
-  test("every level above the subject auto-fills, so the chain populates itself", () => {
+  test("every level auto-fills, so the chain populates itself", () => {
     const next = applyOptions(
       sel(),
       reply({
@@ -58,22 +59,33 @@ test.describe("the cascade's selection rules", () => {
     expect(next.semester).toBe("3");
     expect(next.branch).toBe("4");
     expect(next.section).toBe("5");
+    expect(next.subject).toBe("6");
   });
-  test("the subject is never auto-chosen, because it decides which register loads", () => {
-    for (const count of [1, 2, 9]) {
-      const subjects = Array.from({ length: count }, (_, i) => String(i));
-      const next = applyOptions(
-        sel({ course: "1", branch: "4", semester: "3", section: "5" }),
-        reply({
-          course: ["1"],
-          semester: ["3"],
-          branch: ["4"],
-          section: ["5"],
-          subject: subjects,
-        })
-      );
-      expect(next.subject).toBe("");
-    }
+  test("the subject auto-fills too, and lands on ALL SUBJECTS", () => {
+    const next = applyOptions(
+      sel({ course: "1", branch: "4", semester: "3", section: "5" }),
+      reply({
+        course: ["1"],
+        semester: ["3"],
+        branch: ["4"],
+        section: ["5"],
+        subject: [ALL_SUBJECTS.value, "6", "7"],
+      })
+    );
+    expect(next.subject).toBe(ALL_SUBJECTS.value);
+  });
+  test("a section with no subjects at all leaves the subject empty", () => {
+    const next = applyOptions(
+      sel({ course: "1", branch: "4", semester: "3", section: "5" }),
+      reply({
+        course: ["1"],
+        semester: ["3"],
+        branch: ["4"],
+        section: ["5"],
+        subject: [],
+      })
+    );
+    expect(next.subject).toBe("");
   });
   test("a choice the server still offers survives a refresh", () => {
     const next = applyOptions(

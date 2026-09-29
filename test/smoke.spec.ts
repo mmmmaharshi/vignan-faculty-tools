@@ -273,7 +273,7 @@ test.describe("Vignan Faculty Tools", () => {
     });
     await expect
       .poll(() => selectState(page, "Subject"), { timeout: 90_000 })
-      .toMatchObject({ value: "" });
+      .toMatchObject({ value: "ALL SUBJECTS" });
     expect(
       new URL(page.url()).pathname,
       "reload should stay on the dashboard"
