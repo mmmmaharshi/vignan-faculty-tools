@@ -107,7 +107,7 @@ export const RegisterTable = ({
                     <Table.Th ta="right">Subject Attendance %</Table.Th>
                   )}
                   {overallOnly && (
-                    <Table.Th ta="right">Attended / All Classes</Table.Th>
+                    <Table.Th ta="right">Attended / Total</Table.Th>
                   )}
                   {showOverall && (
                     <Table.Th ta="right">Overall Attendance %</Table.Th>

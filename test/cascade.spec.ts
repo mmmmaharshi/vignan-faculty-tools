@@ -7,6 +7,8 @@ import {
   chosenLevels,
   chosenText,
   defaultRange,
+  rememberRangeStart,
+  startingRange,
   disabledLevels,
   isReady,
   shouldContinue,
@@ -293,6 +295,19 @@ test.describe("the bands", () => {
     expect(tintFor(student(90))).toBeUndefined();
   });
 });
+/** Node has no localStorage, and the range helpers are written to survive its
+ *  absence, so without this the remembered-start tests pass for the wrong
+ *  reason: every write throws, every read falls back. */
+const saved = new Map<string, string>();
+globalThis.localStorage = {
+  getItem: (k: string) => saved.get(k) ?? null,
+  setItem: (k: string, v: string) => saved.set(k, v),
+  removeItem: (k: string) => saved.delete(k),
+  clear: () => saved.clear(),
+  key: () => null,
+  length: 0,
+} as unknown as Storage;
+
 test.describe("dates", () => {
   test("the portal's format is day first, and a partial date is refused", () => {
     expect(toPortalDate("2026-01-05")).toBe("05/01/2026");
@@ -333,6 +348,46 @@ test.describe("dates", () => {
     const range = defaultRange(new Date(2026, 8, 1, 0, 0, 0));
     expect(range.from).toBe("2026-09-01");
     expect(range.to).toBe("2026-09-01");
+  });
+  test("with nothing remembered, the range is the month to date", () => {
+    saved.clear();
+    expect(startingRange(new Date(2026, 8, 28, 12, 0, 0))).toEqual({
+      from: "2026-09-01",
+      to: "2026-09-28",
+    });
+  });
+  test("a start that was found once is the start from then on", () => {
+    saved.clear();
+    rememberRangeStart("2026-06-01");
+    expect(startingRange(new Date(2026, 8, 28, 12, 0, 0))).toEqual({
+      from: "2026-06-01",
+      to: "2026-09-28",
+    });
+  });
+  test("the end is always today, never the day it was remembered", () => {
+    saved.clear();
+    rememberRangeStart("2026-06-01");
+    expect(startingRange(new Date(2026, 8, 28, 12, 0, 0)).to).toBe(
+      "2026-09-28"
+    );
+    expect(startingRange(new Date(2026, 0, 5, 9, 30, 0)).to).toBe("2026-01-05");
+  });
+  test("a refused storage does not break the range", () => {
+    const real = globalThis.localStorage;
+    globalThis.localStorage = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => {
+        throw new Error("denied");
+      },
+    } as unknown as Storage;
+    expect(() => rememberRangeStart("2026-06-01")).not.toThrow();
+    expect(startingRange(new Date(2026, 8, 28, 12, 0, 0))).toEqual({
+      from: "2026-09-01",
+      to: "2026-09-28",
+    });
+    globalThis.localStorage = real;
   });
   test("a single-digit month and day are zero-padded, so the input accepts them", () => {
     const range = defaultRange(new Date(2026, 0, 5, 9, 30, 0));

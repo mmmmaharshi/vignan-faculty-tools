@@ -431,7 +431,7 @@ test.describe("Vignan Faculty Tools", () => {
     expect(head).toContain("Attend / Held");
     expect(head).toContain("Subject Attendance %");
     // The raw all-classes count belongs to the all-subjects view only.
-    expect(head).not.toContain("Attended / All Classes");
+    expect(head).not.toContain("Attended / Total");
     const overallPctIdx = head.indexOf("Overall Attendance %");
     const overalls = await page.evaluate((pct) => {
       const rows = [...document.querySelectorAll("tbody tr")];
@@ -492,7 +492,7 @@ test.describe("Vignan Faculty Tools", () => {
       );
       const rows = [...document.querySelectorAll("tbody tr")];
       const overallIdx = head.indexOf("Overall Attendance %");
-      const cellIdx = head.indexOf("Attended / All Classes");
+      const cellIdx = head.indexOf("Attended / Total");
       const cells = [...rows].map(
         (tr) => [...tr.querySelectorAll("td")] as Element[]
       );
@@ -531,11 +531,11 @@ test.describe("Vignan Faculty Tools", () => {
     ).not.toContain("Attend / Held");
     expect(state.head).not.toContain("Subject Attendance %");
     expect(state.head).toContain("Overall Attendance %");
-    expect(state.head).toContain("Attended / All Classes");
+    expect(state.head).toContain("Attended / Total");
     expect(state.rows).toBeGreaterThan(0);
     expect(
       state.bothNumbers,
-      "every student should show attended over all classes"
+      "every student should show attended over total"
     ).toBeGreaterThan(0);
     expect(
       state.withOverall,

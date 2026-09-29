@@ -29,8 +29,9 @@ import {
   chosenLevels,
   isAllSubjects,
   chosenText,
-  defaultRange,
   disabledLevels,
+  rememberRangeStart,
+  startingRange,
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVEL_KEYS,
@@ -90,7 +91,7 @@ const App = (): React.JSX.Element => {
   /* oxlint-enable react/refs */
   const [sel, setSel] = useState<Sel>(EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
-  const [range, setRange] = useState<Range>(defaultRange);
+  const [range, setRange] = useState<Range>(startingRange);
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
   const [overallMode, setOverallMode] = useState(false);
@@ -172,6 +173,8 @@ const App = (): React.JSX.Element => {
       return;
     }
     await fetchRegister(chosen.levels, range);
+    // A range that produced a register is one worth opening at again.
+    rememberRangeStart(range.from);
   }, [fetchRegister, opts, range, sel]);
   const runRefresh = useCallback(
     async (changed: Level | null) => {

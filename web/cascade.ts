@@ -106,6 +106,33 @@ export function defaultRange(now: Date = new Date()): Range {
     from: isoDay(new Date(now.getFullYear(), now.getMonth(), 1)),
   };
 }
+const START_KEY = "range-from";
+/**
+ * The portal has no semester start date to give, so the only way to find one is
+ * for a person to widen the range until the figures stop growing. Remember the
+ * date they settled on, and open there from then on.
+ *
+ * Only the start is kept. The end is always today: a remembered `to` would open
+ * the app on last month's numbers, which is the failure this exists to avoid.
+ */
+export function rememberRangeStart(from: string): void {
+  if (!from) return;
+  try {
+    localStorage.setItem(START_KEY, from);
+  } catch {
+    /* a refused write must not break the load */
+  }
+}
+export function startingRange(now: Date = new Date()): Range {
+  const fallback = defaultRange(now);
+  let saved = "";
+  try {
+    saved = localStorage.getItem(START_KEY) ?? "";
+  } catch {
+    return fallback;
+  }
+  return saved ? { from: saved, to: fallback.to } : fallback;
+}
 export function chosenText(opts: OptionsReply, sel: Sel): string {
   return LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
