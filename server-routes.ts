@@ -80,11 +80,10 @@ export async function handleOptions(
   }
   if (b.course && b.branch && b.semester && b.section) {
     take("subject", await portal.subjects(b.course, b.branch, b.semester));
-    // Last, so the portal's own subjects keep the leading position: the subject
-    // level is never auto-filled, and the first option is what anything reading
-    // "the subject" picks up. An empty level must also stay empty, or the
-    // cascade would think it had nothing left to fetch.
-    if (out.subject.length) out.subject = [...out.subject, ALL_SUBJECTS];
+    // First, so the whole section is one click away, and upper-cased so it reads
+    // as a mode rather than as one of the portal's short codes. An empty level
+    // must stay empty, or the cascade would think it had nothing left to fetch.
+    if (out.subject.length) out.subject = [ALL_SUBJECTS, ...out.subject];
   }
   return out;
 }

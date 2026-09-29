@@ -66,9 +66,12 @@ async function submitSignIn(page: Page): Promise<void> {
 }
 async function loadFirstSubject(page: Page): Promise<string> {
   const options = await openSelect(page, "Subject");
-  const first = await options.first().innerText();
+  // NOT options.first(): ALL SUBJECTS now leads the list, and most of these
+  // tests are about the subject path.
+  const first = await options.nth(1).innerText();
   const subject = first.trim();
   expect(subject).not.toBe("");
+  expect(subject).not.toBe("ALL SUBJECTS");
   await page.getByRole("option", { name: subject, exact: true }).click();
   await page.getByRole("button", { name: "Load register" }).click();
   await expect(page.locator("tbody tr").first()).toBeVisible({
@@ -152,9 +155,9 @@ test.describe("Vignan Faculty Tools", () => {
       `an /api/options request should carry semesterTitle once a semester is chosen; saw ${JSON.stringify(optionBodies)}`
     ).toBe(true);
     const subjectOptions = await openSelect(page, "Subject");
-    const subjectText = await subjectOptions.first().innerText();
+    const subjectText = await subjectOptions.nth(1).innerText();
     const subject = subjectText.trim();
-    expect(subject).not.toBe("");
+    expect(subject).not.toBe("ALL SUBJECTS");
     await page.getByRole("option", { name: subject, exact: true }).click();
     await expect
       .poll(async () => {
@@ -408,8 +411,9 @@ test.describe("Vignan Faculty Tools", () => {
     await page.goto("/dashboard");
     await submitSignIn(page);
     const subjectOptions = await openSelect(page, "Subject");
-    const firstOption = await subjectOptions.first().innerText();
+    const firstOption = await subjectOptions.nth(1).innerText();
     const subject = firstOption.trim();
+    expect(subject).not.toBe("ALL SUBJECTS");
     await page.getByRole("option", { name: subject, exact: true }).click();
     await page.getByLabel("From").fill("2026-06-01");
     await page.getByLabel("To").fill("2026-09-30");
@@ -468,14 +472,14 @@ test.describe("Vignan Faculty Tools", () => {
     const options = await openSelect(page, "Subject");
     await expect(options.getByRole("option")).not.toHaveCount(1);
     await page
-      .getByRole("option", { name: "All subjects", exact: true })
+      .getByRole("option", { name: "ALL SUBJECTS", exact: true })
       .click();
     await expect
       .poll(async () => {
         const state = await selectState(page, "Subject");
         return state?.value;
       })
-      .toBe("All subjects");
+      .toBe("ALL SUBJECTS");
     await page.getByLabel("From").fill("2026-06-01");
     await page.getByLabel("To").fill("2026-09-30");
     await page.getByRole("button", { name: "Load register" }).click();
@@ -546,7 +550,7 @@ test.describe("Vignan Faculty Tools", () => {
       .locator("p")
       .filter({ hasText: /^Course:/ })
       .first();
-    await expect(selection).toContainText("Subject: All subjects");
+    await expect(selection).toContainText("Subject: ALL SUBJECTS");
     expect(
       problems,
       `no uncaught errors; got ${JSON.stringify(problems)}`

@@ -70,9 +70,10 @@ _Avoid_: Cumulative, total attendance, aggregate
 **All subjects**:
 The extra entry in the Subject level that asks for every subject in the Section
 at once. It is not a Portal subject and its identifier is not a Portal
-identifier, so it can never collide with one. Choosing it loads the class report
-alone and leaves no Subject register behind, which is why the Subject columns
-disappear in that state.
+identifier, so it can never collide with one. It leads the list and is
+upper-cased, so it reads as a mode rather than as one of the Portal's own short
+codes. Choosing it loads the class report alone and leaves no Subject register
+behind, which is why the Subject columns disappear in that state.
 _Avoid_: Overall view, aggregate subject, everything
 
 **Regular**:

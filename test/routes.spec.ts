@@ -168,10 +168,10 @@ test.describe("the options ladder", () => {
       section: "1",
     }).then((reply) => {
       expect(calls.subjects).toEqual([["1", "6", "3"]]);
-      expect(reply.subject[0]?.value).toBe("57");
+      expect(reply.subject[0]?.value).toBe("__all__");
       expect(reply.subject.map((o) => o.label)).toEqual([
+        "ALL SUBJECTS",
         "MFCS",
-        "All subjects",
       ]);
     });
   });
@@ -427,12 +427,12 @@ test.describe("the overall column", () => {
 test.describe("all subjects", () => {
   const ALL = ALL_SUBJECTS;
   const deep = { course: "1", branch: "6", semester: "3", section: "1" };
-  test("it is offered last, so the cascade still auto-fills a real subject", () => {
+  test("it leads the list, so the whole section is one click away", () => {
     const { reader } = fake();
     return handleOptions(reader, deep).then((reply) => {
       expect(reply.subject).toHaveLength(2);
-      expect(reply.subject[0]?.label).toBe("MFCS");
-      expect(reply.subject.at(-1)).toEqual(ALL);
+      expect(reply.subject[0]).toEqual(ALL_SUBJECTS);
+      expect(reply.subject.at(-1)?.label).toBe("MFCS");
     });
   });
   test("a section with no subjects does not gain the entry", () => {

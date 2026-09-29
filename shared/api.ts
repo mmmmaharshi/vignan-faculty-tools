@@ -6,11 +6,12 @@ export interface Option {
 /**
  * The subject level's extra entry: not a Portal subject, but a way of asking for
  * every subject in the section at once. Its identifier cannot collide with a
- * real one, which is always numeric.
+ * real one, which is always numeric. It leads the list and is upper-cased so it
+ * cannot be mistaken for one of the Portal's own short codes.
  */
 export const ALL_SUBJECTS: Option = {
   value: "__all__",
-  label: "All subjects",
+  label: "ALL SUBJECTS",
   title: "",
 };
 export const isAllSubjects = (subject: Option | undefined): boolean =>
