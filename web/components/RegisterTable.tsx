@@ -93,7 +93,7 @@ export const RegisterTable = ({
         </Text>
       ) : (
         <>
-          <Table.ScrollContainer minWidth={640}>
+          <Table.ScrollContainer minWidth={860}>
             <Table striped highlightOnHover withTableBorder tabularNums>
               <Table.Thead>
                 <Table.Tr>
@@ -103,11 +103,15 @@ export const RegisterTable = ({
                   {!overallOnly && (
                     <Table.Th ta="right">Attend / Held</Table.Th>
                   )}
-                  {!overallOnly && <Table.Th ta="right">Subject %</Table.Th>}
+                  {!overallOnly && (
+                    <Table.Th ta="right">Subject Attendance %</Table.Th>
+                  )}
                   {overallOnly && (
                     <Table.Th ta="right">Attended / All Classes</Table.Th>
                   )}
-                  {showOverall && <Table.Th ta="right">Overall %</Table.Th>}
+                  {showOverall && (
+                    <Table.Th ta="right">Overall Attendance %</Table.Th>
+                  )}
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>

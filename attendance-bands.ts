@@ -1,7 +1,7 @@
 import type { RegisterReply, Student } from "./shared/api";
 
 export const IRREGULAR_BELOW = 75;
-export const CRITICAL_BELOW = 60;
+export const CRITICAL_BELOW = 65;
 /**
  * What the portal stated for one student's attendance across every subject in
  * the section. The attended-of-held half is carried as the portal wrote it and

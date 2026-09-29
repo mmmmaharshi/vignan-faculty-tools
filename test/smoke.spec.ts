@@ -173,7 +173,7 @@ test.describe("Vignan Faculty Tools", () => {
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       );
       const at = (name: string): number => head.indexOf(name);
-      const pctIdx = at("Subject %");
+      const pctIdx = at("Subject Attendance %");
       const heldIdx = at("Attend / Held");
       return [...document.querySelectorAll("tbody tr")].map((tr) => {
         const cells = [...tr.querySelectorAll("td")];
@@ -422,13 +422,13 @@ test.describe("Vignan Faculty Tools", () => {
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       )
     );
-    expect(head).toContain("Overall %");
+    expect(head).toContain("Overall Attendance %");
     // The subject columns must still be there: this is the subject path.
     expect(head).toContain("Attend / Held");
-    expect(head).toContain("Subject %");
+    expect(head).toContain("Subject Attendance %");
     // The raw all-classes count belongs to the all-subjects view only.
     expect(head).not.toContain("Attended / All Classes");
-    const overallPctIdx = head.indexOf("Overall %");
+    const overallPctIdx = head.indexOf("Overall Attendance %");
     const overalls = await page.evaluate((pct) => {
       const rows = [...document.querySelectorAll("tbody tr")];
       const cells = [...rows].map(
@@ -487,7 +487,7 @@ test.describe("Vignan Faculty Tools", () => {
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       );
       const rows = [...document.querySelectorAll("tbody tr")];
-      const overallIdx = head.indexOf("Overall %");
+      const overallIdx = head.indexOf("Overall Attendance %");
       const cellIdx = head.indexOf("Attended / All Classes");
       const cells = [...rows].map(
         (tr) => [...tr.querySelectorAll("td")] as Element[]
@@ -525,8 +525,8 @@ test.describe("Vignan Faculty Tools", () => {
       state.head,
       "subject columns are gone with no subject chosen"
     ).not.toContain("Attend / Held");
-    expect(state.head).not.toContain("Subject %");
-    expect(state.head).toContain("Overall %");
+    expect(state.head).not.toContain("Subject Attendance %");
+    expect(state.head).toContain("Overall Attendance %");
     expect(state.head).toContain("Attended / All Classes");
     expect(state.rows).toBeGreaterThan(0);
     expect(

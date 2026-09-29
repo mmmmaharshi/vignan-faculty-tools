@@ -28,10 +28,10 @@ test.describe("where the lines sit", () => {
     expect(band(75)).toBe("Regular");
     expect(band(74.99)).toBe("Irregular");
   });
-  test("60 is irregular and 59.99 is critical", () => {
-    expect(CRITICAL_BELOW).toBe(60);
-    expect(band(60)).toBe("Irregular");
-    expect(band(59.99)).toBe("Critical");
+  test("65 is irregular and 64.99 is critical", () => {
+    expect(CRITICAL_BELOW).toBe(65);
+    expect(band(65)).toBe("Irregular");
+    expect(band(64.99)).toBe("Critical");
   });
   test("a student who is critical is also irregular, never only one", () => {
     const critical = withBands(row(40));
@@ -83,7 +83,7 @@ test.describe("the counts and the flags cannot disagree", () => {
     expect(summary.total).toBe(4);
   });
   test("critical is a subset of irregular, always", () => {
-    for (const pct of [0, 40, 59.99, 60, 74.99, 75, 90, 100, null]) {
+    for (const pct of [0, 40, 64.99, 65, 74.99, 75, 90, 100, null]) {
       const { summary } = summarise([row(pct)], range);
       expect(summary.critical).toBeLessThanOrEqual(summary.irregular);
     }
@@ -93,7 +93,7 @@ test.describe("the counts and the flags cannot disagree", () => {
     expect(summary.irregular).toBe(0);
     expect(summary.critical).toBe(0);
     expect(summary.irregularBelow).toBe(75);
-    expect(summary.criticalBelow).toBe(60);
+    expect(summary.criticalBelow).toBe(65);
   });
   test("the average is rounded to one decimal, once", () => {
     const { summary } = summarise([row(79), row(79), row(80)], range);
@@ -122,9 +122,9 @@ test.describe("the overall bands sit where the subject bands do", () => {
     expect(withBands(row(90), figure(75)).overallIrregular).toBe(false);
     expect(withBands(row(90), figure(74.99)).overallIrregular).toBe(true);
   });
-  test("60 is irregular and 59.99 is critical, on the overall figure too", () => {
-    expect(withBands(row(90), figure(60)).overallCritical).toBe(false);
-    expect(withBands(row(90), figure(59.99)).overallCritical).toBe(true);
+  test("65 is irregular and 64.99 is critical, on the overall figure too", () => {
+    expect(withBands(row(90), figure(65)).overallCritical).toBe(false);
+    expect(withBands(row(90), figure(64.99)).overallCritical).toBe(true);
   });
   test("an overall problem and a subject problem are independent", () => {
     const healthySubject = withBands(row(90), figure(74.01));

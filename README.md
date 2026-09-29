@@ -60,7 +60,7 @@ describes, so a green run means something.
 | Students | Class size |
 | Class average | Mean attendance across the class |
 | Below 75% | Students needing a check-in |
-| Below 60% | Students who need intervention now |
+| Below 65% | Students who need intervention now |
 
 The table is sorted **lowest attendance first**, with irregular rows tinted and
 the critical one badged. Tick *Show only irregular students* to reduce it to just

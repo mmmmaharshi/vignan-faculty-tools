@@ -80,17 +80,17 @@ Attendance at or above 75%.
 _Avoid_: Good, fine, passing
 
 **Irregular**:
-Attendance below 75% and at or above 60%. Worth a check-in.
+Attendance below 75% and at or above 65%. Worth a check-in.
 _Avoid_: Low, at risk, deficient
 
 **Critical**:
-Attendance below 60%. Needs intervention now.
+Attendance below 65%. Needs intervention now.
 _Avoid_: Severe, failing, urgent
 
 The three bands are the app's own thresholds, stated once in
 `attendance-bands.ts` as `IRREGULAR_BELOW` and `CRITICAL_BELOW` and applied by
 `band(pct)` in that same module. Both are "below", so there is no overlap and no
-gap: 75 is Regular, 74.99 is Irregular, 60 is Irregular, 59.99 is Critical. Do not
+gap: 75 is Regular, 74.99 is Irregular, 65 is Irregular, 64.99 is Critical. Do not
 introduce a fourth band without an ADR.
 
 A percentage the portal would not give is in no band at all: not Regular, not
