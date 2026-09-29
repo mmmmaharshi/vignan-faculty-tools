@@ -103,7 +103,7 @@ export const RegisterTable = ({
                   {!overallOnly && (
                     <Table.Th ta="right">Attend / Held</Table.Th>
                   )}
-                  {!overallOnly && <Table.Th ta="right">%</Table.Th>}
+                  {!overallOnly && <Table.Th ta="right">Subject %</Table.Th>}
                   {overallOnly && (
                     <Table.Th ta="right">Attended / All Classes</Table.Th>
                   )}
@@ -152,14 +152,19 @@ export const RegisterTable = ({
                             —
                           </Text>
                         ) : (
+                          // Beside a subject the only badge is the subject's:
+                          // two badged figures on one row is noise, and the
+                          // irregular filter reads the subject band alone.
                           <Figure
                             pct={s.overallPct}
                             weight={600}
-                            {...badgeFor(
-                              s.overallCritical,
-                              s.overallIrregular,
-                              "orange"
-                            )}
+                            {...(overallOnly
+                              ? badgeFor(
+                                  s.overallCritical,
+                                  s.overallIrregular,
+                                  "orange"
+                                )
+                              : { badge: "", color: "red" })}
                           />
                         )}
                       </Table.Td>

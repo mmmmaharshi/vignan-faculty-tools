@@ -173,7 +173,7 @@ test.describe("Vignan Faculty Tools", () => {
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       );
       const at = (name: string): number => head.indexOf(name);
-      const pctIdx = at("%");
+      const pctIdx = at("Subject %");
       const heldIdx = at("Attend / Held");
       return [...document.querySelectorAll("tbody tr")].map((tr) => {
         const cells = [...tr.querySelectorAll("td")];
@@ -425,6 +425,7 @@ test.describe("Vignan Faculty Tools", () => {
     expect(head).toContain("Overall %");
     // The subject columns must still be there: this is the subject path.
     expect(head).toContain("Attend / Held");
+    expect(head).toContain("Subject %");
     // The raw all-classes count belongs to the all-subjects view only.
     expect(head).not.toContain("Attended / All Classes");
     const overallPctIdx = head.indexOf("Overall %");
@@ -437,6 +438,10 @@ test.describe("Vignan Faculty Tools", () => {
         rows: rows.length,
         filled: cells.filter((c) => /\d/.test(c[pct]?.textContent ?? ""))
           .length,
+        badged: cells.filter(
+          (c) =>
+            (c[pct]?.querySelectorAll(".mantine-Badge-root").length ?? 0) > 0
+        ).length,
       };
     }, overallPctIdx);
     expect(overalls.rows, "the register should have rows").toBeGreaterThan(0);
@@ -444,6 +449,10 @@ test.describe("Vignan Faculty Tools", () => {
       overalls.filled,
       "the real portal should give every student an overall percentage"
     ).toBeGreaterThan(0);
+    expect(
+      overalls.badged,
+      "beside a subject the overall figure carries no badge of its own"
+    ).toBe(0);
     expect(
       problems,
       `no uncaught errors; got ${JSON.stringify(problems)}`
@@ -516,6 +525,7 @@ test.describe("Vignan Faculty Tools", () => {
       state.head,
       "subject columns are gone with no subject chosen"
     ).not.toContain("Attend / Held");
+    expect(state.head).not.toContain("Subject %");
     expect(state.head).toContain("Overall %");
     expect(state.head).toContain("Attended / All Classes");
     expect(state.rows).toBeGreaterThan(0);
