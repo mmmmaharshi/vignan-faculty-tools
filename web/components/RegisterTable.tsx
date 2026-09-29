@@ -8,6 +8,7 @@ import {
   Text,
 } from "@mantine/core";
 
+import { overallCellForDisplay } from "../../attendance-bands";
 import type { RegisterReply, Student } from "../../shared/api";
 import { tintFor } from "../cascade";
 
@@ -104,7 +105,7 @@ export const RegisterTable = ({
                   )}
                   {!overallOnly && <Table.Th ta="right">%</Table.Th>}
                   {showOverall && (
-                    <Table.Th ta="right">Overall Attend / Held</Table.Th>
+                    <Table.Th ta="right">All Classes / Attended</Table.Th>
                   )}
                   {showOverall && <Table.Th ta="right">Overall %</Table.Th>}
                 </Table.Tr>
@@ -141,7 +142,7 @@ export const RegisterTable = ({
                     )}
                     {showOverall && (
                       <Table.Td ta="right">
-                        {s.overallAttendedOfHeld || "—"}
+                        {overallCellForDisplay(s.overallAttendedOfHeld) || "—"}
                       </Table.Td>
                     )}
                     {showOverall && (

@@ -50,10 +50,12 @@ _Avoid_: API, endpoint style
 
 **Attended of held**:
 The portal's combined attendance cell for one student over the whole date
-range: a string such as `38/45`. The app displays it and never parses it, so
-the two numbers inside it are not separately modelled and must not be reasoned
-about as if they were. The overall cell holds the same kind of string, joined
-with a backslash rather than a slash, and is treated the same way.
+range: a string such as `38/45`. The app never computes with it — the two
+numbers inside it are not separately modelled, and nothing is added, divided or
+compared across them. The overall cell holds the same kind of string, joined
+with a backslash rather than a slash, and is held to the same rule; its two
+halves are reordered for the reader only, because the column is labelled the
+other way round from the way the portal writes it.
 _Avoid_: Held, total classes, conducted, attendance
 
 **Overall attendance**:

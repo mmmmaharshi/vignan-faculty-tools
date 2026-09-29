@@ -4,6 +4,7 @@ import {
   band,
   CRITICAL_BELOW,
   IRREGULAR_BELOW,
+  overallCellForDisplay,
   summarise,
   withBands,
 } from "../attendance-bands";
@@ -195,6 +196,23 @@ test.describe("the overall counts come from the overall figure", () => {
       lookup
     );
     expect(summary.overallAverage).toBe(79.3);
+  });
+});
+test.describe("the overall cell is shown the way the column is labelled", () => {
+  test("the portal writes attended first, the column is labelled all classes first", () => {
+    expect(overallCellForDisplay("381\\481")).toBe("481 / 381");
+    expect(overallCellForDisplay("356\\481")).toBe("481 / 356");
+  });
+  test("both numbers survive, and neither is derived from the other", () => {
+    const shown = overallCellForDisplay("394\\481");
+    expect(shown).toContain("481");
+    expect(shown).toContain("394");
+    expect(shown.split(" / ")).toHaveLength(2);
+  });
+  test("a cell that is not a pair is left exactly as the portal wrote it", () => {
+    expect(overallCellForDisplay("")).toBe("");
+    expect(overallCellForDisplay("-")).toBe("-");
+    expect(overallCellForDisplay("38/45")).toBe("38/45");
   });
 });
 test.describe("what the portal gave, preserved", () => {
