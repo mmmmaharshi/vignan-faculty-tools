@@ -422,37 +422,27 @@ test.describe("Vignan Faculty Tools", () => {
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       )
     );
-    expect(head).toContain("All Classes / Attended");
     expect(head).toContain("Overall %");
     // The subject columns must still be there: this is the subject path.
     expect(head).toContain("Attend / Held");
+    // The raw all-classes count belongs to the all-subjects view only.
+    expect(head).not.toContain("Attended / All Classes");
     const overallPctIdx = head.indexOf("Overall %");
-    const overallCellIdx = head.indexOf("All Classes / Attended");
-    const overalls = await page.evaluate(
-      ({ pct, cell }) => {
-        const rows = [...document.querySelectorAll("tbody tr")];
-        const cells = [...rows].map(
-          (tr) => [...tr.querySelectorAll("td")] as Element[]
-        );
-        return {
-          rows: rows.length,
-          filled: cells.filter((c) => /\d/.test(c[pct]?.textContent ?? ""))
-            .length,
-          bothNumbers: cells.filter((c) =>
-            /^\d+\s*\/\s*\d+$/.test((c[cell]?.textContent ?? "").trim())
-          ).length,
-        };
-      },
-      { pct: overallPctIdx, cell: overallCellIdx }
-    );
+    const overalls = await page.evaluate((pct) => {
+      const rows = [...document.querySelectorAll("tbody tr")];
+      const cells = [...rows].map(
+        (tr) => [...tr.querySelectorAll("td")] as Element[]
+      );
+      return {
+        rows: rows.length,
+        filled: cells.filter((c) => /\d/.test(c[pct]?.textContent ?? ""))
+          .length,
+      };
+    }, overallPctIdx);
     expect(overalls.rows, "the register should have rows").toBeGreaterThan(0);
     expect(
       overalls.filled,
       "the real portal should give every student an overall percentage"
-    ).toBeGreaterThan(0);
-    expect(
-      overalls.bothNumbers,
-      "every student should show all classes over attended"
     ).toBeGreaterThan(0);
     expect(
       problems,
@@ -489,6 +479,10 @@ test.describe("Vignan Faculty Tools", () => {
       );
       const rows = [...document.querySelectorAll("tbody tr")];
       const overallIdx = head.indexOf("Overall %");
+      const cellIdx = head.indexOf("Attended / All Classes");
+      const cells = [...rows].map(
+        (tr) => [...tr.querySelectorAll("td")] as Element[]
+      );
       const flagged = rows.filter((tr) =>
         [...tr.querySelectorAll(".mantine-Badge-root")].some((b) => {
           const text = b.textContent?.trim().toLowerCase();
@@ -508,6 +502,9 @@ test.describe("Vignan Faculty Tools", () => {
       return {
         head,
         rows: rows.length,
+        bothNumbers: cells.filter((c) =>
+          /^\d+\s*\/\s*\d+$/.test((c[cellIdx]?.textContent ?? "").trim())
+        ).length,
         withOverall: rows.filter((tr) =>
           /\d/.test(tr.querySelectorAll("td")[overallIdx]?.textContent ?? "")
         ).length,
@@ -520,7 +517,12 @@ test.describe("Vignan Faculty Tools", () => {
       "subject columns are gone with no subject chosen"
     ).not.toContain("Attend / Held");
     expect(state.head).toContain("Overall %");
+    expect(state.head).toContain("Attended / All Classes");
     expect(state.rows).toBeGreaterThan(0);
+    expect(
+      state.bothNumbers,
+      "every student should show attended over all classes"
+    ).toBeGreaterThan(0);
     expect(
       state.withOverall,
       "every row should carry an overall"

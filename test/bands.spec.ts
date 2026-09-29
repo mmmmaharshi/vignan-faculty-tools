@@ -199,9 +199,9 @@ test.describe("the overall counts come from the overall figure", () => {
   });
 });
 test.describe("the overall cell is shown the way the column is labelled", () => {
-  test("the portal writes attended first, the column is labelled all classes first", () => {
-    expect(overallCellForDisplay("381\\481")).toBe("481 / 381");
-    expect(overallCellForDisplay("356\\481")).toBe("481 / 356");
+  test("attended first, then every class, with a plain slash between them", () => {
+    expect(overallCellForDisplay("381\\481")).toBe("381 / 481");
+    expect(overallCellForDisplay("356\\481")).toBe("356 / 481");
   });
   test("both numbers survive, and neither is derived from the other", () => {
     const shown = overallCellForDisplay("394\\481");

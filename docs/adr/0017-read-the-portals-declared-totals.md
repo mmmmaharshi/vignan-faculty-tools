@@ -49,11 +49,11 @@ never derives one attendance figure from another.
   position, bounds the scan to the table that header is in, skips the held band
   and the title block, and takes the **last two cells of each data row**. A row is
   a data row only if its first cell is a number.
-- The combined cell is carried as the Portal wrote it. Its two halves are
-  **reordered for the reader** and nothing else: the column is labelled
-  all-classes-first and the Portal writes attended-first, so `381\481` is shown
-  as `481 / 381`. No figure is derived from it — the two halves are never added,
-  divided or compared. The reorder is safe because the spike established which
+- The combined cell is carried as the Portal wrote it. Its two halves are shown
+  **in the Portal's own order**, attended first, separated by a plain slash:
+  `381\481` renders as `381 / 481`, so the cell reads the way the column above
+  it is named. No figure is derived from it — the two halves are never added,
+  divided or compared. The order is safe because the spike established which
   half is which, 69 of 69 in both ranges.
 - The percentage is rendered as received. A cell the Portal left blank becomes
   absent, not zero, because an absent figure is not evidence of bad attendance.

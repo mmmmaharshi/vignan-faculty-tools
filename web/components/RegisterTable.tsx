@@ -104,8 +104,8 @@ export const RegisterTable = ({
                     <Table.Th ta="right">Attend / Held</Table.Th>
                   )}
                   {!overallOnly && <Table.Th ta="right">%</Table.Th>}
-                  {showOverall && (
-                    <Table.Th ta="right">All Classes / Attended</Table.Th>
+                  {overallOnly && (
+                    <Table.Th ta="right">Attended / All Classes</Table.Th>
                   )}
                   {showOverall && <Table.Th ta="right">Overall %</Table.Th>}
                 </Table.Tr>
@@ -140,7 +140,7 @@ export const RegisterTable = ({
                         )}
                       </Table.Td>
                     )}
-                    {showOverall && (
+                    {overallOnly && (
                       <Table.Td ta="right">
                         {overallCellForDisplay(s.overallAttendedOfHeld) || "—"}
                       </Table.Td>

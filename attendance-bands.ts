@@ -31,16 +31,16 @@ export function band(
   return pct < IRREGULAR_BELOW ? "Irregular" : "Regular";
 }
 /**
- * The portal writes the two halves attended-first, as `381\481`. The column is
- * labelled the other way round, so they are shown in the reader's order. Nothing
- * is computed from them: the figure the bands are applied to still arrives whole
- * from the portal's own percentage cell, and these two are never added,
- * divided or compared. See ADR 0017.
+ * The portal writes the two halves attended-first, as `381\481`. They are shown
+ * in that same order with a plain slash between them, so the cell reads the way
+ * the column above it is named. Nothing is computed from them: the figure the
+ * bands are applied to still arrives whole from the portal's own percentage
+ * cell, and these two are never added, divided or compared. See ADR 0017.
  */
 export function overallCellForDisplay(cell: string): string {
   const halves = cell.split("\\");
   if (halves.length < 2) return cell;
-  return `${halves[1]} / ${halves[0]}`;
+  return `${halves[0]} / ${halves[1]}`;
 }
 export function withBands(
   row: RegisterRow,

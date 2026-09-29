@@ -54,8 +54,8 @@ range: a string such as `38/45`. The app never computes with it — the two
 numbers inside it are not separately modelled, and nothing is added, divided or
 compared across them. The overall cell holds the same kind of string, joined
 with a backslash rather than a slash, and is held to the same rule; its two
-halves are reordered for the reader only, because the column is labelled the
-other way round from the way the portal writes it.
+halves are shown in the Portal's own order, separated by a plain slash, so the
+cell reads the way its column is named.
 _Avoid_: Held, total classes, conducted, attendance
 
 **Overall attendance**:
