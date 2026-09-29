@@ -59,17 +59,34 @@ runner and watching both ports free.
 
 ### Background servers
 
-Before starting a dev server, check whether one is already running and reuse it
-if so. A second start fights the first for the port: the older process keeps
-serving stale code while the new one dies on a bind error, and the leftover is
-easy to forget about. Never leave two bound to the same port. `dev:all` above
-is the way to avoid the whole problem: one process to stop, so there is no second
-one to forget.
+**Do not start a server. The user starts it.** No `bun server.ts`, no
+`dev:all`, no `vp dev`, no background launch on :8787 or :5173 — including "just
+to check something". Read the code, ask, or run a test that starts its own.
+
+A server this agent started is a server it then has to remember. It outlives the
+task that wanted it, it goes stale the moment the source changes, and it holds a
+port the user's own `dev:all` then fails to bind. In one session it caused three
+false diagnoses — a changed band threshold, a changed option list and a changed
+column header each read as a broken edit, because the page was being served by a
+process that had been running since before the change. **Bun loads its modules at
+boot and never reloads**, so a stale process answers correctly on every field
+except the one that changed, which is the least recognisable failure there is.
+
+**Do not kill one either.** Stopping the user's server to free a port is the same
+mistake pointed the other way.
+
+If something genuinely needs a server up, say so and let the user start it. To
+see what is already running:
 
 ```sh
 Get-Process node,bun,deno,python,go,java -ErrorAction SilentlyContinue
 Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
 ```
+
+A second start fights the first for the port: the older process keeps serving
+stale code while the new one dies on a bind error, and the leftover is easy to
+forget. Never leave two bound to the same port. `dev:all` above is the way to
+avoid the whole problem — one process, so there is no second one to forget.
 
 ## Layout
 
@@ -482,7 +499,7 @@ bunx playwright install chromium      # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**128 of the 139 tests need no credentials and run in about six seconds.** They
+**159 of the 173 tests need no credentials and run in about eight seconds.** They
 cover the portal's seam, its wire conventions, the attendance bands, the route
 handlers over a fake portal, the cascade's rules, session liveness, and session
 persistence over a fake vault. Only `test/smoke.spec.ts` touches the network — and
