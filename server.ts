@@ -1,6 +1,7 @@
 import {
   absorbResponse,
   calendarPairs,
+  classPairs,
   CookieJar,
   jqBody,
   nextHop,
@@ -42,6 +43,8 @@ const LOGIN_POST = `${BASE}/vignanit/Default.aspx?ReturnUrl=%2fvignanit%2fmain.a
 const JQ = `${BASE}/vignanit/jqmethods.aspx`;
 const REGISTER_PAGE_URL = `${BASE}/vignanit/ACADEMICS/AcademicRegister.aspx?scrid=335`;
 const REGISTER_PROXY = `${BASE}/vignanit/ajax/Academics_AcademicRegister,App_Web_academicregister.aspx.a2a1b31c.ashx`;
+const CLASS_PAGE_URL = `${BASE}/vignanit/ACADEMICS/rptstudentsattendance.aspx?scrid=319`;
+const CLASS_PROXY = `${BASE}/vignanit/ajax/Academics_rptstudentsattendance,App_Web_rptstudentsattendance.aspx.a2a1b31c.ashx`;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
@@ -156,16 +159,17 @@ class Portal {
     return reply.d;
   }
   async #webMethod(
+    remote: { proxy: string; referer: string },
     name: string,
     pairs: [string, string | number][]
   ): Promise<string> {
     const res = await this.#request(
-      `${REGISTER_PROXY}?_method=${name}&_session=no`,
+      `${remote.proxy}?_method=${name}&_session=no`,
       {
         method: "POST",
         headers: {
           "content-type": "application/x-www-form-urlencoded",
-          referer: REGISTER_PAGE_URL,
+          referer: remote.referer,
           "user-agent": UA,
         },
         body: webMethodBody(pairs),
@@ -232,17 +236,34 @@ class Portal {
     semesterId: string | number
   ): Promise<Option[]> {
     return options(
-      await this.#webMethod("FillSubjects", [
-        ["CourseId", courseId],
-        ["BranchId", branchId],
-        ["SemesterId", semesterId],
-      ])
+      await this.#webMethod(
+        { proxy: REGISTER_PROXY, referer: REGISTER_PAGE_URL },
+        "FillSubjects",
+        [
+          ["CourseId", courseId],
+          ["BranchId", branchId],
+          ["SemesterId", semesterId],
+        ]
+      )
     );
   }
   register(
     p: Record<Level, Option> & { from: string; to: string }
   ): Promise<string> {
-    return this.#webMethod("ShowAcademicCalendar", calendarPairs(p));
+    return this.#webMethod(
+      { proxy: REGISTER_PROXY, referer: REGISTER_PAGE_URL },
+      "ShowAcademicCalendar",
+      calendarPairs(p)
+    );
+  }
+  classAttendance(
+    p: Record<Level, Option> & { from: string; to: string }
+  ): Promise<string> {
+    return this.#webMethod(
+      { proxy: CLASS_PROXY, referer: CLASS_PAGE_URL },
+      "ShowAllAttendance",
+      classPairs(p)
+    );
   }
 }
 type Session = {
@@ -303,12 +324,9 @@ function reapSessions() {
   }
   if (dropped) markStoreDirty();
 }
-async function restoreSessions(): Promise<{
-  restored: number;
-  dropped: number;
-  persisted: boolean;
-}> {
-  if (!vault) return { restored: 0, dropped: 0, persisted: false };
+/** Restores every session still inside the TTL, then answers whether a vault exists. */
+async function restoreSessions(): Promise<boolean> {
+  if (!vault) return false;
   const loaded = await loadSessions(vault);
   const { kept, dropped } = sweep(loaded, Date.now(), SESSION_TTL_MS);
   for (const stored of kept) {
@@ -316,7 +334,7 @@ async function restoreSessions(): Promise<{
     sessions.set(stored.id, restoreSession(stored));
   }
   if (dropped) markStoreDirty();
-  return { restored: kept.length, dropped, persisted: true };
+  return true;
 }
 function getSession(id: string | null): Session | null {
   if (!id) return null;
@@ -380,7 +398,7 @@ async function readJson<T>(req: Request): Promise<Partial<T>> {
     return {};
   }
 }
-const restoredSessions = await restoreSessions();
+const vaultBacked = await restoreSessions();
 setInterval(async () => {
   await flushSessions();
 }, SESSION_FLUSH_MS);
@@ -515,23 +533,7 @@ const server = Bun.serve({
 });
 console.log(`\n  Vignan Faculty Tools`);
 console.log(`  http://127.0.0.1:${server.port}\n`);
-console.log(`  Talking to ECAP over HTTPS directly - no browser is launched.`);
-console.log(
-  `  Your password is used once to sign in and is never written to disk.`
-);
-console.log(
-  restoredSessions.persisted
-    ? `  Sign-in tokens are kept in the OS credential vault, so a restart keeps you signed in.`
-    : `  No OS credential vault on this runtime, so a restart signs you out.`
-);
-console.log(
-  `  ${
-    restoredSessions.restored
-      ? `Restored ${restoredSessions.restored} signed-in session(s)${
-          restoredSessions.dropped
-            ? `, dropped ${restoredSessions.dropped} that had expired`
-            : ""
-        }.`
-      : `No saved sessions found.`
-  }\n`
-);
+if (!vaultBacked)
+  console.log(
+    `  No OS credential vault on this runtime, so a restart signs you out.\n`
+  );

@@ -20,18 +20,51 @@ turns, and cut tangents. It lives in `~/.agents/skills/i-have-adhd`.
 bun install                # once
 bun run build              # front end -> dist/
 bun server.ts              # http://127.0.0.1:8787
-bun run dev                # Vite on :5173, proxies /api to :8787 (run both)
+bunx vp run --parallel dev:all   # dev server AND api, one process to stop
+bun run dev                # Vite alone on :5173
 bun run typecheck          # tsc over all three projects - see the trap below
-bun run lint               # oxlint + oxfmt check, no writes
-bun run lint:fix           # oxlint --fix + oxfmt, writes
+bun run lint               # vp check: oxfmt + oxlint, no writes
+bun run lint:fix           # vp check --fix: writes
 ```
+
+`vp` is Vite+'s CLI and is the only toolchain entry point now: `vp dev`,
+`vp build`, `vp check`, `vp pack`. **`vp dev` and `vp test` are Vite+ built-ins;
+`vp run dev` and `vp run test` are the project's own scripts.** There is no
+Vitest here — the suite is Playwright — so `vp run test` is the test command.
+
+**There is no `prepare` script, on purpose.** The migrator added
+`prepare: vp config`, and it breaks `bun install --production`: devDependencies
+are absent there, so `vp` is not on PATH and the fallback tries to download a
+Node.js runtime, which fails and takes the whole install with it. `core.hooksPath`
+and `.vite-hooks/_` are per-clone state, so a **fresh clone needs
+`bunx vp hooks enable` once** — that is the only thing `prepare` was buying.
+
+**`dev:all` is the dev command, and `--parallel` is what makes it work.** It is
+`api` plus `vp dev` from one task, so one Ctrl-C stops both. Two things are not
+obvious:
+
+- **`--parallel` is required.** Without it the `dependsOn: ["api"]` edge gates
+  correctly, and since `server.ts` never exits, `vp dev` never starts — verified:
+  without the flag only :8787 comes up. `--parallel` ignores the edge and runs
+  both at once.
+- **The task cannot be named `dev`.** A task and a `package.json` script cannot
+  share a name, and `dev` is already a script. Hence `dev:all`.
+
+Do not replace this with `&` inside one `command`. The task runner splits on `&`
+and execs each side **sequentially**, so the second never starts; `start /b` is a
+cmd builtin it cannot exec. Nor hand-roll a `Bun.spawn` launcher: `vp` on Windows
+re-execs `node`, so `kill()` signals the shim and the real dev server survives as
+an orphan holding :5173. The task runner reaps both — verified by stopping the
+runner and watching both ports free.
 
 ### Background servers
 
 Before starting a dev server, check whether one is already running and reuse it
 if so. A second start fights the first for the port: the older process keeps
 serving stale code while the new one dies on a bind error, and the leftover is
-easy to forget about. Never leave two bound to the same port.
+easy to forget about. Never leave two bound to the same port. `dev:all` above
+is the way to avoid the whole problem: one process to stop, so there is no second
+one to forget.
 
 ```sh
 Get-Process node,bun,deno,python,go,java -ErrorAction SilentlyContinue
@@ -55,10 +88,9 @@ web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping
 web/components/      five presentational modules; none of them holds state
 web/types.ts         Note, the one shape three modules share
 shared/api.ts        the server/client contract; both sides import it
-vite.config.ts       build config
+vite.config.ts       build, lint and fmt config; both blocks come from the
+                     Ultracite preset, 15 rules off, markdown excluded
 playwright.config.ts test runner config
-oxlint.config.ts     linter rules, from the Ultracite preset; 92 rules off with reasons
-oxfmt.config.ts      formatter, from the Ultracite preset; markdown excluded
 test/seam.spec.ts    portal-replies over fixture markup
 test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
 test/bands.spec.ts   where the attendance lines sit
@@ -195,6 +227,56 @@ carries one also has its name in text.
 - **`Bun.fetch` does not store `Set-Cookie`.** Redirects have to be followed by
   hand or the auth cookie is dropped mid-flow and a successful sign-in looks
   like a failure.
+- **There are two calling conventions, and a third trap inside the second one.**
+  `ShowAcademicCalendar` (Academic Register) and `ShowAllAttendance` (Class
+  attendance report) are both invoked through the **generated-proxy** convention:
+  a `.ashx` file named for the page and its code-behind, a `_method=` query
+  parameter, and a body of `key=value` lines joined by `\r\n` with `%` escaped to
+  `%26` and `=` to `%3D`. Two things about that shape cost real time:
+
+  - **The proxy declares the parameter names, and they are Pascal-cased.** The
+    page's own JavaScript calls `main.FillLinks(id, fname, menuHeading)` but the
+    proxy declares `ModuleId, ParentFolder, MenuHeading`. Sending the camel-cased
+    names returns `Object of type 'System.DBNull' cannot be converted to type
+    'System.Int32'` — not an empty list. **Read the proxy definition; it is
+    served as a `<script src>` on the page and is the only place the exact
+    contract exists.**
+  - **The `_session=` marker is per method, not per convention.** `FillLinks`
+    wants `rw`; `ShowAllAttendance` and `ShowAcademicCalendar` want `no`. The
+    wrong value gives a bare `NullReferenceException` with no parameter name in
+    it.
+
+  Reaching `ShowAllAttendance` through the **JQuery** convention fails
+  differently: it answers a generic `500` while other methods on the same
+  endpoint work fine. `LoadBranchAndSemestersDropDown` is one of those — it lives
+  on the `AjaxGeneral` proxy and 500s on `jqmethods.aspx`, which is why the
+  branches-and-semesters call is the one that looks broken and is not.
+
+- **`ShowAllAttendance` is the Class attendance report, and it honours any date
+  range.** It takes thirteen values, all sent every time: course, branch,
+  semester, section, from date, to date, then the four labels, then three flags
+  of which all are always false (`isJNTUFormat`, `onlyhostelrs`,
+  `excludeothersubjects` — the last must be false or the report spans one subject
+  instead of the section). **The Portal has no semester start date to give**:
+  `GetDates` returns month-to-date and the report's date pickers carry no
+  bounds, so the user's chosen range is the definition of the period.
+
+- **Attendance figures are read, never computed.** Both the subject register and
+  the class report state their percentages, and the app displays those. The
+  combined attended-of-held cell is never split. Measured against a real
+  section, the class report's declared cell agreed with the sum of its own
+  subject columns 69 of 69 — which is precisely why it must not be recomputed.
+  See ADR 0017.
+
+- **A failing class report must never fail the register.** On the subject path it
+  is allowed to fail: the register renders with the overall column absent. On the
+  **All subjects** path it *is* the register, so an empty one is a named 502. The
+  two paths have opposite failure rules on purpose.
+
+- **`Load register` is still the only thing that fetches a register.** The class
+  report is read *inside* that one request, so the smoke test that counts
+  `/api/register` POSTs on the wire is unchanged by all of this.
+
 - **End a session through `signedOut`, never a bare `setPhase("login")`.** A 401
   only fires when something asks the server for something, so a user who leaves a
   register open comes back to numbers from a session that no longer exists. The
@@ -250,6 +332,24 @@ carries one also has its name in text.
   caps a generic credential at `CRED_MAX_CREDENTIAL_BLOB_SIZE` = 5 × 512 = 2560
   bytes and a session is ~526, so the fifth is rejected with `code 1783` and
   persistence silently stops. Measured, and pinned by a test.
+
+- **The index is a credential too, so it needs its own budget.** Going one entry
+  per session solves the cap *per session* and reintroduces it *per index*: the
+  index grows about 39 bytes a session, so it fills after roughly **65 sign-ins
+  inside the 24-hour staleness window**, and the next write fails with the same
+  `code 1783` — silently, because the caller only logs the message. This was
+  live: 65 sessions, a 2536-byte index, and a sign-in that would not persist.
+
+  `withinIndexBudget` in `session-store.ts` bounds the index to
+  `INDEX_BYTE_BUDGET` (2048), keeping the **most recently used** sessions and
+  dropping the oldest past that point, then deletes the dropped sessions' entries
+  so none is orphaned. The cap is on bytes actually measured, not on a count, so
+  it stays right if the id shape ever changes. Two tests pin it: 200 sessions
+  still produce an index under 2560 bytes with the newest surviving, and 20
+  still survive untouched. **The pre-existing test that claimed to cover this
+  used 20 sessions, where 780 bytes looks fine — a test named for a limit and
+  stopping an order of magnitude short of it.**
+
 - **Sessions are written before the index, and the index before the orphan
   sweep.** A failure part-way must leave an index that only names entries which are
   actually stored, or a load drops live sessions.
@@ -286,10 +386,10 @@ carries one also has its name in text.
   early for every reader east of Greenwich.
 - **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
   `index.html` not at all; changing that pair reintroduces "my fix did nothing".
-- **Every Playwright run lints, typechecks, then builds — in that order.** Vite and
-  Playwright both use esbuild, which strips types without reading them, so a
-  passing build says nothing about types, and nothing else in the toolchain
-  lints. All three live in `test/global-setup.ts`, which Playwright loads for
+- **Every Playwright run lints, typechecks, then builds — in that order.** The
+  bundler and Playwright both strip types without reading them, so a passing
+  build says nothing about types, and nothing else in the toolchain type-checks.
+  All three live in `test/global-setup.ts`, which Playwright loads for
   every invocation — deliberately not a `pretest` script, which only fires for
   `bun run test` and left `bunx playwright test` able to skip them. Build **last**:
   it is the only step that writes anything, and it does not fail on a type error,
@@ -307,6 +407,36 @@ carries one also has its name in text.
   otherwise hand `web/` `process` and `Buffer`; `tsconfig.server.json` omits
   `dom` so `server.ts` cannot call `document`. Both were verified by probe, not
   assumed. Do not merge them into one config.
+- **`lint.options.typeAware` and `typeCheck` are off, on purpose.** Vite+ enables
+  both by default, and tsgolint then type-checks every file against **one**
+  tsconfig. That cannot work here: the three-project split above is the whole
+  point, and a single project either hands `web/` the server's globals or takes
+  the server's away — `Bun` and `import.meta.dir` vanish from `server.ts`, and
+  `toSorted` vanishes from the tests. It reported 213 errors on code `tsc`
+  accepts. Type checking is `bun run typecheck`, which is still in the gate.
+- **`vp check` is the only lint and format command.** `oxlint.config.ts` and
+  `oxfmt.config.ts` are gone: Vite+ disables nested lint and format configs, so
+  a file Oxlint never reads is a file that silently stops applying. Their content
+  is in the `lint` and `fmt` blocks of `vite.config.ts`.
+- **`overrides.vite` is a bare key, and that is deliberate.** The migration rules
+  want `vite@*` under pnpm, because a bare key matches a `catalog:` reference and
+  `vp up` then rewrites it to a concrete version. This project is Bun with no
+  catalogs, so there is no `catalog:` to rewrite and the bare key is inert.
+  Adding `vite@*` alongside it is not a fix: `vp migrate` re-adds `vite` on every
+  run, so the two keys coexist and fight over the same spec. Re-key it in the
+  same change that moves this to pnpm.
+- **The commit hook is `vp check --fix`, so it does not typecheck.** `staged` maps
+  `**/*` to `vp check --fix` and nothing else, which means format and lint only.
+  Type checking happens in `test/global-setup.ts` and nowhere in the commit path,
+  so a type error is found by `vp run test`, not by `git commit`. Do not add
+  `tsc` to the `staged` block: ADR 0012 rejected a second copy of the gate for
+  exactly this reason, and the array form of `staged` runs each entry as its own
+  command, so `["tsc", "-p", "tsconfig.json"]` would execute `-p` on its own.
+- **`"**/*"` in the `staged` block, not `"*"` and not a file-type list.** The
+  unanchored `*` happens to reach subdirectories today, but only because
+  lint-staged matches on basename; `**/*` says what is meant. It also leaves the
+  unstaged files alone — verified by staging one badly formatted file next to
+  another, and only the staged one came back rewritten.
 
 ## The cascade
 

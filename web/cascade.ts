@@ -5,6 +5,8 @@ import type {
   RegisterReply,
 } from "../shared/api";
 
+export { isAllSubjects } from "../shared/api";
+
 export type Level = CascadeLevel;
 export type Sel = Record<Level, string>;
 export type Range = { from: string; to: string };

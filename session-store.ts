@@ -96,6 +96,35 @@ export async function loadSessions(backend: Secrets): Promise<StoredSession[]> {
   );
   return found.filter((s): s is StoredSession => s !== null);
 }
+/**
+ * Windows caps one generic credential at `CRED_MAX_CREDENTIAL_BLOB_SIZE` =
+ * 5 × 512 = 2560 bytes. Going one entry per session is what keeps a *session*
+ * under that cap; the index is still a single credential, so it has the same one,
+ * and it grows about 39 bytes a session. Left alone it fills after roughly 65
+ * sign-ins inside the 24-hour staleness window, and the write that follows fails
+ * with `code 1783` — silently, because the caller only logs it.
+ *
+ * 2048 keeps the newest sessions and leaves headroom for the brackets and the
+ * commas. Past that, the oldest live session is dropped rather than the newest,
+ * because the newest is the one that was just used.
+ */
+export const INDEX_BYTE_BUDGET = 2048;
+const byteLength = (value: string): number =>
+  new TextEncoder().encode(value).length;
+export function withinIndexBudget(
+  live: readonly StoredSession[],
+  budget: number = INDEX_BYTE_BUDGET
+): Set<string> {
+  const kept = new Set<string>();
+  let used = 2; // the enclosing brackets
+  for (const session of live.toSorted((a, b) => b.at - a.at)) {
+    const cost = byteLength(JSON.stringify(session.id)) + 1; // plus a comma
+    if (used + cost > budget) break;
+    used += cost;
+    kept.add(session.id);
+  }
+  return kept;
+}
 export async function saveSessions(
   backend: Secrets,
   sessions: readonly StoredSession[],
@@ -103,9 +132,10 @@ export async function saveSessions(
 ): Promise<string | null> {
   const now = Date.now();
   const live = sessions.filter((s) => now - s.at <= staleAfterMs);
-  const wanted = new Set(live.map((s) => s.id));
+  const wanted = withinIndexBudget(live);
+  const keep = live.filter((s) => wanted.has(s.id));
   const previous = await readIndex(backend);
-  for (const session of live) {
+  for (const session of keep) {
     try {
       await backend.set(sessionKey(session.id), JSON.stringify(session));
     } catch (error) {
@@ -113,7 +143,7 @@ export async function saveSessions(
     }
   }
   try {
-    await backend.set(VAULT_INDEX, JSON.stringify([...wanted]));
+    await backend.set(VAULT_INDEX, JSON.stringify(keep.map((s) => s.id)));
   } catch (error) {
     return `could not write the session index to the OS vault: ${(error as Error).message}`;
   }

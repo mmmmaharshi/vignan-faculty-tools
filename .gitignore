@@ -10,6 +10,10 @@ dist/
 /blob-report/
 /playwright/.cache/
 
+# Git hooks installed by `vp hooks enable`. Per-clone state: a fresh clone runs
+# that once rather than inheriting this directory.
+/.vite-hooks/
+
 # Local env / editor
 .env
 .env.local

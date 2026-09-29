@@ -27,6 +27,7 @@ import type {
 import {
   applyOptions,
   chosenLevels,
+  isAllSubjects,
   chosenText,
   defaultRange,
   disabledLevels,
@@ -92,6 +93,7 @@ const App = (): React.JSX.Element => {
   const [range, setRange] = useState<Range>(defaultRange);
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
+  const [overallMode, setOverallMode] = useState(false);
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
@@ -135,6 +137,8 @@ const App = (): React.JSX.Element => {
         });
         if (token !== refreshToken.current) return;
         setResult(body);
+        // Only a load that actually succeeded re-scopes the screen.
+        setOverallMode(isAllSubjects(levels.subject));
       } catch (error) {
         if (error instanceof ApiError && error.status === 401) {
           signedOut("Your session expired. Please sign in again.");
@@ -319,8 +323,18 @@ const App = (): React.JSX.Element => {
   const summary = result?.summary;
   const rows = result
     ? result.students
-        .filter((s) => !onlyIrregular || s.irregular)
-        .toSorted((a, b) => (a.pct ?? 999) - (b.pct ?? 999))
+        // With no subject chosen the subject band is empty on every row, so the
+        // filter has to read whichever band the table is actually showing.
+        .filter((s) =>
+          overallMode
+            ? !onlyIrregular || s.overallIrregular
+            : !onlyIrregular || s.irregular
+        )
+        .toSorted((a, b) =>
+          overallMode
+            ? (a.overallPct ?? 999) - (b.overallPct ?? 999)
+            : (a.pct ?? 999) - (b.pct ?? 999)
+        )
     : [];
   const registerName = chosenText(opts, sel);
   const onSelectLevel = (key: Level, value: string) => {
@@ -370,7 +384,12 @@ const App = (): React.JSX.Element => {
       ) : (
         <>
           {picker}
-          {summary ? <RegisterSummary summary={summary} /> : null}
+          {summary ? (
+            <RegisterSummary
+              summary={summary}
+              scope={overallMode ? "overall" : "subject"}
+            />
+          ) : null}
           {summary ? (
             <RegisterTable
               rows={rows}
@@ -379,6 +398,7 @@ const App = (): React.JSX.Element => {
               onlyIrregular={onlyIrregular}
               onToggleIrregular={setOnlyIrregular}
               chosenText={registerName}
+              overallOnly={overallMode}
             />
           ) : null}
         </>

@@ -21,8 +21,17 @@ bun run typecheck  # tsc over all three projects
 Sign in with your ECAP user name and password. The class dropdowns fill
 themselves; pick a subject, set the date range, and press **Load register**.
 
-For front-end work, `bun run dev` runs Vite on :5173 and proxies `/api` to the
-server on :8787, so run both. Production is the single-process path above.
+For front-end work, run both halves with one command:
+
+```sh
+bunx vp run --parallel dev:all
+```
+
+That starts the API on :8787 and Vite on :5173 together, so one Ctrl-C stops
+both. Open **http://localhost:5173** — the dev server proxies `/api` to :8787.
+Use `localhost`, not `127.0.0.1`: the dev server binds the IPv6 loopback only.
+`bun run dev` on its own starts Vite without the API, which is only useful if
+the server is already running. Production is the single-process path above.
 
 ## Tests
 
@@ -88,7 +97,8 @@ dropdowns in front of you it is easy to read last week's numbers as this week's.
 
 ## The front end
 
-React 19 and Mantine 9, built by Vite 8. **There is no custom CSS** — no
+React 19 and Mantine 9, built by Vite 8 through Vite+ (`vp build`, `vp dev`,
+`vp check`). **There is no custom CSS** — no
 stylesheet, no CSS module, no inline `style` prop. Every visual decision is a
 Mantine component or a Mantine colour token, read through Mantine's own `bg` and
 `c` props.
@@ -175,7 +185,7 @@ web/App.tsx           state, the routes, and the refresh loop
 web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
 web/components/       five presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
-vite.config.ts        build config
+vite.config.ts        build, lint and format config (Vite+; Ultracite presets)
 playwright.config.ts  test runner config
 test/*.spec.ts        128 fast tests, no credentials; plus eleven live smoke tests
 tsconfig*.json        three projects, split so web/ has DOM and server.ts does not

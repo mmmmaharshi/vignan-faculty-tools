@@ -135,6 +135,47 @@ export function parseRegister(html: string): RegisterRow[] {
   }
   return rows;
 }
+export interface OverallRow {
+  sl: string;
+  roll: string;
+  name: string;
+  attendedOfHeld: string;
+  pct: number | null;
+}
+export function parseClassAttendance(html: string): OverallRow[] {
+  const rows: OverallRow[] = [];
+  let table: string | null = null;
+  for (const t of html.match(TABLE) ?? []) {
+    if (
+      [...t.matchAll(ROW)].some((tr) =>
+        [...tr[0].matchAll(CELL)].some((c) => ROLL_HEADER.test(cellText(c[0])))
+      )
+    ) {
+      table = t;
+      break;
+    }
+  }
+  if (!table) return rows;
+  for (const tr of table.match(ROW) ?? []) {
+    const cells = [...tr.matchAll(CELL)].map((m) =>
+      cellText(m.groups?.cell ?? "")
+    );
+    if (cells.length < 4) continue;
+    const sl = cells[0] ?? "";
+    const roll = cells[1] ?? "";
+    if (!/^\d+$/.test(sl) || !roll) continue;
+    const stated = (cells.at(-1) ?? "").replace("%", "").trim();
+    const num = stated === "" ? Number.NaN : Number(stated);
+    rows.push({
+      sl,
+      roll,
+      name: cells[2] ?? "",
+      attendedOfHeld: cells.at(-2) ?? "",
+      pct: Number.isNaN(num) ? null : num,
+    });
+  }
+  return rows;
+}
 export function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(INPUT) ?? []) {
     if (new RegExp(`name="${name}"`, "i").test(tag)) {

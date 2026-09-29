@@ -4,6 +4,7 @@ import { HttpError } from "../portal-replies";
 import { handleOptions, handleRegister, requireLevels } from "../server-routes";
 import type { PortalReader } from "../server-routes";
 import type { Option, RegisterRequest } from "../shared/api";
+import { ALL_SUBJECTS } from "../shared/api";
 
 const opt = (value: string, label = `L${value}`, title = ""): Option => ({
   value,
@@ -24,9 +25,26 @@ type Calls = {
   sections: [string, string, string, string | undefined][];
   subjects: [string, string, string][];
   register: (RegisterRequest & Record<string, unknown>)[];
+  classAttendance: (RegisterRequest & Record<string, unknown>)[];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
+const twoRows = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
+<tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr>
+<tr><td>2</td><td>21CS002</td><td>B Student</td><td>20/45</td><td>44.44</td></tr></table>`;
+const classGrid = (rows: [string, string, string][]): string =>
+  `<table>
+    <tr><td>ATTENDANCE REPORT FOR THE PERIOD OF</td></tr>
+    <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>AI</th><th>Total</th><th>Percent</th></tr>
+    <tr><td>Batch-1</td><td>50</td><td>0</td><td>49</td><td></td><td></td></tr>
+    ${rows
+      .map(
+        ([roll, total, pct], i) =>
+          `<tr><td>${i + 1}</td><td>${roll}</td><td>Name ${i + 1}</td><td>37</td><td>${total}</td><td>${pct}</td></tr>`
+      )
+      .join("")}
+  </table>`;
+const ONE_CLASS_ROW = classGrid([["21CS001", "381\\481", "79.21"]]);
 const fake = (
   answers: {
     course?: Option[];
@@ -35,6 +53,8 @@ const fake = (
     section?: Option[];
     subject?: Option[];
     register?: string;
+    classAttendance?: string;
+    classFails?: boolean;
   } = {}
 ): { reader: PortalReader; calls: Calls } => {
   const calls: Calls = {
@@ -43,6 +63,7 @@ const fake = (
     sections: [],
     subjects: [],
     register: [],
+    classAttendance: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -67,6 +88,15 @@ const fake = (
     register: (p) => {
       calls.register.push(p as RegisterRequest & Record<string, unknown>);
       return resolved(answers.register ?? oneRow);
+    },
+    classAttendance: (p) => {
+      calls.classAttendance.push(
+        p as RegisterRequest & Record<string, unknown>
+      );
+      if (answers.classFails) {
+        return Promise.reject(new HttpError(502, "class report unavailable"));
+      }
+      return resolved(answers.classAttendance ?? ONE_CLASS_ROW);
     },
   };
   return { reader, calls };
@@ -138,7 +168,11 @@ test.describe("the options ladder", () => {
       section: "1",
     }).then((reply) => {
       expect(calls.subjects).toEqual([["1", "6", "3"]]);
-      expect(reply.subject).toHaveLength(1);
+      expect(reply.subject[0]?.value).toBe("57");
+      expect(reply.subject.map((o) => o.label)).toEqual([
+        "MFCS",
+        "All subjects",
+      ]);
     });
   });
   test("the semester's title is passed on, because it carries the batch number", () => {
@@ -293,6 +327,163 @@ test.describe("the register handler", () => {
     ).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(HttpError);
     expect((failure as HttpError).status).toBe(502);
+  });
+});
+const deadSession = () =>
+  Promise.reject(new HttpError(401, "Your ECAP session expired."));
+test.describe("the overall column", () => {
+  test("each student carries the overall percentage the portal stated for them", async () => {
+    const { reader, calls } = fake({
+      register: twoRows,
+      classAttendance: classGrid([
+        ["21CS001", "381\\481", "79.21"],
+        ["21CS002", "356\\481", "74.01"],
+      ]),
+    });
+    const reply = await handleRegister(reader, levels());
+    expect(reply.students.map((s) => [s.roll, s.overallPct])).toEqual([
+      ["21CS001", 79.21],
+      ["21CS002", 74.01],
+    ]);
+    expect(calls.classAttendance).toHaveLength(1);
+  });
+  test("a student the class report never mentions keeps their row and no figure", async () => {
+    const { reader } = fake({ register: twoRows });
+    const reply = await handleRegister(reader, levels());
+    expect(reply.students).toHaveLength(2);
+    expect(reply.students[0]?.overallPct).toBe(79.21);
+    expect(reply.students[1]?.overallPct).toBeNull();
+    expect(reply.students[1]?.overallIrregular).toBe(false);
+    expect(reply.students[1]?.overallCritical).toBe(false);
+  });
+  test("a student the class report adds is not put into the register", async () => {
+    const { reader } = fake({
+      register: oneRow,
+      classAttendance: classGrid([
+        ["21CS001", "381\\481", "79.21"],
+        ["21CS999", "100\\481", "20.79"],
+      ]),
+    });
+    const reply = await handleRegister(reader, levels());
+    expect(reply.students).toHaveLength(1);
+    expect(reply.students[0]?.roll).toBe("21CS001");
+    expect(reply.summary.total).toBe(1);
+  });
+  test("the class report is asked for over the same range, carrying the chosen labels", async () => {
+    const { reader, calls } = fake();
+    await handleRegister(
+      reader,
+      levels({ from: "01/06/2026", to: "29/09/2026" })
+    );
+    const asked = nth(calls.classAttendance, 0);
+    expect(asked.from).toBe("01/06/2026");
+    expect(asked.to).toBe("29/09/2026");
+    expect(asked.branch.label).toBe("Information Technology");
+    expect(asked.section.label).toBe("Section-1");
+    expect(asked.semester.label).toBe("III Semester");
+  });
+  test("a class report that fails leaves the register standing", async () => {
+    const { reader } = fake({ classFails: true });
+    const reply = await handleRegister(reader, levels());
+    expect(reply.students).toHaveLength(1);
+    expect(reply.students[0]?.overallPct).toBeNull();
+    expect(reply.summary.total).toBe(1);
+  });
+  test("a dead session stays a 401 on both paths, so the client signs out", async () => {
+    const { reader } = fake();
+    const subjectPath: PortalReader = {
+      ...reader,
+      register: () => resolved(oneRow),
+      classAttendance: deadSession,
+    };
+    await expect(handleRegister(subjectPath, levels())).rejects.toThrow(
+      /session expired/i
+    );
+    const allPath: PortalReader = {
+      ...reader,
+      register: () => resolved(oneRow),
+      classAttendance: deadSession,
+    };
+    const failure = await handleRegister(
+      allPath,
+      levels({ subject: ALL_SUBJECTS })
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(401);
+  });
+  test("one class read per register load, not one per student", async () => {
+    const { reader, calls } = fake({
+      register: twoRows,
+      classAttendance: classGrid([
+        ["21CS001", "381\\481", "79.21"],
+        ["21CS002", "356\\481", "74.01"],
+      ]),
+    });
+    await handleRegister(reader, levels());
+    expect(calls.classAttendance).toHaveLength(1);
+    expect(calls.register).toHaveLength(1);
+  });
+});
+test.describe("all subjects", () => {
+  const ALL = ALL_SUBJECTS;
+  const deep = { course: "1", branch: "6", semester: "3", section: "1" };
+  test("it is offered last, so the cascade still auto-fills a real subject", () => {
+    const { reader } = fake();
+    return handleOptions(reader, deep).then((reply) => {
+      expect(reply.subject).toHaveLength(2);
+      expect(reply.subject[0]?.label).toBe("MFCS");
+      expect(reply.subject.at(-1)).toEqual(ALL);
+    });
+  });
+  test("a section with no subjects does not gain the entry", () => {
+    const { reader } = fake({ subject: [] });
+    return handleOptions(reader, deep).then((reply) => {
+      expect(reply.subject).toEqual([]);
+      expect(reply.emptyLevels).toContain("subject");
+    });
+  });
+  test("choosing it reads the class report and no subject register", async () => {
+    const { reader, calls } = fake();
+    await handleRegister(reader, levels({ subject: ALL }));
+    expect(calls.register).toHaveLength(0);
+    expect(calls.classAttendance).toHaveLength(1);
+  });
+  test("its rows are the class report's own students, with no subject figure", async () => {
+    const { reader } = fake({
+      classAttendance: classGrid([
+        ["21CS001", "381\\481", "79.21"],
+        ["21CS002", "356\\481", "74.01"],
+      ]),
+    });
+    const reply = await handleRegister(reader, levels({ subject: ALL }));
+    expect(reply.students.map((s) => s.roll)).toEqual(["21CS001", "21CS002"]);
+    expect(reply.students[0]?.name).toBe("Name 1");
+    expect(reply.students[0]?.pct).toBeNull();
+    expect(reply.students[0]?.attendedOfHeld).toBe("");
+    expect(reply.students[0]?.overallPct).toBe(79.21);
+    expect(reply.students[0]?.irregular).toBe(false);
+    expect(reply.students[0]?.overallIrregular).toBe(false);
+    expect(reply.students[1]?.overallIrregular).toBe(true);
+  });
+  test("the overall figures are in the summary and the subject ones are empty", async () => {
+    const { reader } = fake({
+      classAttendance: classGrid([
+        ["21CS001", "381\\481", "90"],
+        ["21CS002", "356\\481", "74.01"],
+      ]),
+    });
+    const reply = await handleRegister(reader, levels({ subject: ALL }));
+    expect(reply.summary.total).toBe(2);
+    expect(reply.summary.overallIrregular).toBe(1);
+    expect(reply.summary.overallAverage).toBe(82);
+    expect(reply.summary.average).toBeNull();
+    expect(reply.summary.irregular).toBe(0);
+  });
+  test("a class report with nothing in it is a 502, not an empty table", async () => {
+    const { reader } = fake({ classAttendance: "<p>nothing here</p>" });
+    await expect(
+      handleRegister(reader, levels({ subject: ALL }))
+    ).rejects.toThrow(/class/i);
   });
 });
 test.describe("the levels a register needs", () => {

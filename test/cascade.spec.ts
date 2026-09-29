@@ -250,6 +250,10 @@ const student = (pct: number | null): Student => ({
   pct,
   irregular: pct != null && pct < 75,
   critical: pct != null && pct < 60,
+  overallPct: 79.21,
+  overallAttendedOfHeld: "381\\481",
+  overallIrregular: false,
+  overallCritical: false,
 });
 test.describe("the bands", () => {
   test("worst band wins, so a student is never shown as merely irregular", () => {

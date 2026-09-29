@@ -168,24 +168,37 @@ test.describe("Vignan Faculty Tools", () => {
     await expect(page.locator("tbody tr").first()).toBeVisible({
       timeout: 90_000,
     });
-    const table = await page.evaluate(() =>
-      [...document.querySelectorAll("tbody tr")].map((tr) => {
-        const cells = [...tr.querySelectorAll("td")].map((c) =>
-          c.innerText.replaceAll(/\s+/g, " ").trim()
-        );
-        const pctText = cells.at(-1) ?? "";
-        const num = Number(pctText.match(/[\d.]+/)?.[0] ?? "");
-        return {
-          roll: cells[1] ?? "",
-          name: cells[2] ?? "",
-          attendedOfHeld: cells.at(-2) ?? "",
-          badges: [...tr.querySelectorAll(".mantine-Badge-root")].map(
-            (b) => b.textContent?.trim().toLowerCase() ?? ""
-          ),
-          pct: Number.isNaN(num) ? null : num,
+    const table = await page.evaluate(() => {
+      const head = [...document.querySelectorAll("thead th")].map((th) =>
+        (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
+      );
+      const at = (name: string): number => head.indexOf(name);
+      const pctIdx = at("%");
+      const heldIdx = at("Attend / Held");
+      return [...document.querySelectorAll("tbody tr")].map((tr) => {
+        const cells = [...tr.querySelectorAll("td")];
+        const num = (i: number): number | null => {
+          const found = Number(
+            (cells[i]?.textContent ?? "").match(/[\d.]+/)?.[0] ?? ""
+          );
+          return Number.isNaN(found) ? null : found;
         };
-      })
-    );
+        const text = (i: number): string =>
+          (cells[i]?.textContent ?? "").replaceAll(/\s+/g, " ").trim();
+        // Badges come from the subject cell only: the row also carries the
+        // overall badge, and this card counts the subject one.
+        const pctCell = cells[pctIdx];
+        return {
+          roll: text(1),
+          name: text(2),
+          attendedOfHeld: text(heldIdx),
+          pct: num(pctIdx),
+          badges: [...(pctCell?.querySelectorAll(".mantine-Badge-root") ?? [])]
+            .map((b) => b.textContent?.trim().toLowerCase() ?? "")
+            .filter(Boolean),
+        };
+      });
+    });
     expect(table.length, "the register should have rows").toBeGreaterThan(0);
     const pcts = table.map((r) => r.pct).filter((p): p is number => p != null);
     expect(pcts.length, "every row should carry a percentage").toBe(
@@ -386,6 +399,134 @@ test.describe("Vignan Faculty Tools", () => {
     await expect(page.getByText("Vignan Institute of Technology")).toHaveCount(
       0
     );
+  });
+  test("every student carries an overall figure beside the subject one", async ({
+    page,
+  }) => {
+    const problems: string[] = [];
+    page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
+    await page.goto("/dashboard");
+    await submitSignIn(page);
+    const subjectOptions = await openSelect(page, "Subject");
+    const firstOption = await subjectOptions.first().innerText();
+    const subject = firstOption.trim();
+    await page.getByRole("option", { name: subject, exact: true }).click();
+    await page.getByLabel("From").fill("2026-06-01");
+    await page.getByLabel("To").fill("2026-09-30");
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("tbody tr").first()).toBeVisible({
+      timeout: 90_000,
+    });
+    const head = await page.evaluate(() =>
+      [...document.querySelectorAll("thead th")].map((th) =>
+        (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
+      )
+    );
+    expect(head).toContain("Overall Attend / Held");
+    expect(head).toContain("Overall %");
+    // The subject columns must still be there: this is the subject path.
+    expect(head).toContain("Attend / Held");
+    const overallPctIdx = head.indexOf("Overall %");
+    const overalls = await page.evaluate((idx) => {
+      const rows = [...document.querySelectorAll("tbody tr")];
+      return {
+        rows: rows.length,
+        filled: rows.filter((tr) => {
+          const cell = tr.querySelectorAll("td")[idx];
+          return /\d/.test(cell?.textContent ?? "");
+        }).length,
+      };
+    }, overallPctIdx);
+    expect(overalls.rows, "the register should have rows").toBeGreaterThan(0);
+    expect(
+      overalls.filled,
+      "the real portal should give every student an overall percentage"
+    ).toBeGreaterThan(0);
+    expect(
+      problems,
+      `no uncaught errors; got ${JSON.stringify(problems)}`
+    ).toHaveLength(0);
+  });
+  test("all subjects shows the class overall, and the cards count it", async ({
+    page,
+  }) => {
+    const problems: string[] = [];
+    page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
+    await page.goto("/dashboard");
+    await submitSignIn(page);
+    const options = await openSelect(page, "Subject");
+    await expect(options.getByRole("option")).not.toHaveCount(1);
+    await page
+      .getByRole("option", { name: "All subjects", exact: true })
+      .click();
+    await expect
+      .poll(async () => {
+        const state = await selectState(page, "Subject");
+        return state?.value;
+      })
+      .toBe("All subjects");
+    await page.getByLabel("From").fill("2026-06-01");
+    await page.getByLabel("To").fill("2026-09-30");
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("tbody tr").first()).toBeVisible({
+      timeout: 90_000,
+    });
+    const state = await page.evaluate(() => {
+      const head = [...document.querySelectorAll("thead th")].map((th) =>
+        (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
+      );
+      const rows = [...document.querySelectorAll("tbody tr")];
+      const overallIdx = head.indexOf("Overall %");
+      const flagged = rows.filter((tr) =>
+        [...tr.querySelectorAll(".mantine-Badge-root")].some((b) => {
+          const text = b.textContent?.trim().toLowerCase();
+          return text === "low" || text === "critical";
+        })
+      ).length;
+      const cards: Record<string, string> = {};
+      for (const p of document.querySelectorAll("p")) {
+        const caption = (p.textContent ?? "")
+          .replaceAll(/\s+/g, " ")
+          .trim()
+          .toUpperCase();
+        if (caption.includes("OVERALL")) {
+          cards[caption] = (p.previousElementSibling?.textContent ?? "").trim();
+        }
+      }
+      return {
+        head,
+        rows: rows.length,
+        withOverall: rows.filter((tr) =>
+          /\d/.test(tr.querySelectorAll("td")[overallIdx]?.textContent ?? "")
+        ).length,
+        flagged,
+        cards,
+      };
+    });
+    expect(
+      state.head,
+      "subject columns are gone with no subject chosen"
+    ).not.toContain("Attend / Held");
+    expect(state.head).toContain("Overall %");
+    expect(state.rows).toBeGreaterThan(0);
+    expect(
+      state.withOverall,
+      "every row should carry an overall"
+    ).toBeGreaterThan(0);
+    expect(
+      state.cards["BELOW 75% OVERALL"],
+      `badged rows (${state.flagged}) should match the overall card; got ${JSON.stringify(state.cards)}`
+    ).toBe(String(state.flagged));
+    expect(state.cards["OVERALL CLASS AVERAGE"]).toMatch(/\d/);
+    const selection = page
+      .locator("p")
+      .filter({ hasText: /^Course:/ })
+      .first();
+    await expect(selection).toContainText("Subject: All subjects");
+    expect(
+      problems,
+      `no uncaught errors; got ${JSON.stringify(problems)}`
+    ).toHaveLength(0);
   });
   test("every path reaches a screen, and a signed-in one does not loop", async ({
     page,

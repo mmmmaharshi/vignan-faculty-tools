@@ -112,6 +112,91 @@ test.describe("the counts and the flags cannot disagree", () => {
     });
   });
 });
+const figure = (pct: number | null, held = "381\\481") => ({
+  attendedOfHeld: held,
+  pct,
+});
+test.describe("the overall bands sit where the subject bands do", () => {
+  test("75 is regular and 74.99 is not, on the overall figure too", () => {
+    expect(withBands(row(90), figure(75)).overallIrregular).toBe(false);
+    expect(withBands(row(90), figure(74.99)).overallIrregular).toBe(true);
+  });
+  test("60 is irregular and 59.99 is critical, on the overall figure too", () => {
+    expect(withBands(row(90), figure(60)).overallCritical).toBe(false);
+    expect(withBands(row(90), figure(59.99)).overallCritical).toBe(true);
+  });
+  test("an overall problem and a subject problem are independent", () => {
+    const healthySubject = withBands(row(90), figure(74.01));
+    expect(healthySubject.irregular).toBe(false);
+    expect(healthySubject.critical).toBe(false);
+    expect(healthySubject.overallIrregular).toBe(true);
+    expect(healthySubject.overallCritical).toBe(false);
+    const healthyOverall = withBands(row(40), figure(95));
+    expect(healthyOverall.irregular).toBe(true);
+    expect(healthyOverall.overallIrregular).toBe(false);
+  });
+  test("no overall figure is no overall band, and is not a zero", () => {
+    const unknown = withBands(row(90));
+    expect(unknown.overallPct).toBeNull();
+    expect(unknown.overallIrregular).toBe(false);
+    expect(unknown.overallCritical).toBe(false);
+    expect(withBands(row(90), figure(null)).overallPct).toBeNull();
+  });
+  test("the overall combined cell is carried whole, never split", () => {
+    const s = withBands(row(90), figure(79.21, "381\\481"));
+    expect(s.overallAttendedOfHeld).toBe("381\\481");
+  });
+});
+test.describe("the overall counts come from the overall figure", () => {
+  test("a student the portal gave no overall figure for is left out of the average", () => {
+    const lookup = new Map([
+      ["A", { attendedOfHeld: "381\\481", pct: 90 }],
+      ["C", { attendedOfHeld: "100\\481", pct: 50 }],
+    ]);
+    const { summary } = summarise(
+      [named(90, "A"), named(null, "B"), named(50, "C")],
+      range,
+      lookup
+    );
+    expect(summary.overallAverage).toBe(70);
+    expect(summary.total).toBe(3);
+  });
+  test("overall flags are counted from the overall figure, not the subject one", () => {
+    const lookup = new Map([
+      ["A", { attendedOfHeld: "", pct: 74 }],
+      ["B", { attendedOfHeld: "", pct: 59 }],
+      ["C", { attendedOfHeld: "", pct: 95 }],
+    ]);
+    const { summary } = summarise(
+      [named(90, "A"), named(45, "B"), named(90, "C")],
+      range,
+      lookup
+    );
+    expect(summary.overallIrregular).toBe(2);
+    expect(summary.overallCritical).toBe(1);
+    expect(summary.irregular).toBe(1);
+    expect(summary.critical).toBe(1);
+  });
+  test("an overall average with nobody in it is absent, not zero", () => {
+    expect(
+      summarise([named(90, "A")], range).summary.overallAverage
+    ).toBeNull();
+    expect(summarise([], range).summary.overallAverage).toBeNull();
+  });
+  test("the overall average is rounded to one decimal, like the subject one", () => {
+    const lookup = new Map([
+      ["A", { attendedOfHeld: "", pct: 79 }],
+      ["B", { attendedOfHeld: "", pct: 79 }],
+      ["C", { attendedOfHeld: "", pct: 80 }],
+    ]);
+    const { summary } = summarise(
+      [named(90, "A"), named(90, "B"), named(90, "C")],
+      range,
+      lookup
+    );
+    expect(summary.overallAverage).toBe(79.3);
+  });
+});
 test.describe("what the portal gave, preserved", () => {
   test("the combined attended/held cell is never split or reformatted", () => {
     const s = withBands({ ...row(84.44), attendedOfHeld: "38 / 45" });

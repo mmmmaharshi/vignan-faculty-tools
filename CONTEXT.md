@@ -26,6 +26,14 @@ _Avoid_: Filters, dropdown chain, selector chain
 One position in the cascade.
 _Avoid_: Field, dropdown, step
 
+**Section**:
+A cohort of students who take their subjects together, taught through one branch
+in one semester. A faculty member is normally assigned several subjects in the
+same section, and a lab carries a smaller roster than its theory. The subject
+list the portal returns for a section contains only the subjects the signed-in
+user teaches, so a section already names its own subjects.
+_Avoid_: Class, batch, division
+
 **Option**:
 One entry in a level's dropdown: the identifier, the visible text, and the
 portal's own `title` attribute. `ShowAcademicCalendar` needs the first two of
@@ -44,8 +52,26 @@ _Avoid_: API, endpoint style
 The portal's combined attendance cell for one student over the whole date
 range: a string such as `38/45`. The app displays it and never parses it, so
 the two numbers inside it are not separately modelled and must not be reasoned
-about as if they were.
+about as if they were. The overall cell holds the same kind of string, joined
+with a backslash rather than a slash, and is treated the same way.
 _Avoid_: Held, total classes, conducted, attendance
+
+**Overall attendance**:
+The Portal's Section-wide attendance for one student, spanning every subject in
+the Section over one date range. It comes from the Portal's Class attendance
+report and is stated by the Portal as a combined cell and a percentage, both of
+which are displayed as written. It is a second figure beside the Subject one,
+never a replacement for it: the two are banded independently and either can be
+the reason to act.
+_Avoid_: Cumulative, total attendance, aggregate
+
+**All subjects**:
+The extra entry in the Subject level that asks for every subject in the Section
+at once. It is not a Portal subject and its identifier is not a Portal
+identifier, so it can never collide with one. Choosing it loads the class report
+alone and leaves no Subject register behind, which is why the Subject columns
+disappear in that state.
+_Avoid_: Overall view, aggregate subject, everything
 
 **Regular**:
 Attendance at or above 75%.
@@ -92,7 +118,11 @@ _Avoid_: Jar, cookie store
 **Subject**:
 A course the signed-in user actually teaches, as ECAP lists it. The portal calls
 these things both "subject" and "subject type" in the same record; the value is
-the identifier, the title is the teaching type.
+the identifier, the title is the teaching type. Attendance is recorded per
+subject, so two subjects in one section have different rosters and different
+percentages. The Portal's Class attendance report does give one figure spanning
+every subject — that is **overall attendance**, and it is a different fact from
+any Subject's own.
 _Avoid_: Course, paper, class
 
 **Course**:

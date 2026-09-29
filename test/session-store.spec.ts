@@ -74,6 +74,58 @@ test.describe("the session store", () => {
     const all = await loadSessions(vault);
     expect(all.length).toBe(20);
   });
+  test("an index that outgrows the Windows cap is trimmed, not failed", async () => {
+    const now = Date.now();
+    // Real ids, real volume: a day of sign-ins from a test suite, not 20.
+    const many: StoredSession[] = Array.from({ length: 200 }, (_, i) => ({
+      id: `8a7dd881-7be7-402d-ac8a-${String(i).padStart(12, "0")}`,
+      at: now - (200 - i) * 1000,
+      cookies: JAR,
+    }));
+    const vault = fakeVault();
+    expect(await saveSessions(vault, many)).toBeNull();
+    const index = vault.store.get(VAULT_INDEX) ?? "";
+    expect(
+      new TextEncoder().encode(index).length,
+      "the index must still fit the 2560-byte cap"
+    ).toBeLessThan(5 * 512);
+    const loaded = await loadSessions(vault);
+    const ids = loaded.map((s) => s.id);
+    expect(ids.length, "some survive").toBeGreaterThan(0);
+    expect(ids.length, "not all of them can").toBeLessThan(200);
+    expect(ids, "the newest survive").toContain(many[199]?.id);
+    expect(ids, "the oldest are the ones dropped").not.toContain(many[0]?.id);
+  });
+  test("a trimmed session's entry is deleted, not left orphaned", async () => {
+    const now = Date.now();
+    const many: StoredSession[] = Array.from({ length: 200 }, (_, i) => ({
+      id: `8a7dd881-7be7-402d-ac8a-${String(i).padStart(12, "0")}`,
+      at: now - (200 - i) * 1000,
+      cookies: JAR,
+    }));
+    const vault = fakeVault();
+    await saveSessions(vault, many);
+    const kept = new Set(
+      (JSON.parse(vault.store.get(VAULT_INDEX) ?? "[]") as string[]).map(
+        sessionKey
+      )
+    );
+    const orphans = [...vault.store.keys()].filter(
+      (name) => name !== VAULT_INDEX && !kept.has(name)
+    );
+    expect(orphans, "no entry may outlive its index line").toEqual([]);
+  });
+  test("a vault that is nowhere near full keeps everything", async () => {
+    const vault = fakeVault();
+    const modest = Array.from({ length: 20 }, (_, i) => ({
+      id: `8a7dd881-7be7-402d-ac8a-${String(i).padStart(12, "0")}`,
+      at: Date.now(),
+      cookies: JAR,
+    }));
+    await saveSessions(vault, modest);
+    const loaded = await loadSessions(vault);
+    expect(loaded.length, "no one is dropped needlessly").toBe(20);
+  });
   test("a stale session is not rewritten, however often the store is saved", async () => {
     const day = 24 * 60 * 60 * 1000;
     const now = Date.now();

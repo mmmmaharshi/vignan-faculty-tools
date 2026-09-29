@@ -49,6 +49,31 @@ export function calendarPairs(
     ["todate", p.to],
   ];
 }
+/**
+ * The Class attendance report's thirteen values, in the order its generated
+ * proxy declares them. All thirteen go on every call. The report honours any
+ * date range and the Portal has no semester start date to send, so the range
+ * travels whole.
+ */
+export function classPairs(
+  p: Record<CascadeLevel, Option> & { from: string; to: string }
+): [string, string | number][] {
+  return [
+    ["courseId", p.course.value],
+    ["branchId", p.branch.value],
+    ["semesterId", p.semester.value],
+    ["sectionId", p.section.value],
+    ["fromDate", p.from],
+    ["toDate", p.to],
+    ["courseName", p.course.label],
+    ["branch", p.branch.label],
+    ["semesterName", p.semester.label],
+    ["sectionName", p.section.label],
+    ["isJNTUFormat", "false"],
+    ["onlyhostelrs", "false"],
+    ["excludeothersubjects", "false"],
+  ];
+}
 export class CookieJar {
   readonly entries = new Map<string, string>();
   get signedIn(): boolean {

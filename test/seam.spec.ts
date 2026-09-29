@@ -4,6 +4,7 @@ import {
   level,
   looksLikeHtml,
   options,
+  parseClassAttendance,
   parseRegister,
   realOptions,
   unquoteJs,
@@ -86,5 +87,46 @@ test.describe("portal replies", () => {
     expect(
       parseRegister("<table><tr><th>Something else</th></tr></table>")
     ).toEqual([]);
+  });
+  test("the class report is read from the portal's own last two cells", () => {
+    const html = `<center><div id='tblReport'><table width='95%'>
+      <tr><td>Course</td><td>:</td><td>B.Tech</td></tr>
+      <tr><td>ATTENDANCE REPORT FOR THE PERIOD OF 01/06/2026 - 29/09/2026</td></tr>
+      <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>AI</th><th>DWDM</th><th>Total</th><th>Percent</th></tr>
+      <tr><td>Batch-1</td><td>50</td><td>0</td><td>49</td><td>-</td><td></td><td></td></tr>
+      <tr><td>1</td><td>24L31A1201</td><td>ADARI LASYA SHREE</td><td>37</td><td>-</td><td>381\\481</td><td>79.21</td></tr>
+      <tr><td>2</td><td>24L31A1202</td><td>ANOTHER STUDENT</td><td>35</td><td>10</td><td>356\\481</td><td>74.01</td></tr>
+      <tr><td>3</td><td>24L31A1203</td><td>NO PERCENTAGE</td><td>10</td><td>10</td><td>20\\30</td><td></td></tr>
+    </table></div></center>`;
+    const rows = parseClassAttendance(html);
+    expect(rows).toHaveLength(3);
+    expect(rows[0]).toEqual({
+      sl: "1",
+      roll: "24L31A1201",
+      name: "ADARI LASYA SHREE",
+      attendedOfHeld: "381\\481",
+      pct: 79.21,
+    });
+    expect(rows[1]).toMatchObject({ roll: "24L31A1202", pct: 74.01 });
+    expect(rows[2]?.pct).toBeNull();
+    expect(rows[2]?.attendedOfHeld).toBe("20\\30");
+  });
+  test("the class report's held band and title block are not students", () => {
+    const html = `<table>
+      <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>Total</th><th>Percent</th></tr>
+      <tr><td>Batch-1</td><td>50</td><td>0</td><td></td><td></td></tr>
+      <tr><td>1</td><td>24L31A1201</td><td>ONLY STUDENT</td><td>381\\481</td><td>79.21</td></tr>
+      <tr><td>Total</td><td>69</td><td>count</td><td></td><td></td></tr>
+    </table>`;
+    const rows = parseClassAttendance(html);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.roll).toBe("24L31A1201");
+  });
+  test("markup with no roll-number header yields no students at all", () => {
+    expect(parseClassAttendance(LOGIN_PAGE)).toEqual([]);
+    expect(
+      parseClassAttendance("<table><tr><th>Subject</th></tr></table>")
+    ).toEqual([]);
+    expect(parseClassAttendance("")).toEqual([]);
   });
 });
