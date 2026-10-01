@@ -10,6 +10,7 @@ import {
   EMPTY_OPTS,
   realSubjects,
   rememberRangeStart,
+  sectionLevels,
   rememberSection,
   savedSection,
   forgetSection,
@@ -523,6 +524,38 @@ const SUBJECTS: OptionsReply["subject"] = [
   opt("103", "DBMS Lab", "P"),
 ];
 test.describe("the subjects a dashboard row is built from", () => {
+  test("a saved section resolves, though it carries no subject", () => {
+    const opts = reply({
+      course: ["1"],
+      semester: ["3"],
+      branch: ["4"],
+      section: ["5"],
+      subject: ["6"],
+    });
+    const found = sectionLevels(
+      opts,
+      sel({ course: "1", semester: "3", branch: "4", section: "5" })
+    );
+    expect(
+      found.ok,
+      "a saved section has no subject by design, so a register lookup refuses it"
+    ).toBe(true);
+  });
+  test("a section the portal no longer offers is named, not silently empty", () => {
+    const opts = reply({
+      course: ["1"],
+      semester: ["3"],
+      branch: ["4"],
+      section: ["5"],
+      subject: [],
+    });
+    const found = sectionLevels(
+      opts,
+      sel({ course: "1", semester: "3", branch: "4", section: "9" })
+    );
+    expect(found.ok).toBe(false);
+    if (!found.ok) expect(found.label).toBe("Section");
+  });
   test("All subjects is not a row, though it leads the list", () => {
     const rows = realSubjects({ ...EMPTY_OPTS, subject: SUBJECTS });
     expect(

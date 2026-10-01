@@ -41,6 +41,7 @@ import {
   savedSection,
   forgetSection,
   realSubjects,
+  sectionLevels,
   startingRange,
   visibleStudents,
   EMPTY_OPTS,
@@ -119,6 +120,10 @@ const App = (): React.JSX.Element => {
    *  them. A null summary is a subject whose figures have not arrived, and is
    *  never the previous visit's. */
   const [sectionRows, setSectionRows] = useState<SectionRow[] | null>(null);
+  /** Why the saved section could not be shown, when that is not "it has no
+   *  subjects". An empty table and a section ECAP no longer offers are different
+   *  facts and must not look the same. */
+  const [sectionProblem, setSectionProblem] = useState<string | null>(null);
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
@@ -303,11 +308,24 @@ const App = (): React.JSX.Element => {
       // value would be the options from before the walk.
       const options = optsRef.current;
       const subjects = realSubjects(options);
-      const levels = chosenLevels(options, target);
-      if (!levels.ok || !subjects.length) {
-        setSectionRows([]);
+      // A saved section carries no subject, so this must be the four-level
+      // lookup: chosenLevels refuses a section with no subject, and the empty
+      // state that followed read as "this section has no subjects".
+      const levels = sectionLevels(options, target);
+      if (!levels.ok) {
+        sectionToken.current += 1;
+        setSectionRows(null);
+        setSectionProblem(
+          `ECAP no longer offers that ${levels.label.toLowerCase()}. Pick the class again.`
+        );
         return;
       }
+      if (!subjects.length) {
+        setSectionRows([]);
+        setSectionProblem(null);
+        return;
+      }
+      setSectionProblem(null);
       const token = ++sectionToken.current;
       setBusy(true);
       setLoadNote("Reading the saved section from ECAP...");
@@ -550,11 +568,12 @@ const App = (): React.JSX.Element => {
         <ProfilePanel userId={userId} persisted={persisted} />
       ) : (
         <>
-          {savedName && sectionRows ? (
+          {savedName && (sectionRows || sectionProblem) ? (
             <SectionSummary
-              rows={sectionRows}
+              rows={sectionRows ?? []}
               name={savedName}
               range={`${range.from} to ${range.to}`}
+              problem={sectionProblem}
             />
           ) : null}
           {picker}

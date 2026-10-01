@@ -36,10 +36,12 @@ export const SectionSummary = ({
   rows,
   name,
   range,
+  problem,
 }: {
   rows: readonly SectionRow[];
   name: string;
   range: string;
+  problem: string | null;
 }): React.JSX.Element => {
   const first = rows.find((r) => r.summary);
   const irregularBelow = first?.summary?.irregularBelow;
@@ -52,7 +54,7 @@ export const SectionSummary = ({
       </Text>
       {rows.length === 0 ? (
         <Alert mt="sm" color="yellow" variant="light">
-          This section has no subjects to show.
+          {problem ?? "This section has no subjects to show."}
         </Alert>
       ) : (
         <Table.ScrollContainer minWidth={620}>

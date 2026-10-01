@@ -19,6 +19,8 @@ export const LEVELS: readonly (readonly [Level, string])[] = [
   ["subject", "Subject"],
 ];
 export const LEVEL_KEYS: readonly Level[] = LEVELS.map(([k]) => k);
+/** The same levels, labelled, stopping short of the Subject. */
+const SECTION_LEVEL_KEYS = LEVELS.slice(0, -1) as (readonly [Level, string])[];
 export const EMPTY_SEL: Sel = {
   course: "",
   semester: "",
@@ -54,6 +56,26 @@ export function chosenLevels(
 ): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
   const levels = {} as Record<Level, Option>;
   for (const [key, label] of LEVELS) {
+    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
+    if (!hit) return { ok: false, label };
+    levels[key] = hit;
+  }
+  return { ok: true, levels };
+}
+/**
+ * The four levels a saved Section carries, resolved against the options. A
+ * register needs five and a saved section has no subject by design, so asking
+ * `chosenLevels` for one refuses a perfectly good section — the dashboard then
+ * renders an empty table that reads as "this section has no subjects", which is
+ * a different and wrong fact. Stops at the section and names the first level the
+ * portal no longer offers.
+ */
+export function sectionLevels(
+  opts: OptionsReply,
+  sel: Sel
+): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
+  const levels = {} as Record<Level, Option>;
+  for (const [key, label] of SECTION_LEVEL_KEYS) {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
     if (!hit) return { ok: false, label };
     levels[key] = hit;
@@ -146,6 +168,7 @@ export function startingRange(now: Date = new Date()): Range {
  * another machine, and that was the trade taken knowingly.
  */
 const SECTION_KEY_PREFIX = "section-";
+/** Course, Semester, Branch, Section — the levels a saved section is made of. */
 const SECTION_LEVELS = ["course", "semester", "branch", "section"] as const;
 export function rememberSection(userId: string, sel: Sel): void {
   if (!userId) return;
