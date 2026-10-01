@@ -36,9 +36,9 @@ import {
   chosenText,
   disabledLevels,
   rememberRangeStart,
-  rememberSection,
-  savedSections,
-  forgetSection,
+  rememberClass,
+  savedClasses,
+  forgetClass,
   startingRange,
   visibleStudents,
   EMPTY_OPTS,
@@ -128,7 +128,7 @@ const App = (): React.JSX.Element => {
    *  saved class being opened, and nothing else. */
   const noteUserId = useCallback((name: string): void => {
     setUserId(name);
-    setSaved(name ? { userId: name, list: savedSections(name) } : null);
+    setSaved(name ? { userId: name, list: savedClasses(name) } : null);
   }, []);
   const signedOut = useCallback(
     (why: string) => {
@@ -379,34 +379,36 @@ const App = (): React.JSX.Element => {
   const onRangeChange = (part: "from" | "to", value: string) => {
     setRange((r) => ({ ...r, [part]: value }));
   };
-  const sectionChosen =
+  const classChosen =
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
     Boolean(sel.branch) &&
-    Boolean(sel.section);
-  const saveSection = () => {
-    rememberSection(userId, sel);
-    setSaved({ userId, list: savedSections(userId) });
+    Boolean(sel.section) &&
+    // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
+    Boolean(sel.subject) &&
+    !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
+  const saveClass = () => {
+    rememberClass(userId, sel);
+    setSaved({ userId, list: savedClasses(userId) });
   };
-  const clearSavedSection = (target: Sel) => {
-    forgetSection(userId, target);
-    setSaved({ userId, list: savedSections(userId) });
+  const clearSavedClass = (target: Sel) => {
+    forgetClass(userId, target);
+    setSaved({ userId, list: savedClasses(userId) });
   };
-  /** Opening a saved class fills the form and nothing else: no register is
-   *  fetched and the Subject is left empty, because a saved class carries no
-   *  subject. The cascade then settles the levels below it as usual. */
-  const applySavedSection = (target: Sel) => {
-    const next: Sel = { ...target, subject: "" };
+  /** Opening a saved class fills all five levels and nothing else: no register
+   *  is fetched, and Load register stays a decision. */
+  const applySavedClass = (target: Sel) => {
+    const next: Sel = { ...target };
     selRef.current = next;
     setSel(next);
     runRefresh("section");
   };
-  /** Each card names its own section, rebuilt from the cascade's labels — a
-   *  stored label could display a class name ECAP has since renamed. */
-  const savedClasses =
+  /** Each card names its own class, rebuilt from the cascade's labels — a stored
+   *  label could display a name ECAP has since renamed. */
+  const savedClassCards =
     savedList?.map((s) => ({
       sel: s,
-      name: chosenText(opts, { ...s, subject: "" }) || "Saved class",
+      name: chosenText(opts, s) || "Saved class",
     })) ?? [];
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
@@ -427,8 +429,8 @@ const App = (): React.JSX.Element => {
       />
       <Group gap="sm" mt="sm">
         <Button
-          onClick={saveSection}
-          disabled={!sectionChosen || !userId.trim()}
+          onClick={saveClass}
+          disabled={!classChosen || !userId.trim()}
           leftSection={<FloppyDisk size={18} aria-hidden />}
         >
           Save this class
@@ -457,11 +459,11 @@ const App = (): React.JSX.Element => {
         <ProfilePanel userId={userId} persisted={persisted} />
       ) : (
         <>
-          {savedClasses.length ? (
+          {savedClassCards.length ? (
             <SavedClasses
-              classes={savedClasses}
-              onOpen={applySavedSection}
-              onForget={clearSavedSection}
+              classes={savedClassCards}
+              onOpen={applySavedClass}
+              onForget={clearSavedClass}
             />
           ) : null}
           {picker}

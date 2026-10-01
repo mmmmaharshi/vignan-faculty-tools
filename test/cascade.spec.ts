@@ -8,9 +8,9 @@ import {
   chosenText,
   defaultRange,
   rememberRangeStart,
-  rememberSection,
-  savedSections,
-  forgetSection,
+  rememberClass,
+  savedClasses,
+  forgetClass,
   startingRange,
   disabledLevels,
   isReady,
@@ -442,74 +442,89 @@ test.describe("dates", () => {
   });
 });
 
-const SECTION: Sel = {
+const CLASS_A: Sel = {
   course: "1",
   semester: "3",
   branch: "5",
   section: "A",
-  subject: "",
+  subject: "101",
 };
 test.describe("the saved classes", () => {
-  const SECOND: Sel = {
+  const OTHER_SECTION: Sel = {
     course: "1",
     semester: "3",
     branch: "5",
     section: "B",
-    subject: "",
+    subject: "101",
   };
+  const OTHER_SUBJECT: Sel = { ...CLASS_A, subject: "102" };
   test("a class that was saved comes back after a reload", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", SECTION);
-    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
+    rememberClass("sirichandrasekhar", CLASS_A);
+    expect(savedClasses("sirichandrasekhar")).toEqual([CLASS_A]);
   });
-  test("many classes from any section are all kept", () => {
+  test("the subject is saved, so a card opens that subject's register", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", SECTION);
-    rememberSection("sirichandrasekhar", SECOND);
-    expect(savedSections("sirichandrasekhar")).toEqual([SECOND, SECTION]);
+    rememberClass("sirichandrasekhar", OTHER_SUBJECT);
+    expect(savedClasses("sirichandrasekhar")[0]?.subject).toBe("102");
+  });
+  test("two subjects in one section are two classes", () => {
+    saved.clear();
+    rememberClass("sirichandrasekhar", CLASS_A);
+    rememberClass("sirichandrasekhar", OTHER_SUBJECT);
+    expect(savedClasses("sirichandrasekhar")).toEqual([OTHER_SUBJECT, CLASS_A]);
+  });
+  test("classes from any section are all kept", () => {
+    saved.clear();
+    rememberClass("sirichandrasekhar", CLASS_A);
+    rememberClass("sirichandrasekhar", OTHER_SECTION);
+    expect(savedClasses("sirichandrasekhar")).toEqual([OTHER_SECTION, CLASS_A]);
   });
   test("saving the same class twice keeps one of it", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", SECTION);
-    rememberSection("sirichandrasekhar", SECTION);
-    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
+    rememberClass("sirichandrasekhar", CLASS_A);
+    rememberClass("sirichandrasekhar", CLASS_A);
+    expect(savedClasses("sirichandrasekhar")).toEqual([CLASS_A]);
   });
   test("the newest save is offered first, and re-saving moves rather than adds", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", SECTION);
-    rememberSection("sirichandrasekhar", SECOND);
-    rememberSection("sirichandrasekhar", SECTION);
-    expect(savedSections("sirichandrasekhar")).toEqual([SECTION, SECOND]);
+    rememberClass("sirichandrasekhar", CLASS_A);
+    rememberClass("sirichandrasekhar", OTHER_SECTION);
+    rememberClass("sirichandrasekhar", CLASS_A);
+    expect(savedClasses("sirichandrasekhar")).toEqual([CLASS_A, OTHER_SECTION]);
   });
-  test("only the four section levels are kept, never a subject or a date", () => {
+  test("no date is ever stored with a class", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", { ...SECTION, subject: "9" });
-    expect(
-      savedSections("sirichandrasekhar")[0]?.subject,
-      "the subject is chosen per register, not saved"
-    ).toBe("");
+    rememberClass("sirichandrasekhar", CLASS_A);
     const raw = saved.get("section-sirichandrasekhar") ?? "";
-    expect(raw, "no date is stored with it").not.toMatch(/\d{4}-\d{2}-\d{2}/);
+    expect(raw, "the range belongs to the register").not.toMatch(
+      /\d{4}-\d{2}-\d{2}/
+    );
   });
-  test("a save with an incomplete section is not offered back", () => {
+  test("a save with no subject is not offered back", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", { ...SECTION, section: "" });
-    expect(savedSections("sirichandrasekhar")).toEqual([]);
+    rememberClass("sirichandrasekhar", { ...CLASS_A, subject: "" });
+    expect(savedClasses("sirichandrasekhar")).toEqual([]);
+  });
+  test("a save missing any level is not offered back", () => {
+    saved.clear();
+    rememberClass("sirichandrasekhar", { ...CLASS_A, section: "" });
+    expect(savedClasses("sirichandrasekhar")).toEqual([]);
   });
   test("one user's classes are never handed to the next", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", SECTION);
+    rememberClass("sirichandrasekhar", CLASS_A);
     // Readable for its owner first: without this, the assertion below passes for
     // the wrong reason on any build where nothing is readable at all.
-    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
-    expect(savedSections("someone-else")).toEqual([]);
+    expect(savedClasses("sirichandrasekhar")).toEqual([CLASS_A]);
+    expect(savedClasses("someone-else")).toEqual([]);
   });
   test("forgetting one leaves the others", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", SECTION);
-    rememberSection("sirichandrasekhar", SECOND);
-    forgetSection("sirichandrasekhar", SECTION);
-    expect(savedSections("sirichandrasekhar")).toEqual([SECOND]);
+    rememberClass("sirichandrasekhar", CLASS_A);
+    rememberClass("sirichandrasekhar", OTHER_SUBJECT);
+    forgetClass("sirichandrasekhar", CLASS_A);
+    expect(savedClasses("sirichandrasekhar")).toEqual([OTHER_SUBJECT]);
   });
   test("a refused storage saves nothing and breaks nothing", () => {
     const real = globalThis.localStorage;
@@ -524,33 +539,44 @@ test.describe("the saved classes", () => {
         throw new Error("denied");
       },
     } as unknown as Storage;
-    expect(() => rememberSection("sirichandrasekhar", SECTION)).not.toThrow();
-    expect(savedSections("sirichandrasekhar")).toEqual([]);
-    expect(() => forgetSection("sirichandrasekhar", SECTION)).not.toThrow();
+    expect(() => rememberClass("sirichandrasekhar", CLASS_A)).not.toThrow();
+    expect(savedClasses("sirichandrasekhar")).toEqual([]);
+    expect(() => forgetClass("sirichandrasekhar", CLASS_A)).not.toThrow();
     globalThis.localStorage = real;
   });
-  test("a stored value that is not a list of sections is refused", () => {
+  test("a stored value that is not a list of classes is refused", () => {
     saved.clear();
     saved.set("section-sirichandrasekhar", "{not json");
-    expect(savedSections("sirichandrasekhar")).toEqual([]);
+    expect(savedClasses("sirichandrasekhar")).toEqual([]);
     saved.set("section-sirichandrasekhar", JSON.stringify({ course: "1" }));
     expect(
-      savedSections("sirichandrasekhar"),
+      savedClasses("sirichandrasekhar"),
       "a single object is not a list, and half-reading it invents a class"
     ).toEqual([]);
     saved.set(
       "section-sirichandrasekhar",
-      JSON.stringify([{ course: "1" }, SECTION])
+      JSON.stringify([{ course: "1" }, CLASS_A])
     );
     expect(
-      savedSections("sirichandrasekhar"),
+      savedClasses("sirichandrasekhar"),
       "one bad entry costs itself, not the rest"
-    ).toEqual([SECTION]);
+    ).toEqual([CLASS_A]);
   });
-  test("a class saved before this was a list is still offered", () => {
+  test("a class saved with no subject is dropped, not offered blank", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", SECTION);
-    saved.set("section-sirichandrasekhar", JSON.stringify(SECTION));
-    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
+    saved.set(
+      "section-sirichandrasekhar",
+      JSON.stringify([{ ...CLASS_A, subject: "" }, OTHER_SUBJECT])
+    );
+    expect(
+      savedClasses("sirichandrasekhar"),
+      "an entry from before subjects were saved cannot name a register"
+    ).toEqual([OTHER_SUBJECT]);
+  });
+  test("a class saved as one object is still offered", () => {
+    saved.clear();
+    rememberClass("sirichandrasekhar", CLASS_A);
+    saved.set("section-sirichandrasekhar", JSON.stringify(CLASS_A));
+    expect(savedClasses("sirichandrasekhar")).toEqual([CLASS_A]);
   });
 });
