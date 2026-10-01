@@ -9,7 +9,7 @@ import {
   defaultRange,
   rememberRangeStart,
   rememberSection,
-  savedSection,
+  savedSections,
   forgetSection,
   startingRange,
   disabledLevels,
@@ -449,21 +449,43 @@ const SECTION: Sel = {
   section: "A",
   subject: "",
 };
-test.describe("the saved section", () => {
-  test("a section that was saved comes back after a reload", () => {
+test.describe("the saved classes", () => {
+  const SECOND: Sel = {
+    course: "1",
+    semester: "3",
+    branch: "5",
+    section: "B",
+    subject: "",
+  };
+  test("a class that was saved comes back after a reload", () => {
     saved.clear();
     rememberSection("sirichandrasekhar", SECTION);
-    expect(savedSection("sirichandrasekhar")).toEqual(SECTION);
+    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
+  });
+  test("many classes from any section are all kept", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", SECTION);
+    rememberSection("sirichandrasekhar", SECOND);
+    expect(savedSections("sirichandrasekhar")).toEqual([SECOND, SECTION]);
+  });
+  test("saving the same class twice keeps one of it", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", SECTION);
+    rememberSection("sirichandrasekhar", SECTION);
+    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
+  });
+  test("the newest save is offered first, and re-saving moves rather than adds", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", SECTION);
+    rememberSection("sirichandrasekhar", SECOND);
+    rememberSection("sirichandrasekhar", SECTION);
+    expect(savedSections("sirichandrasekhar")).toEqual([SECTION, SECOND]);
   });
   test("only the four section levels are kept, never a subject or a date", () => {
     saved.clear();
-    rememberSection("sirichandrasekhar", {
-      ...SECTION,
-      subject: "9",
-    });
-    const stored = savedSection("sirichandrasekhar");
+    rememberSection("sirichandrasekhar", { ...SECTION, subject: "9" });
     expect(
-      stored?.subject,
+      savedSections("sirichandrasekhar")[0]?.subject,
       "the subject is chosen per register, not saved"
     ).toBe("");
     const raw = saved.get("section-sirichandrasekhar") ?? "";
@@ -472,21 +494,22 @@ test.describe("the saved section", () => {
   test("a save with an incomplete section is not offered back", () => {
     saved.clear();
     rememberSection("sirichandrasekhar", { ...SECTION, section: "" });
-    expect(savedSection("sirichandrasekhar")).toBeNull();
+    expect(savedSections("sirichandrasekhar")).toEqual([]);
   });
-  test("one user's section is never handed to the next", () => {
+  test("one user's classes are never handed to the next", () => {
     saved.clear();
     rememberSection("sirichandrasekhar", SECTION);
     // Readable for its owner first: without this, the assertion below passes for
     // the wrong reason on any build where nothing is readable at all.
-    expect(savedSection("sirichandrasekhar")).toEqual(SECTION);
-    expect(savedSection("someone-else")).toBeNull();
+    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
+    expect(savedSections("someone-else")).toEqual([]);
   });
-  test("forgetting it removes it, and the app asks again", () => {
+  test("forgetting one leaves the others", () => {
     saved.clear();
     rememberSection("sirichandrasekhar", SECTION);
-    forgetSection("sirichandrasekhar");
-    expect(savedSection("sirichandrasekhar")).toBeNull();
+    rememberSection("sirichandrasekhar", SECOND);
+    forgetSection("sirichandrasekhar", SECTION);
+    expect(savedSections("sirichandrasekhar")).toEqual([SECOND]);
   });
   test("a refused storage saves nothing and breaks nothing", () => {
     const real = globalThis.localStorage;
@@ -502,15 +525,32 @@ test.describe("the saved section", () => {
       },
     } as unknown as Storage;
     expect(() => rememberSection("sirichandrasekhar", SECTION)).not.toThrow();
-    expect(savedSection("sirichandrasekhar")).toBeNull();
-    expect(() => forgetSection("sirichandrasekhar")).not.toThrow();
+    expect(savedSections("sirichandrasekhar")).toEqual([]);
+    expect(() => forgetSection("sirichandrasekhar", SECTION)).not.toThrow();
     globalThis.localStorage = real;
   });
-  test("a saved value that is not a section is refused, not half-read", () => {
+  test("a stored value that is not a list of sections is refused", () => {
     saved.clear();
     saved.set("section-sirichandrasekhar", "{not json");
-    expect(savedSection("sirichandrasekhar")).toBeNull();
+    expect(savedSections("sirichandrasekhar")).toEqual([]);
     saved.set("section-sirichandrasekhar", JSON.stringify({ course: "1" }));
-    expect(savedSection("sirichandrasekhar")).toBeNull();
+    expect(
+      savedSections("sirichandrasekhar"),
+      "a single object is not a list, and half-reading it invents a class"
+    ).toEqual([]);
+    saved.set(
+      "section-sirichandrasekhar",
+      JSON.stringify([{ course: "1" }, SECTION])
+    );
+    expect(
+      savedSections("sirichandrasekhar"),
+      "one bad entry costs itself, not the rest"
+    ).toEqual([SECTION]);
+  });
+  test("a class saved before this was a list is still offered", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", SECTION);
+    saved.set("section-sirichandrasekhar", JSON.stringify(SECTION));
+    expect(savedSections("sirichandrasekhar")).toEqual([SECTION]);
   });
 });

@@ -37,7 +37,7 @@ import {
   disabledLevels,
   rememberRangeStart,
   rememberSection,
-  savedSection,
+  savedSections,
   forgetSection,
   startingRange,
   visibleStudents,
@@ -53,7 +53,7 @@ import { ClassPicker } from "./components/ClassPicker";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
-import { SavedClass } from "./components/SavedClasses";
+import { SavedClasses } from "./components/SavedClasses";
 import { SignInPanel } from "./components/SignInPanel";
 import type { Note } from "./types";
 
@@ -105,12 +105,12 @@ const App = (): React.JSX.Element => {
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
   const [overallMode, setOverallMode] = useState(false);
-  /** The saved section, read when the name becomes known and on the two events
-   *  that change it. An effect would mirror it into state on every render for a
-   *  value the browser already has. */
+  /** The saved classes, read when the name becomes known and on the events that
+   *  change them. An effect would mirror them into state on every render for
+   *  values the browser already has. */
   const [saved, setSaved] = useState<{
     userId: string;
-    sel: Sel | null;
+    list: Sel[];
   } | null>(null);
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
@@ -119,17 +119,16 @@ const App = (): React.JSX.Element => {
   optsRef.current = opts;
   /* oxlint-enable react/refs */
   const refreshToken = useRef(0);
-  /** The saved section, read only for the user who is signed in. The stored
-   *  values are the previous session's until the name proves whose they are. */
-  const savedSel = saved?.userId === userId && userId ? saved.sel : null;
-  /** The name arriving is also the moment the saved section becomes readable, so
+  /** The saved classes, read only for the user who is signed in. Stored values
+   *  are the previous session's until the name proves whose they are. */
+  const savedList = saved?.userId === userId && userId ? saved.list : null;
+  /** The name arriving is also the moment the saved classes become readable, so
    *  both are set together: a restore never went through the sign-in form. The
-   *  saved values are not applied to the cascade here — filling the form is the
-   *  saved class being clicked, and nothing else. */
+   *  stored values are not applied to the cascade here — filling the form is the
+   *  saved class being opened, and nothing else. */
   const noteUserId = useCallback((name: string): void => {
     setUserId(name);
-    const stored = name ? savedSection(name) : null;
-    setSaved(name ? { userId: name, sel: stored } : null);
+    setSaved(name ? { userId: name, list: savedSections(name) } : null);
   }, []);
   const signedOut = useCallback(
     (why: string) => {
@@ -387,25 +386,28 @@ const App = (): React.JSX.Element => {
     Boolean(sel.section);
   const saveSection = () => {
     rememberSection(userId, sel);
-    setSaved({ userId, sel: savedSection(userId) });
+    setSaved({ userId, list: savedSections(userId) });
   };
-  const clearSavedSection = () => {
-    forgetSection(userId);
-    setSaved({ userId, sel: null });
+  const clearSavedSection = (target: Sel) => {
+    forgetSection(userId, target);
+    setSaved({ userId, list: savedSections(userId) });
   };
-  /** Clicking the saved class fills the form and nothing else: no register is
-   *  fetched and the Subject is left empty, because a saved section carries no
+  /** Opening a saved class fills the form and nothing else: no register is
+   *  fetched and the Subject is left empty, because a saved class carries no
    *  subject. The cascade then settles the levels below it as usual. */
-  const applySavedSection = () => {
-    if (!savedSel) return;
-    const next: Sel = { ...savedSel, subject: "" };
+  const applySavedSection = (target: Sel) => {
+    const next: Sel = { ...target, subject: "" };
     selRef.current = next;
     setSel(next);
     runRefresh("section");
   };
-  const savedName = savedSel
-    ? chosenText(opts, { ...savedSel, subject: "" })
-    : "";
+  /** Each card names its own section, rebuilt from the cascade's labels — a
+   *  stored label could display a class name ECAP has since renamed. */
+  const savedClasses =
+    savedList?.map((s) => ({
+      sel: s,
+      name: chosenText(opts, { ...s, subject: "" }) || "Saved class",
+    })) ?? [];
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
   const picker = (
@@ -455,9 +457,9 @@ const App = (): React.JSX.Element => {
         <ProfilePanel userId={userId} persisted={persisted} />
       ) : (
         <>
-          {savedSel ? (
-            <SavedClass
-              name={savedName || "Saved class"}
+          {savedClasses.length ? (
+            <SavedClasses
+              classes={savedClasses}
               onOpen={applySavedSection}
               onForget={clearSavedSection}
             />
