@@ -12,7 +12,7 @@ import type { Sel } from "../cascade";
  */
 export type SavedClassCard = {
   sel: Sel;
-  /** The subject's own name, falling back to its value if ECAP no longer offers it. */
+  /** The subject's own name, empty when this session has never been offered it. */
   subject: string;
   sectionName: string;
   /** Course, semester and branch on one line — the longest string, so it is quietest. */
@@ -49,9 +49,18 @@ export const SavedClasses = ({
             <Text size="xs" c="dimmed" tt="uppercase">
               Subject
             </Text>
-            <Text fw={700} size="lg" lineClamp={2}>
-              {subject}
-            </Text>
+            {subject ? (
+              <Text fw={700} size="lg" lineClamp={2}>
+                {subject}
+              </Text>
+            ) : (
+              // The Portal answers subjects one section at a time, so a card for a
+              // section this session has not opened yet has no name to show. Saying
+              // so is honest; printing the identifier looks like a data fault.
+              <Text size="sm" c="dimmed" fw={500}>
+                Not offered yet — open it once to name this subject
+              </Text>
+            )}
             <Text size="sm" c="dimmed" mt={2}>
               Section {sectionName}
             </Text>

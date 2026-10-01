@@ -208,6 +208,20 @@ const App = (): React.JSX.Element => {
     // A range that produced a register is one worth opening at again.
     rememberRangeStart(range.from);
   }, [fetchRegister, opts, range, sel]);
+  /** Every subject name this session has been offered, by value.
+   *
+   *  The Portal answers subjects one section at a time, so a card naming any other
+   *  section has no label in `opts` and used to print its own identifier. Names are
+   *  recorded where the cascade receives them — the only place they arrive — and a
+   *  label ECAP renames is corrected on the next visit to that section rather than
+   *  being pinned in storage, which is why no name is ever saved.
+   *
+   *  State rather than a ref, because a card renders these; and set from the reply
+   *  rather than from an effect, because an effect that mirrors props into state
+   *  starts a render for a value the cascade already computed. */
+  const [subjectNames, setSubjectNames] = useState<ReadonlyMap<string, string>>(
+    () => new Map()
+  );
   const runRefresh = useCallback(
     async (changed: Level | null, arriving?: Sel) => {
       const token = ++refreshToken.current;
@@ -245,6 +259,14 @@ const App = (): React.JSX.Element => {
           });
           if (token !== refreshToken.current) return;
           const before = draft;
+          const fresh = reply.subject.filter((o) => !isAllSubjects(o));
+          if (fresh.length) {
+            setSubjectNames((previous) => {
+              const merged = new Map(previous);
+              for (const o of fresh) merged.set(String(o.value), o.label);
+              return merged;
+            });
+          }
           draft = applyOptions(draft, reply);
           selRef.current = draft;
           setSel(draft);
@@ -408,7 +430,9 @@ const App = (): React.JSX.Element => {
         opts[key].find((o) => String(o.value) === String(s[key]))?.label ?? "";
       return {
         sel: s,
-        subject: labelOf("subject") || s.subject,
+        // The identifier is only a last resort, and it says so: a card that has
+        // never seen its section offered cannot know the subject's name.
+        subject: subjectNames.get(String(s.subject)) ?? "",
         sectionName: labelOf("section") || s.section,
         course: [labelOf("course"), labelOf("semester"), labelOf("branch")]
           .filter(Boolean)
