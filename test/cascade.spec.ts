@@ -10,6 +10,7 @@ import {
   EMPTY_OPTS,
   realSubjects,
   rememberRangeStart,
+  sectionRowsAreStale,
   sectionLevels,
   rememberSection,
   savedSection,
@@ -576,5 +577,42 @@ test.describe("the subjects a dashboard row is built from", () => {
       "Operating Systems",
       "DBMS Lab",
     ]);
+  });
+});
+const WINDOW = { from: "2026-06-01", to: "2026-09-28" };
+const READ = { sel: SECTION, range: "2026-06-01 to 2026-09-28" };
+test.describe("when the dashboard's rows go stale", () => {
+  test("choosing a subject never makes them stale", () => {
+    expect(
+      sectionRowsAreStale(READ, SECTION, WINDOW, SUBJECTS),
+      "a subject dropdown change fanned out one register read per subject"
+    ).toBe(false);
+    expect(
+      sectionRowsAreStale(
+        READ,
+        { ...SECTION, subject: "__all__" },
+        WINDOW,
+        SUBJECTS
+      )
+    ).toBe(false);
+  });
+  test("a section that has not been read yet is stale", () => {
+    expect(sectionRowsAreStale(null, SECTION, WINDOW, SUBJECTS)).toBe(true);
+  });
+  test("a different section, or a different window, is stale", () => {
+    expect(
+      sectionRowsAreStale(READ, { ...SECTION, section: "B" }, WINDOW, SUBJECTS)
+    ).toBe(true);
+    expect(
+      sectionRowsAreStale(
+        READ,
+        SECTION,
+        { from: "2026-07-01", to: "2026-09-28" },
+        SUBJECTS
+      )
+    ).toBe(true);
+  });
+  test("a section with no subjects asks for nothing", () => {
+    expect(sectionRowsAreStale(null, SECTION, WINDOW, [])).toBe(false);
   });
 });

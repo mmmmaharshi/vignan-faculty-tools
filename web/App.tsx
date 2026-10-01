@@ -42,6 +42,7 @@ import {
   forgetSection,
   realSubjects,
   sectionLevels,
+  sectionRowsAreStale,
   startingRange,
   visibleStudents,
   EMPTY_OPTS,
@@ -51,7 +52,7 @@ import {
   shouldContinue,
   toPortalDate,
 } from "./cascade";
-import type { Level, Range, Sel } from "./cascade";
+import type { Level, Range, SectionRead, Sel } from "./cascade";
 import { ClassPicker } from "./components/ClassPicker";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
@@ -124,6 +125,9 @@ const App = (): React.JSX.Element => {
    *  subjects". An empty table and a section ECAP no longer offers are different
    *  facts and must not look the same. */
   const [sectionProblem, setSectionProblem] = useState<string | null>(null);
+  /** What the rows on screen were read for: the saved section and the window.
+   *  Null means nothing has been read yet, which is stale. */
+  const [sectionRead, setSectionRead] = useState<SectionRead | null>(null);
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
@@ -167,6 +171,9 @@ const App = (): React.JSX.Element => {
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
+      setSectionRows(null);
+      setSectionProblem(null);
+      setSectionRead(null);
       navigate(LOGIN_PATH, { replace: true });
     },
     [navigate]
@@ -367,6 +374,14 @@ const App = (): React.JSX.Element => {
             );
           }
         }
+        // Recorded even when every subject failed: the visit happened, and a
+        // section that cannot be read is not re-read by changing a dropdown.
+        if (token === sectionToken.current) {
+          setSectionRead({
+            sel: target,
+            range: `${dates.from} to ${dates.to}`,
+          });
+        }
       } finally {
         if (token === sectionToken.current) {
           setBusy(false);
@@ -465,15 +480,19 @@ const App = (): React.JSX.Element => {
   /* The dashboard reads the saved section once the cascade has produced that
    * section's subjects. It is not a click: visiting the dashboard is the request,
    * and every visit refetches because a stale attendance figure causes harm.
-   * The effect keys on the section and the range, which is what decides whether
-   * there is anything new to read; the options are read from the ref the loop
-   * already keeps current, for the same reason runRefresh does. */
+   *
+   * `sectionRead` says what the rows on screen were read for, so the trigger is
+   * the section and the window rather than the whole selection. Keying it on
+   * `sel` meant a Subject dropdown change fanned out one register read per
+   * subject in the section — the same fan-out as a dashboard visit, fired by
+   * changing a dropdown. */
   useEffect(() => {
     if (!signedIn || !savedSel) return;
     if (!isReady(sel, "section")) return;
-    if (!realSubjects(optsRef.current).length) return;
+    const subjects = realSubjects(optsRef.current);
+    if (!sectionRowsAreStale(sectionRead, savedSel, range, subjects)) return;
     void loadSectionDashboard(savedSel, range);
-  }, [signedIn, savedSel, sel, range, loadSectionDashboard]);
+  }, [signedIn, savedSel, sel, range, sectionRead, loadSectionDashboard]);
   const disabled = disabledLevels(sel);
   const summary = result?.summary;
   const rows = result

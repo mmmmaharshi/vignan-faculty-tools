@@ -170,6 +170,33 @@ export function startingRange(now: Date = new Date()): Range {
 const SECTION_KEY_PREFIX = "section-";
 /** Course, Semester, Branch, Section — the levels a saved section is made of. */
 const SECTION_LEVELS = ["course", "semester", "branch", "section"] as const;
+/** What the dashboard's rows were read for: the section and the window. The
+ *  subject is absent on purpose, because the rows do not describe one. */
+export interface SectionRead {
+  sel: Sel;
+  range: string;
+}
+/**
+ * Whether the dashboard's rows are stale. They summarise a whole section, so the
+ * Subject dropdown cannot make one of them out of date: choosing a subject
+ * changes which register the table below shows, and the rows above are about
+ * every subject either way. Keying this on the whole selection made a dropdown
+ * change fan out one register read per subject in the section, against an ECAP
+ * session that is alive for minutes.
+ *
+ * Only the four section levels and the range decide it.
+ */
+export function sectionRowsAreStale(
+  loaded: SectionRead | null,
+  saved: Sel,
+  range: Range,
+  subjects: readonly Option[]
+): boolean {
+  if (!subjects.length) return false;
+  if (!loaded) return true;
+  if (loaded.range !== `${range.from} to ${range.to}`) return true;
+  return SECTION_LEVELS.some((key) => loaded.sel[key] !== saved[key]);
+}
 export function rememberSection(userId: string, sel: Sel): void {
   if (!userId) return;
   if (SECTION_LEVELS.some((key) => !sel[key])) return;
