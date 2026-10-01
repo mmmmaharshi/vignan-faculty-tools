@@ -7,11 +7,7 @@ import {
   chosenLevels,
   chosenText,
   defaultRange,
-  EMPTY_OPTS,
-  realSubjects,
   rememberRangeStart,
-  sectionRowsAreStale,
-  sectionLevels,
   rememberSection,
   savedSection,
   forgetSection,
@@ -516,103 +512,5 @@ test.describe("the saved section", () => {
     expect(savedSection("sirichandrasekhar")).toBeNull();
     saved.set("section-sirichandrasekhar", JSON.stringify({ course: "1" }));
     expect(savedSection("sirichandrasekhar")).toBeNull();
-  });
-});
-const SUBJECTS: OptionsReply["subject"] = [
-  ALL_SUBJECTS,
-  opt("101", "Database Systems", "L"),
-  opt("102", "Operating Systems", "L"),
-  opt("103", "DBMS Lab", "P"),
-];
-test.describe("the subjects a dashboard row is built from", () => {
-  test("a saved section resolves, though it carries no subject", () => {
-    const opts = reply({
-      course: ["1"],
-      semester: ["3"],
-      branch: ["4"],
-      section: ["5"],
-      subject: ["6"],
-    });
-    const found = sectionLevels(
-      opts,
-      sel({ course: "1", semester: "3", branch: "4", section: "5" })
-    );
-    expect(
-      found.ok,
-      "a saved section has no subject by design, so a register lookup refuses it"
-    ).toBe(true);
-  });
-  test("a section the portal no longer offers is named, not silently empty", () => {
-    const opts = reply({
-      course: ["1"],
-      semester: ["3"],
-      branch: ["4"],
-      section: ["5"],
-      subject: [],
-    });
-    const found = sectionLevels(
-      opts,
-      sel({ course: "1", semester: "3", branch: "4", section: "9" })
-    );
-    expect(found.ok).toBe(false);
-    if (!found.ok) expect(found.label).toBe("Section");
-  });
-  test("All subjects is not a row, though it leads the list", () => {
-    const rows = realSubjects({ ...EMPTY_OPTS, subject: SUBJECTS });
-    expect(
-      rows.map((o) => o.value),
-      "counting the entry would count the section's students twice"
-    ).toEqual(["101", "102", "103"]);
-  });
-  test("a section with no subjects has no rows, and none invented", () => {
-    expect(realSubjects({ ...EMPTY_OPTS, subject: [ALL_SUBJECTS] })).toEqual(
-      []
-    );
-    expect(realSubjects(EMPTY_OPTS)).toEqual([]);
-  });
-  test("the real subjects keep the order the portal gave them", () => {
-    const rows = realSubjects({ ...EMPTY_OPTS, subject: SUBJECTS });
-    expect(rows.map((o) => o.label)).toEqual([
-      "Database Systems",
-      "Operating Systems",
-      "DBMS Lab",
-    ]);
-  });
-});
-const WINDOW = { from: "2026-06-01", to: "2026-09-28" };
-const READ = { sel: SECTION, range: "2026-06-01 to 2026-09-28" };
-test.describe("when the dashboard's rows go stale", () => {
-  test("choosing a subject never makes them stale", () => {
-    expect(
-      sectionRowsAreStale(READ, SECTION, WINDOW, SUBJECTS),
-      "a subject dropdown change fanned out one register read per subject"
-    ).toBe(false);
-    expect(
-      sectionRowsAreStale(
-        READ,
-        { ...SECTION, subject: "__all__" },
-        WINDOW,
-        SUBJECTS
-      )
-    ).toBe(false);
-  });
-  test("a section that has not been read yet is stale", () => {
-    expect(sectionRowsAreStale(null, SECTION, WINDOW, SUBJECTS)).toBe(true);
-  });
-  test("a different section, or a different window, is stale", () => {
-    expect(
-      sectionRowsAreStale(READ, { ...SECTION, section: "B" }, WINDOW, SUBJECTS)
-    ).toBe(true);
-    expect(
-      sectionRowsAreStale(
-        READ,
-        SECTION,
-        { from: "2026-07-01", to: "2026-09-28" },
-        SUBJECTS
-      )
-    ).toBe(true);
-  });
-  test("a section with no subjects asks for nothing", () => {
-    expect(sectionRowsAreStale(null, SECTION, WINDOW, [])).toBe(false);
   });
 });

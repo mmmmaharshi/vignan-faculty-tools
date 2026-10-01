@@ -10,6 +10,7 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
+  ArrowCounterClockwise,
   FloppyDisk,
   SignOut,
   SquaresFour,
@@ -35,14 +36,10 @@ import {
   isAllSubjects,
   chosenText,
   disabledLevels,
-  isReady,
   rememberRangeStart,
   rememberSection,
   savedSection,
   forgetSection,
-  realSubjects,
-  sectionLevels,
-  sectionRowsAreStale,
   startingRange,
   visibleStudents,
   EMPTY_OPTS,
@@ -52,13 +49,11 @@ import {
   shouldContinue,
   toPortalDate,
 } from "./cascade";
-import type { Level, Range, SectionRead, Sel } from "./cascade";
+import type { Level, Range, Sel } from "./cascade";
 import { ClassPicker } from "./components/ClassPicker";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
-import { SectionSummary } from "./components/SectionSummary";
-import type { SectionRow } from "./components/SectionSummary";
 import { SignInPanel } from "./components/SignInPanel";
 import type { Note } from "./types";
 
@@ -117,17 +112,6 @@ const App = (): React.JSX.Element => {
     userId: string;
     sel: Sel | null;
   } | null>(null);
-  /** One entry per subject of the saved section, in the order the Portal gave
-   *  them. A null summary is a subject whose figures have not arrived, and is
-   *  never the previous visit's. */
-  const [sectionRows, setSectionRows] = useState<SectionRow[] | null>(null);
-  /** Why the saved section could not be shown, when that is not "it has no
-   *  subjects". An empty table and a section ECAP no longer offers are different
-   *  facts and must not look the same. */
-  const [sectionProblem, setSectionProblem] = useState<string | null>(null);
-  /** What the rows on screen were read for: the saved section and the window.
-   *  Null means nothing has been read yet, which is stale. */
-  const [sectionRead, setSectionRead] = useState<SectionRead | null>(null);
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
@@ -135,24 +119,17 @@ const App = (): React.JSX.Element => {
   optsRef.current = opts;
   /* oxlint-enable react/refs */
   const refreshToken = useRef(0);
-  /* The dashboard's own token: a newer visit makes an older one bail rather than
-   * write over it, the same rule the cascade's own loop uses. */
-  const sectionToken = useRef(0);
   /** The saved section, read only for the user who is signed in. The stored
    *  values are the previous session's until the name proves whose they are. */
   const savedSel = saved?.userId === userId && userId ? saved.sel : null;
   /** The name arriving is also the moment the saved section becomes readable, so
    *  both are set together: a restore never went through the sign-in form. The
-   *  saved values also seed the selection, so the cascade's one walk starts at
-   *  the class to be shown rather than at the top of the ladder. */
+   *  saved values are not applied to the cascade here — filling the form is the
+   *  saved class being clicked, and nothing else. */
   const noteUserId = useCallback((name: string): void => {
     setUserId(name);
     const stored = name ? savedSection(name) : null;
     setSaved(name ? { userId: name, sel: stored } : null);
-    if (stored) {
-      selRef.current = stored;
-      setSel(stored);
-    }
   }, []);
   const signedOut = useCallback(
     (why: string) => {
@@ -171,20 +148,10 @@ const App = (): React.JSX.Element => {
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
-      setSectionRows(null);
-      setSectionProblem(null);
-      setSectionRead(null);
       navigate(LOGIN_PATH, { replace: true });
     },
     [navigate]
   );
-  /* The section loader must not be rebuilt when the sign-out reason changes, yet
-   * still has to be able to end a session, so it reaches signedOut through a ref
-   * — the same shape optsRef already has. */
-  const signedOutRef = useRef(signedOut);
-  useEffect(() => {
-    signedOutRef.current = signedOut;
-  }, [signedOut]);
   const fetchRegister = useCallback(
     async (levels: Record<Level, Option>, dates: Range) => {
       setBusy(true);
@@ -308,89 +275,6 @@ const App = (): React.JSX.Element => {
     },
     [signedOut]
   );
-  const loadSectionDashboard = useCallback(
-    async (target: Sel, dates: Range) => {
-      // The options are read from the ref rather than closed over: this callback
-      // is memoised on nothing that changes when the cascade settles, so a closed
-      // value would be the options from before the walk.
-      const options = optsRef.current;
-      const subjects = realSubjects(options);
-      // A saved section carries no subject, so this must be the four-level
-      // lookup: chosenLevels refuses a section with no subject, and the empty
-      // state that followed read as "this section has no subjects".
-      const levels = sectionLevels(options, target);
-      if (!levels.ok) {
-        sectionToken.current += 1;
-        setSectionRows(null);
-        setSectionProblem(
-          `ECAP no longer offers that ${levels.label.toLowerCase()}. Pick the class again.`
-        );
-        return;
-      }
-      if (!subjects.length) {
-        setSectionRows([]);
-        setSectionProblem(null);
-        return;
-      }
-      setSectionProblem(null);
-      const token = ++sectionToken.current;
-      setBusy(true);
-      setLoadNote("Reading the saved section from ECAP...");
-      // Rows appear as their answers do, and a subject whose read failed keeps
-      // its row with no figures rather than vanishing from the class.
-      setSectionRows(subjects.map((o) => ({ ...o, summary: null })));
-      const done = new Map<string, RegisterReply["summary"]>();
-      try {
-        for (const subject of subjects) {
-          if (token !== sectionToken.current) return;
-          try {
-            const body = await api<RegisterReply>("/api/register", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({
-                ...levels.levels,
-                subject,
-                from: toPortalDate(dates.from),
-                to: toPortalDate(dates.to),
-              }),
-            });
-            if (token !== sectionToken.current) return;
-            done.set(subject.value, body.summary);
-          } catch (error) {
-            if (error instanceof ApiError && error.status === 401) {
-              signedOutRef.current(
-                "Your session expired. Please sign in again."
-              );
-              return;
-            }
-            // A subject that could not be read stays in the table as a dash.
-          }
-          if (token === sectionToken.current) {
-            setSectionRows(
-              subjects.map((o) => ({
-                ...o,
-                summary: done.get(o.value) ?? null,
-              }))
-            );
-          }
-        }
-        // Recorded even when every subject failed: the visit happened, and a
-        // section that cannot be read is not re-read by changing a dropdown.
-        if (token === sectionToken.current) {
-          setSectionRead({
-            sel: target,
-            range: `${dates.from} to ${dates.to}`,
-          });
-        }
-      } finally {
-        if (token === sectionToken.current) {
-          setBusy(false);
-          setLoadNote("");
-        }
-      }
-    },
-    []
-  );
   const signIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoginNote(null);
@@ -477,22 +361,6 @@ const App = (): React.JSX.Element => {
       navigate(DASHBOARD_PATH, { replace: true });
     }
   }, [booted, signedIn, onLogin, navigate]);
-  /* The dashboard reads the saved section once the cascade has produced that
-   * section's subjects. It is not a click: visiting the dashboard is the request,
-   * and every visit refetches because a stale attendance figure causes harm.
-   *
-   * `sectionRead` says what the rows on screen were read for, so the trigger is
-   * the section and the window rather than the whole selection. Keying it on
-   * `sel` meant a Subject dropdown change fanned out one register read per
-   * subject in the section — the same fan-out as a dashboard visit, fired by
-   * changing a dropdown. */
-  useEffect(() => {
-    if (!signedIn || !savedSel) return;
-    if (!isReady(sel, "section")) return;
-    const subjects = realSubjects(optsRef.current);
-    if (!sectionRowsAreStale(sectionRead, savedSel, range, subjects)) return;
-    void loadSectionDashboard(savedSel, range);
-  }, [signedIn, savedSel, sel, range, sectionRead, loadSectionDashboard]);
   const disabled = disabledLevels(sel);
   const summary = result?.summary;
   const rows = result
@@ -525,6 +393,16 @@ const App = (): React.JSX.Element => {
     forgetSection(userId);
     setSaved({ userId, sel: null });
   };
+  /** Clicking the saved class fills the form and nothing else: no register is
+   *  fetched and the Subject is left empty, because a saved section carries no
+   *  subject. The cascade then settles the levels below it as usual. */
+  const applySavedSection = () => {
+    if (!savedSel) return;
+    const next: Sel = { ...savedSel, subject: "" };
+    selRef.current = next;
+    setSel(next);
+    runRefresh("section");
+  };
   const savedName = savedSel
     ? chosenText(opts, { ...savedSel, subject: "" })
     : "";
@@ -553,15 +431,19 @@ const App = (): React.JSX.Element => {
         >
           Save this class
         </Button>
-        {savedName ? (
-          <Text size="sm" c="dimmed">
-            Saved: {savedName}
-          </Text>
-        ) : null}
         {savedSel ? (
-          <Button onClick={clearSavedSection} variant="subtle">
-            Forget
-          </Button>
+          <>
+            <Button
+              onClick={applySavedSection}
+              variant="light"
+              leftSection={<ArrowCounterClockwise size={18} aria-hidden />}
+            >
+              {savedName || "Saved class"}
+            </Button>
+            <Button onClick={clearSavedSection} variant="subtle">
+              Forget
+            </Button>
+          </>
         ) : null}
       </Group>
     </>
@@ -587,14 +469,6 @@ const App = (): React.JSX.Element => {
         <ProfilePanel userId={userId} persisted={persisted} />
       ) : (
         <>
-          {savedName && (sectionRows || sectionProblem) ? (
-            <SectionSummary
-              rows={sectionRows ?? []}
-              name={savedName}
-              range={`${range.from} to ${range.to}`}
-              problem={sectionProblem}
-            />
-          ) : null}
           {picker}
           {summary ? (
             <RegisterSummary

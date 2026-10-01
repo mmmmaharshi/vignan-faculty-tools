@@ -4,7 +4,6 @@ import type {
   OptionsReply,
   RegisterReply,
 } from "../shared/api";
-import { isAllSubjects } from "../shared/api";
 
 export { isAllSubjects } from "../shared/api";
 
@@ -19,8 +18,6 @@ export const LEVELS: readonly (readonly [Level, string])[] = [
   ["subject", "Subject"],
 ];
 export const LEVEL_KEYS: readonly Level[] = LEVELS.map(([k]) => k);
-/** The same levels, labelled, stopping short of the Subject. */
-const SECTION_LEVEL_KEYS = LEVELS.slice(0, -1) as (readonly [Level, string])[];
 export const EMPTY_SEL: Sel = {
   course: "",
   semester: "",
@@ -56,26 +53,6 @@ export function chosenLevels(
 ): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
   const levels = {} as Record<Level, Option>;
   for (const [key, label] of LEVELS) {
-    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
-    if (!hit) return { ok: false, label };
-    levels[key] = hit;
-  }
-  return { ok: true, levels };
-}
-/**
- * The four levels a saved Section carries, resolved against the options. A
- * register needs five and a saved section has no subject by design, so asking
- * `chosenLevels` for one refuses a perfectly good section — the dashboard then
- * renders an empty table that reads as "this section has no subjects", which is
- * a different and wrong fact. Stops at the section and names the first level the
- * portal no longer offers.
- */
-export function sectionLevels(
-  opts: OptionsReply,
-  sel: Sel
-): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
-  const levels = {} as Record<Level, Option>;
-  for (const [key, label] of SECTION_LEVEL_KEYS) {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
     if (!hit) return { ok: false, label };
     levels[key] = hit;
@@ -170,33 +147,6 @@ export function startingRange(now: Date = new Date()): Range {
 const SECTION_KEY_PREFIX = "section-";
 /** Course, Semester, Branch, Section — the levels a saved section is made of. */
 const SECTION_LEVELS = ["course", "semester", "branch", "section"] as const;
-/** What the dashboard's rows were read for: the section and the window. The
- *  subject is absent on purpose, because the rows do not describe one. */
-export interface SectionRead {
-  sel: Sel;
-  range: string;
-}
-/**
- * Whether the dashboard's rows are stale. They summarise a whole section, so the
- * Subject dropdown cannot make one of them out of date: choosing a subject
- * changes which register the table below shows, and the rows above are about
- * every subject either way. Keying this on the whole selection made a dropdown
- * change fan out one register read per subject in the section, against an ECAP
- * session that is alive for minutes.
- *
- * Only the four section levels and the range decide it.
- */
-export function sectionRowsAreStale(
-  loaded: SectionRead | null,
-  saved: Sel,
-  range: Range,
-  subjects: readonly Option[]
-): boolean {
-  if (!subjects.length) return false;
-  if (!loaded) return true;
-  if (loaded.range !== `${range.from} to ${range.to}`) return true;
-  return SECTION_LEVELS.some((key) => loaded.sel[key] !== saved[key]);
-}
 export function rememberSection(userId: string, sel: Sel): void {
   if (!userId) return;
   if (SECTION_LEVELS.some((key) => !sel[key])) return;
@@ -249,15 +199,6 @@ export function forgetSection(userId: string): void {
   } catch {
     /* a refused delete must not break the screen */
   }
-}
-/**
- * The subjects a dashboard shows a row for. `ALL SUBJECTS` leads the list and is
- * not a Portal subject, so counting it as one would count the section's students
- * a second time under a name that is not a class. A subject ECAP has stopped
- * teaching is simply not in the list, and so is not a row.
- */
-export function realSubjects(opts: OptionsReply): Option[] {
-  return opts.subject.filter((o) => !isAllSubjects(o));
 }
 export function chosenText(opts: OptionsReply, sel: Sel): string {
   return LEVELS.flatMap(([key, label]) => {
