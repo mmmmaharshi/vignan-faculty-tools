@@ -19,6 +19,7 @@ export const isAllSubjects = (subject: Option | undefined): boolean =>
 export interface SessionReply {
   signedIn: boolean;
   persisted: boolean;
+  userId: string;
 }
 export interface OkReply {
   ok: true;

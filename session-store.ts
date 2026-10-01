@@ -3,6 +3,7 @@ import { CookieJar } from "./portal-conventions";
 export type StoredSession = {
   id: string;
   at: number;
+  userId: string;
   cookies: [string, string][];
 };
 export type Secrets = {
@@ -39,7 +40,7 @@ export function bunSecrets(): Secrets | null {
 }
 export function parseSession(value: unknown): StoredSession | null {
   if (typeof value !== "object" || value === null) return null;
-  const { id, at, cookies } = value as Partial<StoredSession>;
+  const { id, at, userId, cookies } = value as Partial<StoredSession>;
   if (typeof id !== "string" || !id) return null;
   if (typeof at !== "number" || !Number.isFinite(at)) return null;
   if (!Array.isArray(cookies)) return null;
@@ -53,7 +54,12 @@ export function parseSession(value: unknown): StoredSession | null {
   const jar = new CookieJar();
   for (const [name, cookieValue] of pairs) jar.entries.set(name, cookieValue);
   if (!jar.signedIn) return null;
-  return { id, at, cookies: pairs };
+  return {
+    id,
+    at,
+    userId: typeof userId === "string" ? userId : "",
+    cookies: pairs,
+  };
 }
 async function readIndex(backend: Secrets): Promise<string[]> {
   let raw: string | null;

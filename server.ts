@@ -268,6 +268,7 @@ class Portal {
 }
 type Session = {
   at: number;
+  userId: string;
   portal: Portal;
 };
 const sessions = new Map<string, Session>();
@@ -292,6 +293,7 @@ function snapshotSessions(): StoredSession[] {
   return [...sessions].map(([id, s]) => ({
     id,
     at: s.at,
+    userId: s.userId,
     cookies: [...s.portal.jar.entries],
   }));
 }
@@ -311,7 +313,7 @@ function restoreSession(stored: StoredSession): Session {
   const portal = new Portal();
   for (const [name, value] of stored.cookies)
     portal.jar.entries.set(name, value);
-  return { at: stored.at, portal };
+  return { at: stored.at, userId: stored.userId, portal };
 }
 function reapSessions() {
   const now = Date.now();
@@ -451,7 +453,11 @@ const server = Bun.serve({
             : new HttpError(502, messageOf(error));
         }
         const id = crypto.randomUUID();
-        sessions.set(id, { at: Date.now(), portal });
+        sessions.set(id, {
+          at: Date.now(),
+          userId: String(userId).trim(),
+          portal,
+        });
         markStoreDirty();
         await flushSessions();
         return json({ ok: true } satisfies OkReply, 200, refreshedCookie(id));
@@ -472,6 +478,7 @@ const server = Bun.serve({
               {
                 signedIn: false,
                 persisted: Boolean(vault),
+                userId: "",
               } satisfies SessionReply,
               200
             );
@@ -481,6 +488,7 @@ const server = Bun.serve({
               {
                 signedIn: false,
                 persisted: Boolean(vault),
+                userId: "",
               } satisfies SessionReply,
               200
             );
@@ -489,6 +497,7 @@ const server = Bun.serve({
             {
               signedIn: s.portal.signedIn,
               persisted: Boolean(vault),
+              userId: s.userId,
             } satisfies SessionReply,
             200,
             id ? refreshedCookie(id) : undefined

@@ -296,10 +296,12 @@ const App = (): React.JSX.Element => {
     (async () => {
       let alive = false;
       let kept = false;
+      let name = "";
       try {
         const s = await api<SessionReply>("/api/session");
         alive = !!(s && s.signedIn);
         kept = Boolean(s?.persisted);
+        name = s?.userId ?? "";
       } catch {
         alive = false;
       }
@@ -308,6 +310,10 @@ const App = (): React.JSX.Element => {
       setSignedIn(alive);
       setPersisted(kept);
       if (alive) {
+        // A restored session never went through the sign-in form, so this is the
+        // only place the name can arrive. Without it the header and the profile
+        // panel show a dash for a session that is working.
+        if (name) setUserId(name);
         if (!onLogin && !onProfile) {
           navigate(DASHBOARD_PATH, { replace: true });
         }

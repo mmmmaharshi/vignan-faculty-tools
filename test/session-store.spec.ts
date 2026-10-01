@@ -28,7 +28,12 @@ const JAR: [string, string][] = [
   ["ASP.NET_SessionId", "abc123"],
   ["frmAuth", "DEADBEEF"],
 ];
-const SESSION: StoredSession = { id: "s1", at: Date.now(), cookies: JAR };
+const SESSION: StoredSession = {
+  id: "s1",
+  at: Date.now(),
+  userId: "sirichandrasekhar",
+  cookies: JAR,
+};
 test.describe("the session store", () => {
   test("a session written by one process is readable by the next", async () => {
     const store = new Map<string, string>();
@@ -37,6 +42,25 @@ test.describe("the session store", () => {
     expect(loaded).toHaveLength(1);
     expect(loaded[0]?.id).toBe("s1");
     expect(loaded[0]?.cookies).toEqual(JAR);
+  });
+  test("the user's name survives the vault, which a rebuild would drop", async () => {
+    const store = new Map<string, string>();
+    expect(await saveSessions(fakeVault(store), [SESSION])).toBeNull();
+    const loaded = await loadSessions(fakeVault(store));
+    expect(loaded[0]?.userId).toBe("sirichandrasekhar");
+  });
+  test("a session stored before the name existed still loads", async () => {
+    const store = new Map<string, string>();
+    expect(await saveSessions(fakeVault(store), [SESSION])).toBeNull();
+    const legacy = JSON.parse(store.get("session-s1") ?? "null") as Record<
+      string,
+      unknown
+    >;
+    delete legacy.userId;
+    store.set("session-s1", JSON.stringify(legacy));
+    const loaded = await loadSessions(fakeVault(store));
+    expect(loaded).toHaveLength(1);
+    expect(loaded[0]?.userId).toBe("");
   });
   test("everything goes in one entry per session, plus an index", async () => {
     const vault = fakeVault();
@@ -54,6 +78,7 @@ test.describe("the session store", () => {
     const realistic: StoredSession[] = Array.from({ length: 20 }, (_, i) => ({
       id: `session-${i}`,
       at: Date.now(),
+      userId: "sirichandrasekhar",
       cookies: [
         ["ASP.NET_SessionId", "k".repeat(24)],
         ["frmAuth", "A".repeat(384)],
@@ -80,6 +105,7 @@ test.describe("the session store", () => {
     const many: StoredSession[] = Array.from({ length: 200 }, (_, i) => ({
       id: `8a7dd881-7be7-402d-ac8a-${String(i).padStart(12, "0")}`,
       at: now - (200 - i) * 1000,
+      userId: "sirichandrasekhar",
       cookies: JAR,
     }));
     const vault = fakeVault();
@@ -101,6 +127,7 @@ test.describe("the session store", () => {
     const many: StoredSession[] = Array.from({ length: 200 }, (_, i) => ({
       id: `8a7dd881-7be7-402d-ac8a-${String(i).padStart(12, "0")}`,
       at: now - (200 - i) * 1000,
+      userId: "sirichandrasekhar",
       cookies: JAR,
     }));
     const vault = fakeVault();
@@ -120,6 +147,7 @@ test.describe("the session store", () => {
     const modest = Array.from({ length: 20 }, (_, i) => ({
       id: `8a7dd881-7be7-402d-ac8a-${String(i).padStart(12, "0")}`,
       at: Date.now(),
+      userId: "sirichandrasekhar",
       cookies: JAR,
     }));
     await saveSessions(vault, modest);
@@ -131,8 +159,8 @@ test.describe("the session store", () => {
     const now = Date.now();
     const vault = fakeVault();
     await saveSessions(vault, [
-      { id: "fresh", at: now - 1000, cookies: JAR },
-      { id: "ancient", at: now - 30 * day, cookies: JAR },
+      { id: "fresh", at: now - 1000, userId: "u", cookies: JAR },
+      { id: "ancient", at: now - 30 * day, userId: "u", cookies: JAR },
     ]);
     const after = await loadSessions(vault);
     expect(after.map((s) => s.id)).toEqual(["fresh"]);
@@ -142,7 +170,7 @@ test.describe("the session store", () => {
     const hour = 60 * 60 * 1000;
     const vault = fakeVault();
     await saveSessions(vault, [
-      { id: "old", at: Date.now() - 23 * hour, cookies: JAR },
+      { id: "old", at: Date.now() - 23 * hour, userId: "u", cookies: JAR },
     ]);
     const kept = await loadSessions(vault);
     expect(kept.map((s) => s.id)).toEqual(["old"]);
@@ -286,8 +314,8 @@ test.describe("the session store", () => {
     const now = 40 * day;
     const result = sweep(
       [
-        { id: "fresh", at: now - 1000, cookies: JAR },
-        { id: "stale", at: now - 31 * day, cookies: JAR },
+        { id: "fresh", at: now - 1000, userId: "u", cookies: JAR },
+        { id: "stale", at: now - 31 * day, userId: "u", cookies: JAR },
       ],
       now,
       30 * day
