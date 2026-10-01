@@ -403,13 +403,23 @@ const App = (): React.JSX.Element => {
     setSel(next);
     runRefresh("section");
   };
-  /** Each card names its own class, rebuilt from the cascade's labels — a stored
-   *  label could display a name ECAP has since renamed. */
+  /** Each card is laid out from its own labels, rebuilt from the cascade — a stored
+   *  label could display a name ECAP has since renamed. The Subject leads, because
+   *  that is what tells one saved class from another in the same section, and the
+   *  levels above it say which class it belongs to. */
   const savedClassCards =
-    savedList?.map((s) => ({
-      sel: s,
-      name: chosenText(opts, s) || "Saved class",
-    })) ?? [];
+    savedList?.map((s) => {
+      const labelOf = (key: Level): string =>
+        opts[key].find((o) => String(o.value) === String(s[key]))?.label ?? "";
+      return {
+        sel: s,
+        subject: labelOf("subject") || s.subject,
+        sectionName: labelOf("section") || s.section,
+        course: [labelOf("course"), labelOf("semester"), labelOf("branch")]
+          .filter(Boolean)
+          .join(" · "),
+      };
+    }) ?? [];
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
   const picker = (

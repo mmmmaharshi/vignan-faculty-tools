@@ -5,17 +5,29 @@ import React from "react";
 import type { Sel } from "../cascade";
 
 /**
- * The saved classes, as cards above the class form. Opening one fills the four
- * section levels and nothing else: no register is read, here or anywhere else on
- * this screen. A saved class is a Section and nothing more, so the card names
- * that section and lets the cascade settle the Subject as usual.
+ * One saved class. The Subject leads because that is what tells one card from
+ * another in the same section; the Section and the course sit beneath it as
+ * context, which is also the order they matter in — you pick a subject, and the
+ * section it belongs to is what identifies it.
+ */
+export type SavedClassCard = {
+  sel: Sel;
+  /** The subject's own name, falling back to its value if ECAP no longer offers it. */
+  subject: string;
+  sectionName: string;
+  /** Course, semester and branch on one line — the longest string, so it is quietest. */
+  course: string;
+};
+/**
+ * The saved classes, as cards above the class form. Opening one fills all five
+ * levels and reads no register: the card is a shortcut to the form, not a request.
  */
 export const SavedClasses = ({
   classes,
   onOpen,
   onForget,
 }: {
-  classes: readonly { sel: Sel; name: string }[];
+  classes: readonly SavedClassCard[];
   onOpen: (sel: Sel) => void;
   onForget: (sel: Sel) => void;
 }): React.JSX.Element | null => {
@@ -26,12 +38,28 @@ export const SavedClasses = ({
         Saved classes
       </Title>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mb="md">
-        {classes.map(({ sel, name }) => (
-          <Paper key={name} withBorder p="md">
+        {classes.map(({ sel, subject, sectionName, course }) => (
+          // The five levels are the card's identity, so the key is the values and
+          // not the label text: two cards never share one.
+          <Paper
+            key={`${sel.course}/${sel.section}/${sel.subject}`}
+            withBorder
+            p="md"
+          >
             <Text size="xs" c="dimmed" tt="uppercase">
-              Opens this section
+              Subject
             </Text>
-            <Text fw={700}>{name}</Text>
+            <Text fw={700} size="lg" lineClamp={2}>
+              {subject}
+            </Text>
+            <Text size="sm" c="dimmed" mt={2}>
+              Section {sectionName}
+            </Text>
+            {course ? (
+              <Text size="xs" c="dimmed">
+                {course}
+              </Text>
+            ) : null}
             <Group gap="xs" mt="sm">
               <Button
                 size="xs"
