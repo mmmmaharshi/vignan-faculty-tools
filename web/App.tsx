@@ -10,7 +10,6 @@ import {
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
-  ArrowCounterClockwise,
   FloppyDisk,
   SignOut,
   SquaresFour,
@@ -54,6 +53,7 @@ import { ClassPicker } from "./components/ClassPicker";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
+import { SavedClass } from "./components/SavedClasses";
 import { SignInPanel } from "./components/SignInPanel";
 import type { Note } from "./types";
 
@@ -431,20 +431,6 @@ const App = (): React.JSX.Element => {
         >
           Save this class
         </Button>
-        {savedSel ? (
-          <>
-            <Button
-              onClick={applySavedSection}
-              variant="light"
-              leftSection={<ArrowCounterClockwise size={18} aria-hidden />}
-            >
-              {savedName || "Saved class"}
-            </Button>
-            <Button onClick={clearSavedSection} variant="subtle">
-              Forget
-            </Button>
-          </>
-        ) : null}
       </Group>
     </>
   );
@@ -469,6 +455,13 @@ const App = (): React.JSX.Element => {
         <ProfilePanel userId={userId} persisted={persisted} />
       ) : (
         <>
+          {savedSel ? (
+            <SavedClass
+              name={savedName || "Saved class"}
+              onOpen={applySavedSection}
+              onForget={clearSavedSection}
+            />
+          ) : null}
           {picker}
           {summary ? (
             <RegisterSummary
