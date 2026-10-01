@@ -45,26 +45,35 @@ export const SavedClasses = ({
             key={`${sel.course}/${sel.section}/${sel.subject}`}
             withBorder
             p="md"
+            // Equal height, so a long subject does not leave a short card with a
+            // gap under it. The subject itself wraps rather than being cut.
+            h="100%"
           >
             <Text size="xs" c="dimmed" tt="uppercase">
               Subject
             </Text>
             {subject ? (
-              <Text fw={700} size="lg" lineClamp={2}>
+              <Text fw={700} size="lg">
                 {subject}
               </Text>
             ) : (
               // The Portal answers subjects one section at a time, so a card for a
               // section this session has not opened yet has no name to show. Saying
-              // so is honest; printing the identifier looks like a data fault.
+              // so is honest; printing the identifier looks as a data fault.
               <Text size="sm" c="dimmed" fw={500}>
                 Not offered yet — open it once to name this subject
               </Text>
             )}
             <Text size="sm" c="dimmed" mt={2}>
-              Section {sectionName}
+              {/* The Portal's own section label already reads "Section-A", so a
+                  "Section" prefix in front of it printed the word twice. */}
+              {sectionName}
             </Text>
             {course ? (
+              // Wraps rather than truncates: the branch name is the Portal's own
+              // and cutting it — with an ellipsis or without — makes the card name
+              // a branch it is not. A short name never wraps, so this costs
+              // nothing for the cards that already fitted.
               <Text size="xs" c="dimmed">
                 {course}
               </Text>

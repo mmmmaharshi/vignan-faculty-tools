@@ -445,30 +445,34 @@ test.describe("dates", () => {
 });
 
 test.describe("a branch name on a card", () => {
-  test("several words become their initials", () => {
+  test("words before the bracket become initials", () => {
+    expect(
+      abbreviate("Computer Science and Engineering (Artificial Intelligence)")
+    ).toBe("CSE(AI)");
     expect(abbreviate("Information Technology")).toBe("IT");
     expect(abbreviate("Electronics and Communication Engineering")).toBe("ECE");
-    expect(abbreviate("Artificial Intelligence & Machine Learning")).toBe(
-      "AIML"
-    );
   });
-  test("a single word is left alone, because an initial says nothing", () => {
-    expect(abbreviate("Mathematics")).toBe("Mathematics");
-    expect(abbreviate("Physics")).toBe("Physics");
+  test("the bracket keeps its own initialism, and a whole phrase is shortened", () => {
+    expect(
+      abbreviate("Computer Science and Engineering (Artificial Intelligence)")
+    ).toBe("CSE(AI)");
+    expect(abbreviate("Computer Science and Engineering (CSE)")).toBe("CSE");
+    expect(abbreviate("Computer Science and Engineering (AIML)")).toBe(
+      "CSE(AIML)"
+    );
   });
   test("connecting words are not initials of their own", () => {
     expect(abbreviate("Computer Science and Engineering")).toBe("CSE");
     expect(abbreviate("Bachelor of Technology")).toBe("BT");
   });
+  test("a single word is left alone, because an initial says nothing", () => {
+    expect(abbreviate("Mathematics")).toBe("Mathematics");
+    expect(abbreviate("Physics")).toBe("Physics");
+  });
   test("an already short name is never made longer", () => {
     expect(abbreviate("CSE")).toBe("CSE");
     expect(abbreviate("IT")).toBe("IT");
     expect(abbreviate("")).toBe("");
-  });
-  test("a name whose initials say nothing keeps one of its words", () => {
-    // "Mining and Geology" abbreviates to "MG", not "M", and a lone initial
-    // reads as a typo rather than as an abbreviation.
-    expect(abbreviate("Mining")).toBe("Mining");
   });
 });
 

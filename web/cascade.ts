@@ -259,29 +259,61 @@ export function forgetClass(userId: string, sel: Sel): void {
     )
   );
 }
-/** Words that join a name without being part of what it abbreviates. */
 const CONNECTING_WORDS = new Set(["and", "of", "the", "for", "in", "a", "to"]);
+/** The initials of a phrase, or the phrase itself when it has too few words. */
+function initialsOf(words: readonly string[], fallback: string): string {
+  const initials = words.map((word) => word[0]?.toUpperCase() ?? "").join("");
+  // A lone capital reads as a typo rather than as an abbreviation.
+  return initials.length < 2 ? fallback : initials;
+}
+const INITIALS = /\p{L}/u;
 /**
- * A long name reduced to its initials, for a card that has no room for it:
- * "Information Technology" becomes "IT", "Computer Science and Engineering"
- * becomes "CSE". Only ever used for display, never for identity — two classes are
- * told apart by their values, not by the text on the card.
+ * A long Portal label reduced to its initialism for a card: "Information
+ * Technology" becomes "IT" and "Computer Science and Engineering (Artificial
+ * Intelligence)" becomes "CSE(AI)" — the bracket keeps its shape and is shortened
+ * inside, because that is how the Portal writes a specialisation.
  *
- * A single word is left alone, because an initial of one word says nothing, and a
- * name already short enough is never made longer. The full name is always
- * available: it is what the dropdown says when the card is opened.
+ * Connecting words contribute nothing, so the name reads "Computer Science and
+ * Engineering" becomes "CSE" and not "CSAE". A word already inside the bracket
+ * that is itself an initialism is left exactly as written, so "(CSE)" is not
+ * turned into "(CS)".
+ *
+ * Display only. Two classes are told apart by their five values, never by the text
+ * on a card, and the full name is what the dropdown says when the card is opened.
  */
 export function abbreviate(name: string): string {
-  const words = name
-    .split(/[\s&/,-]+/)
-    .map((word) => word.trim())
-    .filter(
-      (word) => word.length > 0 && !CONNECTING_WORDS.has(word.toLowerCase())
+  const bracket = name.match(/^\s*(?<head>.*?)\s*\((?<inside>[^()]*)\)\s*$/);
+  if (bracket?.groups) {
+    const head = bracket.groups.head ?? "";
+    const inner = bracket.groups.inside ?? "";
+    const before = initialsOf(
+      head
+        .split(/[\s&/,-]+/)
+        .filter((w) => w.length > 0 && !CONNECTING_WORDS.has(w.toLowerCase()))
+        .filter((w) => INITIALS.test(w[0] ?? "")),
+      head.trim()
     );
-  if (words.length < 2) return name;
-  const initials = words.map((word) => word[0]?.toUpperCase() ?? "").join("");
-  // One capital letter reads as a typo, so keep the word rather than the initial.
-  return initials.length < 2 ? name : initials;
+    const raw = inner.trim();
+    const inside = initialsOf(
+      raw
+        .split(/[\s&/,-]+/)
+        .filter((w) => w.length > 0 && INITIALS.test(w[0] ?? "")),
+      raw
+    );
+    if (!inside) return before;
+    // The Portal sometimes writes the short form already: "… (CSE)". Repeating
+    // the head beside it would print "CSE(CSE)", so the bracket stands alone.
+    return inside === raw && inside === before
+      ? inside
+      : `${before}(${inside})`;
+  }
+  return initialsOf(
+    name
+      .split(/[\s&/,-]+/)
+      .filter((w) => w.length > 0 && !CONNECTING_WORDS.has(w.toLowerCase()))
+      .filter((w) => INITIALS.test(w[0] ?? "")),
+    name
+  );
 }
 export function chosenText(opts: OptionsReply, sel: Sel): string {
   return LEVELS.flatMap(([key, label]) => {
