@@ -36,6 +36,7 @@ import {
   chosenText,
   disabledLevels,
   rememberRangeStart,
+  resetFor,
   rememberClass,
   savedClasses,
   forgetClass,
@@ -208,21 +209,15 @@ const App = (): React.JSX.Element => {
     rememberRangeStart(range.from);
   }, [fetchRegister, opts, range, sel]);
   const runRefresh = useCallback(
-    async (changed: Level | null) => {
+    async (changed: Level | null, arriving?: Sel) => {
       const token = ++refreshToken.current;
       let draft = { ...selRef.current };
-      if (changed === "course") {
-        draft = {
-          ...draft,
-          semester: "",
-          branch: "",
-          section: "",
-          subject: "",
-        };
-      } else if (changed === "semester" || changed === "branch") {
-        draft = { ...draft, section: "", subject: "" };
-      } else if (changed === "section") {
-        draft = { ...draft, subject: "" };
+      // A changed level invalidates the ones below it — unless the change arrived
+      // with its own selection, which is what opening a saved class does.
+      const cleared = changed ? resetFor(changed, arriving ?? draft) : [];
+      if (cleared.length) {
+        draft = { ...draft };
+        for (const key of cleared) draft[key] = "";
       }
       selRef.current = draft;
       setSel(draft);
@@ -401,7 +396,7 @@ const App = (): React.JSX.Element => {
     const next: Sel = { ...target };
     selRef.current = next;
     setSel(next);
-    runRefresh("section");
+    runRefresh("section", next);
   };
   /** Each card is laid out from its own labels, rebuilt from the cascade — a stored
    *  label could display a name ECAP has since renamed. The Subject leads, because

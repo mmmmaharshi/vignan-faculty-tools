@@ -8,6 +8,7 @@ import {
   chosenText,
   defaultRange,
   rememberRangeStart,
+  resetFor,
   rememberClass,
   savedClasses,
   forgetClass,
@@ -449,6 +450,31 @@ const CLASS_A: Sel = {
   section: "A",
   subject: "101",
 };
+test.describe("what a changed level clears below it", () => {
+  test("opening a saved class keeps the subject it names", () => {
+    expect(
+      resetFor("section", CLASS_A),
+      "clearing the subject made the card open ALL SUBJECTS instead"
+    ).toEqual([]);
+  });
+  test("changing the section by hand still clears the subject", () => {
+    expect(resetFor("section", sel({ section: "A" }))).toEqual(["subject"]);
+    expect(resetFor("section")).toEqual(["subject"]);
+  });
+  test("changing a higher level clears everything below it", () => {
+    expect(resetFor("course")).toEqual([
+      "semester",
+      "branch",
+      "section",
+      "subject",
+    ]);
+    expect(resetFor("semester")).toEqual(["section", "subject"]);
+    expect(resetFor("branch")).toEqual(["section", "subject"]);
+  });
+  test("changing the subject clears nothing below it", () => {
+    expect(resetFor("subject", CLASS_A)).toEqual([]);
+  });
+});
 test.describe("the saved classes", () => {
   const OTHER_SECTION: Sel = {
     course: "1",

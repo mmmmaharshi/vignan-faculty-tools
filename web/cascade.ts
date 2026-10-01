@@ -59,6 +59,26 @@ export function chosenLevels(
   }
   return { ok: true, levels };
 }
+/**
+ * Which levels a changed level invalidates. Opening a saved class is the case
+ * that needs the distinction: it changes the section, but it arrives carrying a
+ * Subject, and clearing it below the section throws the saved one away — the
+ * subject list then auto-fills to its first entry, which is ALL SUBJECTS, so the
+ * card opened the section-wide view instead of the register it names.
+ *
+ * An empty list means nothing below is cleared: the selection arrived whole, so
+ * the loop keeps it and only refetches the options for it.
+ */
+export function resetFor(changed: Level, arriving?: Sel): readonly Level[] {
+  if (changed === "course") return ["semester", "branch", "section", "subject"];
+  if (changed === "semester" || changed === "branch")
+    return ["section", "subject"];
+  if (changed === "section") {
+    // A saved class carries its own subject; a manual pick does not.
+    return arriving?.subject ? [] : ["subject"];
+  }
+  return [];
+}
 export function isReady(sel: Sel, key: Level): boolean {
   const i = LEVEL_KEYS.indexOf(key);
   return LEVEL_KEYS.slice(0, i).every((k) => !!sel[k]);
