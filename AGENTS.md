@@ -535,10 +535,11 @@ ECAP_USER=... ECAP_PASS=... bun run test
 Only `test/smoke.spec.ts` touches the network, so everything else — the portal's
 seam, its wire conventions, the attendance bands, the route handlers over a fake
 portal, the cascade's rules, session liveness, and session persistence over a fake
-vault — runs with `bunx playwright test` and no environment at all. As of
-2026-09-29 that is 160 passing and 14 skipped, 174 in total, in about eight
-seconds. **Do not trust that count**: it went stale twice in one session, so
-read it off the run rather than off this file.
+vault — runs with `bunx playwright test` and no environment at all, in seconds.
+
+**No test count appears in this file, on purpose.** A number here goes stale the
+moment a test is added, and a stale count in a manual is worse than none: it
+reads as a fact. It was here twice and wrong twice. Read the count off the run.
 
 **Nothing may touch the real Windows Credential Manager**, which is why
 `session-store.ts` takes its backend as an argument; `bunSecrets()` is the only

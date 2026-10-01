@@ -40,11 +40,13 @@ bunx playwright install chromium                          # once
 ECAP_USER=... ECAP_PASS=... bun run test
 ```
 
-**107 of the 110 tests need no credentials and no network, and run in about two
-seconds.** They cover the portal's parsing, its wire conventions, the attendance
-bands, the two route handlers (over a fake portal), and the cascade's rules.
+**Almost every test needs no credentials and no network, and the whole suite runs
+in seconds.** They cover the portal's parsing, its wire conventions, the
+attendance bands, the two route handlers (over a fake portal), and the cascade's
+rules. **Read the count off the run** — no number is kept here, because it goes
+stale the moment a test is added.
 
-The other three are end-to-end smoke tests that sign in to the live portal and load a
+The rest are end-to-end smoke tests that sign in to the live portal and load a
 real register. They skip without credentials rather than passing vacuously, which
 is why everything reachable without a portal is tested above. A DOM stub is not
 sufficient for them — a stub was tried against the previous build and it passed
