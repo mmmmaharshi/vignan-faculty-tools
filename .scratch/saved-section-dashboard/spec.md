@@ -1,6 +1,23 @@
-Status: ready-for-agent
+Status: superseded
 
 # Spec: The dashboard shows a saved section
+
+> **Superseded 2026-10-01, and this file describes what was built and then removed.**
+>
+> The dashboard below was implemented and then taken out again: visiting it read a
+> register for every Subject in the saved Section, which is N requests against a
+> Portal session that dies after 15 to 45 idle minutes. What shipped is the
+> shortcut this spec also describes — save a class, click it, the form fills — and
+> nothing else. Tickets 03, 04 and 05 were never started.
+>
+> The current decision is
+> `docs/adr/0016-the-saved-class-opens-the-register-it-names.md`, which records the
+> amendments and keeps the reasoning. This file is kept as the record of what was
+> proposed, not as instruction to build.
+>
+> One thing below is still true, and it was not obvious until the thing was built:
+> **a Section has no statistics of its own.** Every figure a dashboard could show is
+> a per-Subject figure the Portal states in a register.
 
 ## Problem Statement
 
@@ -25,7 +42,7 @@ it. Four values are stored — Course, Semester, Branch, Section. No Subject, an
 dates.
 
 Two facts about the domain made the obvious design wrong, and both are recorded in
-`docs/adr/0016-dashboard-shows-a-saved-section.md`:
+`docs/adr/0016-the-saved-class-opens-the-register-it-names.md`:
 
 **A faculty member teaches several Subjects in one Section**, and a lab carries a
 smaller roster than its theory. So "the class" is not one thing.
@@ -73,10 +90,15 @@ and the roster stop sharing a screen.
 
 ## Notes for the implementer
 
-**Read `docs/adr/0016-dashboard-shows-a-saved-section.md` first.** This spec
-implements it. The ADR was written on 2026-09-29 and three facts it depends on
-have since changed; the corrections are ticket 03's acceptance criteria, and
-they are not optional:
+**This section is kept for the record and is no longer instruction.** The notes
+below were right when written and two of the three were acted on; the third
+describes a screen that was removed. They are left because the corrections were
+real and the next reader should not rediscover them.
+
+**Read
+`docs/adr/0016-the-saved-class-opens-the-register-it-names.md` first.** The ADR
+was written on 2026-09-29 and three facts it depends on have since changed; the
+corrections were ticket 03's acceptance criteria, and they were not optional:
 
 - The critical threshold is now 65, not 60. Label the threshold columns from the
   summary the Register already returns, never from a number in the markup.

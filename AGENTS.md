@@ -101,8 +101,9 @@ attendance-bands.ts  the Regular / Irregular / Critical rule, and the summary
 web/index.html       Vite entry point
 web/main.tsx         React root + MantineProvider; the only createTheme call
 web/App.tsx          state, the three modes, and the refresh loop
-web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping
-web/components/      five presentational modules; none of them holds state
+web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping,
+                     what a change clears, and the saved classes in storage
+web/components/      six presentational modules; none of them holds state
 web/types.ts         Note, the one shape three modules share
 shared/api.ts        the server/client contract; both sides import it
 vite.config.ts       build, lint and fmt config; both blocks come from the
@@ -293,6 +294,34 @@ carries one also has its name in text.
 - **`Load register` is still the only thing that fetches a register.** The class
   report is read *inside* that one request, so the smoke test that counts
   `/api/register` POSTs on the wire is unchanged by all of this.
+
+- **A saved class is a Subject in a Section: five values, and no Portal call.**
+  `Save this class` writes them; a card above the class form fills the five
+  dropdowns and nothing else. There is no dashboard and no per-subject fetch —
+  one was built and removed, and ADR 0016 records why. **A Section has no
+  statistics of its own**, which is why the summary cannot be a section row.
+  See `docs/adr/0016-the-saved-class-opens-the-register-it-names.md`.
+
+- **No label is ever stored, and a subject's name is often not yet known.** ECAP
+  answers subjects **one section at a time** — `server-routes.ts` asks for them
+  only once all four levels above are set — so a card naming any other section has
+  no name to read. Names are recorded as the cascade receives them, and a card
+  with no name yet says so rather than printing the subject's identifier, which
+  reads as a data fault. Opening the card fetches them; the name arrives then.
+
+- **`resetFor` is why opening a card keeps its subject.** A section change
+  invalidates everything below it, so opening a card with "the section changed"
+  discarded the very subject the card names — and auto-fill then took the first
+  subject entry, which is `ALL SUBJECTS`. A change that **arrives carrying a
+  selection** clears nothing below it; one made by hand still clears the subject.
+  It lives in `cascade.ts` rather than the component because a rule that cannot be
+  imported without booting a server cannot be tested, and this one shipped wrong
+  twice before it was.
+
+- **A comment is not a dependency list.** The dashboard effect's comment said the
+  trigger was the section while its dependencies named all five levels, so choosing
+  a Subject re-read every subject in the section. The class of bug is a rule
+  stated in prose and implemented differently, with nothing to notice.
 
 - **End a session through `signedOut`, never a bare `setPhase("login")`.** A 401
   only fires when something asks the server for something, so a user who leaves a
