@@ -9,7 +9,12 @@ import {
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
-import { SignOut, SquaresFour, UserCircle } from "@phosphor-icons/react";
+import {
+  FloppyDisk,
+  SignOut,
+  SquaresFour,
+  UserCircle,
+} from "@phosphor-icons/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -31,6 +36,9 @@ import {
   chosenText,
   disabledLevels,
   rememberRangeStart,
+  rememberSection,
+  savedSection,
+  forgetSection,
   startingRange,
   visibleStudents,
   EMPTY_OPTS,
@@ -96,6 +104,13 @@ const App = (): React.JSX.Element => {
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
   const [overallMode, setOverallMode] = useState(false);
+  /** The saved section, read when the name becomes known and on the two events
+   *  that change it. An effect would mirror it into state on every render for a
+   *  value the browser already has. */
+  const [saved, setSaved] = useState<{
+    userId: string;
+    sel: Sel | null;
+  } | null>(null);
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
   selRef.current = sel;
@@ -103,6 +118,12 @@ const App = (): React.JSX.Element => {
   optsRef.current = opts;
   /* oxlint-enable react/refs */
   const refreshToken = useRef(0);
+  /** The name arriving is also the moment the saved section becomes readable, so
+   *  both are set together: a restore never went through the sign-in form. */
+  const noteUserId = useCallback((name: string): void => {
+    setUserId(name);
+    setSaved(name ? { userId: name, sel: savedSection(name) } : null);
+  }, []);
   const signedOut = useCallback(
     (why: string) => {
       refreshToken.current += 1;
@@ -117,6 +138,9 @@ const App = (): React.JSX.Element => {
       setOpts(EMPTY_OPTS);
       setResult(null);
       setOnlyIrregular(false);
+      // The saved section is the previous user's, so it leaves the screen with
+      // them. What is in storage is theirs to find again on sign-in.
+      setSaved(null);
       navigate(LOGIN_PATH, { replace: true });
     },
     [navigate]
@@ -257,6 +281,7 @@ const App = (): React.JSX.Element => {
       });
       setPassword("");
       setSignedIn(true);
+      noteUserId(body.userId);
       navigate(DASHBOARD_PATH, { replace: true });
       await runRefresh(null);
     } catch (error) {
@@ -314,7 +339,7 @@ const App = (): React.JSX.Element => {
         // A restored session never went through the sign-in form, so this is the
         // only place the name can arrive. Without it the header and the profile
         // panel show a dash for a session that is working.
-        if (name) setUserId(name);
+        if (name) noteUserId(name);
         if (!onLogin && !onProfile) {
           navigate(DASHBOARD_PATH, { replace: true });
         }
@@ -323,7 +348,7 @@ const App = (): React.JSX.Element => {
         navigate(LOGIN_PATH, { replace: true });
       }
     })();
-  }, [booted, onLogin, onProfile, navigate, runRefresh]);
+  }, [booted, onLogin, onProfile, navigate, runRefresh, noteUserId]);
   useEffect(() => {
     if (booted && signedIn && onLogin) {
       navigate(DASHBOARD_PATH, { replace: true });
@@ -348,22 +373,60 @@ const App = (): React.JSX.Element => {
   const onRangeChange = (part: "from" | "to", value: string) => {
     setRange((r) => ({ ...r, [part]: value }));
   };
+  const sectionChosen =
+    Boolean(sel.course) &&
+    Boolean(sel.semester) &&
+    Boolean(sel.branch) &&
+    Boolean(sel.section);
+  const savedSel = saved?.userId === userId && userId ? saved.sel : null;
+  const saveSection = () => {
+    rememberSection(userId, sel);
+    setSaved({ userId, sel: savedSection(userId) });
+  };
+  const clearSavedSection = () => {
+    forgetSection(userId);
+    setSaved({ userId, sel: null });
+  };
+  const savedName = savedSel
+    ? chosenText(opts, { ...savedSel, subject: "" })
+    : "";
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
   const picker = (
-    <ClassPicker
-      levels={LEVELS}
-      opts={opts}
-      sel={sel}
-      disabled={disabled}
-      range={range}
-      busy={busy}
-      loadNote={loadNote}
-      filterNote={filterNote}
-      onSelect={onSelectLevel}
-      onRange={onRangeChange}
-      onLoad={loadRegister}
-    />
+    <>
+      <ClassPicker
+        levels={LEVELS}
+        opts={opts}
+        sel={sel}
+        disabled={disabled}
+        range={range}
+        busy={busy}
+        loadNote={loadNote}
+        filterNote={filterNote}
+        onSelect={onSelectLevel}
+        onRange={onRangeChange}
+        onLoad={loadRegister}
+      />
+      <Group gap="sm" mt="sm">
+        <Button
+          onClick={saveSection}
+          disabled={!sectionChosen || !userId.trim()}
+          leftSection={<FloppyDisk size={18} aria-hidden />}
+        >
+          Save this class
+        </Button>
+        {savedName ? (
+          <Text size="sm" c="dimmed">
+            Saved: {savedName}
+          </Text>
+        ) : null}
+        {savedSel ? (
+          <Button onClick={clearSavedSection} variant="subtle">
+            Forget
+          </Button>
+        ) : null}
+      </Group>
+    </>
   );
   let body: React.JSX.Element | null = null;
   switch (screen) {

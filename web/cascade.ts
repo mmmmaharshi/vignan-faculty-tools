@@ -133,6 +133,72 @@ export function startingRange(now: Date = new Date()): Range {
   }
   return saved ? { from: saved, to: fallback.to } : fallback;
 }
+/**
+ * The saved unit is a Section, not a Subject: attendance is recorded per Subject,
+ * so a Section taught three subjects has three averages and three different
+ * denominators. Four values are stored and nothing else — no subject, no dates —
+ * and never a label, because labels are rebuilt from the cascade and a stored one
+ * would display a class name ECAP has since renamed.
+ *
+ * The key is scoped by user id, so a shared machine does not offer one person's
+ * class to the next. localStorage is per-browser, so it does not follow anyone to
+ * another machine, and that was the trade taken knowingly.
+ */
+const SECTION_KEY_PREFIX = "section-";
+const SECTION_LEVELS = ["course", "semester", "branch", "section"] as const;
+export function rememberSection(userId: string, sel: Sel): void {
+  if (!userId) return;
+  if (SECTION_LEVELS.some((key) => !sel[key])) return;
+  const values = Object.fromEntries(
+    SECTION_LEVELS.map((key) => [key, sel[key]])
+  );
+  try {
+    localStorage.setItem(
+      `${SECTION_KEY_PREFIX}${userId}`,
+      JSON.stringify(values)
+    );
+  } catch {
+    /* a refused write must not break the screen */
+  }
+}
+export function savedSection(userId: string): Sel | null {
+  if (!userId) return null;
+  let raw: string | null;
+  try {
+    raw = localStorage.getItem(`${SECTION_KEY_PREFIX}${userId}`);
+  } catch {
+    return null;
+  }
+  if (!raw) return null;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return null;
+  }
+  if (typeof parsed !== "object" || parsed === null) return null;
+  const values = parsed as Record<string, unknown>;
+  const read = (key: (typeof SECTION_LEVELS)[number]): string => {
+    const value = values[key];
+    return typeof value === "string" ? value : "";
+  };
+  const section: Sel = {
+    course: read("course"),
+    semester: read("semester"),
+    branch: read("branch"),
+    section: read("section"),
+    subject: "",
+  };
+  return SECTION_LEVELS.every((key) => section[key]) ? section : null;
+}
+export function forgetSection(userId: string): void {
+  if (!userId) return;
+  try {
+    localStorage.removeItem(`${SECTION_KEY_PREFIX}${userId}`);
+  } catch {
+    /* a refused delete must not break the screen */
+  }
+}
 export function chosenText(opts: OptionsReply, sel: Sel): string {
   return LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));

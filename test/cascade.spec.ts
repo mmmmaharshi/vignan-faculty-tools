@@ -8,6 +8,9 @@ import {
   chosenText,
   defaultRange,
   rememberRangeStart,
+  rememberSection,
+  savedSection,
+  forgetSection,
   startingRange,
   disabledLevels,
   isReady,
@@ -436,5 +439,78 @@ test.describe("dates", () => {
   test("a single-digit month and day are zero-padded, so the input accepts them", () => {
     const range = defaultRange(new Date(2026, 0, 5, 9, 30, 0));
     expect(range.to).toBe("2026-01-05");
+  });
+});
+
+const SECTION: Sel = {
+  course: "1",
+  semester: "3",
+  branch: "5",
+  section: "A",
+  subject: "",
+};
+test.describe("the saved section", () => {
+  test("a section that was saved comes back after a reload", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", SECTION);
+    expect(savedSection("sirichandrasekhar")).toEqual(SECTION);
+  });
+  test("only the four section levels are kept, never a subject or a date", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", {
+      ...SECTION,
+      subject: "9",
+    });
+    const stored = savedSection("sirichandrasekhar");
+    expect(
+      stored?.subject,
+      "the subject is chosen per register, not saved"
+    ).toBe("");
+    const raw = saved.get("section-sirichandrasekhar") ?? "";
+    expect(raw, "no date is stored with it").not.toMatch(/\d{4}-\d{2}-\d{2}/);
+  });
+  test("a save with an incomplete section is not offered back", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", { ...SECTION, section: "" });
+    expect(savedSection("sirichandrasekhar")).toBeNull();
+  });
+  test("one user's section is never handed to the next", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", SECTION);
+    // Readable for its owner first: without this, the assertion below passes for
+    // the wrong reason on any build where nothing is readable at all.
+    expect(savedSection("sirichandrasekhar")).toEqual(SECTION);
+    expect(savedSection("someone-else")).toBeNull();
+  });
+  test("forgetting it removes it, and the app asks again", () => {
+    saved.clear();
+    rememberSection("sirichandrasekhar", SECTION);
+    forgetSection("sirichandrasekhar");
+    expect(savedSection("sirichandrasekhar")).toBeNull();
+  });
+  test("a refused storage saves nothing and breaks nothing", () => {
+    const real = globalThis.localStorage;
+    globalThis.localStorage = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => {
+        throw new Error("denied");
+      },
+      removeItem: () => {
+        throw new Error("denied");
+      },
+    } as unknown as Storage;
+    expect(() => rememberSection("sirichandrasekhar", SECTION)).not.toThrow();
+    expect(savedSection("sirichandrasekhar")).toBeNull();
+    expect(() => forgetSection("sirichandrasekhar")).not.toThrow();
+    globalThis.localStorage = real;
+  });
+  test("a saved value that is not a section is refused, not half-read", () => {
+    saved.clear();
+    saved.set("section-sirichandrasekhar", "{not json");
+    expect(savedSection("sirichandrasekhar")).toBeNull();
+    saved.set("section-sirichandrasekhar", JSON.stringify({ course: "1" }));
+    expect(savedSection("sirichandrasekhar")).toBeNull();
   });
 });
