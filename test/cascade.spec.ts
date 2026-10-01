@@ -7,6 +7,8 @@ import {
   chosenLevels,
   chosenText,
   defaultRange,
+  EMPTY_OPTS,
+  realSubjects,
   rememberRangeStart,
   rememberSection,
   savedSection,
@@ -512,5 +514,34 @@ test.describe("the saved section", () => {
     expect(savedSection("sirichandrasekhar")).toBeNull();
     saved.set("section-sirichandrasekhar", JSON.stringify({ course: "1" }));
     expect(savedSection("sirichandrasekhar")).toBeNull();
+  });
+});
+const SUBJECTS: OptionsReply["subject"] = [
+  ALL_SUBJECTS,
+  opt("101", "Database Systems", "L"),
+  opt("102", "Operating Systems", "L"),
+  opt("103", "DBMS Lab", "P"),
+];
+test.describe("the subjects a dashboard row is built from", () => {
+  test("All subjects is not a row, though it leads the list", () => {
+    const rows = realSubjects({ ...EMPTY_OPTS, subject: SUBJECTS });
+    expect(
+      rows.map((o) => o.value),
+      "counting the entry would count the section's students twice"
+    ).toEqual(["101", "102", "103"]);
+  });
+  test("a section with no subjects has no rows, and none invented", () => {
+    expect(realSubjects({ ...EMPTY_OPTS, subject: [ALL_SUBJECTS] })).toEqual(
+      []
+    );
+    expect(realSubjects(EMPTY_OPTS)).toEqual([]);
+  });
+  test("the real subjects keep the order the portal gave them", () => {
+    const rows = realSubjects({ ...EMPTY_OPTS, subject: SUBJECTS });
+    expect(rows.map((o) => o.label)).toEqual([
+      "Database Systems",
+      "Operating Systems",
+      "DBMS Lab",
+    ]);
   });
 });

@@ -4,6 +4,7 @@ import type {
   OptionsReply,
   RegisterReply,
 } from "../shared/api";
+import { isAllSubjects } from "../shared/api";
 
 export { isAllSubjects } from "../shared/api";
 
@@ -198,6 +199,15 @@ export function forgetSection(userId: string): void {
   } catch {
     /* a refused delete must not break the screen */
   }
+}
+/**
+ * The subjects a dashboard shows a row for. `ALL SUBJECTS` leads the list and is
+ * not a Portal subject, so counting it as one would count the section's students
+ * a second time under a name that is not a class. A subject ECAP has stopped
+ * teaching is simply not in the list, and so is not a row.
+ */
+export function realSubjects(opts: OptionsReply): Option[] {
+  return opts.subject.filter((o) => !isAllSubjects(o));
 }
 export function chosenText(opts: OptionsReply, sel: Sel): string {
   return LEVELS.flatMap(([key, label]) => {
