@@ -14,6 +14,7 @@ import {
   shouldContinue,
   tintFor,
   toPortalDate,
+  visibleStudents,
 } from "../web/cascade";
 import type { Level, Sel } from "../web/cascade";
 
@@ -293,6 +294,49 @@ test.describe("the bands", () => {
       "var(--mantine-color-yellow-light)"
     );
     expect(tintFor(student(90))).toBeUndefined();
+  });
+});
+test.describe("show only irregular", () => {
+  /** A student the Subject path would hide and the All subjects path would keep:
+   *  healthy in the Subject, Critical across the Section. */
+  const subjectCleanOverallBad = {
+    ...student(90),
+    overallPct: 58,
+    overallIrregular: true,
+    overallCritical: true,
+  };
+  test("on a Subject register, a student Critical overall is kept", () => {
+    const kept = visibleStudents([subjectCleanOverallBad], true, false);
+    expect(
+      kept.map((s) => s.roll),
+      "the case the overall feature exists to catch was filtered out"
+    ).toEqual(["21CS001"]);
+  });
+  test("on the All subjects path the overall band is what is read", () => {
+    const healthySubject = { ...student(40), overallPct: 95 };
+    expect(
+      visibleStudents([healthySubject], true, true),
+      "a Subject problem does not make an overall problem"
+    ).toEqual([]);
+  });
+  test("a student in neither band is always filtered out", () => {
+    expect(visibleStudents([student(90)], true, false)).toEqual([]);
+    expect(visibleStudents([student(90)], true, true)).toEqual([]);
+  });
+  test("the filter is off by default, and keeps the healthy alongside the bad", () => {
+    const roster = [student(90), subjectCleanOverallBad];
+    expect(visibleStudents(roster, false, false)).toHaveLength(2);
+    expect(visibleStudents(roster, false, true)).toHaveLength(2);
+  });
+  test("the boundary is the band's own, and no threshold is invented here", () => {
+    const exactlySeventyFive = {
+      ...student(75),
+      irregular: false,
+      overallPct: 75,
+      overallIrregular: false,
+    };
+    expect(visibleStudents([exactlySeventyFive], true, false)).toEqual([]);
+    expect(visibleStudents([exactlySeventyFive], true, true)).toEqual([]);
   });
 });
 /** Node has no localStorage, and the range helpers are written to survive its

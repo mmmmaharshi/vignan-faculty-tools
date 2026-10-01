@@ -145,3 +145,19 @@ export function tintFor(
   if (s.critical) return "var(--mantine-color-red-light)";
   return s.irregular ? "var(--mantine-color-yellow-light)" : undefined;
 }
+/**
+ * `Show only irregular` keeps a student who is in trouble in whichever band the
+ * table is actually showing. Reading the Subject band on the All subjects path
+ * hid the very student the overall column was added to expose: healthy in the
+ * one Subject you happened to open, critical across the section.
+ */
+export function visibleStudents(
+  students: readonly RegisterReply["students"][number][],
+  onlyIrregular: boolean,
+  overallMode: boolean
+): RegisterReply["students"][number][] {
+  if (!onlyIrregular) return [...students];
+  return students.filter((s) =>
+    overallMode ? s.overallIrregular : s.overallIrregular || s.irregular
+  );
+}

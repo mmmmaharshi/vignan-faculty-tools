@@ -32,6 +32,7 @@ import {
   disabledLevels,
   rememberRangeStart,
   startingRange,
+  visibleStudents,
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVEL_KEYS,
@@ -331,19 +332,12 @@ const App = (): React.JSX.Element => {
   const disabled = disabledLevels(sel);
   const summary = result?.summary;
   const rows = result
-    ? result.students
-        // With no subject chosen the subject band is empty on every row, so the
-        // filter has to read whichever band the table is actually showing.
-        .filter((s) =>
-          overallMode
-            ? !onlyIrregular || s.overallIrregular
-            : !onlyIrregular || s.irregular
-        )
-        .toSorted((a, b) =>
+    ? visibleStudents(result.students, onlyIrregular, overallMode).toSorted(
+        (a, b) =>
           overallMode
             ? (a.overallPct ?? 999) - (b.overallPct ?? 999)
             : (a.pct ?? 999) - (b.pct ?? 999)
-        )
+      )
     : [];
   const registerName = chosenText(opts, sel);
   const onSelectLevel = (key: Level, value: string) => {
