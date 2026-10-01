@@ -259,6 +259,30 @@ export function forgetClass(userId: string, sel: Sel): void {
     )
   );
 }
+/** Words that join a name without being part of what it abbreviates. */
+const CONNECTING_WORDS = new Set(["and", "of", "the", "for", "in", "a", "to"]);
+/**
+ * A long name reduced to its initials, for a card that has no room for it:
+ * "Information Technology" becomes "IT", "Computer Science and Engineering"
+ * becomes "CSE". Only ever used for display, never for identity — two classes are
+ * told apart by their values, not by the text on the card.
+ *
+ * A single word is left alone, because an initial of one word says nothing, and a
+ * name already short enough is never made longer. The full name is always
+ * available: it is what the dropdown says when the card is opened.
+ */
+export function abbreviate(name: string): string {
+  const words = name
+    .split(/[\s&/,-]+/)
+    .map((word) => word.trim())
+    .filter(
+      (word) => word.length > 0 && !CONNECTING_WORDS.has(word.toLowerCase())
+    );
+  if (words.length < 2) return name;
+  const initials = words.map((word) => word[0]?.toUpperCase() ?? "").join("");
+  // One capital letter reads as a typo, so keep the word rather than the initial.
+  return initials.length < 2 ? name : initials;
+}
 export function chosenText(opts: OptionsReply, sel: Sel): string {
   return LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));

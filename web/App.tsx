@@ -30,6 +30,7 @@ import type {
   SessionReply,
 } from "../shared/api";
 import {
+  abbreviate,
   applyOptions,
   chosenLevels,
   isAllSubjects,
@@ -434,7 +435,14 @@ const App = (): React.JSX.Element => {
         // never seen its section offered cannot know the subject's name.
         subject: subjectNames.get(String(s.subject)) ?? "",
         sectionName: labelOf("section") || s.section,
-        course: [labelOf("course"), labelOf("semester"), labelOf("branch")]
+        // The Branch is the long one — "Information Technology" is twice the width
+        // of any other label here — so it is the only one abbreviated. The full
+        // name is one click away in the dropdown the card opens.
+        course: [
+          labelOf("course"),
+          labelOf("semester"),
+          abbreviate(labelOf("branch")),
+        ]
           .filter(Boolean)
           .join(" · "),
       };
