@@ -64,9 +64,15 @@ describes, so a green run means something.
 | Below 75% | Students needing a check-in |
 | Below 65% | Students who need intervention now |
 
-The table is sorted **lowest attendance first**, with irregular rows tinted and
-the critical one badged. Tick *Show only irregular students* to reduce it to just
-the students you care about.
+The table is listed in the **Portal's own roster order**, not sorted by
+attendance, so the numbers read as a roster rather than as a ranking. Only
+**critical** rows are tinted — an irregular student is badged `low` beside their
+own percentage instead, because a class with a third of its roster irregular is a
+class with a third of its rows coloured, and then the colour stops meaning
+anything. Tick *Show only irregular students* to reduce the table to just the
+students you care about; that filtered table is a worklist rather than a roster,
+so it is sorted **lowest attendance first** — the student who most needs a
+check-in is the first one reached.
 
 The line above the table always names the register that is on screen. With five
 dropdowns in front of you it is easy to read last week's numbers as this week's.

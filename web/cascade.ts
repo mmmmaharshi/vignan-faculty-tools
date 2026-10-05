@@ -9,6 +9,12 @@ export { isAllSubjects } from "../shared/api";
 
 export type Level = CascadeLevel;
 export type Sel = Record<Level, string>;
+/** A saved class: the five values that name a register, plus the Subject's label as
+ *  a display cache. The label is never the answer — the cascade's own label wins
+ *  whenever this session has offered the subject — so a renamed subject corrects
+ *  itself the moment it is opened, and the cache only covers the cards that have
+ *  not been opened yet. */
+export type SavedClass = Sel & { label?: string };
 export type Range = { from: string; to: string };
 export const LEVELS: readonly (readonly [Level, string])[] = [
   ["course", "Course"],
@@ -154,11 +160,17 @@ export function startingRange(now: Date = new Date()): Range {
   return saved ? { from: saved, to: fallback.to } : fallback;
 }
 /**
- * A saved class is a Subject within a Section: five values, and never a label,
- * because labels are rebuilt from the cascade and a stored one would display a
- * class name ECAP has since renamed. No date is stored — the range belongs to
- * the register, not to the class, and a remembered `to` would open the app on
+ * A saved class is a Subject within a Section: five values, and the Subject's
+ * label as a display cache. No date is stored — the range belongs to the
+ * register, not to the class, and a remembered `to` would open the app on
  * last month's numbers.
+ *
+ * The label is a cache and never the answer: the cascade's own label wins whenever
+ * this session has offered the subject, so a subject ECAP has renamed corrects
+ * itself the moment its card is opened. It is stored because a card that cannot
+ * name its own subject asks the user to open every card once per browser session
+ * before the screen is readable, which is a worse trade than a name that is right
+ * up to the moment ECAP renames it.
  *
  * Storing the Subject means one card per subject taught, which is what the user
  * asked for: opening one fills all five levels and lands on that Subject's
@@ -183,32 +195,45 @@ const CLASS_LEVELS = [
  *  of the same class compare equal without depending on key order. */
 const classKey = (values: Record<string, string>): string =>
   CLASS_LEVELS.map((key) => values[key]).join(" ");
+/**
+ * A subject name's identity within a session: the section it was offered in, and
+ * its own value. A subject code is short and repeats across branches, so a key of
+ * the value alone hands a card the name of the same code in a different section.
+ * This is display-only and never stored, so nothing here outlives the session.
+ */
+export function subjectNameKey(section: string, subject: string): string {
+  return `${section} ${subject}`;
+}
 /** A stored entry becomes a class only if all five levels are strings. Anything
- *  else is dropped rather than half-read. */
-function readClass(value: unknown): Sel | null {
+ *  else is dropped rather than half-read. A missing label is not a fault: an entry
+ *  written before labels were kept still opens, it just says nothing until opened. */
+function readClass(value: unknown): SavedClass | null {
   if (typeof value !== "object" || value === null) return null;
   const values = value as Record<string, unknown>;
   const read = (key: (typeof CLASS_LEVELS)[number]): string => {
     const found = values[key];
     return typeof found === "string" ? found : "";
   };
-  const cls: Sel = {
+  const cls: SavedClass = {
     course: read("course"),
     semester: read("semester"),
     branch: read("branch"),
     section: read("section"),
     subject: read("subject"),
   };
-  return CLASS_LEVELS.every((key) => cls[key]) ? cls : null;
+  if (!CLASS_LEVELS.every((key) => cls[key])) return null;
+  const { label } = values;
+  if (typeof label === "string" && label) cls.label = label;
+  return cls;
 }
-function writeClasses(userId: string, list: readonly Sel[]): void {
+function writeClasses(userId: string, list: readonly SavedClass[]): void {
   try {
     localStorage.setItem(`${CLASS_KEY_PREFIX}${userId}`, JSON.stringify(list));
   } catch {
     /* a refused write must not break the screen */
   }
 }
-export function savedClasses(userId: string): Sel[] {
+export function savedClasses(userId: string): SavedClass[] {
   if (!userId) return [];
   let raw: string | null;
   try {
@@ -226,7 +251,7 @@ export function savedClasses(userId: string): Sel[] {
   // A single object is what an earlier build stored, and it is still offered.
   const entries = Array.isArray(parsed) ? parsed : [parsed];
   const seen = new Set<string>();
-  const list: Sel[] = [];
+  const list: SavedClass[] = [];
   for (const entry of entries) {
     const cls = readClass(entry);
     if (!cls) continue;
@@ -237,10 +262,11 @@ export function savedClasses(userId: string): Sel[] {
   }
   return list;
 }
-export function rememberClass(userId: string, sel: Sel): void {
+export function rememberClass(userId: string, sel: Sel, label = ""): void {
   if (!userId) return;
   const cls = readClass(sel);
   if (!cls) return;
+  if (label) cls.label = label;
   // Re-saving moves the class to the front rather than duplicating it: the one
   // just used is the one most likely to be wanted again.
   const kept = savedClasses(userId).filter(
@@ -321,11 +347,27 @@ export function chosenText(opts: OptionsReply, sel: Sel): string {
     return hit ? [`${label}: ${hit.label}`] : [];
   }).join("   ·   ");
 }
+/**
+ * A row's background, and nothing else: only a **critical** student is tinted.
+ *
+ * The irregular band is deliberately not a tint. A class where a third of the
+ * roster is irregular is a class where a third of the table is coloured, and the
+ * colour stops meaning anything — the eye reads a decorated table rather than a
+ * student in trouble. Critical is the band that means act now, so it is the only
+ * one worth interrupting a roster for; an irregular student is already badged
+ * `low` on their own percentage.
+ *
+ * The band read is the one the table is showing, which is why `overallMode` is an
+ * argument: on the All subjects path there is no subject figure, so reading
+ * `s.critical` there would never tint a row and the class-wide report would lose
+ * the one thing it was added to expose.
+ */
 export function tintFor(
-  s: RegisterReply["students"][number]
+  s: RegisterReply["students"][number],
+  overallMode = false
 ): string | undefined {
-  if (s.critical) return "var(--mantine-color-red-light)";
-  return s.irregular ? "var(--mantine-color-yellow-light)" : undefined;
+  const critical = overallMode ? s.overallCritical : s.critical;
+  return critical ? "var(--mantine-color-red-light)" : undefined;
 }
 /**
  * `Show only irregular` keeps a student who is in trouble in whichever band the
@@ -342,4 +384,62 @@ export function visibleStudents(
   return students.filter((s) =>
     overallMode ? s.overallIrregular : s.overallIrregular || s.irregular
   );
+}
+/**
+ * The figure a row is judged on, and the one the worklist is ordered by.
+ *
+ * `overallMode` is the All subjects path, where there is no subject percentage at
+ * all. Everywhere else the Subject figure is the one the table leads with — with
+ * one exception that is easy to miss: on a Subject register the filter also admits
+ * a student for being Irregular *overall*, and such a student may have no subject
+ * figure at all. Reading the subject figure alone put the very student the
+ * worklist exists to surface at the bottom of it, so the overall figure is used
+ * when the subject one is absent. This is the same figure the filter admits a row
+ * on, and reading a different one is how the two halves disagree.
+ */
+function figureFor(
+  s: RegisterReply["students"][number],
+  overallMode: boolean
+): number | null {
+  if (overallMode) return s.overallPct;
+  return s.pct ?? s.overallPct;
+}
+/**
+ * The rows as the table shows them, and the order it shows them in.
+ *
+ * **Unfiltered, the Portal's own roster order — no sort.** The register used to be
+ * ordered lowest attendance first, which turned a roster into a ranking: the
+ * numbers stopped reading as facts about named students and started reading as a
+ * league table, and the `Sl.No` column — the one thing tying a row to the Portal —
+ * stopped running down the page. Over a whole class the sort answers a question
+ * nobody asked.
+ *
+ * **Filtered, worst first — and that is the point of the checkbox.** The filtered
+ * table is a worklist, not a roster: it exists to be worked through, so the
+ * student who most needs a check-in is the first one reached. Sorting only here is
+ * what lets both be true at once, where sorting everywhere could only be one or
+ * the other.
+ *
+ * A missing figure sorts last rather than first. `null` means the Portal gave no
+ * figure at all, which is not good attendance, and putting such a student at the
+ * top of a triage list would send someone to check on them for the wrong reason.
+ *
+ * The order is decided here rather than in `App.tsx` so it can be pinned by a test
+ * that needs no Portal: this function was the sort's only home, and a rule in a
+ * component is a rule that survives the change that makes it wrong.
+ */
+export function registerRows(
+  students: readonly RegisterReply["students"][number][],
+  onlyIrregular: boolean,
+  overallMode: boolean
+): RegisterReply["students"][number][] {
+  const shown = visibleStudents(students, onlyIrregular, overallMode);
+  if (!onlyIrregular) return shown;
+  return shown.toSorted((a, b) => {
+    const left = figureFor(a, overallMode);
+    const right = figureFor(b, overallMode);
+    if (left == null) return right == null ? 0 : 1;
+    if (right == null) return -1;
+    return left - right;
+  });
 }

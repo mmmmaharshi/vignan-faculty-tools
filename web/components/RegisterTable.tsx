@@ -19,8 +19,10 @@ type RegisterTableProps = {
   onlyIrregular: boolean;
   onToggleIrregular: (value: boolean) => void;
   chosenText: string;
-  /** True when no subject was chosen, so there are no subject columns to show. */
-  overallOnly?: boolean;
+  /** The All subjects path: no subject was chosen, so there are no subject columns
+   *  and the bands on show — and the row tint — are the overall ones. One prop,
+   *  because a subject was either chosen or not; two names for it could disagree. */
+  overallMode?: boolean;
 };
 /** The overall badge is orange where the subject one is yellow, so a row
  *  badged on one and not the other is readable at a glance. */
@@ -58,12 +60,12 @@ export const RegisterTable = ({
   onlyIrregular,
   onToggleIrregular,
   chosenText,
-  overallOnly = false,
+  overallMode = false,
 }: RegisterTableProps): React.JSX.Element => {
   // A class report that failed leaves every figure absent; showing two columns
   // of dashes would read as "nobody has an overall", which is a different lie.
   const showOverall =
-    overallOnly ||
+    overallMode ||
     rows.some((s) => s.overallPct != null || s.overallAttendedOfHeld !== "");
   return (
     <Paper withBorder p="lg">
@@ -100,13 +102,13 @@ export const RegisterTable = ({
                   <Table.Th>Sl.No</Table.Th>
                   <Table.Th>Roll No</Table.Th>
                   <Table.Th>Student Name</Table.Th>
-                  {!overallOnly && (
+                  {!overallMode && (
                     <Table.Th ta="right">Attend / Held</Table.Th>
                   )}
-                  {!overallOnly && (
+                  {!overallMode && (
                     <Table.Th ta="right">Subject Attendance %</Table.Th>
                   )}
-                  {overallOnly && (
+                  {overallMode && (
                     <Table.Th ta="right">Attended / Total</Table.Th>
                   )}
                   {showOverall && (
@@ -116,7 +118,7 @@ export const RegisterTable = ({
               </Table.Thead>
               <Table.Tbody>
                 {rows.map((s) => (
-                  <Table.Tr key={s.roll} bg={tintFor(s)}>
+                  <Table.Tr key={s.roll} bg={tintFor(s, overallMode)}>
                     <Table.Td c="dimmed">{s.sl}</Table.Td>
                     <Table.Td>
                       <Text ff="monospace" size="sm">
@@ -128,10 +130,10 @@ export const RegisterTable = ({
                         {s.name}
                       </Text>
                     </Table.Td>
-                    {!overallOnly && (
+                    {!overallMode && (
                       <Table.Td ta="right">{s.attendedOfHeld}</Table.Td>
                     )}
-                    {!overallOnly && (
+                    {!overallMode && (
                       <Table.Td ta="right">
                         {s.pct == null ? (
                           "—"
@@ -144,7 +146,7 @@ export const RegisterTable = ({
                         )}
                       </Table.Td>
                     )}
-                    {overallOnly && (
+                    {overallMode && (
                       <Table.Td ta="right">
                         {overallCellForDisplay(s.overallAttendedOfHeld) || "—"}
                       </Table.Td>
@@ -162,7 +164,7 @@ export const RegisterTable = ({
                           <Figure
                             pct={s.overallPct}
                             weight={600}
-                            {...(overallOnly
+                            {...(overallMode
                               ? badgeFor(
                                   s.overallCritical,
                                   s.overallIrregular,
@@ -179,7 +181,11 @@ export const RegisterTable = ({
             </Table>
           </Table.ScrollContainer>
           <Text c="dimmed" size="sm" mt="sm">
-            Showing {rows.length} of {total} students, lowest attendance first.
+            Showing {rows.length} of {total} students,{" "}
+            {onlyIrregular
+              ? "lowest attendance first."
+              : "in the Portal's own order."}{" "}
+            A tinted row is a student below {summary.criticalBelow}%.
           </Text>
         </>
       )}

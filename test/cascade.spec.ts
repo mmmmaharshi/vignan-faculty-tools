@@ -16,7 +16,9 @@ import {
   startingRange,
   disabledLevels,
   isReady,
+  registerRows,
   shouldContinue,
+  subjectNameKey,
   tintFor,
   toPortalDate,
   visibleStudents,
@@ -276,18 +278,20 @@ const student = (pct: number | null): Student => ({
   overallCritical: false,
 });
 test.describe("the bands", () => {
-  test("worst band wins, so a student is never shown as merely irregular", () => {
-    expect(tintFor({ ...student(40), irregular: true, critical: true })).toBe(
+  test("only a critical student is tinted", () => {
+    // The irregular tint was removed on purpose: a class with a third of its
+    // roster irregular is a class with a third of its rows coloured, and then the
+    // colour stops meaning anything.
+    expect(tintFor({ ...student(40), critical: true })).toBe(
       "var(--mantine-color-red-light)"
     );
-    expect(tintFor({ ...student(70), irregular: true, critical: false })).toBe(
-      "var(--mantine-color-yellow-light)"
-    );
-    expect(tintFor({ ...student(90), irregular: false, critical: false })).toBe(
-      undefined
-    );
+    expect(
+      tintFor({ ...student(70), irregular: true, critical: false }),
+      "an irregular student is badged low, not tinted"
+    ).toBeUndefined();
+    expect(tintFor({ ...student(90), irregular: false })).toBeUndefined();
   });
-  test("an unparseable percentage is never called critical or irregular", () => {
+  test("an unparseable percentage is never tinted", () => {
     const unknown = { ...student(null), irregular: false, critical: false };
     expect(tintFor(unknown)).toBeUndefined();
   });
@@ -295,12 +299,127 @@ test.describe("the bands", () => {
     expect(tintFor({ ...student(40), critical: true })).toBe(
       "var(--mantine-color-red-light)"
     );
-    expect(tintFor({ ...student(70), irregular: true })).toBe(
-      "var(--mantine-color-yellow-light)"
-    );
     expect(tintFor(student(90))).toBeUndefined();
   });
+  test("the tint reads the band the table is showing", () => {
+    // On All subjects there is no subject figure, so reading the subject band
+    // would leave every row untinted in the very view that exists to expose a
+    // student critical across the section.
+    const healthyInSubjectCriticalOverall = {
+      ...student(90),
+      critical: false,
+      overallCritical: true,
+    };
+    expect(tintFor(healthyInSubjectCriticalOverall)).toBeUndefined();
+    expect(tintFor(healthyInSubjectCriticalOverall, true)).toBe(
+      "var(--mantine-color-red-light)"
+    );
+  });
 });
+test.describe("the rows as shown", () => {
+  /* Descending attendance on purpose. A roster shaped this way is already the
+   * wrong way round for a lowest-first sort, so a sort cannot pass by agreeing
+   * with the Portal's order — which is the whole point of the check. */
+  const roster = [
+    { ...student(90), sl: "1", roll: "A" },
+    { ...student(70), sl: "2", roll: "B" },
+    { ...student(40), sl: "3", roll: "C" },
+  ];
+  test("the rows stay in the Portal's own order", () => {
+    // The register used to be sorted lowest-first. That is a league table, not a
+    // roster, and it broke the Sl.No column's job of tying a row to the Portal.
+    expect(registerRows(roster, false, false).map((s) => s.roll)).toEqual([
+      "A",
+      "B",
+      "C",
+    ]);
+  });
+  test("the Portal's order survives the irregular filter's membership", () => {
+    // Filtering drops rows; it does not invent rows. A is healthy and must not
+    // appear just because the other two are being sorted.
+    expect(
+      registerRows(roster, true, false)
+        .map((s) => s.roll)
+        .toSorted()
+    ).toEqual(["B", "C"]);
+  });
+  test("ticking the box sorts the students by attendance, worst first", () => {
+    // The filtered table exists to be worked through: the student who most needs a
+    // check-in should be the first one reached. That is the whole reason to sort,
+    // and it is why this is a separate case from the unfiltered table.
+    expect(registerRows(roster, true, false).map((s) => s.roll)).toEqual([
+      "C",
+      "B",
+    ]);
+  });
+  test("the filtered sort reads the figure the table is showing", () => {
+    // Both rows are in the filtered set, and they are in the wrong order for the
+    // sort to pass by accident. On All subjects there is no subject percentage, so
+    // sorting by it would leave every row on a dash and the order arbitrary.
+    const mildOverall = {
+      ...student(95),
+      sl: "1",
+      roll: "A",
+      overallPct: 71,
+      overallIrregular: true,
+    };
+    const worstOverall = {
+      ...student(95),
+      sl: "2",
+      roll: "B",
+      overallPct: 42,
+      overallIrregular: true,
+      overallCritical: true,
+    };
+    expect(
+      registerRows([mildOverall, worstOverall], true, true).map((s) => s.roll)
+    ).toEqual(["B", "A"]);
+  });
+  test("a student with no percentage sorts last, not first", () => {
+    // `null` means the Portal gave no figure, which is not good attendance.
+    // Putting such a student at the top of a triage list sends someone to check
+    // on them for the wrong reason — which is the same class of error as showing
+    // a dash as if it were a zero.
+    const unknownFigure = {
+      ...student(70),
+      sl: "1",
+      roll: "U",
+      pct: null,
+    };
+    expect(
+      registerRows([unknownFigure, ...roster], true, false).map((s) => s.roll)
+    ).toEqual(["C", "B", "U"]);
+  });
+  test("a student kept only for the overall figure is not buried", () => {
+    // The trap: on a Subject register the filter admits a student for being
+    // Irregular *overall* even when they have no subject figure at all. Sorting
+    // on the subject figure alone pushed the very student the worklist exists to
+    // surface to the bottom of it, which is the opposite of the request.
+    //
+    // U is on 52% overall, so the worklist reads C 40, U 52, B 70 — and U is
+    // judged on the figure that actually put them in it.
+    const noSubjectFigure = {
+      ...student(70),
+      sl: "1",
+      roll: "U",
+      pct: null,
+      irregular: false,
+      overallPct: 52,
+      overallIrregular: true,
+      overallCritical: true,
+    };
+    expect(
+      registerRows([noSubjectFigure, ...roster], true, false).map((s) => s.roll)
+    ).toEqual(["C", "U", "B"]);
+  });
+  test("the caller's array is never sorted in place", () => {
+    const input = [...roster];
+    registerRows(input, false, false);
+    registerRows(input, true, false);
+    expect(input.map((s) => s.roll)).toEqual(["A", "B", "C"]);
+  });
+});
+
 test.describe("show only irregular", () => {
   /** A student the Subject path would hide and the All subjects path would keep:
    *  healthy in the Subject, Critical across the Section. */
@@ -584,6 +703,57 @@ test.describe("the saved classes", () => {
     rememberClass("sirichandrasekhar", OTHER_SUBJECT);
     forgetClass("sirichandrasekhar", CLASS_A);
     expect(savedClasses("sirichandrasekhar")).toEqual([OTHER_SUBJECT]);
+  });
+  test("the same subject code in two sections keeps its own name", () => {
+    // A subject code repeats across branches, so the label saved for Section-A's
+    // "101" must not become Section-B's "101" name. Both classes survive a reload
+    // and both are still named, each with its own.
+    const sameCodeOtherSection: Sel = {
+      course: "1",
+      semester: "3",
+      branch: "7",
+      section: "B",
+      subject: "101",
+    };
+    saved.clear();
+    rememberClass("sirichandrasekhar", CLASS_A, "Computer Networks");
+    rememberClass("sirichandrasekhar", sameCodeOtherSection, "Discrete Maths");
+    const restored = savedClasses("sirichandrasekhar");
+    expect(
+      restored.map((s) => s.label).toSorted(),
+      "a shared subject code let one section's name overwrite the other's"
+    ).toEqual(["Computer Networks", "Discrete Maths"]);
+  });
+  test("a name key is never the bare subject value", () => {
+    // The guard on the key itself, because the collision above is invisible until
+    // two sections happen to share a code. Value-only keys pass everything else.
+    expect(subjectNameKey("A", "101")).not.toBe("101");
+    expect(subjectNameKey("B", "101")).not.toBe(subjectNameKey("A", "101"));
+  });
+  test("a saved class is named again after a reload, with no portal call", () => {
+    // A card that cannot name its own subject makes the user open every card once
+    // per browser session before the screen is readable.
+    saved.clear();
+    rememberClass("sirichandrasekhar", CLASS_A, "Computer Networks");
+    const [restored] = savedClasses("sirichandrasekhar");
+    expect(restored?.label).toBe("Computer Networks");
+  });
+  test("the name is the subject's, never the one already stored", () => {
+    // Re-saving the same class with a new label must replace it, not keep the
+    // first — otherwise a renamed subject stays wrong however often it is saved.
+    saved.clear();
+    rememberClass("sirichandrasekhar", CLASS_A, "Computer Networks");
+    rememberClass("sirichandrasekhar", CLASS_A, "Computer Networks II");
+    const [restored] = savedClasses("sirichandrasekhar");
+    expect(restored?.label).toBe("Computer Networks II");
+  });
+  test("saving without a name still offers the class", () => {
+    // The label is a cache, not part of the identity: a class saved with no label
+    // must still open rather than being dropped.
+    saved.clear();
+    rememberClass("sirichandrasekhar", CLASS_A);
+    expect(savedClasses("sirichandrasekhar")).toHaveLength(1);
+    expect(savedClasses("sirichandrasekhar")[0]?.label).toBeUndefined();
   });
   test("a refused storage saves nothing and breaks nothing", () => {
     const real = globalThis.localStorage;

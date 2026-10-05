@@ -192,6 +192,7 @@ test.describe("Vignan Faculty Tools", () => {
         // overall badge, and this card counts the subject one.
         const pctCell = cells[pctIdx];
         return {
+          sl: text(0),
           roll: text(1),
           name: text(2),
           attendedOfHeld: text(heldIdx),
@@ -203,21 +204,29 @@ test.describe("Vignan Faculty Tools", () => {
       });
     });
     expect(table.length, "the register should have rows").toBeGreaterThan(0);
-    const pcts = table.map((r) => r.pct).filter((p): p is number => p != null);
-    expect(pcts.length, "every row should carry a percentage").toBe(
-      table.length
-    );
-    for (let i = 1; i < pcts.length; i++) {
+    expect(
+      table.filter((r) => r.pct != null).length,
+      "every row should carry a percentage"
+    ).toBe(table.length);
+    /* The table is not sorted: the rows are the Portal's own roster order, and the
+     * Sl.No column carries it. Asserting a strict rise rather than "1, 2, 3" avoids
+     * assuming how the Portal numbers its roster, while still failing for the one
+     * reason that matters — a sort by attendance reorders these numbers. A constant
+     * Sl.No is rejected too: that would make the check pass for a table that had
+     * been reordered but was showing no numbering at all. */
+    const slNos = table.map((r) => Number(r.sl));
+    expect(
+      slNos.every((n) => Number.isFinite(n)),
+      "every row should carry a Sl.No to order by"
+    ).toBe(true);
+    for (let i = 1; i < slNos.length; i++) {
       /* oxlint-disable typescript/no-non-null-assertion -- loop bound */
       expect(
-        pcts[i],
-        `row ${i} (${pcts[i]}%) should not be worse than the row above it`
-      ).toBeGreaterThanOrEqual(pcts[i - 1]!);
+        slNos[i],
+        `row ${i} has Sl.No ${slNos[i]}, which does not follow ${slNos[i - 1]}`
+      ).toBeGreaterThan(slNos[i - 1]!);
       /* oxlint-enable typescript/no-non-null-assertion */
     }
-    expect(pcts[0], "the worst student should be listed first").toBe(
-      Math.min(...pcts)
-    );
     for (const row of table.slice(0, 5)) {
       expect(
         row.roll.length,

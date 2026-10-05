@@ -1,9 +1,10 @@
 # 0016 - The saved class opens the register it names
 
 Date: 2026-09-29. **Amended 2026-10-01**, twice over, and both amendments reversed
-the Decision below rather than adding to it. What is here now is what the code
-does; the reasoning it overturned is kept, because it is the reason the current
-shape is a deliberate trade and not an oversight.
+the Decision below rather than adding to it; amended a third time since, which
+added the Subject's label as a cache. What is here now is what the code does; the
+reasoning it overturned is kept, because it is the reason the current shape is a
+deliberate trade and not an oversight.
 
 Builds on ADR 0009 (routes, not a mode switch) and ADR 0015 (the selection left
 the URL). Touches ADR 0014 (the vault) and repairs a gap it left.
@@ -36,9 +37,10 @@ average averages — and one that did would describe no student in any of them.
 
 **A saved class is a Subject within a Section: five values, and a card that
 fills the five dropdowns.** `Save this class` stores course, semester, branch,
-section and subject — no labels, and no dates. Clicking a card fills all five
-and reads nothing: `Load register` stays a decision, and no register is fetched
-by saving or by opening a card.
+section and subject — and the Subject's label as a display cache, added by
+amendment 3 — and no dates. Clicking a card fills all five and reads nothing:
+`Load register` stays a decision, and no register is fetched by saving or by
+opening a card.
 
 Any number of classes may be saved, one per subject taught.
 
@@ -89,13 +91,38 @@ arbitrary subject.
 ### Freshness
 
 There is no cached number anywhere, because there is no number on this screen.
-The card shows the Portal's own labels, and they are read fresh from the cascade
-rather than stored, so a subject ECAP has renamed shows under its new name.
+The card shows the Portal's own labels, and they are read from the cascade rather
+than trusted, so a subject ECAP has renamed shows under its new name.
 
-A card's subject name is known only once the Portal has offered that section's
-subjects this session. Until then the card says so rather than printing the
-subject's identifier, which reads as a data fault rather than as something not
-yet known. Opening the card fetches them, so the name arrives from then on.
+A card's subject name comes from the cascade whenever this session has offered
+that section's subjects. Opening the card fetches them, so the name arrives from
+then on.
+
+### Amendment 3: the subject's name is kept as a cache
+
+The Decision above stored no label at all, and Freshness said the Portal's own was
+read every time. **That made every card unreadable until it had been opened**, in
+every browser session: the Portal answers subjects one section at a time, so a cold
+sign-in has no name for any card, and the user opens each one once to make the
+screen legible. That is a worse trade than the one the no-label rule was protecting
+against, so the rule is amended rather than defended.
+
+`Save this class` now writes the Subject's label alongside the five values. **The
+stored label is a cache and never the answer:** the cascade's own label wins
+whenever this session has offered the subject, so a renamed subject corrects itself
+the moment its card is opened, and re-saving replaces it. What is stored is a
+fallback for cards this session has not opened — nothing more.
+
+The label is not part of a class's identity. `classKey` still covers the five
+values, so a class saved without a label still opens; it simply says its name is
+not known yet.
+
+The counter-argument, kept because it is the reason this was a real decision: a
+stored label **can** be stale, and it is displayed until the card is opened. A
+subject renamed on the Portal shows its old name on a card nobody has opened. That
+is the failure the line above the table exists to prevent, traded against a screen
+full of unnamed cards, and the trade is taken because the stale name is corrected
+on the next open while the missing name is corrected never.
 
 ## Consequences
 
@@ -114,7 +141,8 @@ yet known. Opening the card fetches them, so the name arrives from then on.
   silently dropped on read. The entry grows from ~526 to ~560 bytes against the
   2560-byte per-entry cap that `test/session-store.spec.ts` already pins.
 - **ADR 0015's "React state and nowhere else" is now false for the saved
-  classes.** Deliberately, and only for those five values.
+  classes.** Deliberately, and only for those five values and the Subject's label
+  cache that amendment 3 added.
 - **A shared machine shows a shared machine's class.** `localStorage` is
   per-browser, so a saved class does not follow a user to another machine.
   Scoping the key by user id stops one person's class being offered to the next;
@@ -170,4 +198,7 @@ is to be believed. With the dashboard gone there is no number to cache.
 **Store the full `Option` objects and skip the cascade.** Saves four requests.
 Rejected: a stored label can go stale and then display the wrong class name,
 which is the exact failure the line above the table exists to prevent — and the
-cascade already runs on sign-in, so the requests are free.
+cascade already runs on sign-in, so the requests are free. **Amendment 3 took one
+step of it** — the subject's label, as a cache the cascade overrides — because
+four of the five labels on a card are already rebuilt live and it is only the
+subject that arrives too late to be useful.

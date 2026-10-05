@@ -27,6 +27,9 @@ type ClassPickerProps = {
   onSelect: (key: CascadeLevel, value: string) => void;
   onRange: (part: "from" | "to", value: string) => void;
   onLoad: () => void;
+  /** Rendered at the far end of the button row, so the class's own actions sit
+   *  on the same line as Load register rather than under it. */
+  trailing?: React.ReactNode;
 };
 function toSelectData(list: Option[]): { value: string; label: string }[] {
   return list.map((o) => ({ value: String(o.value), label: o.label }));
@@ -49,6 +52,7 @@ export const ClassPicker = ({
   onSelect,
   onRange,
   onLoad,
+  trailing,
 }: ClassPickerProps): React.JSX.Element => (
   <Paper withBorder p="lg" mb="md">
     <Stack>
@@ -81,15 +85,18 @@ export const ClassPicker = ({
           onChange={(e) => onRange("to", e.currentTarget.value)}
         />
       </SimpleGrid>
-      <Group>
-        <Button onClick={onLoad} loading={busy}>
-          Load register
-        </Button>
-        {loadNote && (
-          <Text c="dimmed" size="sm">
-            {loadNote}
-          </Text>
-        )}
+      <Group justify="space-between">
+        <Group gap="sm">
+          <Button onClick={onLoad} loading={busy}>
+            Load register
+          </Button>
+          {loadNote && (
+            <Text c="dimmed" size="sm">
+              {loadNote}
+            </Text>
+          )}
+        </Group>
+        {trailing}
       </Group>
       {filterNote && (
         <Alert color={filterNote.kind === "error" ? "red" : "yellow"}>

@@ -57,11 +57,12 @@ export const SavedClasses = ({
                 {subject}
               </Text>
             ) : (
-              // The Portal answers subjects one section at a time, so a card for a
-              // section this session has not opened yet has no name to show. Saying
-              // so is honest; printing the identifier looks as a data fault.
+              // Reached only by a class saved before labels were kept, or by one
+              // whose section this session has never offered: the card has no name
+              // from either source. Saying so beats printing the identifier, which
+              // reads as a data fault.
               <Text size="sm" c="dimmed" fw={500}>
-                Not offered yet — open it once to name this subject
+                Subject name not known yet — open it once to name this subject
               </Text>
             )}
             <Text size="sm" c="dimmed" mt={2}>

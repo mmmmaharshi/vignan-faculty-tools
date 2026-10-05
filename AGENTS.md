@@ -302,12 +302,15 @@ carries one also has its name in text.
   statistics of its own**, which is why the summary cannot be a section row.
   See `docs/adr/0016-the-saved-class-opens-the-register-it-names.md`.
 
-- **No label is ever stored, and a subject's name is often not yet known.** ECAP
-  answers subjects **one section at a time** — `server-routes.ts` asks for them
-  only once all four levels above are set — so a card naming any other section has
-  no name to read. Names are recorded as the cascade receives them, and a card
-  with no name yet says so rather than printing the subject's identifier, which
-  reads as a data fault. Opening the card fetches them; the name arrives then.
+- **A subject's name is stored as a cache, never as the answer.** The label the
+  cascade offers wins whenever this session has offered that section's subjects, so
+  a renamed subject corrects itself on the card's next open; the stored one covers
+  only cards this session has not opened. Without it every card reads blank until
+  opened once per browser session, which is the worse trade — amendment 3 of ADR
+  0016. **A name key is `section` + `subject`, not the value alone**: subject codes
+  are short and repeat across branches, so a value-only key hands a card the name
+  of the same code in another section. The key is display-only and never stored,
+  so it is cleared with `saved` on sign-out rather than left for the next user.
 
 - **`resetFor` is why opening a card keeps its subject.** A section change
   invalidates everything below it, so opening a card with "the section changed"
@@ -548,9 +551,21 @@ caller of the real thing.
 **Never add an assertion that mirrors the implementation.** Such a test passes
 when the code is wrong and proves nothing. Assert a property instead: for the
 fast suite, where the line sits and what must never happen across it; for the
-smoke test, percentages ascend, the first row is the minimum, the flagged-row
-count equals the stat card, and the register on screen is named. Each breaks for
-its own distinct reason.
+smoke test, the unfiltered rows are in the Portal's own `Sl.No` order, the
+flagged-row count equals the stat card, and the register on screen is named. Each
+breaks for its own distinct reason.
+
+**The register is in roster order; only the filtered table is sorted.** There are
+two orders and they are both deliberate, so do not "fix" one into the other. Whole
+class, the rows are the Portal's own `Sl.No` order — sorting it lowest-first made
+the numbers read as a league table and stopped `Sl.No` running down the page.
+With *Show only irregular students* ticked, the table is a worklist rather than a
+roster, so it sorts worst-first: that is the one thing the checkbox is for. **The
+figure read is the one the table shows**, so on All subjects it sorts by the
+overall percentage, and **a missing percentage sorts last**, never first — `null`
+is an absence of evidence, and putting such a student at the top of a triage list
+sends someone after them for the wrong reason. `registerRows` in `web/cascade.ts`
+owns all three rules, which is where they can be pinned without booting a server.
 
 The smoke test drives the real portal because a DOM stub is not sufficient: one
 was tried against the previous build and it passed code broken in a real

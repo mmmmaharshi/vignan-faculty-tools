@@ -42,15 +42,16 @@ import {
   savedClasses,
   forgetClass,
   startingRange,
-  visibleStudents,
+  registerRows,
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVEL_KEYS,
   LEVELS,
   shouldContinue,
+  subjectNameKey,
   toPortalDate,
 } from "./cascade";
-import type { Level, Range, Sel } from "./cascade";
+import type { Level, Range, SavedClass, Sel } from "./cascade";
 import { ClassPicker } from "./components/ClassPicker";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
@@ -107,12 +108,31 @@ const App = (): React.JSX.Element => {
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
   const [overallMode, setOverallMode] = useState(false);
+  /** Every subject name this session has been offered, by section and value.
+   *
+   *  The Portal answers subjects one section at a time, so on a cold load a card
+   *  naming another section has no label in `opts`. Names are recorded where the
+   *  cascade receives them — the only place they arrive — and what is read here
+   *  wins over the label stored at save time, so a subject ECAP renames corrects
+   *  itself the moment its card is opened. The stored label covers only the cards
+   *  this session has not opened.
+   *
+   *  Keyed by section as well as value: a subject code is short and repeats across
+   *  branches, so a card keyed on the value alone could be handed the name of the
+   *  same code in a different section.
+   *
+   *  State rather than a ref, because a card renders these; and set from the reply
+   *  rather than from an effect, because an effect that mirrors props into state
+   *  starts a render for a value the cascade already computed. */
+  const [subjectNames, setSubjectNames] = useState<ReadonlyMap<string, string>>(
+    () => new Map()
+  );
   /** The saved classes, read when the name becomes known and on the events that
    *  change them. An effect would mirror them into state on every render for
    *  values the browser already has. */
   const [saved, setSaved] = useState<{
     userId: string;
-    list: Sel[];
+    list: SavedClass[];
   } | null>(null);
   /* oxlint-disable react/refs */
   const selRef = useRef<Sel>(sel);
@@ -149,6 +169,7 @@ const App = (): React.JSX.Element => {
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
+      setSubjectNames(new Map());
       navigate(LOGIN_PATH, { replace: true });
     },
     [navigate]
@@ -209,20 +230,6 @@ const App = (): React.JSX.Element => {
     // A range that produced a register is one worth opening at again.
     rememberRangeStart(range.from);
   }, [fetchRegister, opts, range, sel]);
-  /** Every subject name this session has been offered, by value.
-   *
-   *  The Portal answers subjects one section at a time, so a card naming any other
-   *  section has no label in `opts` and used to print its own identifier. Names are
-   *  recorded where the cascade receives them — the only place they arrive — and a
-   *  label ECAP renames is corrected on the next visit to that section rather than
-   *  being pinned in storage, which is why no name is ever saved.
-   *
-   *  State rather than a ref, because a card renders these; and set from the reply
-   *  rather than from an effect, because an effect that mirrors props into state
-   *  starts a render for a value the cascade already computed. */
-  const [subjectNames, setSubjectNames] = useState<ReadonlyMap<string, string>>(
-    () => new Map()
-  );
   const runRefresh = useCallback(
     async (changed: Level | null, arriving?: Sel) => {
       const token = ++refreshToken.current;
@@ -264,7 +271,12 @@ const App = (): React.JSX.Element => {
           if (fresh.length) {
             setSubjectNames((previous) => {
               const merged = new Map(previous);
-              for (const o of fresh) merged.set(String(o.value), o.label);
+              for (const o of fresh) {
+                merged.set(
+                  subjectNameKey(draft.section, String(o.value)),
+                  o.label
+                );
+              }
               return merged;
             });
           }
@@ -380,13 +392,12 @@ const App = (): React.JSX.Element => {
   }, [booted, signedIn, onLogin, navigate]);
   const disabled = disabledLevels(sel);
   const summary = result?.summary;
+  // No sort: the rows are the Portal's own roster order, which the Sl.No column
+  // carries. Reordering them by attendance made the numbers read as a ranking
+  // rather than as a roster. A student needing a check-in is found by the tint,
+  // not by being at the top of the list.
   const rows = result
-    ? visibleStudents(result.students, onlyIrregular, overallMode).toSorted(
-        (a, b) =>
-          overallMode
-            ? (a.overallPct ?? 999) - (b.overallPct ?? 999)
-            : (a.pct ?? 999) - (b.pct ?? 999)
-      )
+    ? registerRows(result.students, onlyIrregular, overallMode)
     : [];
   const registerName = chosenText(opts, sel);
   const onSelectLevel = (key: Level, value: string) => {
@@ -406,7 +417,11 @@ const App = (): React.JSX.Element => {
     Boolean(sel.subject) &&
     !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
   const saveClass = () => {
-    rememberClass(userId, sel);
+    rememberClass(
+      userId,
+      sel,
+      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
+    );
     setSaved({ userId, list: savedClasses(userId) });
   };
   const clearSavedClass = (target: Sel) => {
@@ -421,19 +436,20 @@ const App = (): React.JSX.Element => {
     setSel(next);
     runRefresh("section", next);
   };
-  /** Each card is laid out from its own labels, rebuilt from the cascade — a stored
-   *  label could display a name ECAP has since renamed. The Subject leads, because
-   *  that is what tells one saved class from another in the same section, and the
-   *  levels above it say which class it belongs to. */
+  /** Each card's names come from the cascade wherever this session has offered them,
+   *  falling back to the label cached at save time for the cards it has not. The
+   *  Subject leads, because that is what tells one saved class from another in the
+   *  same section, and the levels above it say which class it belongs to. */
   const savedClassCards =
     savedList?.map((s) => {
       const labelOf = (key: Level): string =>
         opts[key].find((o) => String(o.value) === String(s[key]))?.label ?? "";
       return {
         sel: s,
-        // The identifier is only a last resort, and it says so: a card that has
-        // never seen its section offered cannot know the subject's name.
-        subject: subjectNames.get(String(s.subject)) ?? "",
+        subject:
+          subjectNames.get(subjectNameKey(s.section, s.subject)) ??
+          s.label ??
+          "",
         sectionName: labelOf("section") || s.section,
         course: [
           labelOf("course"),
@@ -447,21 +463,19 @@ const App = (): React.JSX.Element => {
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
   const picker = (
-    <>
-      <ClassPicker
-        levels={LEVELS}
-        opts={opts}
-        sel={sel}
-        disabled={disabled}
-        range={range}
-        busy={busy}
-        loadNote={loadNote}
-        filterNote={filterNote}
-        onSelect={onSelectLevel}
-        onRange={onRangeChange}
-        onLoad={loadRegister}
-      />
-      <Group gap="sm" mt="sm">
+    <ClassPicker
+      levels={LEVELS}
+      opts={opts}
+      sel={sel}
+      disabled={disabled}
+      range={range}
+      busy={busy}
+      loadNote={loadNote}
+      filterNote={filterNote}
+      onSelect={onSelectLevel}
+      onRange={onRangeChange}
+      onLoad={loadRegister}
+      trailing={
         <Button
           onClick={saveClass}
           disabled={!classChosen || !userId.trim()}
@@ -469,8 +483,8 @@ const App = (): React.JSX.Element => {
         >
           Save this class
         </Button>
-      </Group>
-    </>
+      }
+    />
   );
   let body: React.JSX.Element | null = null;
   switch (screen) {
@@ -515,7 +529,7 @@ const App = (): React.JSX.Element => {
               onlyIrregular={onlyIrregular}
               onToggleIrregular={setOnlyIrregular}
               chosenText={registerName}
-              overallOnly={overallMode}
+              overallMode={overallMode}
             />
           ) : null}
         </>
