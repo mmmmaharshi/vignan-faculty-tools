@@ -20,8 +20,7 @@ turns, and cut tangents. It lives in `~/.agents/skills/i-have-adhd`.
 bun install                # once
 bun run build              # front end -> dist/
 bun server.ts              # http://127.0.0.1:8787
-bunx vp run --parallel dev:all   # dev server AND api, one process to stop
-bun run dev                # Vite alone on :5173
+bun run dev                # front end AND /api, one Vite process on :5173
 bun run typecheck          # tsc over all three projects - see the trap below
 bun run lint               # vp check: oxfmt + oxlint, no writes
 bun run lint:fix           # vp check --fix: writes
@@ -39,33 +38,30 @@ Node.js runtime, which fails and takes the whole install with it. `core.hooksPat
 and `.vite-hooks/_` are per-clone state, so a **fresh clone needs
 `bunx vp hooks enable` once** — that is the only thing `prepare` was buying.
 
-**`dev:all` is the dev command, and `--parallel` is what makes it work.** It is
-`api` plus `vp dev` from one task, so one Ctrl-C stops both. Two things are not
-obvious:
+**`bun run dev` is one process.** `vp dev` serves the front end and runs the
+API in the same Vite server, through the `ecap-api` plugin in `vite.config.ts`
+(`apply: "serve"`). The plugin turns each `/api/*` request into a `fetch`
+`Request` and calls `handleApi`, so there is no second process, no port to
+forget, and no proxy. Two things are not obvious:
 
-- **`--parallel` is required.** Without it the `dependsOn: ["api"]` edge gates
-  correctly, and since `server.ts` never exits, `vp dev` never starts — verified:
-  without the flag only :8787 comes up. `--parallel` ignores the edge and runs
-  both at once.
-- **The task cannot be named `dev`.** A task and a `package.json` script cannot
-  share a name, and `dev` is already a script. Hence `dev:all`.
-
-Do not replace this with `&` inside one `command`. The task runner splits on `&`
-and execs each side **sequentially**, so the second never starts; `start /b` is a
-cmd builtin it cannot exec. Nor hand-roll a `Bun.spawn` launcher: `vp` on Windows
-re-execs `node`, so `kill()` signals the shim and the real dev server survives as
-an orphan holding :5173. The task runner reaps both — verified by stopping the
-runner and watching both ports free.
+- **The API core lives in `api.ts`, not `server.ts`.** Importing `server.ts`
+  boots a `Bun.serve`, so it cannot be, and is not, loaded by Vite. `api.ts`
+  holds the portal, the session map and `handleApi`; `bun server.ts` imports it
+  for production, the dev plugin imports it for development.
+- **`bunSecrets()` falls back to a plain file when `Bun` is absent**, because
+  dev runs the API in Vite's Node runtime. Dev sessions then persist in
+  `.dev-sessions.json` (gitignored, plaintext, dev only) so a dev restart does
+  not sign you out; the production server still uses the OS vault.
 
 ### Background servers
 
 **Do not start a server. The user starts it.** No `bun server.ts`, no
-`dev:all`, no `vp dev`, no background launch on :8787 or :5173 — including "just
+`bun run dev`, no `vp dev`, no background launch on :8787 or :5173 — including "just
 to check something". Read the code, ask, or run a test that starts its own.
 
 A server this agent started is a server it then has to remember. It outlives the
 task that wanted it, it goes stale the moment the source changes, and it holds a
-port the user's own `dev:all` then fails to bind. In one session it caused three
+port the user's own `bun run dev` then fails to bind. In one session it caused three
 false diagnoses — a changed band threshold, a changed option list and a changed
 column header each read as a broken edit, because the page was being served by a
 process that had been running since before the change. **Bun loads its modules at
@@ -85,13 +81,15 @@ Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue
 
 A second start fights the first for the port: the older process keeps serving
 stale code while the new one dies on a bind error, and the leftover is easy to
-forget. Never leave two bound to the same port. `dev:all` above is the way to
+forget. Never leave two bound to the same port. `bun run dev` above is the way to
 avoid the whole problem — one process, so there is no second one to forget.
 
 ## Layout
 
 ```
-server.ts            Bun HTTP server: routing, sessions, static files, the Portal transport
+server.ts            Bun HTTP server: static files, routing to api.ts, and Bun.serve
+api.ts               the API: the portal, the sessions, and handleApi; imported by
+                     server.ts (prod) and the dev plugin in vite.config.ts
 server-routes.ts     the two route handlers, over a PortalReader; no HTTP in it
 session-store.ts     sessions in the OS credential vault, over an injected backend
 portal-liveness.ts   alive | dead | unknown: is this ECAP session still working?
@@ -406,22 +404,25 @@ carries one also has its name in text.
   the same user reads an entry straight back. The vault narrows *at-rest*
   exposure — backups, cloud sync, disk imaging — and nothing else. Do not describe
   it as protecting against a compromised machine; it does not.
-- **Restore must happen before `Bun.serve`**, and the top-level `await` is what
-  makes that true. `Bun.serve` listens the moment it is called, so a restore after
-  it leaves a window where a request finds an empty map and signs a signed-in user
-  out. This is also what makes **`bun --watch` safe** for the dev task: the
-  restart drops every in-memory session, and the restore puts them back, so
-  saving a file does not sign anyone out.
-- **The dev API hot-reloads; the Playwright one does not.** `dev:all` runs the
-  `api` task as `bun --watch server.ts`, so a change to anything the server
-  computes — a band threshold, an option list, a summary figure — is live on the
-  next request, same as the front end. Measured: a one-line edit changed the
-  listening process and re-printed the banner. Two things follow, both learned
-  the hard way. `bun server.ts` on its own **does not** watch, and Playwright's
-  `webServer` deliberately does not either, so anything started that way still
-  needs a manual restart. And because a stale process answers correctly on every
-  field except the one that changed, it reads as a broken edit rather than a
-  stale server — it did, three times in one session.
+- **Restore must happen before `Bun.serve`**, and the top-level `await` in
+  `server.ts` is what makes that true. `Bun.serve` listens the moment it is
+  called, so a restore after it leaves a window where a request finds an empty
+  map and signs a signed-in user out. This is also what makes **`bun --watch
+  server.ts` safe**: the restart drops every in-memory session, the restore puts
+  them back, so saving a file does not sign anyone out. `bun run dev` does not go
+  through this path at all — it runs the API inside Vite, where there is no OS
+  vault, so it uses the dev file store instead (see the dev note above), and a
+  dev restart keeps you signed in.
+- **The dev API reloads with the dev server; the Playwright one does not.**
+  `api.ts` is an import of `vite.config.ts`, which Vite watches: a change to it
+  (or to `server-routes.ts` behind it) restarts the Vite dev server, so a band
+  threshold, an option list or a summary figure is live on the next request,
+  same as the front end. Two things follow, both learned the hard way.
+  `bun server.ts` on its own **does not** watch, and Playwright's `webServer`
+  deliberately does not either, so anything started that way still needs a
+  manual restart. And because a stale process answers correctly on every field
+  except the one that changed, it reads as a broken edit rather than a stale
+  server — it did, three times in one session.
 - **`signedOut(why)` takes a reason, and an empty one means no alert at all.** A
   note object with empty text is *truthy*, so passing `""` rendered an empty
   alert under the sign-in form. The sign-in form now shows **nothing** unless

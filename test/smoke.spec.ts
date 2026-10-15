@@ -399,7 +399,10 @@ test.describe("Vignan Faculty Tools", () => {
     const panel = page.getByRole("heading", { name: "Profile" }).locator("..");
     await expect(panel.getByText(USER, { exact: true })).toBeVisible();
     await expect(page.getByText(/credential vault/i)).toBeVisible();
-    await expect(page.getByText(/never written to disk/i)).toBeVisible();
+    await expect(
+      page.getByText(/never written to disk/i),
+      "ADR 0019 retired this claim; the panel must not state it again"
+    ).toHaveCount(0);
     await expect(page.getByText(/twenty minutes/i)).toBeVisible();
   });
   test("the header carries the app name and nothing else", async ({ page }) => {

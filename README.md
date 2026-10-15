@@ -81,27 +81,28 @@ dropdowns in front of you it is easy to read last week's numbers as this week's.
 
 - It is posted to `127.0.0.1` — the server binds to loopback only, nothing leaves
   your machine except the sign-in request to ECAP over HTTPS.
-- It is used once, to encrypt the login payload. It is never written to disk,
-  never logged, and never returned by any endpoint.
+- **It is kept in the Windows Credential Manager** (via `Bun.secrets`) on a
+  runtime that has it, so the app can sign you back in when ECAP's own session
+  times out. It is not written to a file next to the source, never logged, and
+  never returned by any endpoint. This is a change from earlier versions, which
+  discarded it; ADR 0019 records why and what it costs.
 - Signing in opens a session that lasts **up to 30 days without use** on our side.
   Both halves slide: the server stamps the session on every request, and the
   browser cookie is re-issued on every response, so the window is 30 days from your
-  *last* use rather than from signing in. There is no stored password to leak or
-  reuse.
+  *last* use rather than from signing in.
 - **Restarting the server does not sign you out.** The sign-in token lives in the
-  **Windows Credential Manager** (via `Bun.secrets`) on a runtime that has it, not
-  in a file next to the source, so nothing gets synced to cloud storage by
-  accident. It is still not the password — see above. Where there is no vault the
-  server says so on startup and falls back to in-memory sessions.
-- **But ECAP's own session is much shorter than that, and it is the real limit.**
+  **Windows Credential Manager**, not in a file next to the source, so nothing gets
+  synced to cloud storage by accident. Where there is no vault the server says so
+  on startup and falls back to in-memory sessions.
+- **ECAP's own session is much shorter, and it used to be the real limit.**
   Both of the portal's cookies are session cookies with no expiry, and the
-  credential is bound to ECAP's in-memory ASP.NET session. Measured against the
-  live portal: **idle for 15 minutes it still works; idle for 45 it does not.** So
-  the 30 days is a ceiling nothing will reach, and what this app's persistence
-  actually buys is surviving its own restart. If you leave for half an hour you
-  sign in again, because ECAP has forgotten you — not because of anything stored
-  here. The app notices and sends you to the sign-in form with a reason, rather
-  than showing you a dashboard that cannot load anything. See ADR 0014.
+  credential is bound to ECAP's in-memory ASP.NET session: measured against the
+  live portal, **idle for 15 minutes it still works; idle for 45 it does not.** So
+  the 30 days is a ceiling nothing will reach. **When ECAP has forgotten you, the
+  app signs in again with the stored credential and re-runs the request** — one
+  retry, no interception. You are only asked to sign in by hand if the password
+  itself no longer works, or if this runtime has no credential vault. See ADR
+  0014 for the portal's limit and ADR 0019 for the re-sign-in.
 
 ## The front end
 

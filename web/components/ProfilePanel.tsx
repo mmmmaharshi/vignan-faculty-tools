@@ -39,17 +39,17 @@ export const ProfilePanel = ({
       />
       <Row
         label="Your password"
-        value="Used once to sign in, then discarded. It is never written to disk by this app."
+        value="Kept in the OS credential vault, so the app can sign you back in when ECAP times the session out. Never sent to the browser or logged."
       />
       <Row
         label="What is stored"
-        value="ECAP's own session token, and nothing else. Sign out deletes it."
+        value="The ECAP session token and your sign-in credential. Sign out deletes both."
       />
       <Divider my="xs" />
       <Text size="sm">
-        ECAP&apos;s session lasts about twenty minutes of inactivity, so you
-        will be asked to sign in again after a break. That is the portal&apos;s
-        limit, not this app&apos;s.
+        ECAP ends a session after about twenty minutes of inactivity. When it
+        does, this app signs in again with the stored credential, so a break
+        does not send you back to the form.
       </Text>
     </Stack>
   </Paper>

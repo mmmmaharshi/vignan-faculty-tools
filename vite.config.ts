@@ -1,8 +1,71 @@
+import type { IncomingMessage, ServerResponse } from "node:http";
+
 import react from "@vitejs/plugin-react";
 import oxfmt from "ultracite/oxfmt";
 import core from "ultracite/oxlint/core";
 import reactPreset from "ultracite/oxlint/react";
+import type { Plugin } from "vite-plus";
 import { defineConfig, lazyPlugins } from "vite-plus";
+
+import { handleApi, startSessions } from "./api";
+
+async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
+  if (req.method === "GET" || req.method === "HEAD") return undefined;
+  const chunks: Buffer[] = [];
+  for await (const chunk of req) chunks.push(Buffer.from(chunk as Buffer));
+  return chunks.length ? Buffer.concat(chunks) : undefined;
+}
+async function serveApi(req: IncomingMessage, res: ServerResponse) {
+  const headers = new Headers();
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (typeof value === "string") headers.set(key, value);
+    else if (Array.isArray(value)) headers.set(key, value.join(", "));
+  }
+  const body = await readBody(req);
+  const request = new Request(
+    new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`),
+    {
+      method: req.method,
+      headers,
+      body: body ? new Uint8Array(body) : undefined,
+      duplex: "half",
+    } as RequestInit
+  );
+  const response = await handleApi(request);
+  res.statusCode = response.status;
+  for (const [key, value] of response.headers.entries())
+    res.setHeader(key, value);
+  const cookies = response.headers.getSetCookie();
+  if (cookies.length) res.setHeader("set-cookie", cookies);
+  res.end(Buffer.from(await response.arrayBuffer()));
+}
+async function handleApiRequest(
+  req: IncomingMessage,
+  res: ServerResponse,
+  server: { config: { logger: { error: (msg: string) => void } } }
+) {
+  try {
+    await serveApi(req, res);
+  } catch (error) {
+    server.config.logger.error(String(error));
+    if (!res.headersSent) res.statusCode = 500;
+    res.end();
+  }
+}
+/** Runs the API inside the dev server, so one process serves the app and `/api`. */
+function apiPlugin(): Plugin {
+  return {
+    name: "ecap-api",
+    apply: "serve",
+    async configureServer(server) {
+      await startSessions();
+      server.middlewares.use((req, res, next) => {
+        if (!req.url?.startsWith("/api/")) return next();
+        void handleApiRequest(req, res, server);
+      });
+    },
+  };
+}
 
 const SERVER_SIDE = ["server.ts", "portal-replies.ts", "shared/**"];
 const OFF: Record<string, "off"> = {
@@ -30,22 +93,6 @@ rules.eqeqeq = ["error", "always", { null: "ignore" }];
 const GENERATED = ["**/*.md"];
 
 export default defineConfig({
-  run: {
-    tasks: {
-      api: {
-        // --watch, because the front end reloads on save and the API should not
-        // be the one thing that needs a manual restart. A restart reloads the
-        // session from the vault, so nobody is signed out by saving a file.
-        command: "bun --watch server.ts",
-        cache: false,
-      },
-      "dev:all": {
-        command: "vp dev",
-        dependsOn: ["api"],
-        cache: false,
-      },
-    },
-  },
   staged: {
     "**/*": "vp check --fix",
   },
@@ -67,13 +114,12 @@ export default defineConfig({
   },
   root: "web",
   base: "/",
-  plugins: lazyPlugins(() => [react()]),
+  plugins: lazyPlugins(() => [react(), apiPlugin()]),
   build: {
     outDir: "../dist",
     emptyOutDir: true,
   },
   server: {
     port: 5173,
-    proxy: { "/api": "http://127.0.0.1:8787" },
   },
 });

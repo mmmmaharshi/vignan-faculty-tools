@@ -62,6 +62,16 @@ test.describe("the session store", () => {
     expect(loaded).toHaveLength(1);
     expect(loaded[0]?.userId).toBe("");
   });
+  test("the credential survives the vault, so a dead session can sign in again", async () => {
+    const vault = fakeVault();
+    const withCredential: StoredSession = { ...SESSION, password: "hunter2" };
+    expect(await saveSessions(vault, [withCredential])).toBeNull();
+    const loaded = await loadSessions(vault);
+    expect(loaded[0]?.password).toBe("hunter2");
+  });
+  test("a session stored before the credential existed loads with none, not a stale one", () => {
+    expect(parseSession({ id: "s", at: 1, cookies: JAR })?.password).toBe("");
+  });
   test("everything goes in one entry per session, plus an index", async () => {
     const vault = fakeVault();
     await saveSessions(vault, [SESSION, { ...SESSION, id: "s2" }]);

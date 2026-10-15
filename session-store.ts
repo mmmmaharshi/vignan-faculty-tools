@@ -1,9 +1,15 @@
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import path from "node:path";
+
 import { CookieJar } from "./portal-conventions";
 
 export type StoredSession = {
   id: string;
   at: number;
   userId: string;
+  // The ECAP password, kept only so a dead session can be re-established. See
+  // ADR 0019. Absent for sessions stored before this existed.
+  password?: string;
   cookies: [string, string][];
 };
 export type Secrets = {
@@ -16,7 +22,55 @@ export const VAULT_INDEX = "sessions";
 export function sessionKey(id: string): string {
   return `session-${id}`;
 }
+const DEV_VAULT_FILE = ".dev-sessions.json";
+/**
+ * A plain-file session store for the dev server, which runs the API inside Vite
+ * on Node and so has no `Bun.secrets`. It keeps a dev restart from signing you
+ * out, and stays out of production.
+ *
+ * shortcut: dev-only, plaintext, one file — this writes the portal cookies to
+ * disk, which is exactly what the OS vault exists to avoid. Never wire it in
+ * where `Bun` is present; use the real vault there.
+ */
+export function devSecrets(): Secrets {
+  const file = process.env.ECAP_DEV_VAULT || DEV_VAULT_FILE;
+  const read = (): Record<string, string> => {
+    try {
+      const parsed: unknown = JSON.parse(readFileSync(file, "utf-8"));
+      return parsed !== null && typeof parsed === "object"
+        ? (parsed as Record<string, string>)
+        : {};
+    } catch {
+      return {};
+    }
+  };
+  const write = (data: Record<string, string>) => {
+    mkdirSync(path.dirname(file), { recursive: true });
+    writeFileSync(file, JSON.stringify(data), { mode: 0o600 });
+  };
+  return {
+    get: (name) => Promise.resolve(read()[name] ?? null),
+    set: (name, value) => {
+      const data = read();
+      data[name] = value;
+      write(data);
+      return Promise.resolve();
+    },
+    delete: (name) => {
+      const data = read();
+      const had = name in data;
+      const kept = Object.fromEntries(
+        Object.entries(data).filter(([key]) => key !== name)
+      );
+      write(kept);
+      return Promise.resolve(had);
+    },
+  };
+}
 export function bunSecrets(): Secrets | null {
+  // Dev serves the API from Vite's runtime, which is Node here: no Bun global,
+  // so fall back to the plain-file dev store.
+  if (typeof Bun === "undefined") return devSecrets();
   const raw = (Bun as unknown as { secrets?: unknown }).secrets as
     | {
         get: (q: { service: string; name: string }) => Promise<string | null>;
@@ -40,7 +94,7 @@ export function bunSecrets(): Secrets | null {
 }
 export function parseSession(value: unknown): StoredSession | null {
   if (typeof value !== "object" || value === null) return null;
-  const { id, at, userId, cookies } = value as Partial<StoredSession>;
+  const { id, at, userId, cookies, password } = value as Partial<StoredSession>;
   if (typeof id !== "string" || !id) return null;
   if (typeof at !== "number" || !Number.isFinite(at)) return null;
   if (!Array.isArray(cookies)) return null;
@@ -58,6 +112,7 @@ export function parseSession(value: unknown): StoredSession | null {
     id,
     at,
     userId: typeof userId === "string" ? userId : "",
+    password: typeof password === "string" ? password : "",
     cookies: pairs,
   };
 }
