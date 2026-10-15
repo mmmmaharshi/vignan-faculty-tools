@@ -19,3 +19,15 @@ dist/
 .env.local
 .DS_Store
 *.log
+
+# Dev session store (plaintext, dev only). See session-store.ts.
+/.dev-sessions.json
+
+# Agent scratch and tool state: probe scripts, captured portal responses, and
+# session data. Not source, and not for review. The issue files and spec.md that
+# live in .scratch/ stay tracked, which is why markdown is let back through.
+.scratch/**
+!.scratch/**/
+!.scratch/**/*.md
+/.opencode/
+/.commandcode/
