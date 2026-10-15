@@ -33,13 +33,13 @@ export const ProfilePanel = ({
         label="Session"
         value={
           persisted
-            ? "Kept in the OS credential vault, so restarting the server keeps you signed in."
+            ? "Kept in the server's credential vault, so restarting the server keeps you signed in."
             : "In memory only, so restarting the server signs you out."
         }
       />
       <Row
         label="Your password"
-        value="Kept in the OS credential vault, so the app can sign you back in when ECAP times the session out. Never sent to the browser or logged."
+        value="Kept in the server's credential vault (the OS vault in production, a plaintext dev file otherwise), so the app can sign you back in when ECAP times the session out. Never sent to the browser or logged."
       />
       <Row
         label="What is stored"

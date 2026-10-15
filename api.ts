@@ -398,12 +398,15 @@ export function createApi({
    * the slid `at` written back. `server.ts` does this inline so it can also
    * flush on exit; the dev plugin calls this.
    */
-  async function startSessions(): Promise<boolean> {
-    const backed = await restoreSessions();
+  async function startSessions(): Promise<void> {
+    await restoreSessions();
     setInterval(async () => {
       await flushSessions();
     }, FLUSH_INTERVAL_MS);
-    return backed;
+  }
+  /** The one signed-out reply, so the places that say it cannot drift apart. */
+  function signedOutReply(): SessionReply {
+    return { signedIn: false, persisted: Boolean(vault), userId: "" };
   }
   function getSession(id: string | null): Session | null {
     if (!id) return null;
@@ -505,28 +508,16 @@ export function createApi({
       if (path === "/api/session") {
         const id = readCookie(req, "ecap_sid");
         const s = getSession(id);
-        if (!s)
-          return json(
-            {
-              signedIn: false,
-              persisted: Boolean(vault),
-              userId: "",
-            } satisfies SessionReply,
-            200
-          );
+        if (!s) return json(signedOutReply(), 200);
         if ((await liveness(s.portal)) === "dead") {
-          try {
-            await reauthenticate(s);
-          } catch {
+          const failure: unknown = await reauthenticate(s).catch(
+            (error: unknown) => error
+          );
+          // Only a 401 says the credential is dead; a 502 is `unknown`, and
+          // ADR 0019 forbids evicting on ambiguity. The next request asks again.
+          if (failure instanceof HttpError && failure.status === 401) {
             await forgetSession(id);
-            return json(
-              {
-                signedIn: false,
-                persisted: Boolean(vault),
-                userId: "",
-              } satisfies SessionReply,
-              200
-            );
+            return json(signedOutReply(), 200);
           }
         }
         return json(
@@ -562,6 +553,15 @@ export function createApi({
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
       if (status === 500) console.error("[error]", messageOf(error));
+      // A 401 on the way out is a session ECAP has already rejected, so its
+      // credential goes with it (ADR 0019). One raised by signing in is about
+      // the password just typed, not the stored session, so it evicts nothing;
+      // and an id that is not in the map is left alone, so nothing is written
+      // back for a request that had none.
+      if (status === 401 && path !== "/api/login") {
+        const id = readCookie(req, "ecap_sid");
+        if (id && sessions.has(id)) await forgetSession(id);
+      }
       return json(
         { error: messageOf(error) || "Something went wrong." },
         status

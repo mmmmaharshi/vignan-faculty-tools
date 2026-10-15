@@ -5,7 +5,7 @@ import type { PortalPort } from "../api";
 import { CookieJar } from "../portal-conventions";
 import { HttpError } from "../portal-replies";
 import type { PortalReader } from "../server-routes";
-import { saveSessions } from "../session-store";
+import { loadSessions, saveSessions } from "../session-store";
 import type { Secrets, StoredSession } from "../session-store";
 import type {
   OptionsReply,
@@ -48,10 +48,26 @@ function readerWith(over: Partial<PortalReader> = {}): PortalReader {
     ...over,
   };
 }
-/** A portal over one reader, counting the revivals it was asked to perform. */
+const expiredCourses = () => Promise.reject(new HttpError(401, "expired"));
+/** A stored session, credential and all, as one signed in after ADR 0019. */
+function storedSession(id: string): StoredSession {
+  return {
+    id,
+    at: Date.now(),
+    userId: "sirichandrasekhar",
+    password: "hunter2",
+    cookies: [["frmAuth", "ok"]],
+  };
+}
+/**
+ * A portal over one reader, counting the revivals it was asked to perform.
+ * `signInError` makes that sign-in fail, which is the only way to see what a
+ * failed revival does to the session.
+ */
 function portalOf(
   reader: PortalReader,
-  revivals: { count: number }
+  revivals: { count: number },
+  signInError?: Error
 ): PortalPort {
   const jar = new CookieJar();
   jar.entries.set("frmAuth", "ok");
@@ -62,7 +78,7 @@ function portalOf(
     courses: () => reader.courses(),
     signIn: () => {
       revivals.count += 1;
-      return Promise.resolve();
+      return signInError ? Promise.reject(signInError) : Promise.resolve();
     },
   };
 }
@@ -179,5 +195,122 @@ test.describe("handleApi", () => {
       signedIn: false,
     });
     expect(revivals.count).toBe(0);
+  });
+  test("a 502 while signing in again keeps the credential, and signs nobody out", async () => {
+    const vault = fakeVault();
+    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
+    const revivals = { count: 0 };
+    const api = createApi({
+      vault,
+      connect: () =>
+        portalOf(
+          readerWith({ courses: expiredCourses }),
+          revivals,
+          new Error("ECONNRESET")
+        ),
+    });
+    await api.restoreSessions();
+    const res = await call(api, "/api/session", {
+      headers: { cookie: "ecap_sid=s1" },
+    });
+    expect((await res.json()) as SessionReply).toMatchObject({
+      signedIn: true,
+    });
+    expect(revivals.count).toBe(1);
+    const kept = await loadSessions(vault);
+    expect(kept[0]?.password).toBe("hunter2");
+  });
+  test("a 502 while signing in again mid-request is left alone, credential and all", async () => {
+    const vault = fakeVault();
+    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
+    const revivals = { count: 0 };
+    let built = 0;
+    const api = createApi({
+      vault,
+      connect: () =>
+        built++ === 0
+          ? portalOf(readerWith({ courses: expiredCourses }), revivals)
+          : portalOf(readerWith(), revivals, new Error("ECONNRESET")),
+    });
+    await api.restoreSessions();
+    const res = await post(api, "/api/options", { course: "1" }, "s1");
+    expect(res.status).toBe(502);
+    expect(revivals.count).toBe(1);
+    const kept = await loadSessions(vault);
+    expect(kept[0]?.password).toBe("hunter2");
+  });
+  test("a 401 while signing in again evicts the session, and the credential with it", async () => {
+    const vault = fakeVault();
+    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
+    const revivals = { count: 0 };
+    let built = 0;
+    const api = createApi({
+      vault,
+      connect: () =>
+        built++ === 0
+          ? portalOf(readerWith({ courses: expiredCourses }), revivals)
+          : portalOf(
+              readerWith(),
+              revivals,
+              new HttpError(401, "wrong password")
+            ),
+    });
+    await api.restoreSessions();
+    const res = await post(api, "/api/options", { course: "1" }, "s1");
+    expect(res.status).toBe(401);
+    expect(revivals.count).toBe(1);
+    expect(await loadSessions(vault)).toEqual([]);
+  });
+  test("the probe signs in again once, and keeps the portal it got", async () => {
+    const vault = fakeVault();
+    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
+    const revivals = { count: 0 };
+    let built = 0;
+    const api = createApi({
+      vault,
+      connect: () =>
+        portalOf(
+          built++ === 0
+            ? readerWith({ courses: expiredCourses })
+            : readerWith(),
+          revivals
+        ),
+    });
+    await api.restoreSessions();
+    const probe = async () => {
+      const res = await call(api, "/api/session", {
+        headers: { cookie: "ecap_sid=s1" },
+      });
+      return (await res.json()) as SessionReply;
+    };
+    expect(await probe()).toMatchObject({ signedIn: true });
+    expect(await probe()).toMatchObject({ signedIn: true });
+    expect(revivals.count).toBe(1);
+  });
+  test("a sign-in that is refused does not evict the session you already have", async () => {
+    const vault = fakeVault();
+    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
+    const revivals = { count: 0 };
+    const api = createApi({
+      vault,
+      connect: () =>
+        portalOf(readerWith(), revivals, new HttpError(401, "wrong password")),
+    });
+    await api.restoreSessions();
+    const refused = await post(
+      api,
+      "/api/login",
+      { userId: "someone", password: "nope" },
+      "s1"
+    );
+    expect(refused.status).toBe(401);
+    const kept = await loadSessions(vault);
+    expect(kept).toHaveLength(1);
+    const res = await call(api, "/api/session", {
+      headers: { cookie: "ecap_sid=s1" },
+    });
+    expect((await res.json()) as SessionReply).toMatchObject({
+      signedIn: true,
+    });
   });
 });

@@ -83,17 +83,22 @@ dropdowns in front of you it is easy to read last week's numbers as this week's.
   your machine except the sign-in request to ECAP over HTTPS.
 - **It is kept in the Windows Credential Manager** (via `Bun.secrets`) on a
   runtime that has it, so the app can sign you back in when ECAP's own session
-  times out. It is not written to a file next to the source, never logged, and
-  never returned by any endpoint. This is a change from earlier versions, which
-  discarded it; ADR 0019 records why and what it costs.
+  times out. It narrows what sits on disk; it is not a boundary against another
+  process running as you. It is never logged and never returned by any endpoint.
+  This is a change from earlier versions, which discarded it; ADR 0019 records why
+  and what it costs.
+- **Where there is no vault, it is written in plaintext.** The dev server runs the
+  API in Node, which has no `Bun.secrets`, so the store falls back to a
+  `.dev-sessions.json` file beside the source: gitignored, plaintext, and never for
+  production — and in this checkout that file sits inside a OneDrive-synced
+  directory.
 - Signing in opens a session that lasts **up to 30 days without use** on our side.
   Both halves slide: the server stamps the session on every request, and the
   browser cookie is re-issued on every response, so the window is 30 days from your
   *last* use rather than from signing in.
-- **Restarting the server does not sign you out.** The sign-in token lives in the
-  **Windows Credential Manager**, not in a file next to the source, so nothing gets
-  synced to cloud storage by accident. Where there is no vault the server says so
-  on startup and falls back to in-memory sessions.
+- **Restarting the server does not sign you out.** On a runtime with an OS vault
+  the sign-in token lives in the **Windows Credential Manager**, so nothing gets
+  synced to cloud storage by accident; the dev fallback above is the exception.
 - **ECAP's own session is much shorter, and it used to be the real limit.**
   Both of the portal's cookies are session cookies with no expiry, and the
   credential is bound to ECAP's in-memory ASP.NET session: measured against the
