@@ -92,7 +92,8 @@ for (const rule of Object.keys(OFF)) {
   if (rule in rules) rules[rule] = OFF[rule];
 }
 rules.eqeqeq = ["error", "always", { null: "ignore" }];
-const GENERATED = ["**/*.md"];
+// Not this project's source: prose, and the vendored skill files under `.agents/`.
+const NOT_SOURCE = ["**/*.md", ".agents/**"];
 
 export default defineConfig({
   staged: {
@@ -100,12 +101,12 @@ export default defineConfig({
   },
   fmt: {
     ...oxfmt,
-    ignorePatterns: [...(oxfmt.ignorePatterns ?? []), ...GENERATED],
+    ignorePatterns: [...(oxfmt.ignorePatterns ?? []), ...NOT_SOURCE],
   },
   lint: {
     env: core.env,
     plugins: [...(core.plugins ?? []), ...(reactPreset.plugins ?? [])],
-    ignorePatterns: core.ignorePatterns,
+    ignorePatterns: [...(core.ignorePatterns ?? []), ...NOT_SOURCE],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { ...rules, "vite-plus/prefer-vite-plus-imports": "error" },
     options: { typeAware: false, typeCheck: false },
