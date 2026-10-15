@@ -1,10 +1,4 @@
-import {
-  FLUSH_INTERVAL_MS,
-  flushSessions,
-  handleApi,
-  json,
-  restoreSessions,
-} from "./api";
+import { FLUSH_INTERVAL_MS, createApi, json } from "./api";
 import type { ErrorReply } from "./shared/api";
 
 const PORT = Number(process.env.PORT || 8787);
@@ -25,13 +19,14 @@ async function indexHtml(): Promise<Response> {
     },
   });
 }
-const vaultBacked = await restoreSessions();
+const api = createApi();
+const vaultBacked = await api.restoreSessions();
 setInterval(async () => {
-  await flushSessions();
+  await api.flushSessions();
 }, FLUSH_INTERVAL_MS);
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.on(signal, async () => {
-    await flushSessions();
+    await api.flushSessions();
     process.exit(0);
   });
 }
@@ -65,7 +60,7 @@ const server = Bun.serve({
         }
       }
       if (path.startsWith("/api/")) {
-        return handleApi(req);
+        return api.handleApi(req);
       }
       return json({ error: "Not found" } satisfies ErrorReply, 404);
     } catch (error) {

@@ -88,8 +88,10 @@ avoid the whole problem — one process, so there is no second one to forget.
 
 ```
 server.ts            Bun HTTP server: static files, routing to api.ts, and Bun.serve
-api.ts               the API: the portal, the sessions, and handleApi; imported by
-                     server.ts (prod) and the dev plugin in vite.config.ts
+api.ts               the API: the portal, the sessions, and createApi(); imported
+                     by server.ts (prod) and the dev plugin in vite.config.ts.
+                     createApi takes the vault and the way to reach ECAP, so the
+                     retry rules are testable without a credential vault
 server-routes.ts     the two route handlers, over a PortalReader; no HTTP in it
 session-store.ts     sessions in the OS credential vault, over an injected backend
 portal-liveness.ts   alive | dead | unknown: is this ECAP session still working?
@@ -111,6 +113,8 @@ test/seam.spec.ts    portal-replies over fixture markup
 test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
 test/bands.spec.ts   where the attendance lines sit
 test/routes.spec.ts  the options ladder and the register handler, over a fake portal
+test/api.spec.ts     handleApi over a fake vault and a fake portal: what a dead
+                     session does, and what a 502 must never do
 test/cascade.spec.ts the cascade's rules
 test/session-store.spec.ts  session persistence, over a fake vault
 test/smoke.spec.ts   one end-to-end pass against the live portal
@@ -547,7 +551,8 @@ reads as a fact. It was here twice and wrong twice. Read the count off the run.
 
 **Nothing may touch the real Windows Credential Manager**, which is why
 `session-store.ts` takes its backend as an argument; `bunSecrets()` is the only
-caller of the real thing.
+caller of the real thing. `api.ts` takes it the same way, so `test/api.spec.ts`
+drives the retry rules over a fake vault and needs no credential at all.
 
 **Never add an assertion that mirrors the implementation.** Such a test passes
 when the code is wrong and proves nothing. Assert a property instead: for the

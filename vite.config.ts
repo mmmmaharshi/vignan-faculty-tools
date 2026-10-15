@@ -7,8 +7,10 @@ import reactPreset from "ultracite/oxlint/react";
 import type { Plugin } from "vite-plus";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
-import { handleApi, startSessions } from "./api";
+import { createApi } from "./api";
 
+/** The dev server's API; `createApi`'s defaults are the real vault and ECAP. */
+const api = createApi();
 async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
   if (req.method === "GET" || req.method === "HEAD") return undefined;
   const chunks: Buffer[] = [];
@@ -31,7 +33,7 @@ async function serveApi(req: IncomingMessage, res: ServerResponse) {
       duplex: "half",
     } as RequestInit
   );
-  const response = await handleApi(request);
+  const response = await api.handleApi(request);
   res.statusCode = response.status;
   for (const [key, value] of response.headers.entries())
     res.setHeader(key, value);
@@ -58,7 +60,7 @@ function apiPlugin(): Plugin {
     name: "ecap-api",
     apply: "serve",
     async configureServer(server) {
-      await startSessions();
+      await api.startSessions();
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith("/api/")) return next();
         void handleApiRequest(req, res, server);

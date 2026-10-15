@@ -9,6 +9,7 @@ import {
   webMethodBody,
 } from "./portal-conventions";
 import { liveness } from "./portal-liveness";
+import type { CourseReader } from "./portal-liveness";
 import {
   hiddenValue,
   HttpError,
@@ -19,7 +20,7 @@ import {
 import { handleOptions, handleRegister } from "./server-routes";
 import type { PortalReader } from "./server-routes";
 import { bunSecrets, loadSessions, saveSessions, sweep } from "./session-store";
-import type { StoredSession } from "./session-store";
+import type { Secrets, StoredSession } from "./session-store";
 import type {
   CascadeLevel,
   ErrorReply,
@@ -264,106 +265,10 @@ class Portal {
     );
   }
 }
-type Session = {
-  at: number;
-  userId: string;
-  // Kept so a dead ECAP session can be re-established without asking again. It
-  // lives only in the OS vault. See ADR 0019.
-  password: string;
-  portal: Portal;
-};
-const sessions = new Map<string, Session>();
-const vault = bunSecrets();
-let storeDirty = false;
-function markStoreDirty() {
-  storeDirty = true;
-}
-function dropSession(id: string | null): boolean {
-  if (!id) return false;
-  const removed = sessions.delete(id);
-  if (removed) markStoreDirty();
-  return removed;
-}
 function refreshedCookie(id: string): Record<string, string> {
   return {
     "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`,
   };
-}
-function snapshotSessions(): StoredSession[] {
-  return [...sessions].map(([id, s]) => ({
-    id,
-    at: s.at,
-    userId: s.userId,
-    password: s.password,
-    cookies: [...s.portal.jar.entries],
-  }));
-}
-export async function flushSessions(): Promise<void> {
-  if (!vault || !storeDirty) return;
-  const problem = await saveSessions(vault, snapshotSessions());
-  if (problem) {
-    console.error(`[sessions] ${problem}`);
-    return;
-  }
-  storeDirty = false;
-}
-async function forgetSession(id: string | null): Promise<void> {
-  if (dropSession(id)) await flushSessions();
-}
-function restoreSession(stored: StoredSession): Session {
-  const portal = new Portal();
-  for (const [name, value] of stored.cookies)
-    portal.jar.entries.set(name, value);
-  return {
-    at: stored.at,
-    userId: stored.userId,
-    password: stored.password ?? "",
-    portal,
-  };
-}
-function reapSessions() {
-  const now = Date.now();
-  let dropped = false;
-  for (const [id, s] of sessions) {
-    if (now - s.at > SESSION_TTL_MS) {
-      sessions.delete(id);
-      dropped = true;
-    }
-  }
-  if (dropped) markStoreDirty();
-}
-/** Restores every session still inside the TTL, then answers whether a vault exists. */
-export async function restoreSessions(): Promise<boolean> {
-  if (!vault) return false;
-  const loaded = await loadSessions(vault);
-  const { kept, dropped } = sweep(loaded, Date.now(), SESSION_TTL_MS);
-  for (const stored of kept) {
-    if (sessions.has(stored.id)) continue;
-    sessions.set(stored.id, restoreSession(stored));
-  }
-  if (dropped) markStoreDirty();
-  return true;
-}
-/**
- * The session lifecycle both servers need: restore before serving, then keep the
- * slid `at` written back. `server.ts` does this inline so it can also flush on
- * exit; the dev plugin calls this.
- */
-export async function startSessions(): Promise<boolean> {
-  const backed = await restoreSessions();
-  setInterval(async () => {
-    await flushSessions();
-  }, FLUSH_INTERVAL_MS);
-  return backed;
-}
-function getSession(id: string | null): Session | null {
-  if (!id) return null;
-  reapSessions();
-  const s = sessions.get(id);
-  if (!s) return null;
-  s.at = Date.now();
-  markStoreDirty();
-  return s;
 }
 function readCookie(req: Request, name: string): string | null {
   for (const part of (req.headers.get("cookie") || "").split(";")) {
@@ -371,58 +276,6 @@ function readCookie(req: Request, name: string): string | null {
     if (k === name) return decodeURIComponent(v.join("="));
   }
   return null;
-}
-async function requireSession(req: Request): Promise<Session> {
-  const id = readCookie(req, "ecap_sid");
-  const s = getSession(id);
-  if (!s)
-    throw new HttpError(401, "Your session expired. Please sign in again.");
-  if (!s.portal.signedIn) {
-    await forgetSession(id);
-    throw new HttpError(
-      401,
-      "Your ECAP session expired. Please sign in again."
-    );
-  }
-  return s;
-}
-/**
- * Re-establishes the portal session from the stored credential after ECAP drops
- * it. Throws 401 when there is no credential or the password no longer works.
- */
-async function reauthenticate(s: Session): Promise<void> {
-  if (!s.password)
-    throw new HttpError(
-      401,
-      "Your ECAP session expired. Please sign in again."
-    );
-  const portal = new Portal();
-  try {
-    await portal.signIn(s.userId, s.password);
-  } catch (error) {
-    throw error instanceof HttpError
-      ? error
-      : new HttpError(502, messageOf(error));
-  }
-  s.portal = portal;
-  markStoreDirty();
-  await flushSessions();
-}
-/**
- * Runs a portal operation, and if it 401s because ECAP dropped the session,
- * signs in again once and retries. A 502 stays `unknown` and is not retried.
- */
-async function withPortal<T>(
-  s: Session,
-  run: (portal: Portal) => Promise<T>
-): Promise<T> {
-  try {
-    return await run(s.portal);
-  } catch (error) {
-    if (!(error instanceof HttpError && error.status === 401)) throw error;
-    await reauthenticate(s);
-    return await run(s.portal);
-  }
 }
 export function json(
   body: unknown,
@@ -441,58 +294,218 @@ async function readJson<T>(req: Request): Promise<Partial<T>> {
     return {};
   }
 }
-/** Answers every `/api/*` request. Shared by `server.ts` (prod) and the Vite dev plugin. */
-export async function handleApi(req: Request): Promise<Response> {
-  const path = new URL(req.url).pathname;
-  try {
-    if (req.method === "POST" && path === "/api/login") {
-      const { userId, password } = await readJson<LoginRequest>(req);
-      if (!userId || !password)
-        throw new HttpError(400, "Enter your user name and password.");
-      reapSessions();
-      const portal = new Portal();
-      try {
-        await portal.signIn(String(userId), String(password));
-      } catch (error) {
-        throw error instanceof HttpError
-          ? error
-          : new HttpError(502, messageOf(error));
+/**
+ * Everything a signed-in call needs from ECAP: the jar the session is persisted
+ * from, the liveness question, and the reader the route handlers cross.
+ */
+export type PortalPort = CourseReader & {
+  readonly jar: CookieJar;
+  readonly signedIn: boolean;
+  readonly reader: PortalReader;
+  signIn: (userId: string, password: string) => Promise<void>;
+};
+type Session = {
+  at: number;
+  userId: string;
+  // Kept so a dead ECAP session can be re-established without asking again. It
+  // lives only in the OS vault. See ADR 0019.
+  password: string;
+  portal: PortalPort;
+};
+export type ApiOptions = {
+  /** Where sessions are kept. `bunSecrets()` is the real one; a test passes a fake. */
+  vault?: Secrets | null;
+  /** How to reach ECAP. `Portal` is the real one; a test passes a fake. */
+  connect?: () => PortalPort;
+};
+/**
+ * One process's sessions, over one vault and one way of reaching ECAP. Both are
+ * arguments rather than module state, which is what lets `test/api.spec.ts`
+ * drive the retry rules through `handleApi` without a credential vault.
+ */
+export function createApi({
+  vault = bunSecrets(),
+  connect = () => new Portal(),
+}: ApiOptions = {}) {
+  const sessions = new Map<string, Session>();
+  let storeDirty = false;
+  function markStoreDirty() {
+    storeDirty = true;
+  }
+  function dropSession(id: string | null): boolean {
+    if (!id) return false;
+    const removed = sessions.delete(id);
+    if (removed) markStoreDirty();
+    return removed;
+  }
+  function snapshotSessions(): StoredSession[] {
+    return [...sessions].map(([id, s]) => ({
+      id,
+      at: s.at,
+      userId: s.userId,
+      password: s.password,
+      cookies: [...s.portal.jar.entries],
+    }));
+  }
+  async function flushSessions(): Promise<void> {
+    if (!vault || !storeDirty) return;
+    const problem = await saveSessions(vault, snapshotSessions());
+    if (problem) {
+      console.error(`[sessions] ${problem}`);
+      return;
+    }
+    storeDirty = false;
+  }
+  async function forgetSession(id: string | null): Promise<void> {
+    if (dropSession(id)) await flushSessions();
+  }
+  function restoreSession(stored: StoredSession): Session {
+    const portal = connect();
+    for (const [name, value] of stored.cookies)
+      portal.jar.entries.set(name, value);
+    return {
+      at: stored.at,
+      userId: stored.userId,
+      password: stored.password ?? "",
+      portal,
+    };
+  }
+  function reapSessions() {
+    const now = Date.now();
+    let dropped = false;
+    for (const [id, s] of sessions) {
+      if (now - s.at > SESSION_TTL_MS) {
+        sessions.delete(id);
+        dropped = true;
       }
-      const id = crypto.randomUUID();
-      sessions.set(id, {
-        at: Date.now(),
-        userId: String(userId).trim(),
-        password: String(password),
-        portal,
-      });
-      markStoreDirty();
+    }
+    if (dropped) markStoreDirty();
+  }
+  /** Restores every session still inside the TTL, then answers whether a vault exists. */
+  async function restoreSessions(): Promise<boolean> {
+    if (!vault) return false;
+    const loaded = await loadSessions(vault);
+    const { kept, dropped } = sweep(loaded, Date.now(), SESSION_TTL_MS);
+    for (const stored of kept) {
+      if (sessions.has(stored.id)) continue;
+      sessions.set(stored.id, restoreSession(stored));
+    }
+    if (dropped) markStoreDirty();
+    return true;
+  }
+  /**
+   * The session lifecycle both servers need: restore before serving, then keep
+   * the slid `at` written back. `server.ts` does this inline so it can also
+   * flush on exit; the dev plugin calls this.
+   */
+  async function startSessions(): Promise<boolean> {
+    const backed = await restoreSessions();
+    setInterval(async () => {
       await flushSessions();
-      return json({ ok: true } satisfies OkReply, 200, refreshedCookie(id));
-    }
-    if (req.method === "POST" && path === "/api/logout") {
-      const id = readCookie(req, "ecap_sid");
+    }, FLUSH_INTERVAL_MS);
+    return backed;
+  }
+  function getSession(id: string | null): Session | null {
+    if (!id) return null;
+    reapSessions();
+    const s = sessions.get(id);
+    if (!s) return null;
+    s.at = Date.now();
+    markStoreDirty();
+    return s;
+  }
+  async function requireSession(req: Request): Promise<Session> {
+    const id = readCookie(req, "ecap_sid");
+    const s = getSession(id);
+    if (!s)
+      throw new HttpError(401, "Your session expired. Please sign in again.");
+    if (!s.portal.signedIn) {
       await forgetSession(id);
-      return json({ ok: true } satisfies OkReply, 200, {
-        "set-cookie": "ecap_sid=; Path=/; Max-Age=0",
-      });
+      throw new HttpError(
+        401,
+        "Your ECAP session expired. Please sign in again."
+      );
     }
-    if (path === "/api/session") {
-      const id = readCookie(req, "ecap_sid");
-      const s = getSession(id);
-      if (!s)
-        return json(
-          {
-            signedIn: false,
-            persisted: Boolean(vault),
-            userId: "",
-          } satisfies SessionReply,
-          200
-        );
-      if ((await liveness(s.portal)) === "dead") {
+    return s;
+  }
+  /**
+   * Re-establishes the portal session from the stored credential after ECAP
+   * drops it. Throws 401 when there is no credential or the password no longer
+   * works.
+   */
+  async function reauthenticate(s: Session): Promise<void> {
+    if (!s.password)
+      throw new HttpError(
+        401,
+        "Your ECAP session expired. Please sign in again."
+      );
+    const portal = connect();
+    try {
+      await portal.signIn(s.userId, s.password);
+    } catch (error) {
+      throw error instanceof HttpError
+        ? error
+        : new HttpError(502, messageOf(error));
+    }
+    s.portal = portal;
+    markStoreDirty();
+    await flushSessions();
+  }
+  /**
+   * Runs a portal operation, and if it 401s because ECAP dropped the session,
+   * signs in again once and retries. A 502 stays `unknown` and is not retried.
+   */
+  async function withPortal<T>(
+    s: Session,
+    run: (portal: PortalPort) => Promise<T>
+  ): Promise<T> {
+    try {
+      return await run(s.portal);
+    } catch (error) {
+      if (!(error instanceof HttpError && error.status === 401)) throw error;
+      await reauthenticate(s);
+      return await run(s.portal);
+    }
+  }
+  /** Answers every `/api/*` request. Shared by `server.ts` (prod) and the Vite dev plugin. */
+  async function handleApi(req: Request): Promise<Response> {
+    const path = new URL(req.url).pathname;
+    try {
+      if (req.method === "POST" && path === "/api/login") {
+        const { userId, password } = await readJson<LoginRequest>(req);
+        if (!userId || !password)
+          throw new HttpError(400, "Enter your user name and password.");
+        reapSessions();
+        const portal = connect();
         try {
-          await reauthenticate(s);
-        } catch {
-          await forgetSession(id);
+          await portal.signIn(String(userId), String(password));
+        } catch (error) {
+          throw error instanceof HttpError
+            ? error
+            : new HttpError(502, messageOf(error));
+        }
+        const id = crypto.randomUUID();
+        sessions.set(id, {
+          at: Date.now(),
+          userId: String(userId).trim(),
+          password: String(password),
+          portal,
+        });
+        markStoreDirty();
+        await flushSessions();
+        return json({ ok: true } satisfies OkReply, 200, refreshedCookie(id));
+      }
+      if (req.method === "POST" && path === "/api/logout") {
+        const id = readCookie(req, "ecap_sid");
+        await forgetSession(id);
+        return json({ ok: true } satisfies OkReply, 200, {
+          "set-cookie": "ecap_sid=; Path=/; Max-Age=0",
+        });
+      }
+      if (path === "/api/session") {
+        const id = readCookie(req, "ecap_sid");
+        const s = getSession(id);
+        if (!s)
           return json(
             {
               signedIn: false,
@@ -501,41 +514,59 @@ export async function handleApi(req: Request): Promise<Response> {
             } satisfies SessionReply,
             200
           );
+        if ((await liveness(s.portal)) === "dead") {
+          try {
+            await reauthenticate(s);
+          } catch {
+            await forgetSession(id);
+            return json(
+              {
+                signedIn: false,
+                persisted: Boolean(vault),
+                userId: "",
+              } satisfies SessionReply,
+              200
+            );
+          }
         }
+        return json(
+          {
+            signedIn: s.portal.signedIn,
+            persisted: Boolean(vault),
+            userId: s.userId,
+          } satisfies SessionReply,
+          200,
+          id ? refreshedCookie(id) : undefined
+        );
       }
+      const s = await requireSession(req);
+      const id = readCookie(req, "ecap_sid");
+      const cookie = id ? refreshedCookie(id) : undefined;
+      if (req.method === "POST" && path === "/api/options") {
+        const body = await readJson<OptionsRequest>(req);
+        return json(
+          await withPortal(s, (p) => handleOptions(p.reader, body)),
+          200,
+          cookie
+        );
+      }
+      if (req.method === "POST" && path === "/api/register") {
+        const body = await readJson<RegisterRequest>(req);
+        return json(
+          await withPortal(s, (p) => handleRegister(p.reader, body)),
+          200,
+          cookie
+        );
+      }
+      return json({ error: "Not found" } satisfies ErrorReply, 404);
+    } catch (error) {
+      const status = error instanceof HttpError ? error.status : 500;
+      if (status === 500) console.error("[error]", messageOf(error));
       return json(
-        {
-          signedIn: s.portal.signedIn,
-          persisted: Boolean(vault),
-          userId: s.userId,
-        } satisfies SessionReply,
-        200,
-        id ? refreshedCookie(id) : undefined
+        { error: messageOf(error) || "Something went wrong." },
+        status
       );
     }
-    const s = await requireSession(req);
-    const id = readCookie(req, "ecap_sid");
-    const cookie = id ? refreshedCookie(id) : undefined;
-    if (req.method === "POST" && path === "/api/options") {
-      const body = await readJson<OptionsRequest>(req);
-      return json(
-        await withPortal(s, (p) => handleOptions(p.reader, body)),
-        200,
-        cookie
-      );
-    }
-    if (req.method === "POST" && path === "/api/register") {
-      const body = await readJson<RegisterRequest>(req);
-      return json(
-        await withPortal(s, (p) => handleRegister(p.reader, body)),
-        200,
-        cookie
-      );
-    }
-    return json({ error: "Not found" } satisfies ErrorReply, 404);
-  } catch (error) {
-    const status = error instanceof HttpError ? error.status : 500;
-    if (status === 500) console.error("[error]", messageOf(error));
-    return json({ error: messageOf(error) || "Something went wrong." }, status);
   }
+  return { flushSessions, restoreSessions, startSessions, handleApi };
 }
