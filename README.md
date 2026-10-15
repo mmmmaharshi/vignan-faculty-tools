@@ -136,7 +136,7 @@ therefore a direct HTTPS request — about 3 seconds from a cold sign-in to a
 rendered 63-student register.
 
 There are two different remote-call conventions on that site, and using the wrong
-one returns an empty result with no error. Both are handled in `server.ts`.
+one returns an empty result with no error. Both are handled in `api.ts`.
 
 **A — dropdown fillers**, `POST /vignanit/jqmethods.aspx/<Method>`
 
@@ -188,7 +188,8 @@ url-encoded.
 ## Project layout
 
 ```
-server.ts             Bun HTTP server: routing, sessions, static files, SPA fallback, transport
+server.ts             Bun HTTP server: static files, routing to api.ts, and Bun.serve
+api.ts                the API: the portal, the sessions, and createApi()
 server-routes.ts      the two route handlers, over a PortalReader; no HTTP in it
 portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar
 portal-replies.ts     pure string -> data functions, and the seam guards
@@ -197,11 +198,11 @@ web/index.html        Vite entry point
 web/main.tsx          React root + MantineProvider
 web/App.tsx           state, the routes, and the refresh loop
 web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
-web/components/       five presentational modules; none of them holds state
+web/components/       six presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build, lint and format config (Vite+; Ultracite presets)
 playwright.config.ts  test runner config
-test/*.spec.ts        128 fast tests, no credentials; plus eleven live smoke tests
+test/*.spec.ts         the fast suite, no credentials; plus the live smoke tests
 tsconfig*.json        three projects, split so web/ has DOM and server.ts does not
 dist/                 build output, served by server.ts
 ```
@@ -221,23 +222,23 @@ anything with a decision in it lives in a file that can be imported without one.
   and carries on rather than either failing or leaving you with a dead dropdown.
   (IV Semester having exactly one section is a statement about count, not about
   emptiness — it was once mistaken for the latter here.)
-- The cascade populates itself: every level above the subject fills with its
-  first option and you override whatever you disagree with. The subject is always
-  left for you, because it decides which register loads, and the line above the
-  table names the register on screen.
+- The cascade populates itself: every level fills with its first option and you
+  override whatever you disagree with. The subject auto-fills to `All subjects`,
+  which leads the list, so you start on the whole section and narrow from there;
+  the line above the table names the register on screen.
 - One cookie jar per signed-in user, so two people can be signed in at once.
-- The thresholds are 75% and 60%, set once in `attendance-bands.ts` and sent to
+- The thresholds are 75% and 65%, set once in `attendance-bands.ts` and sent to
   the client in the summary, so the stat cards and the row flags cannot disagree.
   A percentage the portal would not give is in no band at all and is left out of
   the class average — a parsing failure is not evidence of bad attendance.
-- 128 fast tests with no credentials, and eleven end-to-end smoke tests against
-  the live portal. Every fast test was proven to fail by breaking the rule it
-  describes.
+- The fast suite needs no credentials and runs in seconds; `test/smoke.spec.ts`
+  is the only part that touches the live portal. Every fast test was proven to
+  fail by breaking the rule it describes.
 - **The selection is not in the URL.** The address bar names the screen and
   nothing else. A register cannot be sent as a link, and a refresh re-picks the
   cascade from the top. `Load register` is the only thing that fetches one. See
   ADR 0015 for what this replaced and what it cost.
-- If the portal changes its markup, the `Portal` methods in `server.ts` will need
+- If the portal changes its markup, the `Portal` methods in `api.ts` will need
   revisiting: the endpoint paths and the parameter names. Watch the labels
   especially — when the text `ShowAcademicCalendar` expects stops matching, the
   register comes back empty rather than erroring, and the 502 says so: either the

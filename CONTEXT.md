@@ -43,7 +43,7 @@ _Avoid_: Choice, entry, item
 
 **Calling convention**:
 The portal has two mutually incompatible ways of invoking a remote method, and
-using the wrong one returns an empty result with no error. See `server.ts`.
+using the wrong one returns an empty result with no error. See `api.ts`.
 _Avoid_: API, endpoint style
 
 ## Attendance
@@ -109,8 +109,9 @@ The flags on a row and the counts in the summary come from one pass in
 Exchanging an ECAP user name and password for a portal session, held as the
 `frmAuth` cookie. The password is used to sign in to ECAP and is kept in the OS
 credential vault (or, where `Bun.secrets` is absent, the gitignored plaintext dev
-file), so the app can sign in again when the portal's own session expires; it
-never reaches the browser and is never logged. See ADR 0019.
+file), so
+the app can sign in again when the portal's own session expires; it never reaches
+the browser and is never logged. See ADR 0019.
 _Avoid_: Login, authentication, auth
 
 **Session**:

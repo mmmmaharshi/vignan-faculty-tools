@@ -232,7 +232,7 @@ carries one also has its name in text.
 - **The portal is a client-side shell.** Its Academic Register page renders no
   dropdowns at all; the page's own JavaScript builds them by calling remote
   methods. There are two different calling conventions and using the wrong one
-  returns an empty result with no error. `server.ts` documents both.
+  returns an empty result with no error. `api.ts` documents both.
 - **The password is AES-encrypted client-side before it is posted**, as bare
   ciphertext — not the OpenSSL `Salted__` form stock CryptoJS produces. This
   portal's `JSFiles/jsaes.js` is a custom build, and a wrong ciphertext never
