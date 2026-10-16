@@ -703,7 +703,7 @@ test.describe("Vignan Faculty Tools", () => {
       `ecap_sid should last about 30 days, got ${days.toFixed(1)}`
     ).toBeGreaterThan(29);
     expect(days).toBeLessThan(31);
-    await page.getByLabel("Show only irregular students").click();
+    await page.getByLabel("All irregular students").click();
     await expect
       .poll(() => page.locator("tbody tr").count())
       .toBeLessThan(total);
@@ -713,9 +713,7 @@ test.describe("Vignan Faculty Tools", () => {
     await submitSignIn(page);
     await expect(page.locator("tbody tr")).toHaveCount(0);
     await loadFirstSubject(page);
-    await expect(
-      page.getByLabel("Show only irregular students")
-    ).not.toBeChecked();
+    await expect(page.getByLabel("All irregular students")).not.toBeChecked();
     await expect(page.locator("tbody tr")).toHaveCount(total);
   });
   test("a session that dies while you are working says so, and why", async ({

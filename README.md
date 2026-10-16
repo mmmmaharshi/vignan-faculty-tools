@@ -69,7 +69,7 @@ attendance, so the numbers read as a roster rather than as a ranking. Only
 **critical** rows are tinted — an irregular student is badged `low` beside their
 own percentage instead, because a class with a third of its roster irregular is a
 class with a third of its rows coloured, and then the colour stops meaning
-anything. Tick *Show only irregular students* to reduce the table to just the
+anything. Tick *All irregular students* to reduce the table to just the
 students you care about; that filtered table is a worklist rather than a roster,
 so it is sorted **lowest attendance first** — the student who most needs a
 check-in is the first one reached.

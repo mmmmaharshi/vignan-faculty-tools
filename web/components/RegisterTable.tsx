@@ -88,7 +88,7 @@ export const RegisterTable = ({
     <Paper withBorder p="lg">
       <Group gap="md" mb="sm">
         <Checkbox
-          label="Show only irregular students"
+          label="All irregular students"
           checked={filter.irregular}
           onChange={(e) => onToggleFilter("irregular", e.currentTarget.checked)}
         />

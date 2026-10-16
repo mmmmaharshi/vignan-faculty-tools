@@ -293,6 +293,11 @@ test.describe("the app's own data layer", () => {
     await page.getByLabel("Below 65%").click();
     await page.getByLabel("Below 75%").click();
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
+    // The irregular box reads bands, not figures: B and C are flagged.
+    await page.getByLabel("All irregular students").click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(2);
+    await page.getByLabel("All irregular students").click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
   });
   test("a subject register shows its own figures alone, table and panel", async ({
     page,
