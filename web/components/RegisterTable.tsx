@@ -49,24 +49,37 @@ export const FactsTable = ({
   facts,
 }: {
   facts: ChosenFact[];
-}): React.JSX.Element => (
-  <Table striped withTableBorder tabularNums>
-    <Table.Tbody>
-      {facts.map((fact) => (
-        <Table.Tr key={fact.label}>
-          <Table.Td c="dimmed">
-            <Text size="sm">{fact.label}</Text>
-          </Table.Td>
-          <Table.Td ta="right">
-            <Text size="sm" fw={600}>
-              {fact.value}
-            </Text>
-          </Table.Td>
-        </Table.Tr>
-      ))}
-    </Table.Tbody>
-  </Table>
-);
+}): React.JSX.Element => {
+  // Two facts per row, in order: course with semester, branch with section,
+  // subject with period. A dangling last fact keeps its row's shape with an
+  // empty cell beside it.
+  const rows: ChosenFact[][] = [];
+  for (const [i, fact] of facts.entries()) {
+    if (i % 2 === 0) rows.push([fact]);
+    else rows.at(-1)?.push(fact);
+  }
+  return (
+    <Table striped withTableBorder tabularNums>
+      <Table.Tbody>
+        {rows.map((row) => (
+          <Table.Tr key={row.map((fact) => fact.label).join("+")}>
+            {row.map((fact) => (
+              <Table.Td key={fact.label}>
+                <Text size="sm" c="dimmed">
+                  {fact.label}
+                </Text>
+                <Text size="sm" fw={600}>
+                  {fact.value}
+                </Text>
+              </Table.Td>
+            ))}
+            {row.length === 1 ? <Table.Td key="pad" /> : null}
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  );
+};
 const Figure = ({
   pct,
   weight,
