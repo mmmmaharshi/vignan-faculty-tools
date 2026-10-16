@@ -12,11 +12,7 @@ import {
   Title,
 } from "@mantine/core";
 
-import {
-  CRITICAL_BELOW,
-  IRREGULAR_BELOW,
-  overallCellForDisplay,
-} from "../../attendance-bands";
+import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../attendance-bands";
 import type { Student, StudentProfile } from "../../shared/api";
 import type { ChosenFact } from "../cascade";
 import type { Note } from "../types";
@@ -140,9 +136,7 @@ export const StudentDetails = ({
               to the all-subjects view. */}
           {student.pct != null ||
           student.attendedOfHeld !== "" ||
-          (overallMode &&
-            (student.overallPct != null ||
-              student.overallAttendedOfHeld !== "")) ? (
+          (overallMode && student.overallPct != null) ? (
             <Table striped withTableBorder tabularNums>
               <Table.Tbody>
                 {student.pct != null || student.attendedOfHeld !== "" ? (
@@ -157,12 +151,12 @@ export const StudentDetails = ({
                     )}
                   />
                 ) : null}
-                {overallMode &&
-                (student.overallPct != null ||
-                  student.overallAttendedOfHeld !== "") ? (
+                {/* The count lives in the table's Attended / Total column; the
+                    panel repeats only the figure and its band. */}
+                {overallMode && student.overallPct != null ? (
                   <FigureRow
                     label="Overall attendance"
-                    cell={overallCellForDisplay(student.overallAttendedOfHeld)}
+                    cell=""
                     pct={student.overallPct}
                     {...badgeFor(
                       student.overallCritical,
