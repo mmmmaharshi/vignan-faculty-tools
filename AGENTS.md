@@ -297,9 +297,9 @@ carries one also has its name in text.
   report is read *inside* that one request, so the smoke test that counts
   `/api/register` POSTs on the wire is unchanged by all of this.
 
-- **A student's GPA and phone numbers are a third Portal screen, read once per
-  open.** The register states neither, so `Show Details` asks `/api/student` for
-  that one roll number, through the `StudentProfile` proxy and
+- **A student's GPA, semesters and phone numbers are a third Portal screen, read
+  once per open.** The register states none of them, so `Show Details` asks
+  `/api/student` for that one roll number, through the `StudentProfile` proxy and
   `ShowStudentProfileNew`. **It is the one method here that wants
   `_session=rw`**, not `no` — the wrong marker is a bare
   `NullReferenceException` with no parameter name in it — so the marker is a
@@ -314,6 +314,14 @@ carries one also has its name in text.
   it is read the same way the attendance columns are — never recomputed from the
   credits. A student with no past semesters has the page's `NA`, which is not a
   zero, so the line stays with `NA` on it rather than being dropped.
+
+- **An SGPA is read by its column, never as its row's last cell.** The page
+  states one SGPA per past semester, on the row beginning `Grade`, in the column
+  its own header calls `SGPA` — and the Portal **never closes that row**, so the
+  row a reader finds there carries the Credit row's cells too and its last cell is
+  `16/19`. Last-cell reading prints the credit total where `5.61` belongs, which
+  is why `sgpaBySemester` locates the column first; the semester name comes from
+  the `Semester` span above that table, not from the last span on the page.
 
 - **A saved class is a Subject in a Section: five values, and no Portal call.**
   `Save this class` writes them; a card above the class form fills the five

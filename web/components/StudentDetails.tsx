@@ -81,7 +81,9 @@ export const StudentDetails = ({
   const cgpa = profile?.cgpa ?? "";
   const credits = profile?.credits ?? "";
   const cgpaPercent = profile?.cgpaPercent ?? "";
-  const hasGpa = Boolean(cgpa || credits);
+  const sgpa = profile?.sgpa ?? [];
+  const cgpaShown = Boolean(cgpa || credits);
+  const hasGpa = cgpaShown || sgpa.length > 0;
   return (
     <Drawer
       opened={student !== null}
@@ -157,19 +159,36 @@ export const StudentDetails = ({
             </Text>
           ) : null}
           {/* The GPA is ECAP's own line, printed as it stands: a student with no
-              past semesters has the page's "NA", which is not a zero. */}
+              past semesters has the page's "NA", which is not a zero. The
+              semesters under it are the page's own SGPAs, one line each, in the
+              order the page states them — cumulative figures, so they share the
+              heading and are never added up. */}
           {hasGpa ? (
             <>
               <Text c="dimmed" size="xs" tt="uppercase">
                 GPA
               </Text>
-              <Group gap="sm">
-                <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
-                {credits ? <Text size="sm">{`Credits ${credits}`}</Text> : null}
-                {cgpaPercent ? (
-                  <Text size="sm">{`${cgpaPercent}%`}</Text>
-                ) : null}
-              </Group>
+              {cgpaShown ? (
+                <Group gap="sm">
+                  <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
+                  {credits ? (
+                    <Text size="sm">{`Credits ${credits}`}</Text>
+                  ) : null}
+                  {cgpaPercent ? (
+                    <Text size="sm">{`${cgpaPercent}%`}</Text>
+                  ) : null}
+                </Group>
+              ) : null}
+              {sgpa.map((semester) => (
+                <Group gap="xs" justify="space-between" key={semester.semester}>
+                  <Text c="dimmed" size="sm">
+                    {semester.semester}
+                  </Text>
+                  <Text fw={600} size="sm">
+                    {semester.value}
+                  </Text>
+                </Group>
+              ))}
             </>
           ) : null}
           {phones.length ? (

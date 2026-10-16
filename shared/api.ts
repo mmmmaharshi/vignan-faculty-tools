@@ -79,6 +79,12 @@ export interface StudentPhone {
   label: string;
   number: string;
 }
+/** One semester the Portal states an SGPA for, under the Portal's own label
+ *  ("I Semester"). */
+export interface StudentSgpa {
+  semester: string;
+  value: string;
+}
 /**
  * What ECAP's StudentProfile page states about one student. Read, never
  * computed: `cgpaPercent` is the figure the page prints beside the CGPA, and a
@@ -89,6 +95,7 @@ export interface StudentProfile {
   cgpa: string;
   credits: string;
   cgpaPercent: string;
+  sgpa: StudentSgpa[];
   phones: StudentPhone[];
 }
 export interface StudentRequest {

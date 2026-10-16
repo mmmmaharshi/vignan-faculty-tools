@@ -17,10 +17,11 @@ The Portal does have those fields. They are on a third screen, the Student
 Profile page, behind its own proxy — `ShowStudentProfileNew(RollNo,
 isImageDisplay)` on `StudentProfile,App_Web_studentprofile.aspx`, with
 `_session=rw`. It answers for **one roll number at a time**, and the page it
-returns is the student's whole bio-data: personal details, parent details,
-guardian details, and a GPA line with the Portal's own credits and percentage
-beside it. A live session confirmed all three figures for real students, which is
-what made this decision possible at all.
+returns is the student's whole academic record: personal details, parent
+details, guardian details, a GPA line with the Portal's own credits and
+percentage beside it, and above that line a **per-semester grid** whose own
+header names an `SGPA` column. A live session confirmed all of it for real
+students, which is what made this decision possible at all.
 
 So the question was not whether the data exists, but **when to ask for it**. Two
 shapes were available:
@@ -58,9 +59,15 @@ never with the register.
   told apart.
 - A number the page left blank is dropped rather than shown empty, and one number
   under two labels is one line.
+- **The semester figure is read by its column, not by its row.** The page states
+  one SGPA per past semester, on the row beginning `Grade`, in the column its own
+  header calls `SGPA` — and that row is never closed in the Portal's markup, so
+  the row a reader finds there carries the next row's cells too. Its *last* cell
+  is the credit total (`16/19`), and taking it would print that where `5.61`
+  belongs. The column index is the only thing that makes the number right.
 - **Nothing is computed.** The percentage beside the CGPA is the Portal's own
-  figure, exactly as the attendance columns are, and the CGPA is not derived from
-  the credits.
+  figure, exactly as the attendance columns are, and neither the CGPA nor an SGPA
+  is derived from the credits or from each other.
 - A 401 still means the session is gone, so the panel does not invent its own
   expiry rule; a 502 shows in the panel and signs nobody out.
 
@@ -76,6 +83,10 @@ never with the register.
 - **The panel's second half arrives after its first.** The attendance figures
   come from the row already on screen, so they never wait; the GPA and numbers
   show a reading line until they land.
+- **The GPA section is the page's own summary, not a tally of semesters.** It
+  prints the CGPA line and then one line per semester the page states an SGPA for,
+  in the page's order; a student with no past semesters has none, which is why the
+  empty sentence asks for *no* GPA rather than a zero.
 - **A slower read cannot land under the wrong name.** The open row carries a
   token, the way `refreshToken` does for a register load, so a reply for a panel
   that has been closed or replaced is dropped.

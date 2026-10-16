@@ -618,6 +618,17 @@ test.describe("Vignan Faculty Tools", () => {
       /\bCGPA\b/.test(stated) || /states no GPA or phone number/.test(stated),
       `the profile should have been read; the panel said: ${stated}`
     ).toBe(true);
+    /* The semesters under the CGPA come from the page's own per-semester grid —
+     * a second table, read by its own SGPA column. A student whose CGPA is a
+     * number has a past semester and so has a line here; NA is the page's answer
+     * for one who has none, and then there is no grid to read. */
+    const cgpa = /\bCGPA (?<cgpa>\S+)/.exec(stated)?.groups?.cgpa ?? "";
+    if (cgpa && cgpa !== "NA") {
+      expect(
+        /semester/i.test(stated),
+        `a stated CGPA implies a semester SGPA; the panel said: ${stated}`
+      ).toBe(true);
+    }
     await page.keyboard.press("Escape");
     await expect(panel).toBeHidden();
     expect(

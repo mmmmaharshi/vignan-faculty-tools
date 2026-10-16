@@ -539,6 +539,7 @@ test.describe("the student profile handler", () => {
       cgpa: "",
       credits: "",
       cgpaPercent: "",
+      sgpa: [],
       phones: [],
     });
   });

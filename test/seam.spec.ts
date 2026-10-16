@@ -131,6 +131,11 @@ test.describe("portal replies", () => {
     expect(parseClassAttendance("")).toEqual([]);
   });
 });
+/** The per-semester grid, copied from the same response, **unclosed `Grade` row
+ *  and all**: the Portal writes `<tr>Grade…<tr>Credits…</tr></tr>`, so the row a
+ *  reader finds as "Grade" carries the Credit row's cells too, and its last cell
+ *  is 16/19 rather than the SGPA. */
+const SEMESTER_I = `<span class='reportHeading2' align='left'>I Semester</span><table width='100%' cellspacing='0' cellpadding='2' border='0'><tr class='reportHeading2WithBackground'><td>&nbsp;</td><td align='center'>LAC</td><td align='center'>EP</td><td align='center'>Com.Eng</td><td align='center'>BCME</td><td align='center'>EG</td><td align='center'>NNSCCS</td><td align='center'>EPL</td><td align='center'>CEL</td><td align='center'>EWS</td><td align='center'>ITWS</td><td align='center'>SGPA</td></tr><tr><td class='cellBorder' align='center'><b>Grade</b></td><td class='cellBorder' align='center' style='color:Blue '>E</td><td class='cellBorder' align='center' style='color:Red '>F</td><td class='cellBorder' align='center' style='color:Blue '>C</td><td class='cellBorder' align='center' style='color:Blue '>C</td><td class='cellBorder' align='center' style='color:Blue '>E</td><td class='cellBorder' align='center' style='color:Blue '>A</td><td class='cellBorder' style='color:Blue' align='center'>B</td><td class='cellBorder' style='color:Blue' align='center'>B</td><td class='cellBorder' style='color:Blue' align='center'>B</td><td class='cellBorder' style='color:Blue' align='center'>A</td><td class='cellBorder' align='center' >5.61</td><tr><td class='cellBorder' align='center'><b>Credits</b></td><td class='cellBorder'  align='center' >3.0</td><td class='cellBorder' style='color:Red' align='center' ></td><td class='cellBorder'  align='center' >2.0</td><td class='cellBorder'  align='center' >3.0</td><td class='cellBorder'  align='center' >3.0</td><td class='cellBorder'  align='center' >0.5</td><td class='cellBorder'  align='center'>1.0</td><td class='cellBorder'  align='center'>1.0</td><td class='cellBorder'  align='center'>1.5</td><td class='cellBorder'  align='center'>1.0</td><td class='cellBorder' align='center'>16/19</td></tr></tr></table>`;
 /** ECAP's StudentProfile page, trimmed to the rows this app reads, with the two
  *  numbers it filled and the four it left blank kept as they are. */
 const BIO_DATA = `<div id='tblReport'><h1 >BIO-DATA</h1><div id='divProfile_BioData'><table width='100%' cellspacing='0' cellpadding='2'>
@@ -143,18 +148,42 @@ const BIO_DATA = `<div id='tblReport'><h1 >BIO-DATA</h1><div id='divProfile_BioD
 <tr><td align='right' class='cellBorder'>Mother Mobile.No</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td><td align='right' class='cellBorder'>Annual Income</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'>60000</td></tr>
 <tr><td colspan='6' align='left' class='reportHeading2WithBackground'>Guardian Details</td></tr>
 <tr><td align='right' class='cellBorder'>Phone</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td><td align='right' class='cellBorder'>Mobile</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td></tr>
-</table></div><h1>PERFORMANCE (Past)</h1><center><span style='text-align:center;width:100%' class='reportHeading2'>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
+</table></div><h1>PERFORMANCE (Past)</h1>${SEMESTER_I}<center><span style='text-align:center;width:100%' class='reportHeading2'>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
 test.describe("the student profile page", () => {
   test("reads the GPA line it states, and every number it filled", () => {
     expect(parseStudentProfile(BIO_DATA)).toEqual({
       cgpa: "5.61",
       credits: "16/19",
       cgpaPercent: "48.55",
+      sgpa: [{ semester: "I Semester", value: "5.61" }],
       phones: [
         { label: "Mobile.No", number: "7661864881" },
         { label: "Father Mobile.No", number: "8790011786" },
       ],
     });
+  });
+  test("the SGPA is its column's, not the row's last cell", () => {
+    // The trap the fixture keeps: on the real page the Grade row is unclosed, so
+    // its last cell is the Credit total. Reading by column index is the only
+    // reason 5.61 comes back instead of 16/19.
+    const html = `<div id='divProfile_BioData'></div>${SEMESTER_I.replaceAll(
+      ">5.61<",
+      ">7.77<"
+    ).replaceAll(">16/19<", ">99/99<")}`;
+    expect(parseStudentProfile(html)?.sgpa).toEqual([
+      { semester: "I Semester", value: "7.77" },
+    ]);
+  });
+  test("one entry per semester, named by the span above its own table", () => {
+    const second = SEMESTER_I.replace("I Semester", "II Semester").replace(
+      ">5.61<",
+      ">6.20<"
+    );
+    const html = `<div id='divProfile_BioData'></div>${SEMESTER_I}${second}`;
+    expect(parseStudentProfile(html)?.sgpa).toEqual([
+      { semester: "I Semester", value: "5.61" },
+      { semester: "II Semester", value: "6.20" },
+    ]);
   });
   test("a blank number is left out rather than printed empty", () => {
     // Guardian's Phone and Mobile are both blank on the real page, and the real
@@ -174,6 +203,7 @@ test.describe("the student profile page", () => {
       cgpa: "8.34",
       credits: "20.5/20.5",
       cgpaPercent: "75.91",
+      sgpa: [],
       phones: [{ label: "Phone.No", number: "6300113013" }],
     });
   });
@@ -183,6 +213,7 @@ test.describe("the student profile page", () => {
       cgpa: "NA",
       credits: "0/0",
       cgpaPercent: "",
+      sgpa: [],
       phones: [{ label: "Mobile.No", number: "9182979977" }],
     });
   });

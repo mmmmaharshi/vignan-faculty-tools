@@ -1,5 +1,10 @@
 import type { RegisterRow } from "./attendance-bands";
-import type { Option, StudentPhone, StudentProfile } from "./shared/api";
+import type {
+  Option,
+  StudentPhone,
+  StudentProfile,
+  StudentSgpa,
+} from "./shared/api";
 
 export type { RegisterRow } from "./attendance-bands";
 export class HttpError extends Error {
@@ -65,6 +70,12 @@ const PHONE_LABEL = /(?:phone|mobile)/i;
 /** The page's own summary line: "CGPA: 5.61   Credits:16/19    48.55 %". */
 const GPA_LINE =
   /CGPA:\s*(?<cgpa>\S+)\s+Credits:\s*(?<credits>\S+)(?:\s+(?<pct>[\d.]+)\s*%)?/;
+/** The per-semester grid: the header names its own SGPA column, the value sits
+ *  on the row beginning "Grade", and the semester is named by the span above the
+ *  table. */
+const SGPA_HEADER = /^sgpa$/i;
+const GRADE_ROW = /^grade$/i;
+const SEMESTER_SPAN = /<span[^>]*>(?<semester>[^<]*semester[^<]*)<\/span>/gi;
 const ATTRIBUTE_VALUE = /value\s*=\s*"(?<v>[^"]*)"/i;
 const ATTRIBUTE = {
   value: {
@@ -113,6 +124,8 @@ function cellText(html: string): string {
     .replaceAll(WHITESPACE, " ")
     .trim();
 }
+const cellsOf = (row: string): string[] =>
+  [...row.matchAll(CELL)].map((m) => cellText(m.groups?.cell ?? ""));
 export function parseRegister(html: string): RegisterRow[] {
   let table: string | null = null;
   for (const t of html.match(TABLE) ?? []) {
@@ -125,9 +138,7 @@ export function parseRegister(html: string): RegisterRow[] {
   if (!table) return [];
   const rows: RegisterRow[] = [];
   for (const tr of (table.match(ROW) ?? []).slice(1)) {
-    const cells = [...tr.matchAll(CELL)].map((m) =>
-      cellText(m.groups?.cell ?? "")
-    );
+    const cells = cellsOf(tr);
     if (cells.length < 4) continue;
     const roll = cells[1] ?? "";
     if (!roll) continue;
@@ -166,9 +177,7 @@ export function parseClassAttendance(html: string): OverallRow[] {
   }
   if (!table) return rows;
   for (const tr of table.match(ROW) ?? []) {
-    const cells = [...tr.matchAll(CELL)].map((m) =>
-      cellText(m.groups?.cell ?? "")
-    );
+    const cells = cellsOf(tr);
     if (cells.length < 4) continue;
     const sl = cells[0] ?? "";
     const roll = cells[1] ?? "";
@@ -186,11 +195,39 @@ export function parseClassAttendance(html: string): OverallRow[] {
   return rows;
 }
 /**
- * One student's GPA and phone numbers, out of ECAP's StudentProfile page. The
- * page is a label/separator/value grid — "Mobile.No", ":", "7661864881" — so
- * every row is read the same way, and the labels are ECAP's own. A phone the
- * page left blank is dropped rather than printed as an empty line, and a number
- * reaching the page under two labels is one number, not two.
+ * The SGPA the page states per semester: one table per semester, its SGPA column
+ * named in that table's own header, its value on the row beginning "Grade", the
+ * semester named by the span above the table.
+ *
+ * The value is read **by the header's column index**, not as the row's last cell,
+ * because the Portal's markup never closes the Grade row: a last cell there is the
+ * next row's total, which would print 16/19 where 5.61 belongs.
+ */
+function sgpaBySemester(html: string): StudentSgpa[] {
+  const out: StudentSgpa[] = [];
+  for (const table of html.matchAll(TABLE)) {
+    const rows = (table[0].match(ROW) ?? []).map(cellsOf);
+    const header = rows.find((cells) => cells.some((c) => SGPA_HEADER.test(c)));
+    if (!header) continue;
+    const column = header.findIndex((c) => SGPA_HEADER.test(c));
+    const grade = rows.find((cells) => GRADE_ROW.test(cells[0] ?? ""));
+    const value = grade?.[column] ?? "";
+    if (!value) continue;
+    let semester = "";
+    for (const span of html.slice(0, table.index).matchAll(SEMESTER_SPAN)) {
+      semester = span.groups?.semester?.trim() ?? semester;
+    }
+    out.push({ semester, value });
+  }
+  return out;
+}
+/**
+ * One student's GPA, semesters and phone numbers, out of ECAP's StudentProfile
+ * page. The page is a label/separator/value grid — "Mobile.No", ":",
+ * "7661864881" — so every row of it is read the same way, and the labels are
+ * ECAP's own. A phone the page left blank is dropped rather than printed as an
+ * empty line, and a number reaching the page under two labels is one number, not
+ * two.
  *
  * `null` when the reply is not that page: the caller turns it into a 502, which
  * is a different thing from a student whose GPA the page states as NA.
@@ -200,9 +237,7 @@ export function parseStudentProfile(html: string): StudentProfile | null {
   const phones: StudentPhone[] = [];
   const seen = new Set<string>();
   for (const tr of html.match(ROW) ?? []) {
-    const cells = [...tr.matchAll(CELL)].map((m) =>
-      cellText(m.groups?.cell ?? "")
-    );
+    const cells = cellsOf(tr);
     for (let i = 0; i + 1 < cells.length; i++) {
       const label = cells[i] ?? "";
       const number = cells[i + 2] ?? "";
@@ -217,6 +252,7 @@ export function parseStudentProfile(html: string): StudentProfile | null {
     cgpa: gpa?.groups?.cgpa ?? "",
     credits: gpa?.groups?.credits ?? "",
     cgpaPercent: gpa?.groups?.pct ?? "",
+    sgpa: sgpaBySemester(html),
     phones,
   };
 }
