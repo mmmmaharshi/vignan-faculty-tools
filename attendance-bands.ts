@@ -64,7 +64,7 @@ export function summarise(
   rows: readonly RegisterRow[],
   range: { from: string; to: string },
   overall: OverallLookup = new Map(),
-  workingDays: number | null = null
+  classesHeld: number | null = null
 ): { students: Student[]; summary: RegisterReply["summary"] } {
   const students: Student[] = [];
   let irregular = 0;
@@ -104,7 +104,7 @@ export function summarise(
       overallIrregular,
       overallCritical,
       range,
-      workingDays,
+      classesHeld,
     },
   };
 }

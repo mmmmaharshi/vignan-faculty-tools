@@ -47,7 +47,7 @@ const optionsFor = (request: OptionsRequest): OptionsReply => ({
     : [],
   emptyLevels: [],
 });
-const registerReply = (workingDays: number | null): RegisterReply => ({
+const registerReply = (classesHeld: number | null): RegisterReply => ({
   students: [
     {
       sl: "1",
@@ -100,7 +100,7 @@ const registerReply = (workingDays: number | null): RegisterReply => ({
     overallIrregular: 2,
     overallCritical: 1,
     range: { from: "01/07/2026", to: "16/10/2026" },
-    workingDays,
+    classesHeld,
   },
 });
 /** What ECAP states for one student. The roll that has nothing is the one the
@@ -322,12 +322,12 @@ test.describe("the app's own data layer", () => {
       "the range carries the calendar-day frame"
     ).toBeVisible();
     await expect(
-      page.getByRole("row", { name: "Working Days 6 days" }),
-      "the working figure is the register grid's own"
+      page.getByRole("row", { name: "Classes Held 6 days" }),
+      "the held figure is the register grid's own"
     ).toBeVisible();
     await expect(
-      page.getByRole("row", { name: "Holidays 102 days" }),
-      "holidays are the frame minus the register's own count"
+      page.getByRole("row", { name: "Days Without Class 102 days" }),
+      "days without class are the frame minus the register's own count"
     ).toBeVisible();
     await page
       .getByRole("button", { name: "Show details for B student" })

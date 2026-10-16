@@ -67,7 +67,7 @@ const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
 /** The Data Range tail for a fixed selection and range, varying only the
  *  register's own class-day count: the range fact, then working days, then
  *  holidays — or the bare range where the Portal stated no count. */
-const dataRangeTail = (workingDays?: number | null): ChosenFact[] => {
+const dataRangeTail = (classesHeld?: number | null): ChosenFact[] => {
   const facts = chosenFacts(
     reply({
       course: ["1"],
@@ -84,7 +84,7 @@ const dataRangeTail = (workingDays?: number | null): ChosenFact[] => {
       subject: "6",
     }),
     { from: "01/10/2026", to: "16/10/2026" },
-    workingDays
+    classesHeld
   );
   return facts.slice(
     facts.findIndex((fact) => fact.label.startsWith("Data Range"))
@@ -321,13 +321,13 @@ test.describe("the register, before it is sent", () => {
     // so 10 are holidays by complement. Only the working figure is read.
     expect(dataRangeTail(6)).toEqual([
       { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
-      { label: "Working Days", value: "6 days" },
-      { label: "Holidays", value: "10 days" },
+      { label: "Classes Held", value: "6 days" },
+      { label: "Days Without Class", value: "10 days" },
     ]);
     expect(dataRangeTail(1)).toEqual([
       { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
-      { label: "Working Days", value: "1 day" },
-      { label: "Holidays", value: "15 days" },
+      { label: "Classes Held", value: "1 day" },
+      { label: "Days Without Class", value: "15 days" },
     ]);
     expect(dataRangeTail(null)).toEqual([
       { label: "Data Range", value: "01/10/2026 to 16/10/2026" },

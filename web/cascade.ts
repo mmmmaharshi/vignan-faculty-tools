@@ -457,7 +457,7 @@ export function chosenFacts(
   opts: OptionsReply,
   sel: Sel,
   range?: Range,
-  workingDays?: number | null
+  classesHeld?: number | null
 ): ChosenFact[] {
   const facts = LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
@@ -465,33 +465,34 @@ export function chosenFacts(
   });
   // The period is part of naming the register: the card above it and
   // a student's panel state the same facts, so it is written once here. The
-  // day count is the register's own — never calendar arithmetic — and travels
-  // beside the Data Range label only where the Portal stated it.
+  // classes-held count is the register's own — never calendar arithmetic —
+  // and travels beside the Data Range label only where the Portal stated it.
   if (facts.length && range?.from) {
     const total = calendarDays(range.from, range.to);
-    if (workingDays == null || total == null) {
+    if (classesHeld == null || total == null) {
       facts.push({
         label: "Data Range",
         value: `${range.from} to ${range.to}`,
       });
     } else {
-      // Total and holidays ARE calendar arithmetic by definition: the frame,
-      // and the frame minus the Portal's own working days. Only the working
-      // figure is read; the other two are its complement, stated as such.
+      // Total and days-without-class ARE calendar arithmetic by definition:
+      // the frame, and the frame minus the Portal's own classes-held count.
+      // Only the held figure is read; the other two are its complement,
+      // stated as such.
       facts.push(
         {
           label: `Data Range (${total} ${dayWord(total)})`,
           value: `${range.from} to ${range.to}`,
         },
         {
-          label: "Working Days",
-          value: `${workingDays} ${dayWord(workingDays)}`,
+          label: "Classes Held",
+          value: `${classesHeld} ${dayWord(classesHeld)}`,
         }
       );
-      const holidays = total - workingDays;
+      const withoutClass = total - classesHeld;
       facts.push({
-        label: "Holidays",
-        value: `${holidays} ${dayWord(holidays)}`,
+        label: "Days Without Class",
+        value: `${withoutClass} ${dayWord(withoutClass)}`,
       });
     }
   }

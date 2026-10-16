@@ -72,7 +72,7 @@ export interface RegisterReply {
      *  columns — the Portal's count, holidays absent by construction. Null on
      *  the All subjects path, whose report aggregates by subject and states
      *  no dates, and wherever the grid states none. */
-    workingDays: number | null;
+    classesHeld: number | null;
   };
 }
 export interface ErrorReply {
