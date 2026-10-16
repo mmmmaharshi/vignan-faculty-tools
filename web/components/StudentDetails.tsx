@@ -6,6 +6,7 @@ import {
   Group,
   Loader,
   Stack,
+  Table,
   Text,
   Title,
 } from "@mantine/core";
@@ -49,27 +50,33 @@ type FigureProps = {
   badge: string;
   color: string;
 };
-const Figure = ({
+const FigureRow = ({
   label,
   cell,
   pct,
   badge,
   color,
 }: FigureProps): React.JSX.Element => (
-  <>
-    <Text c="dimmed" size="xs" tt="uppercase">
-      {label}
-    </Text>
-    <Group gap="xs">
-      <Text fw={600}>{cell}</Text>
-      <Text fw={700}>{pct == null ? "—" : `${pct.toFixed(2)}%`}</Text>
-      {badge && (
-        <Badge color={color} size="sm" variant="light">
-          {badge}
-        </Badge>
-      )}
-    </Group>
-  </>
+  <Table.Tr>
+    <Table.Td c="dimmed">
+      <Text size="sm">{label}</Text>
+    </Table.Td>
+    <Table.Td ta="right">
+      <Group gap={6} justify="flex-end" wrap="nowrap">
+        <Text size="sm" fw={600}>
+          {cell}
+        </Text>
+        <Text size="sm" fw={700}>
+          {pct == null ? "—" : `${pct.toFixed(2)}%`}
+        </Text>
+        {badge && (
+          <Badge color={color} size="sm" variant="light">
+            {badge}
+          </Badge>
+        )}
+      </Group>
+    </Table.Td>
+  </Table.Tr>
 );
 /**
  * One student: the register row that was clicked, with the band each of its two
@@ -121,28 +128,37 @@ export const StudentDetails = ({
           </div>
           <Divider />
           {/* A figure the Portal did not give is an absence, not a zero, so its
-              line is left out rather than printed as a dash — the rule the table
+              row is left out rather than printed as a dash — the rule the table
               already follows for a class report that failed. */}
-          {student.pct != null || student.attendedOfHeld !== "" ? (
-            <Figure
-              label="Subject attendance"
-              cell={student.attendedOfHeld}
-              pct={student.pct}
-              {...badgeFor(student.critical, student.irregular, "yellow")}
-            />
-          ) : null}
-          {student.overallPct != null ||
+          {student.pct != null ||
+          student.attendedOfHeld !== "" ||
+          student.overallPct != null ||
           student.overallAttendedOfHeld !== "" ? (
-            <Figure
-              label="Overall attendance"
-              cell={overallCellForDisplay(student.overallAttendedOfHeld)}
-              pct={student.overallPct}
-              {...badgeFor(
-                student.overallCritical,
-                student.overallIrregular,
-                "orange"
-              )}
-            />
+            <Table striped withTableBorder tabularNums>
+              <Table.Tbody>
+                {student.pct != null || student.attendedOfHeld !== "" ? (
+                  <FigureRow
+                    label="Subject attendance"
+                    cell={student.attendedOfHeld}
+                    pct={student.pct}
+                    {...badgeFor(student.critical, student.irregular, "yellow")}
+                  />
+                ) : null}
+                {student.overallPct != null ||
+                student.overallAttendedOfHeld !== "" ? (
+                  <FigureRow
+                    label="Overall attendance"
+                    cell={overallCellForDisplay(student.overallAttendedOfHeld)}
+                    pct={student.overallPct}
+                    {...badgeFor(
+                      student.overallCritical,
+                      student.overallIrregular,
+                      "orange"
+                    )}
+                  />
+                ) : null}
+              </Table.Tbody>
+            </Table>
           ) : null}
           {/* Both figures are badged here where the table badges the subject
               alone: two badges on one table row is noise, but two labelled lines
@@ -179,44 +195,62 @@ export const StudentDetails = ({
               <Text c="dimmed" size="xs" tt="uppercase">
                 GPA
               </Text>
-              {cgpaShown ? (
-                <Group gap="sm">
-                  <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
-                  {credits ? (
-                    <Text size="sm">{`Credits ${credits}`}</Text>
+              <Table striped withTableBorder tabularNums>
+                <Table.Tbody>
+                  {cgpaShown ? (
+                    <Table.Tr>
+                      <Table.Td colSpan={2}>
+                        <Group gap="sm">
+                          <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
+                          {credits ? (
+                            <Text size="sm">{`Credits ${credits}`}</Text>
+                          ) : null}
+                          {cgpaPercent ? (
+                            <Text size="sm">{`${cgpaPercent}%`}</Text>
+                          ) : null}
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
                   ) : null}
-                  {cgpaPercent ? (
-                    <Text size="sm">{`${cgpaPercent}%`}</Text>
-                  ) : null}
-                </Group>
-              ) : null}
-              {sgpa.map((semester) => (
-                <Group gap="xs" justify="space-between" key={semester.semester}>
-                  <Text c="dimmed" size="sm">
-                    {semester.semester}
-                  </Text>
-                  <Text fw={600} size="sm">
-                    {semester.value}
-                  </Text>
-                </Group>
-              ))}
+                  {sgpa.map((semester) => (
+                    <Table.Tr key={semester.semester}>
+                      <Table.Td c="dimmed">
+                        <Text size="sm">{semester.semester}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Text size="sm" fw={600}>
+                          {semester.value}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
             </>
           ) : null}
           {phones.length ? (
-            <Text c="dimmed" size="xs" tt="uppercase">
-              Phone numbers
-            </Text>
+            <>
+              <Text c="dimmed" size="xs" tt="uppercase">
+                Phone numbers
+              </Text>
+              <Table striped withTableBorder tabularNums>
+                <Table.Tbody>
+                  {phones.map((phone) => (
+                    <Table.Tr key={phone.number}>
+                      <Table.Td c="dimmed">
+                        <Text size="sm">{phone.label}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Text ff="monospace" size="sm">
+                          {phone.number}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </>
           ) : null}
-          {phones.map((phone) => (
-            <Group key={phone.number} gap="xs" justify="space-between">
-              <Text c="dimmed" size="sm">
-                {phone.label}
-              </Text>
-              <Text ff="monospace" size="sm">
-                {phone.number}
-              </Text>
-            </Group>
-          ))}
           {chosenText ? (
             <>
               <Divider />
