@@ -606,6 +606,18 @@ test.describe("Vignan Faculty Tools", () => {
      * correct feature and is not one. */
     await expect(panel).toContainText(name);
     await expect(panel).toContainText(pct);
+    /* The rest of the panel is ECAP's StudentProfile page, one request for this
+     * one student. It always settles: either the GPA and numbers it states, or
+     * the sentence saying it states none. What must not happen is the spinner
+     * still turning, which is what a request that never comes back looks like.
+     * A CGPA of NA is the page's own answer for a student with no past
+     * semesters, so only the heading is required, not a number. */
+    await expect(panel).not.toContainText(/reading this student's profile/i);
+    const stated = await panel.innerText();
+    expect(
+      /\bCGPA\b/.test(stated) || /states no GPA or phone number/.test(stated),
+      `the profile should have been read; the panel said: ${stated}`
+    ).toBe(true);
     await page.keyboard.press("Escape");
     await expect(panel).toBeHidden();
     expect(

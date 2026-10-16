@@ -73,6 +73,27 @@ export interface RegisterReply {
 export interface ErrorReply {
   error: string;
 }
+/** One of the numbers ECAP's StudentProfile page states, under ECAP's own label
+ *  ("Mobile.No", "Father Mobile.No"). */
+export interface StudentPhone {
+  label: string;
+  number: string;
+}
+/**
+ * What ECAP's StudentProfile page states about one student. Read, never
+ * computed: `cgpaPercent` is the figure the page prints beside the CGPA, and a
+ * student with no past semesters has the page's own "NA" for a CGPA. Anything
+ * the page left blank is an empty string, which the panel renders as nothing.
+ */
+export interface StudentProfile {
+  cgpa: string;
+  credits: string;
+  cgpaPercent: string;
+  phones: StudentPhone[];
+}
+export interface StudentRequest {
+  roll: string;
+}
 export interface OptionsRequest {
   course?: string;
   semester?: string;

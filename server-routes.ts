@@ -6,6 +6,7 @@ import {
   level,
   parseClassAttendance,
   parseRegister,
+  parseStudentProfile,
   realOptions,
 } from "./portal-replies";
 import type { OverallRow } from "./portal-replies";
@@ -17,6 +18,8 @@ import type {
   OptionsRequest,
   RegisterReply,
   RegisterRequest,
+  StudentProfile,
+  StudentRequest,
 } from "./shared/api";
 
 type Level = CascadeLevel;
@@ -40,6 +43,8 @@ export type PortalReader = {
   classAttendance: (
     p: Record<Level, Option> & { from: string; to: string }
   ) => Promise<string>;
+  /** The StudentProfile page's markup for one roll number. */
+  studentProfile: (roll: string) => Promise<string>;
 };
 export async function handleOptions(
   portal: PortalReader,
@@ -170,4 +175,24 @@ export async function handleRegister(
   }
   const { byRoll } = await readOverall(portal, { ...p, from, to });
   return summarise(rows, range, byRoll);
+}
+/**
+ * One student's GPA and phone numbers, read on demand when their row is opened.
+ * The register states neither, so this is the one place the Portal is asked
+ * about a single student.
+ */
+export async function handleStudentProfile(
+  portal: PortalReader,
+  b: Partial<StudentRequest>
+): Promise<StudentProfile> {
+  const roll = b.roll?.trim();
+  if (!roll) throw new HttpError(400, "Choose a student.");
+  const profile = parseStudentProfile(await portal.studentProfile(roll));
+  if (!profile) {
+    throw new HttpError(
+      502,
+      "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
+    );
+  }
+  return profile;
 }

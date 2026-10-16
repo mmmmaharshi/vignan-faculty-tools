@@ -29,6 +29,8 @@ import type {
   RegisterRequest,
   SessionReply,
   Student,
+  StudentProfile,
+  StudentRequest,
 } from "../shared/api";
 import {
   abbreviate,
@@ -113,6 +115,11 @@ const App = (): React.JSX.Element => {
   /** The row whose panel is open. Held here, not in the table, because the table
    *  is a presentational module with no state of its own. */
   const [detail, setDetail] = useState<Student | null>(null);
+  /** The open student's GPA and phone numbers, which the register does not hold
+   *  and ECAP answers one roll number at a time. */
+  const [profile, setProfile] = useState<StudentProfile | null>(null);
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileNote, setProfileNote] = useState<Note | null>(null);
   /** Every subject name this session has been offered, by section and value.
    *
    *  The Portal answers subjects one section at a time, so on a cold load a card
@@ -146,6 +153,9 @@ const App = (): React.JSX.Element => {
   optsRef.current = opts;
   /* oxlint-enable react/refs */
   const refreshToken = useRef(0);
+  /** The same rule for the open student's profile: only the newest open may
+   *  write to the panel. */
+  const detailToken = useRef(0);
   /** The saved classes, read only for the user who is signed in. Stored values
    *  are the previous session's until the name proves whose they are. */
   const savedList = saved?.userId === userId && userId ? saved.list : null;
@@ -171,7 +181,11 @@ const App = (): React.JSX.Element => {
       setOpts(EMPTY_OPTS);
       setResult(null);
       setOnlyIrregular(false);
+      detailToken.current += 1;
       setDetail(null);
+      setProfile(null);
+      setProfileBusy(false);
+      setProfileNote(null);
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
@@ -239,6 +253,47 @@ const App = (): React.JSX.Element => {
     // A range that produced a register is one worth opening at again.
     rememberRangeStart(range.from);
   }, [fetchRegister, opts, range, sel]);
+  /** Opening a row shows the panel and reads the one thing the register does not
+   *  state: the student's GPA and phone numbers. A reply that arrives after the
+   *  panel has been closed or replaced is dropped, the rule `refreshToken`
+   *  already follows — a slower read of the previous student must not land under
+   *  the next student's name. */
+  const showDetails = useCallback(
+    async (student: Student) => {
+      setDetail(student);
+      setProfile(null);
+      setProfileNote(null);
+      setProfileBusy(true);
+      const token = ++detailToken.current;
+      try {
+        const request: StudentRequest = { roll: student.roll };
+        const body = await api<StudentProfile>("/api/student", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(request),
+        });
+        if (token !== detailToken.current) return;
+        setProfile(body);
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 401) {
+          signedOut("Your session expired. Please sign in again.");
+          return;
+        }
+        if (token !== detailToken.current) return;
+        setProfileNote({
+          kind: "error",
+          text: error instanceof Error ? error.message : String(error),
+        });
+      } finally {
+        if (token === detailToken.current) setProfileBusy(false);
+      }
+    },
+    [signedOut]
+  );
+  const hideDetails = useCallback(() => {
+    detailToken.current += 1;
+    setDetail(null);
+  }, []);
   const runRefresh = useCallback(
     async (changed: Level | null, arriving?: Sel) => {
       const token = ++refreshToken.current;
@@ -537,15 +592,18 @@ const App = (): React.JSX.Element => {
               summary={summary}
               onlyIrregular={onlyIrregular}
               onToggleIrregular={setOnlyIrregular}
-              onShowDetails={setDetail}
+              onShowDetails={showDetails}
               chosenText={registerName}
               overallMode={overallMode}
             />
           ) : null}
           <StudentDetails
             student={detail}
-            onClose={() => setDetail(null)}
+            onClose={hideDetails}
             chosenText={registerName}
+            profile={profile}
+            busy={profileBusy}
+            note={profileNote}
           />
         </>
       );

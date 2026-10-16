@@ -103,6 +103,30 @@ The flags on a row and the counts in the summary come from one pass in
 `summarise`, so they cannot disagree. See
 `docs/adr/0006-give-the-attendance-bands-a-module.md`.
 
+## The student
+
+**Student details**:
+The panel a register row opens: that row's own figures, then the GPA and phone
+numbers ECAP states for the one student. The figures are the row already on
+screen; the GPA and numbers are one Portal call for that roll number, made when
+the panel opens rather than with the register, because the Portal answers for one
+student at a time. Not the same thing as **Profile**, which is the rail's screen
+about the signed-in user's own session. See
+`docs/adr/0018-read-a-students-profile-when-the-panel-opens.md`.
+_Avoid_: Profile page, student profile, sidebar
+
+**GPA**:
+The Portal's own line for one student — `CGPA: 5.61   Credits:16/19   48.55 %` —
+printed as written. `NA` is the Portal's answer for a student with no past
+semesters, and it is not a zero. Nothing here is computed from the credits.
+_Avoid_: Marks, grade, score
+
+**Phone numbers**:
+The numbers the Portal's StudentProfile page filled in for a student, under the
+Portal's own labels (`Mobile.No`, `Father Mobile.No`). A label it left blank is
+not shown at all, because a blank field is not a number the app knows.
+_Avoid_: Contact, guardian details
+
 ## Identity
 
 **Sign-in**:

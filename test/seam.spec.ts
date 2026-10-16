@@ -6,6 +6,7 @@ import {
   options,
   parseClassAttendance,
   parseRegister,
+  parseStudentProfile,
   realOptions,
   unquoteJs,
 } from "../portal-replies";
@@ -128,5 +129,66 @@ test.describe("portal replies", () => {
       parseClassAttendance("<table><tr><th>Subject</th></tr></table>")
     ).toEqual([]);
     expect(parseClassAttendance("")).toEqual([]);
+  });
+});
+/** ECAP's StudentProfile page, trimmed to the rows this app reads, with the two
+ *  numbers it filled and the four it left blank kept as they are. */
+const BIO_DATA = `<div id='tblReport'><h1 >BIO-DATA</h1><div id='divProfile_BioData'><table width='100%' cellspacing='0' cellpadding='2'>
+<tr><td colspan='6' align='left' class='reportHeading2WithBackground'>Personal Details</td></tr>
+<tr><td align='right' class='cellBorder'>RollNo</td><td class='cellBorder'>:</td><td align='left' colspan='3' class='cellBorder'>24L31A0393</td><td valign='top' rowspan='4' class='cellBorder'><img src='http://webprosindia.com/vignanit/images/imgna.gif' height='100' width='100'/></td></tr>
+<tr><td align='right' class='cellBorder'>Name</td><td class='cellBorder'>:</td><td align='left' colspan='3' class='cellBorder'>MALLADI DHEERAJ</td></tr>
+<tr><td align='right' class='cellBorder'>Phone.No</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td><td align='right' class='cellBorder'>Mobile.No</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'>7661864881</td></tr>
+<tr><td colspan='6' align='left' class='reportHeading2WithBackground'>Parent Details</td></tr>
+<tr><td align='right' class='cellBorder'>Phone.No</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td><td align='right' class='cellBorder'>Father Mobile.No</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'>8790011786</td></tr>
+<tr><td align='right' class='cellBorder'>Mother Mobile.No</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td><td align='right' class='cellBorder'>Annual Income</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'>60000</td></tr>
+<tr><td colspan='6' align='left' class='reportHeading2WithBackground'>Guardian Details</td></tr>
+<tr><td align='right' class='cellBorder'>Phone</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td><td align='right' class='cellBorder'>Mobile</td><td class='cellBorder'>:</td><td align='left' class='cellBorder'></td></tr>
+</table></div><h1>PERFORMANCE (Past)</h1><center><span style='text-align:center;width:100%' class='reportHeading2'>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
+test.describe("the student profile page", () => {
+  test("reads the GPA line it states, and every number it filled", () => {
+    expect(parseStudentProfile(BIO_DATA)).toEqual({
+      cgpa: "5.61",
+      credits: "16/19",
+      cgpaPercent: "48.55",
+      phones: [
+        { label: "Mobile.No", number: "7661864881" },
+        { label: "Father Mobile.No", number: "8790011786" },
+      ],
+    });
+  });
+  test("a blank number is left out rather than printed empty", () => {
+    // Guardian's Phone and Mobile are both blank on the real page, and the real
+    // Personal Phone.No is blank too: neither becomes an entry.
+    const labels = (parseStudentProfile(BIO_DATA)?.phones ?? []).map(
+      (p) => p.label
+    );
+    expect(labels).not.toContain("Phone");
+    expect(labels).not.toContain("Mobile");
+    expect(labels).not.toContain("Mother Mobile.No");
+  });
+  test("one number under two labels is one number, not two lines", () => {
+    const html = `<div id='divProfile_BioData'><table><tr>
+<td>Phone.No</td><td>:</td><td>6300113013</td>
+<td>Mobile.No</td><td>:</td><td>6300113013</td></tr></table>CGPA: 8.34 Credits:20.5/20.5 75.91 %</div>`;
+    expect(parseStudentProfile(html)).toEqual({
+      cgpa: "8.34",
+      credits: "20.5/20.5",
+      cgpaPercent: "75.91",
+      phones: [{ label: "Phone.No", number: "6300113013" }],
+    });
+  });
+  test("a student with no past semesters keeps the page's own NA, and no percentage", () => {
+    const html = `<div id='divProfile_BioData'><table><tr><td>Mobile.No</td><td>:</td><td>9182979977</td></tr></table>CGPA:&nbsp;NA&nbsp;&nbsp;Credits:0/0</div>`;
+    expect(parseStudentProfile(html)).toEqual({
+      cgpa: "NA",
+      credits: "0/0",
+      cgpaPercent: "",
+      phones: [{ label: "Mobile.No", number: "9182979977" }],
+    });
+  });
+  test("a reply that is not that page is told apart from one with nothing in it", () => {
+    expect(parseStudentProfile(LOGIN_PAGE)).toBeNull();
+    expect(parseStudentProfile("<p>nothing here</p>")).toBeNull();
+    expect(parseStudentProfile("")).toBeNull();
   });
 });

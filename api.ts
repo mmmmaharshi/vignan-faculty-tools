@@ -17,7 +17,11 @@ import {
   options,
   unquoteJs,
 } from "./portal-replies";
-import { handleOptions, handleRegister } from "./server-routes";
+import {
+  handleOptions,
+  handleRegister,
+  handleStudentProfile,
+} from "./server-routes";
 import type { PortalReader } from "./server-routes";
 import { bunSecrets, loadSessions, saveSessions, sweep } from "./session-store";
 import type { Secrets, StoredSession } from "./session-store";
@@ -30,6 +34,7 @@ import type {
   OptionsRequest,
   RegisterRequest,
   SessionReply,
+  StudentRequest,
 } from "./shared/api";
 
 type Level = CascadeLevel;
@@ -43,6 +48,10 @@ const REGISTER_PAGE_URL = `${BASE}/vignanit/ACADEMICS/AcademicRegister.aspx?scri
 const REGISTER_PROXY = `${BASE}/vignanit/ajax/Academics_AcademicRegister,App_Web_academicregister.aspx.a2a1b31c.ashx`;
 const CLASS_PAGE_URL = `${BASE}/vignanit/ACADEMICS/rptstudentsattendance.aspx?scrid=319`;
 const CLASS_PROXY = `${BASE}/vignanit/ajax/Academics_rptstudentsattendance,App_Web_rptstudentsattendance.aspx.a2a1b31c.ashx`;
+/** One student's GPA and phone numbers. Its own proxy, and the one method here
+ *  that wants the `rw` session marker rather than `no` — the wrong marker is a
+ *  bare NullReferenceException with no parameter name in it. */
+const PROFILE_PROXY = `${BASE}/vignanit/ajax/StudentProfile,App_Web_studentprofile.aspx.a2a1b31c.ashx`;
 const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
@@ -158,12 +167,12 @@ class Portal {
     return reply.d;
   }
   async #webMethod(
-    remote: { proxy: string; referer: string },
+    remote: { proxy: string; referer: string; session: "no" | "r" | "rw" },
     name: string,
     pairs: [string, string | number][]
   ): Promise<string> {
     const res = await this.#request(
-      `${remote.proxy}?_method=${name}&_session=no`,
+      `${remote.proxy}?_method=${name}&_session=${remote.session}`,
       {
         method: "POST",
         headers: {
@@ -236,7 +245,7 @@ class Portal {
   ): Promise<Option[]> {
     return options(
       await this.#webMethod(
-        { proxy: REGISTER_PROXY, referer: REGISTER_PAGE_URL },
+        { proxy: REGISTER_PROXY, referer: REGISTER_PAGE_URL, session: "no" },
         "FillSubjects",
         [
           ["CourseId", courseId],
@@ -250,7 +259,7 @@ class Portal {
     p: Record<Level, Option> & { from: string; to: string }
   ): Promise<string> {
     return this.#webMethod(
-      { proxy: REGISTER_PROXY, referer: REGISTER_PAGE_URL },
+      { proxy: REGISTER_PROXY, referer: REGISTER_PAGE_URL, session: "no" },
       "ShowAcademicCalendar",
       calendarPairs(p)
     );
@@ -259,9 +268,22 @@ class Portal {
     p: Record<Level, Option> & { from: string; to: string }
   ): Promise<string> {
     return this.#webMethod(
-      { proxy: CLASS_PROXY, referer: CLASS_PAGE_URL },
+      { proxy: CLASS_PROXY, referer: CLASS_PAGE_URL, session: "no" },
       "ShowAllAttendance",
       classPairs(p)
+    );
+  }
+  /** The register page is this method's referer because that is the referer the
+   *  Portal accepted it from when it was proved against a live session — the
+   *  StudentProfile page itself was never tried, so there is no reason to move. */
+  studentProfile(roll: string): Promise<string> {
+    return this.#webMethod(
+      { proxy: PROFILE_PROXY, referer: REGISTER_PAGE_URL, session: "rw" },
+      "ShowStudentProfileNew",
+      [
+        ["RollNo", roll],
+        ["isImageDisplay", "true"],
+      ]
     );
   }
 }
@@ -545,6 +567,14 @@ export function createApi({
         const body = await readJson<RegisterRequest>(req);
         return json(
           await withPortal(s, (p) => handleRegister(p.reader, body)),
+          200,
+          cookie
+        );
+      }
+      if (req.method === "POST" && path === "/api/student") {
+        const body = await readJson<StudentRequest>(req);
+        return json(
+          await withPortal(s, (p) => handleStudentProfile(p.reader, body)),
           200,
           cookie
         );

@@ -1,7 +1,12 @@
 import { test, expect } from "@playwright/test";
 
 import { HttpError } from "../portal-replies";
-import { handleOptions, handleRegister, requireLevels } from "../server-routes";
+import {
+  handleOptions,
+  handleRegister,
+  handleStudentProfile,
+  requireLevels,
+} from "../server-routes";
 import type { PortalReader } from "../server-routes";
 import type { Option, RegisterRequest } from "../shared/api";
 import { ALL_SUBJECTS } from "../shared/api";
@@ -26,6 +31,7 @@ type Calls = {
   subjects: [string, string, string][];
   register: (RegisterRequest & Record<string, unknown>)[];
   classAttendance: (RegisterRequest & Record<string, unknown>)[];
+  studentProfile: string[];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
@@ -45,6 +51,11 @@ const classGrid = (rows: [string, string, string][]): string =>
       .join("")}
   </table>`;
 const ONE_CLASS_ROW = classGrid([["21CS001", "381\\481", "79.21"]]);
+/** Enough of the StudentProfile page for the handler: parsing is covered where
+ *  the parser is, over the real page. */
+const PROFILE_PAGE = `<div id='divProfile_BioData'><table>
+<tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
+<center><span>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
 const fake = (
   answers: {
     course?: Option[];
@@ -55,6 +66,7 @@ const fake = (
     register?: string;
     classAttendance?: string;
     classFails?: boolean;
+    studentProfile?: string;
   } = {}
 ): { reader: PortalReader; calls: Calls } => {
   const calls: Calls = {
@@ -64,6 +76,7 @@ const fake = (
     subjects: [],
     register: [],
     classAttendance: [],
+    studentProfile: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -97,6 +110,10 @@ const fake = (
         return Promise.reject(new HttpError(502, "class report unavailable"));
       }
       return resolved(answers.classAttendance ?? ONE_CLASS_ROW);
+    },
+    studentProfile: (roll) => {
+      calls.studentProfile.push(roll);
+      return resolved(answers.studentProfile ?? PROFILE_PAGE);
     },
   };
   return { reader, calls };
@@ -484,6 +501,57 @@ test.describe("all subjects", () => {
     await expect(
       handleRegister(reader, levels({ subject: ALL }))
     ).rejects.toThrow(/class/i);
+  });
+});
+test.describe("the student profile handler", () => {
+  test("one student's GPA and numbers, read by roll number", async () => {
+    const { reader, calls } = fake();
+    const reply = await handleStudentProfile(reader, { roll: "21CS001" });
+    expect(calls.studentProfile).toEqual(["21CS001"]);
+    expect(reply.cgpa).toBe("5.61");
+    expect(reply.credits).toBe("16/19");
+    expect(reply.cgpaPercent).toBe("48.55");
+    expect(reply.phones).toEqual([
+      { label: "Mobile.No", number: "7661864881" },
+    ]);
+  });
+  test("no roll number is refused before the portal is asked", async () => {
+    const { reader, calls } = fake();
+    await expect(handleStudentProfile(reader, { roll: "  " })).rejects.toThrow(
+      "Choose a student."
+    );
+    expect(calls.studentProfile).toEqual([]);
+  });
+  test("a reply that is not the profile page is a 502, not an empty panel", async () => {
+    const { reader } = fake({ studentProfile: "<p>nothing here</p>" });
+    const failure = await handleStudentProfile(reader, {
+      roll: "21CS001",
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(502);
+  });
+  test("a student whose profile states nothing is a reply, not a failure", async () => {
+    const { reader } = fake({
+      studentProfile: "<div id='divProfile_BioData'><table></table></div>",
+    });
+    const reply = await handleStudentProfile(reader, { roll: "21CS001" });
+    expect(reply).toEqual({
+      cgpa: "",
+      credits: "",
+      cgpaPercent: "",
+      phones: [],
+    });
+  });
+  test("a dead session stays a 401, so the client signs out", async () => {
+    const { reader } = fake();
+    const dead: PortalReader = {
+      ...reader,
+      studentProfile: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleStudentProfile(dead, { roll: "21CS001" }).catch(
+      (error: unknown) => error
+    );
+    expect((failure as HttpError).status).toBe(401);
   });
 });
 test.describe("the levels a register needs", () => {

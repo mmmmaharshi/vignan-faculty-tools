@@ -1,5 +1,5 @@
 import type { RegisterRow } from "./attendance-bands";
-import type { Option } from "./shared/api";
+import type { Option, StudentPhone, StudentProfile } from "./shared/api";
 
 export type { RegisterRow } from "./attendance-bands";
 export class HttpError extends Error {
@@ -56,6 +56,15 @@ const ROLL_HEADER = /roll\s*\.?\s*no/i;
 const ROW = /<tr[\s\S]*?<\/tr>/gi;
 const CELL = /<t[dh]\b[^>]*>(?<cell>[\s\S]*?)<\/t[dh]>/gi;
 const INPUT = /<input[^>]*>/gi;
+/** The container ECAP's StudentProfile page opens its BIO-DATA with. Its absence
+ *  means the reply is not that page at all, which is a different failure from a
+ *  student whose GPA the page left blank. */
+const BIO_DATA = "divProfile_BioData";
+const SEPARATOR = ":";
+const PHONE_LABEL = /(?:phone|mobile)/i;
+/** The page's own summary line: "CGPA: 5.61   Credits:16/19    48.55 %". */
+const GPA_LINE =
+  /CGPA:\s*(?<cgpa>\S+)\s+Credits:\s*(?<credits>\S+)(?:\s+(?<pct>[\d.]+)\s*%)?/;
 const ATTRIBUTE_VALUE = /value\s*=\s*"(?<v>[^"]*)"/i;
 const ATTRIBUTE = {
   value: {
@@ -175,6 +184,41 @@ export function parseClassAttendance(html: string): OverallRow[] {
     });
   }
   return rows;
+}
+/**
+ * One student's GPA and phone numbers, out of ECAP's StudentProfile page. The
+ * page is a label/separator/value grid — "Mobile.No", ":", "7661864881" — so
+ * every row is read the same way, and the labels are ECAP's own. A phone the
+ * page left blank is dropped rather than printed as an empty line, and a number
+ * reaching the page under two labels is one number, not two.
+ *
+ * `null` when the reply is not that page: the caller turns it into a 502, which
+ * is a different thing from a student whose GPA the page states as NA.
+ */
+export function parseStudentProfile(html: string): StudentProfile | null {
+  if (!html.includes(BIO_DATA)) return null;
+  const phones: StudentPhone[] = [];
+  const seen = new Set<string>();
+  for (const tr of html.match(ROW) ?? []) {
+    const cells = [...tr.matchAll(CELL)].map((m) =>
+      cellText(m.groups?.cell ?? "")
+    );
+    for (let i = 0; i + 1 < cells.length; i++) {
+      const label = cells[i] ?? "";
+      const number = cells[i + 2] ?? "";
+      if (cells[i + 1] !== SEPARATOR) continue;
+      if (!PHONE_LABEL.test(label) || !number || seen.has(number)) continue;
+      seen.add(number);
+      phones.push({ label, number });
+    }
+  }
+  const gpa = GPA_LINE.exec(cellText(html));
+  return {
+    cgpa: gpa?.groups?.cgpa ?? "",
+    credits: gpa?.groups?.credits ?? "",
+    cgpaPercent: gpa?.groups?.pct ?? "",
+    phones,
+  };
 }
 export function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(INPUT) ?? []) {

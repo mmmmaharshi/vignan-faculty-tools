@@ -297,6 +297,24 @@ carries one also has its name in text.
   report is read *inside* that one request, so the smoke test that counts
   `/api/register` POSTs on the wire is unchanged by all of this.
 
+- **A student's GPA and phone numbers are a third Portal screen, read once per
+  open.** The register states neither, so `Show Details` asks `/api/student` for
+  that one roll number, through the `StudentProfile` proxy and
+  `ShowStudentProfileNew`. **It is the one method here that wants
+  `_session=rw`**, not `no` — the wrong marker is a bare
+  `NullReferenceException` with no parameter name in it — so the marker is a
+  field of the remote rather than a constant inside `#webMethod`. It is not read
+  with the register: that would be one Portal call per row, on load.
+  `parseStudentProfile` anchors on `divProfile_BioData`, so a reply without it is
+  a 502, while a student whose page states `CGPA: NA` and no numbers is an answer
+  the panel states in words.
+
+- **The GPA is the Portal's own line, printed as it stands.** `CGPA: 5.61
+  Credits:16/19 48.55 %` is one sentence on the page, and the percentage beside
+  it is read the same way the attendance columns are — never recomputed from the
+  credits. A student with no past semesters has the page's `NA`, which is not a
+  zero, so the line stays with `NA` on it rather than being dropped.
+
 - **A saved class is a Subject in a Section: five values, and no Portal call.**
   `Save this class` writes them; a card above the class form fills the five
   dropdowns and nothing else. There is no dashboard and no per-subject fetch —
