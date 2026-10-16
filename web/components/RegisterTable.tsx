@@ -187,7 +187,7 @@ export const RegisterTable = ({
                   {showOverall && (
                     <Table.Th ta="right">Overall Attendance %</Table.Th>
                   )}
-                  <Table.Th>Details</Table.Th>
+                  <Table.Th ta="center">Details</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -245,7 +245,7 @@ export const RegisterTable = ({
                         )}
                       </Table.Td>
                     )}
-                    <Table.Td>
+                    <Table.Td ta="center">
                       <Button
                         variant="subtle"
                         size="compact-xs"
