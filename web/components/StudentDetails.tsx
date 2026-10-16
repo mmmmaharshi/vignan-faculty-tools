@@ -200,14 +200,16 @@ export const StudentDetails = ({
                   {cgpaShown ? (
                     <Table.Tr>
                       <Table.Td colSpan={2}>
-                        <Group gap="sm">
+                        <Group gap="sm" justify="space-between">
                           <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
-                          {credits ? (
-                            <Text size="sm">{`Credits ${credits}`}</Text>
-                          ) : null}
-                          {cgpaPercent ? (
-                            <Text size="sm">{`${cgpaPercent}%`}</Text>
-                          ) : null}
+                          <Group gap="sm">
+                            {credits ? (
+                              <Text size="sm">{`Credits ${credits}`}</Text>
+                            ) : null}
+                            {cgpaPercent ? (
+                              <Text size="sm">{`${cgpaPercent}%`}</Text>
+                            ) : null}
+                          </Group>
                         </Group>
                       </Table.Td>
                     </Table.Tr>
