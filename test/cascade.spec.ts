@@ -64,10 +64,10 @@ const nothing = reply({
 });
 /** The old single-checkbox filter, spelled in the new shape. */
 const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
-/** The Data Range tail for a fixed selection and range, varying only the
+/** The Date Range tail for a fixed selection and range, varying only the
  *  register's own class-day count: the range fact, then working days, then
  *  holidays — or the bare range where the Portal stated no count. */
-const dataRangeTail = (classesHeld?: number | null): ChosenFact[] => {
+const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
   const facts = chosenFacts(
     reply({
       course: ["1"],
@@ -87,7 +87,7 @@ const dataRangeTail = (classesHeld?: number | null): ChosenFact[] => {
     classesHeld
   );
   return facts.slice(
-    facts.findIndex((fact) => fact.label.startsWith("Data Range"))
+    facts.findIndex((fact) => fact.label.startsWith("Date Range"))
   );
 };
 /** The reply for a selection the Portal agrees with: every level offered. */
@@ -313,27 +313,27 @@ test.describe("the register, before it is sent", () => {
       { label: "Branch", value: "L4" },
       { label: "Section", value: "L5" },
       { label: "Subject", value: "L6" },
-      { label: "Data Range", value: "01/10/2026 to 16/10/2026" },
+      { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
     ]);
   });
-  test("the data range carries the register's own class-day count", () => {
+  test("the date range carries the register's own class-day count", () => {
     // 01/10 to 16/10 is 16 calendar days; the register states 6 class days,
     // so 10 are holidays by complement. Only the working figure is read.
-    expect(dataRangeTail(6)).toEqual([
-      { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
+    expect(dateRangeTail(6)).toEqual([
+      { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
       { label: "Classes Held", value: "6 classes" },
       { label: "Days Without Class", value: "10 days" },
     ]);
-    expect(dataRangeTail(1)).toEqual([
-      { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
+    expect(dateRangeTail(1)).toEqual([
+      { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
       { label: "Classes Held", value: "1 class" },
       { label: "Days Without Class", value: "15 days" },
     ]);
-    expect(dataRangeTail(null)).toEqual([
-      { label: "Data Range", value: "01/10/2026 to 16/10/2026" },
+    expect(dateRangeTail(null)).toEqual([
+      { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
     ]);
-    expect(dataRangeTail(undefined)).toEqual([
-      { label: "Data Range", value: "01/10/2026 to 16/10/2026" },
+    expect(dateRangeTail(undefined)).toEqual([
+      { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
     ]);
   });
 });

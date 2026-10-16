@@ -266,7 +266,7 @@ test.describe("the app's own data layer", () => {
       "the card names the register it shows"
     ).toBeVisible();
     await expect(
-      page.getByRole("row", { name: "Data Range 01/07/2026 to 16/10/2026" })
+      page.getByRole("row", { name: "Date Range 01/07/2026 to 16/10/2026" })
     ).toBeVisible();
     // The section-wide report states no dates, so its range carries no count.
     await expect(page.getByText("days)")).toHaveCount(0);
@@ -317,7 +317,7 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("row", {
-        name: "Data Range (108 days) 01/07/2026 to 16/10/2026",
+        name: "Date Range (108 days) 01/07/2026 to 16/10/2026",
       }),
       "the range carries the calendar-day frame"
     ).toBeVisible();

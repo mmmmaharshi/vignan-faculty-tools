@@ -467,12 +467,12 @@ export function chosenFacts(
   // The period is part of naming the register: the card above it and
   // a student's panel state the same facts, so it is written once here. The
   // classes-held count is the register's own — never calendar arithmetic —
-  // and travels beside the Data Range label only where the Portal stated it.
+  // and travels beside the Date Range label only where the Portal stated it.
   if (facts.length && range?.from) {
     const total = calendarDays(range.from, range.to);
     if (classesHeld == null || total == null) {
       facts.push({
-        label: "Data Range",
+        label: "Date Range",
         value: `${range.from} to ${range.to}`,
       });
     } else {
@@ -482,7 +482,7 @@ export function chosenFacts(
       // stated as such.
       facts.push(
         {
-          label: `Data Range (${total} ${dayWord(total)})`,
+          label: `Date Range (${total} ${dayWord(total)})`,
           value: `${range.from} to ${range.to}`,
         },
         {
