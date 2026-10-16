@@ -11,8 +11,16 @@ import {
 
 import { overallCellForDisplay } from "../../attendance-bands";
 import type { RegisterReply, Student } from "../../shared/api";
-import { tintFor, emptyRegisterText, isFiltering } from "../cascade";
-import type { ChosenFact, RowFilter } from "../cascade";
+import type { ChosenFact } from "../cascade";
+import {
+  badgeFor,
+  FIGURE_STYLE,
+  tintFor,
+  emptyRegisterText,
+  isFiltering,
+} from "../worklist";
+import type { FigureKind, RowFilter } from "../worklist";
+import { FactsTable } from "./FactsTable";
 
 type RegisterTableProps = {
   rows: Student[];
@@ -27,72 +35,11 @@ type RegisterTableProps = {
    *  because a subject was either chosen or not; two names for it could disagree. */
   overallMode?: boolean;
 };
-/** Which figure a percentage is: the subject's own, or the section-wide overall.
- *  The two differ in emphasis — the subject figure reads heavier, and its low
- *  badge is yellow where the overall's is orange — so that pairing lives here,
- *  in one map, instead of as literals at every call site. */
-export type FigureKind = "subject" | "overall";
-const FIGURE_STYLE = {
-  subject: { weight: 700, low: "yellow" },
-  overall: { weight: 600, low: "orange" },
-} as const;
-/** The overall badge is orange where the subject one is yellow, so a row
- *  badged on one and not the other is readable at a glance. Exported because a
- *  student's own panel badges the same two figures and must say the same words. */
-export const badgeFor = (
-  critical: boolean,
-  irregular: boolean,
-  kind: FigureKind
-): { badge: string; color: string } => {
-  if (critical) return { badge: "critical", color: "red" };
-  if (irregular) return { badge: "low", color: FIGURE_STYLE[kind].low };
-  return { badge: "", color: "red" };
-};
 type CellProps = {
   pct: number;
   kind: FigureKind;
   critical: boolean;
   irregular: boolean;
-};
-/** The register's own naming — course through period, one fact per row. Shared
- *  by the card above the register and a student's panel, so the two cannot
- *  disagree about which register is on screen; exported for the same reason as
- *  `badgeFor`. It stays headless on purpose: the specs count register rows as
- *  `thead ~ tbody tr`, and a thead here would join that count. */
-export const FactsTable = ({
-  facts,
-}: {
-  facts: ChosenFact[];
-}): React.JSX.Element => {
-  // Two facts per row, in order: course with semester, branch with section,
-  // subject with period. A dangling last fact keeps its row's shape with an
-  // empty cell beside it.
-  const rows: ChosenFact[][] = [];
-  for (const [i, fact] of facts.entries()) {
-    if (i % 2 === 0) rows.push([fact]);
-    else rows.at(-1)?.push(fact);
-  }
-  return (
-    <Table striped withTableBorder tabularNums>
-      <Table.Tbody>
-        {rows.map((row) => (
-          <Table.Tr key={row.map((fact) => fact.label).join("+")}>
-            {row.map((fact) => (
-              <Table.Td key={fact.label}>
-                <Text size="sm" c="dimmed">
-                  {fact.label}
-                </Text>
-                <Text size="sm" fw={600}>
-                  {fact.value}
-                </Text>
-              </Table.Td>
-            ))}
-            {row.length === 1 ? <Table.Td key="pad" /> : null}
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
-  );
 };
 /** One badged percentage in the register's dense table: the figure reads its own
  *  weight and badge from its kind, so call sites name the figure, not the

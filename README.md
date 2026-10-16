@@ -198,7 +198,9 @@ web/index.html        Vite entry point
 web/main.tsx          React root + MantineProvider
 web/App.tsx           state, the routes, and the refresh loop
 web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
-web/components/       seven presentational modules; none of them holds state
+web/saved-classes.ts  saved classes, and the branch initialism on their cards
+web/worklist.ts       the register worklist: rows, order, tint, badge words
+web/components/       eight presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build, lint and format config (Vite+; Ultracite presets)
 playwright.config.ts  test runner config

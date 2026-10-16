@@ -16,7 +16,8 @@ import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../attendance-bands";
 import type { Student, StudentProfile } from "../../shared/api";
 import type { ChosenFact } from "../cascade";
 import type { Note } from "../types";
-import { badgeFor, FactsTable } from "./RegisterTable";
+import { badgeFor } from "../worklist";
+import { FactsTable } from "./FactsTable";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */

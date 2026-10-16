@@ -104,9 +104,12 @@ web/App.tsx          state, the three modes, and the session's own facts
 web/client.ts        every fetch the app makes: one JSON wrapper, and the SWR
                      hooks and keys each screen reads through
 web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping,
-                     what a change clears, the loop that settles a selection, and
-                     the saved classes in storage
-web/components/      seven presentational modules; none of them holds state
+                     what a change clears, and the loop that settles a selection
+web/saved-classes.ts the saved classes in storage, and the branch initialism
+                     on their cards
+web/worklist.ts      the register worklist: which rows show, their order, the
+                     row tint, and the badge words both surfaces share
+web/components/      eight presentational modules; none of them holds state
 web/types.ts         Note, the one shape three modules share
 shared/api.ts        the server/client contract; both sides import it
 vite.config.ts       build, lint and fmt config; both blocks come from the
@@ -557,11 +560,11 @@ carries one also has its name in text.
 
 Five dependent levels: course → semester → branch → section → subject. It was
 wrong three separate times before it was right, and every failure was structural
-rather than cosmetic, so the rules are load-bearing. **The rules and the loop that
-applies them are both in `web/cascade.ts`** — `runCascade` asks for options until a
-pass gains nothing and no level below a chosen one is still empty, and `App.tsx`
-only decides *when* to run it. A dropdown that will not fill is a rule bug, two
-requests racing is a loop bug.
+rather than cosmetic, so the rules are load-bearing. **The loop lives in
+`web/cascade.ts`, the worklist in `web/worklist.ts`** — `runCascade` asks for
+options until a pass gains nothing and no level below a chosen one is still
+empty, and `App.tsx` only decides *when* to run it. A dropdown that will not
+fill is a rule bug, two requests racing is a loop bug.
 
 - **A level is only fetched when a level above it changes.** Auto-filling a level
   does not trigger a refetch, so the loop keeps going on its own while a pass has
@@ -692,7 +695,7 @@ intersect, so the strictest one wins. **The
 figure read is the one the table shows**, so on All subjects it sorts by the
 overall percentage, and **a missing percentage sorts last**, never first — `null`
 is an absence of evidence, and putting such a student at the top of a triage list
-sends someone after them for the wrong reason. `registerRows` in `web/cascade.ts`
+sends someone after them for the wrong reason. `registerRows` in `web/worklist.ts`
 owns all three rules, which is where they can be pinned without booting a server.
 
 The smoke test drives the real portal because a DOM stub is not sufficient: one
