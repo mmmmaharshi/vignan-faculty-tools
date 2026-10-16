@@ -28,6 +28,7 @@ import type {
   RegisterReply,
   RegisterRequest,
   SessionReply,
+  Student,
 } from "../shared/api";
 import {
   abbreviate,
@@ -58,6 +59,7 @@ import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
 import { SavedClasses } from "./components/SavedClasses";
 import { SignInPanel } from "./components/SignInPanel";
+import { StudentDetails } from "./components/StudentDetails";
 import type { Note } from "./types";
 
 const LOGIN_PATH = "/login";
@@ -108,6 +110,9 @@ const App = (): React.JSX.Element => {
   const [result, setResult] = useState<RegisterReply | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
   const [overallMode, setOverallMode] = useState(false);
+  /** The row whose panel is open. Held here, not in the table, because the table
+   *  is a presentational module with no state of its own. */
+  const [detail, setDetail] = useState<Student | null>(null);
   /** Every subject name this session has been offered, by section and value.
    *
    *  The Portal answers subjects one section at a time, so on a cold load a card
@@ -166,6 +171,7 @@ const App = (): React.JSX.Element => {
       setOpts(EMPTY_OPTS);
       setResult(null);
       setOnlyIrregular(false);
+      setDetail(null);
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
@@ -192,6 +198,9 @@ const App = (): React.JSX.Element => {
         });
         if (token !== refreshToken.current) return;
         setResult(body);
+        // A panel left open would go on showing the previous register's numbers
+        // beside a table that has already been replaced.
+        setDetail(null);
         // Only a load that actually succeeded re-scopes the screen.
         setOverallMode(isAllSubjects(levels.subject));
       } catch (error) {
@@ -399,7 +408,7 @@ const App = (): React.JSX.Element => {
   const rows = result
     ? registerRows(result.students, onlyIrregular, overallMode)
     : [];
-  const registerName = chosenText(opts, sel);
+  const registerName = chosenText(opts, sel, summary?.range);
   const onSelectLevel = (key: Level, value: string) => {
     setSel((s) => ({ ...s, [key]: value }));
     selRef.current = { ...selRef.current, [key]: value };
@@ -528,10 +537,16 @@ const App = (): React.JSX.Element => {
               summary={summary}
               onlyIrregular={onlyIrregular}
               onToggleIrregular={setOnlyIrregular}
+              onShowDetails={setDetail}
               chosenText={registerName}
               overallMode={overallMode}
             />
           ) : null}
+          <StudentDetails
+            student={detail}
+            onClose={() => setDetail(null)}
+            chosenText={registerName}
+          />
         </>
       );
       break;

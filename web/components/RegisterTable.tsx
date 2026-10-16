@@ -1,5 +1,6 @@
 import {
   Badge,
+  Button,
   Checkbox,
   Divider,
   Group,
@@ -18,6 +19,7 @@ type RegisterTableProps = {
   summary: RegisterReply["summary"];
   onlyIrregular: boolean;
   onToggleIrregular: (value: boolean) => void;
+  onShowDetails: (student: Student) => void;
   chosenText: string;
   /** The All subjects path: no subject was chosen, so there are no subject columns
    *  and the bands on show — and the row tint — are the overall ones. One prop,
@@ -25,8 +27,9 @@ type RegisterTableProps = {
   overallMode?: boolean;
 };
 /** The overall badge is orange where the subject one is yellow, so a row
- *  badged on one and not the other is readable at a glance. */
-const badgeFor = (
+ *  badged on one and not the other is readable at a glance. Exported because a
+ *  student's own panel badges the same two figures and must say the same words. */
+export const badgeFor = (
   critical: boolean,
   irregular: boolean,
   low: string
@@ -59,6 +62,7 @@ export const RegisterTable = ({
   summary,
   onlyIrregular,
   onToggleIrregular,
+  onShowDetails,
   chosenText,
   overallMode = false,
 }: RegisterTableProps): React.JSX.Element => {
@@ -80,9 +84,6 @@ export const RegisterTable = ({
         <>
           <Text c="dimmed" size="sm" mb="sm">
             {chosenText}
-            {summary.range?.from
-              ? `   ·   ${summary.range.from} to ${summary.range.to}`
-              : ""}
           </Text>
           <Divider mb="sm" />
         </>
@@ -95,7 +96,7 @@ export const RegisterTable = ({
         </Text>
       ) : (
         <>
-          <Table.ScrollContainer minWidth={860}>
+          <Table.ScrollContainer minWidth={980}>
             <Table striped highlightOnHover withTableBorder tabularNums>
               <Table.Thead>
                 <Table.Tr>
@@ -114,6 +115,7 @@ export const RegisterTable = ({
                   {showOverall && (
                     <Table.Th ta="right">Overall Attendance %</Table.Th>
                   )}
+                  <Table.Th>Details</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
@@ -175,6 +177,16 @@ export const RegisterTable = ({
                         )}
                       </Table.Td>
                     )}
+                    <Table.Td>
+                      <Button
+                        variant="subtle"
+                        size="compact-xs"
+                        aria-label={`Show details for ${s.name}`}
+                        onClick={() => onShowDetails(s)}
+                      >
+                        Show Details
+                      </Button>
+                    </Table.Td>
                   </Table.Tr>
                 ))}
               </Table.Tbody>

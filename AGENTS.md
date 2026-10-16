@@ -103,7 +103,7 @@ web/main.tsx         React root + MantineProvider; the only createTheme call
 web/App.tsx          state, the three modes, and the refresh loop
 web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping,
                      what a change clears, and the saved classes in storage
-web/components/      six presentational modules; none of them holds state
+web/components/      seven presentational modules; none of them holds state
 web/types.ts         Note, the one shape three modules share
 shared/api.ts        the server/client contract; both sides import it
 vite.config.ts       build, lint and fmt config; both blocks come from the

@@ -568,6 +568,51 @@ test.describe("Vignan Faculty Tools", () => {
       `no uncaught errors; got ${JSON.stringify(problems)}`
     ).toHaveLength(0);
   });
+  test("a row's Show Details opens that student's own panel", async ({
+    page,
+  }) => {
+    const problems: string[] = [];
+    page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
+    await signInAndLoad(page);
+    const head = await page.evaluate(() =>
+      [...document.querySelectorAll("thead th")].map((th) =>
+        (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
+      )
+    );
+    const nameIdx = head.indexOf("Student Name");
+    const pctIdx = head.indexOf("Subject Attendance %");
+    expect(nameIdx, "the row should name the student").toBeGreaterThan(-1);
+    expect(pctIdx, "the row should state a subject percentage").toBeGreaterThan(
+      -1
+    );
+    const row = page.locator("tbody tr").first();
+    const name = ((await row.locator("td").nth(nameIdx).textContent()) ?? "")
+      .replaceAll(/\s+/g, " ")
+      .trim();
+    const pct =
+      /[\d.]+%/.exec(
+        (await row.locator("td").nth(pctIdx).textContent()) ?? ""
+      )?.[0] ?? "";
+    expect(
+      pct,
+      "the row should carry a percentage to compare against"
+    ).not.toBe("");
+    await row.getByRole("button", { name: /^show details for /i }).click();
+    const panel = page.getByRole("dialog");
+    await expect(panel).toBeVisible();
+    /* The panel is the row it was opened from, so the two must name the same
+     * student and state the same figure. A panel wired to the wrong row — the
+     * first one, or the filtered list rather than the shown one — reads as a
+     * correct feature and is not one. */
+    await expect(panel).toContainText(name);
+    await expect(panel).toContainText(pct);
+    await page.keyboard.press("Escape");
+    await expect(panel).toBeHidden();
+    expect(
+      problems,
+      `no uncaught errors; got ${JSON.stringify(problems)}`
+    ).toHaveLength(0);
+  });
   test("every path reaches a screen, and a signed-in one does not loop", async ({
     page,
   }) => {

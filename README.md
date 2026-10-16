@@ -198,7 +198,7 @@ web/index.html        Vite entry point
 web/main.tsx          React root + MantineProvider
 web/App.tsx           state, the routes, and the refresh loop
 web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
-web/components/       six presentational modules; none of them holds state
+web/components/       seven presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build, lint and format config (Vite+; Ultracite presets)
 playwright.config.ts  test runner config

@@ -341,11 +341,20 @@ export function abbreviate(name: string): string {
     name
   );
 }
-export function chosenText(opts: OptionsReply, sel: Sel): string {
-  return LEVELS.flatMap(([key, label]) => {
+export function chosenText(
+  opts: OptionsReply,
+  sel: Sel,
+  range?: Range
+): string {
+  const line = LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
     return hit ? [`${label}: ${hit.label}`] : [];
   }).join("   ·   ");
+  // The period is part of naming the register: the table's own line above it and
+  // a student's panel state the same sentence, so it is written once here.
+  return line && range?.from
+    ? `${line}   ·   ${range.from} to ${range.to}`
+    : line;
 }
 /**
  * A row's background, and nothing else: only a **critical** student is tinted.
