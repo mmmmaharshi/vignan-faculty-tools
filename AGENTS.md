@@ -100,9 +100,12 @@ portal-replies.ts    pure string -> data functions, and the seam guards
 attendance-bands.ts  the Regular / Irregular / Critical rule, and the summary
 web/index.html       Vite entry point
 web/main.tsx         React root + MantineProvider; the only createTheme call
-web/App.tsx          state, the three modes, and the refresh loop
+web/App.tsx          state, the three modes, and the session's own facts
+web/client.ts        every fetch the app makes: one JSON wrapper, and the SWR
+                     hooks and keys each screen reads through
 web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping,
-                     what a change clears, and the saved classes in storage
+                     what a change clears, the loop that settles a selection, and
+                     the saved classes in storage
 web/components/      seven presentational modules; none of them holds state
 web/types.ts         Note, the one shape three modules share
 shared/api.ts        the server/client contract; both sides import it
@@ -191,11 +194,14 @@ you touch the cascade:
 - **`Load register` is the only way `/api/register` is ever called.** Nothing on
   the tail of the refresh loop fetches one, so a register is a decision every
   time. The smoke test pins this by counting requests on the wire.
-- **`fetchRegister(levels, dates)` still takes the selection as arguments**, not
-  from state. The cascade computes values before React commits a render for them,
-  so a version closing over `sel` would send the previous selection. That bug
-  shipped once and said "Choose a course first" on a link whose course was plainly
-  set. Same class as the `optsRef` one below, from a different direction.
+- **The selection reaches the request as a value, never through state.** The
+  cascade computes a selection before React commits a render for it, so a version
+  closing over `sel` would send the previous one. That bug shipped once and said
+  "Choose a course first" on a link whose course was plainly set, and its sibling
+  read a stale `opts` and sent the wrong batch. `useRegisterLoad(click)` keys on
+  the request the handler built, and `runRefresh(seed, known)` is handed both
+  values, so neither can happen — a hook cannot close over the selection it is
+  keyed by.
 - **The URL-write effect is gone, and that is the point.** It used to compete
   with `signedOut`'s navigation for the history, which is a class of bug that has
   already bitten this app once. Do not add a second writer.
@@ -349,18 +355,21 @@ carries one also has its name in text.
   imported without booting a server cannot be tested, and this one shipped wrong
   twice before it was.
 
-- **A comment is not a dependency list.** The dashboard effect's comment said the
-  trigger was the section while its dependencies named all five levels, so choosing
-  a Subject re-read every subject in the section. The class of bug is a rule
-  stated in prose and implemented differently, with nothing to notice.
+- **A comment is not a dependency list.** The dashboard effect this replaced said
+  its trigger was the section while its dependencies named all five levels, so
+  choosing a Subject re-read every subject in the section. The class of bug is a
+  rule stated in prose and implemented differently, with nothing to notice. The
+  cascade's version of that rule is `shouldContinue`, which is a function with its
+  own tests rather than a comment beside an effect.
 
-- **End a session through `signedOut`, never a bare `setPhase("login")`.** A 401
+- **End a session through `signedOut`, never a bare `setSignedIn(false)`.** A 401
   only fires when something asks the server for something, so a user who leaves a
   register open comes back to numbers from a session that no longer exists. The
-  probe on `SESSION_PROBE_MS` covers that; `signedOut` covers the rest, because a
-  bare phase change changes the screen while the old session's filter, options
-  and register stay in state — signing back in then produced a table already
-  narrowed by a choice made against a session that no longer existed.
+  probe — `refreshInterval: SESSION_PROBE_MS` on the session key — covers that;
+  `signedOut` covers the rest, because flipping the flag changes the screen while
+  the previous session's answers are still readable, in the cache *and* in a
+  mutation's own state. Signing back in then produced a table already narrowed by
+  a choice made against a session that no longer existed.
 - **A session is 30 days of *not using it*, and the cookie's `Max-Age` is derived
   from that** so the two cannot disagree. Longer than the ECAP session by
   design, which is why `/api/session` asks the portal rather than trusting the
@@ -488,12 +497,17 @@ carries one also has its name in text.
   so building first meant `dist/` was written from code already known to be
   wrong — and `bunx playwright test` skipped the build entirely and tested
   whatever was on disk. See ADR 0002 and 0012.
-- **`runRefresh` is memoised with `[]`, so it closes over render 1.** Anything
-  inside it that reads `sel` or `opts` must go through `selRef` / `optsRef`
-  instead. Reading `opts` directly compiles, runs, and silently yields
-  `EMPTY_OPTS` forever. This shipped: the semester's batch number stopped being
-  sent and the section list came back from the wrong batch, with nothing on
-  screen to show it. `test/smoke.spec.ts` now watches the wire for it.
+- **Nothing in the cascade reads state from a closure any more, and that is the
+  fix.** `runRefresh` used to be memoised with `[]`, so it closed over render 1
+  and anything reading `sel` or `opts` had to go through `selRef` / `optsRef`;
+  reading `opts` directly compiled, ran, and silently yielded `EMPTY_OPTS`
+  forever. This shipped: the semester's batch number stopped being sent and the
+  section list came back from the wrong batch, with nothing on screen to show it.
+  It is now impossible by construction: `runCascade(setup, fetchOptions)` in
+  `cascade.ts` takes the selection and the known options **as arguments**, and
+  returns the settled ones, so a run cannot see a stale render. Do not reintroduce
+  a ref that shadows state; pass the value. `test/smoke.spec.ts` still watches the
+  wire for the batch number.
 - **The three tsconfigs are split on purpose.** `tsconfig.json` (web) pins
   `types` to React alone because `@types/node` is present transitively and would
   otherwise hand `web/` `process` and `Buffer`; `tsconfig.server.json` omits
@@ -534,9 +548,11 @@ carries one also has its name in text.
 
 Five dependent levels: course → semester → branch → section → subject. It was
 wrong three separate times before it was right, and every failure was structural
-rather than cosmetic, so the rules are load-bearing. **The rules are in
-`web/cascade.ts` and the loop that applies them is in `App.tsx`** — a dropdown
-that will not fill is a rule bug, two requests racing is a loop bug.
+rather than cosmetic, so the rules are load-bearing. **The rules and the loop that
+applies them are both in `web/cascade.ts`** — `runCascade` asks for options until a
+pass gains nothing and no level below a chosen one is still empty, and `App.tsx`
+only decides *when* to run it. A dropdown that will not fill is a rule bug, two
+requests racing is a loop bug.
 
 - **A level is only fetched when a level above it changes.** Auto-filling a level
   does not trigger a refetch, so the loop keeps going on its own while a pass has
@@ -555,8 +571,59 @@ that will not fill is a rule bug, two requests racing is a loop bug.
   section with no subjects at all still leaves it empty, which is what keeps the
   cascade loop honest. The line above the table names the register on screen so
   a wrong pick is visible rather than silent.
-- **A newer refresh always wins.** `refreshToken` makes an older in-flight
-  request bail rather than write to the DOM.
+- **A newer refresh always wins, and the signal is what says so.** A change
+  aborts the run before it — `cascadeRun` in `App.tsx` — and the run answers
+  `null` rather than a settled selection, so an older pass cannot write to the
+  screen. It used to be a `refreshToken` counter compared at the end; the abort
+  is the same rule with the comparison replaced by the data structure. Both
+  halves are load-bearing and both are tested: `runCascade` checks the signal
+  before a pass *and* after the reply, so a run already superseded asks the
+  Portal nothing and one superseded mid-flight asks no further.
+
+## The data layer
+
+**Every fetch goes through `web/client.ts`, and every read of server data is an
+SWR key.** Nothing else in `web/` calls `fetch`. Six endpoints were hand-rolled
+effects before this; they are now one wrapper (`getJson` / `postJson`, which turn
+a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
+
+- **A key is a cache entry, so anything the user must ask for again on purpose
+  gets a key that changes per ask.** The register is `[REGISTER_PATH, request,
+  attempt]`, where `attempt` is a counter the click increments: every click is a
+  load, a repeat click is not a cache hit, and "the click is the only way a
+  register is ever fetched" survives the rewrite — `test/smoke.spec.ts` still
+  counts the POSTs on the wire.
+- **A key is a promise about *whose* data it is, so nothing keyed on the server
+  survives a session.** `forgetServerData()` sweeps every `/api/` key on the way
+  out. That sweep is not enough on its own: a mutation's failure is the *hook's*
+  own state rather than the cache's, so a 401 left in the options chain would sit
+  in the next session's class picker — hence `resetCascade()` beside it in
+  `signedOut`.
+- **Automatic revalidation is off, except where it is the point.**
+  `revalidateOnFocus: false` and `revalidateOnReconnect: false` everywhere,
+  because a read must be something the user asked for; the two exceptions are
+  deliberate. The **session** probe is the exception by design: `refreshInterval`
+  of `SESSION_PROBE_MS` when idle and `0` when a request is in flight or the
+  login screen is up. And the **profile** hook keeps SWR's own "revalidate on
+  mount if stale", which is why reopening a student's panel shows the last answer
+  at once and refreshes it behind the panel — the panel's read is still one call
+  per open, per ADR 0018.
+- **`focusThrottleInterval: 0` and `dedupingInterval: 0` on the session hook.**
+  SWR throttles a focus revalidation to 5 seconds and dedupes within 2 by
+  default; the smoke test dispatches one `visibilitychange` and expects a probe,
+  so both defaults would have made the app look alive when it was not.
+- **A mutation's callbacks are stable and its state is not, so they are taken
+  apart at the call site.** `{ trigger, reset }` are `useCallback(..., [])`; the
+  object holding them is rebuilt every render. A dependency on the object re-runs
+  every effect that names it, so `App.tsx` destructures.
+- **The register read is not allowed to fail the session, and a 502 must never
+  sign anyone out.** One effect sweeps `options.error ?? register.error ??
+  profile.error` for a 401 into `signedOut`; a 502 sits where it happened. Same
+  rules as before the rewrite, in one place instead of four.
+- **`session.data` is a fact about the last read, not about now.** `signedIn` is
+  deliberately *state*: signing out must be able to say so before the next read
+  answers, or the guard drags the user back out of the login screen — the bug
+  ADR 0015 removed the second history writer for.
 
 ## Testing
 
@@ -568,8 +635,9 @@ ECAP_USER=... ECAP_PASS=... bun run test
 **Almost every test needs no credentials, and the whole suite runs in seconds.**
 Only `test/smoke.spec.ts` touches the network, so everything else — the portal's
 seam, its wire conventions, the attendance bands, the route handlers over a fake
-portal, the cascade's rules, session liveness, and session persistence over a fake
-vault — runs with `bunx playwright test` and no environment at all, in seconds.
+portal, the cascade's rules and its option loop over an injected fetcher, session
+liveness, and session persistence over a fake vault — runs with
+`bunx playwright test` and no environment at all, in seconds.
 
 **No test count appears in this file, on purpose.** A number here goes stale the
 moment a test is added, and a stale count in a manual is worse than none: it

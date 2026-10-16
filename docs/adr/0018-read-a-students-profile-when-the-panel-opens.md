@@ -76,10 +76,17 @@ never with the register.
 - **The register stays one request.** Opening a panel does not slow a load, and a
   load never fails because a profile could not be read.
 - **A panel open costs about half a second**, spent on the student that was
-  actually asked about. Opening twenty rows is twenty calls, on purpose: no
-  cache, because caching is the part of the rejected shape that needed
+  actually asked about. Opening twenty rows is twenty calls, on purpose: what was
+  rejected was caching the *section*, which is the part of that shape that needed
   maintaining. If that ever hurts, the cache is the thing to add, and this ADR is
   where to say so.
+
+  **Amended by ADR 0020.** The read is still one call per open, and still for that
+  one student, but its answer is now held under a key of the student's own roll
+  number — so reopening a panel shows the last answer at once while the new read
+  lands behind it, and signing out sweeps it. The cache this ADR refused was the
+  section-wide one; an entry keyed on one student is a different object, and it is
+  the one the panel now has.
 - **The panel's second half arrives after its first.** The attendance figures
   come from the row already on screen, so they never wait; the GPA and numbers
   show a reading line until they land.
@@ -87,9 +94,11 @@ never with the register.
   prints the CGPA line and then one line per semester the page states an SGPA for,
   in the page's order; a student with no past semesters has none, which is why the
   empty sentence asks for *no* GPA rather than a zero.
-- **A slower read cannot land under the wrong name.** The open row carries a
-  token, the way `refreshToken` does for a register load, so a reply for a panel
-  that has been closed or replaced is dropped.
+- **A slower read cannot land under the wrong name.** The reply is read under a
+  key that names the student, so a reply for a panel that has been closed or
+  replaced answers to a key nothing is showing. It was a `detailToken` when this
+  was written; ADR 0020 replaced the token with the key, which is the same rule
+  with the comparison done by the cache.
 - **The rejected shape is not forbidden forever.** Columns in the register are
   still a shape the Portal supports; what this ADR settles is that they are not
   worth 30 seconds of every load.

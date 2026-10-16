@@ -1,7 +1,9 @@
+import { isAllSubjects } from "../shared/api";
 import type {
   CascadeLevel,
   Option,
   OptionsReply,
+  OptionsRequest,
   RegisterReply,
 } from "../shared/api";
 
@@ -85,6 +87,27 @@ export function resetFor(changed: Level, arriving?: Sel): readonly Level[] {
   }
   return [];
 }
+/**
+ * The selection a change leaves behind: the change applied, and the levels
+ * `resetFor` says it invalidates cleared to empty. Applied before the Portal is
+ * asked, so the screen shows the clear rather than a selection the new options
+ * may not contain.
+ *
+ * `arriving` is the whole selection a change came *with* — a saved class being
+ * opened — and is absent for a change made by hand, which is what tells the two
+ * apart: only an arriving selection has the subject the section change was for.
+ */
+export function selectionAfter(
+  seed: Sel,
+  changed: Level | null,
+  arriving?: Sel
+): Sel {
+  const cleared = changed ? resetFor(changed, arriving) : [];
+  if (!cleared.length) return seed;
+  const next = { ...seed };
+  for (const key of cleared) next[key] = "";
+  return next;
+}
 export function isReady(sel: Sel, key: Level): boolean {
   const i = LEVEL_KEYS.indexOf(key);
   return LEVEL_KEYS.slice(0, i).every((k) => !!sel[k]);
@@ -114,6 +137,84 @@ export function shouldContinue(
     (k) => k !== "course" && isReady(draft, k) && reply[k].length === 0
   );
   return gained && !!pending;
+}
+/**
+ * A subject name's identity within a session: the section it was offered in, and
+ * its own value. A subject code is short and repeats across branches, so a key of
+ * the value alone hands a card the name of the same code in a different section.
+ * This is display-only and never stored, so nothing here outlives the session.
+ */
+export function subjectNameKey(section: string, subject: string): string {
+  return `${section} ${subject}`;
+}
+/**
+ * One run of the option loop, with every request it makes and everything it
+ * settled. The loop is the caller's because the chain is sequential: a pass is
+ * built from the reply to the pass before it, so no cache can compute it ahead.
+ */
+export type CascadeOutcome = {
+  sel: Sel;
+  opts: OptionsReply;
+  /** Every subject name this run was offered, keyed as `subjectNameKey` writes
+   *  them. The session's own labels, which beat a name stored at save time. */
+  names: Map<string, string>;
+};
+export type CascadeSetup = {
+  /** The selection to settle, already cleared by `selectionAfter`. */
+  seed: Sel;
+  /** The options the screen already holds. One thing a level's own value cannot
+   *  state is the semester's title, which the Portal wants beside it as the batch
+   *  number, so a run that starts with a semester chosen reads it here. */
+  known: OptionsReply;
+  /** Aborted when the screen stops wanting this run — a newer change, or a session
+   *  that ended. The run then stops asking the Portal and answers null. */
+  signal?: AbortSignal;
+};
+/**
+ * Settles the cascade: asks for options until a pass gains nothing and no level
+ * below a chosen one is still empty, and answers the selection, the last reply,
+ * and the subject names it was offered.
+ *
+ * The fetcher is an argument rather than an import so the loop can be driven
+ * without a server, the way `createApi` takes its way of reaching ECAP. It is
+ * never given `signal`: an aborted run stops *between* passes, so nothing here
+ * rejects with an abort the caller would have to tell apart from a failure.
+ */
+export async function runCascade(
+  setup: CascadeSetup,
+  fetchOptions: (request: OptionsRequest) => Promise<OptionsReply>
+): Promise<CascadeOutcome | null> {
+  const { seed, known, signal } = setup;
+  let draft = { ...seed };
+  let opts = known;
+  const names = new Map<string, string>();
+  for (const _pass of LEVEL_KEYS) {
+    if (signal?.aborted) return null;
+    const semesterTitle = draft.semester
+      ? opts.semester.find((o) => String(o.value) === String(draft.semester))
+          ?.title
+      : undefined;
+    const before = draft;
+    const reply = await fetchOptions({
+      course: draft.course || undefined,
+      semester: draft.semester || undefined,
+      semesterTitle,
+      branch: draft.branch || undefined,
+      section: draft.section || undefined,
+    });
+    if (signal?.aborted) return null;
+    for (const option of reply.subject) {
+      if (isAllSubjects(option)) continue;
+      names.set(
+        subjectNameKey(draft.section, String(option.value)),
+        option.label
+      );
+    }
+    draft = applyOptions(draft, reply);
+    opts = reply;
+    if (!shouldContinue(draft, before, reply)) break;
+  }
+  return { sel: draft, opts, names };
 }
 export function toPortalDate(iso: string): string {
   if (!iso) return "";
@@ -195,15 +296,6 @@ const CLASS_LEVELS = [
  *  of the same class compare equal without depending on key order. */
 const classKey = (values: Record<string, string>): string =>
   CLASS_LEVELS.map((key) => values[key]).join(" ");
-/**
- * A subject name's identity within a session: the section it was offered in, and
- * its own value. A subject code is short and repeats across branches, so a key of
- * the value alone hands a card the name of the same code in a different section.
- * This is display-only and never stored, so nothing here outlives the session.
- */
-export function subjectNameKey(section: string, subject: string): string {
-  return `${section} ${subject}`;
-}
 /** A stored entry becomes a class only if all five levels are strings. Anything
  *  else is dropped rather than half-read. A missing label is not a fault: an entry
  *  written before labels were kept still opens, it just says nothing until opened. */

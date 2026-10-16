@@ -19,28 +19,15 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import type {
-  LoginRequest,
-  OkReply,
-  Option,
-  OptionsReply,
-  OptionsRequest,
-  RegisterReply,
-  RegisterRequest,
-  SessionReply,
-  Student,
-  StudentProfile,
-  StudentRequest,
-} from "../shared/api";
+import type { OptionsReply, RegisterRequest, Student } from "../shared/api";
 import {
   abbreviate,
-  applyOptions,
   chosenLevels,
   isAllSubjects,
   chosenText,
   disabledLevels,
   rememberRangeStart,
-  resetFor,
+  selectionAfter,
   rememberClass,
   savedClasses,
   forgetClass,
@@ -48,13 +35,24 @@ import {
   registerRows,
   EMPTY_OPTS,
   EMPTY_SEL,
-  LEVEL_KEYS,
   LEVELS,
-  shouldContinue,
   subjectNameKey,
   toPortalDate,
 } from "./cascade";
 import type { Level, Range, SavedClass, Sel } from "./cascade";
+import {
+  forgetServerData,
+  isExpired,
+  messageOf,
+  reloadSession,
+  useOptionsChain,
+  useRegisterLoad,
+  useSession,
+  useSignIn,
+  useSignOut,
+  useStudentProfile,
+} from "./client";
+import type { RegisterClick } from "./client";
 import { ClassPicker } from "./components/ClassPicker";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
@@ -67,26 +65,6 @@ import type { Note } from "./types";
 const LOGIN_PATH = "/login";
 const DASHBOARD_PATH = "/dashboard";
 const PROFILE_PATH = "/profile";
-const SESSION_PROBE_MS = 5 * 60_000;
-class ApiError extends Error {
-  status: number;
-  constructor(status: number, message: string) {
-    super(message);
-    this.status = status;
-    this.name = "ApiError";
-  }
-}
-async function api<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(path, options);
-  const body = (await res.json().catch(() => ({}))) as { error?: string };
-  if (!res.ok) {
-    throw new ApiError(
-      res.status,
-      body.error ?? `Request failed (${res.status})`
-    );
-  }
-  return body as T;
-}
 const App = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -97,29 +75,20 @@ const App = (): React.JSX.Element => {
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [loginNote, setLoginNote] = useState<Note | null>(null);
-  const [filterNote, setFilterNote] = useState<Note | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [loadNote, setLoadNote] = useState("");
+  /** The warning the form is owed for what the user has not chosen yet. A request
+   *  that failed says so on its own, from the hook that failed. */
+  const [formNote, setFormNote] = useState<Note | null>(null);
   const [navOpen, nav] = useDisclosure();
-  const [persisted, setPersisted] = useState(false);
-  /* oxlint-disable react/refs */
-  const busyRef = useRef(busy);
-  busyRef.current = busy;
-  /* oxlint-enable react/refs */
   const [sel, setSel] = useState<Sel>(EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
   const [range, setRange] = useState<Range>(startingRange);
-  const [result, setResult] = useState<RegisterReply | null>(null);
+  /** The click on `Load register` that the table is showing, or null when nobody
+   *  has asked for one. The click number is what makes a second click a load. */
+  const [click, setClick] = useState<RegisterClick | null>(null);
   const [onlyIrregular, setOnlyIrregular] = useState(false);
-  const [overallMode, setOverallMode] = useState(false);
   /** The row whose panel is open. Held here, not in the table, because the table
    *  is a presentational module with no state of its own. */
   const [detail, setDetail] = useState<Student | null>(null);
-  /** The open student's GPA and phone numbers, which the register does not hold
-   *  and ECAP answers one roll number at a time. */
-  const [profile, setProfile] = useState<StudentProfile | null>(null);
-  const [profileBusy, setProfileBusy] = useState(false);
-  const [profileNote, setProfileNote] = useState<Note | null>(null);
   /** Every subject name this session has been offered, by section and value.
    *
    *  The Portal answers subjects one section at a time, so on a cold load a card
@@ -146,18 +115,51 @@ const App = (): React.JSX.Element => {
     userId: string;
     list: SavedClass[];
   } | null>(null);
-  /* oxlint-disable react/refs */
-  const selRef = useRef<Sel>(sel);
-  selRef.current = sel;
-  const optsRef = useRef<OptionsReply>(opts);
-  optsRef.current = opts;
-  /* oxlint-enable react/refs */
-  const refreshToken = useRef(0);
-  /** The same rule for the open student's profile: only the newest open may
-   *  write to the panel. */
-  const detailToken = useRef(0);
-  /** The saved classes, read only for the user who is signed in. Stored values
-   *  are the previous session's until the name proves whose they are. */
+  /** The cascade run in flight, as the flag that says the screen has stopped
+   *  wanting it: a newer change aborts the one before. */
+  const cascadeRun = useRef<AbortController | null>(null);
+  /** Every fetch the app makes, through its own key. See `web/client.ts`. */
+  const register = useRegisterLoad(click);
+  /* The two callbacks are stable and the state is not, so they are taken apart:
+     a callback in a dependency list that changes every render would re-run every
+     effect that names it. */
+  const {
+    trigger: triggerCascade,
+    reset: resetCascade,
+    isMutating: optionsLoading,
+    error: optionsError,
+  } = useOptionsChain();
+  const login = useSignIn();
+  const logout = useSignOut();
+  const profile = useStudentProfile(detail?.roll ?? null);
+  /** A request the user is waiting on is already proving the session works, and
+   *  the read that would probe it is one more thing competing with it. */
+  const busy = register.isLoading || optionsLoading || login.isMutating;
+  const session = useSession(busy || onLogin);
+  const persisted = Boolean(session.data?.persisted);
+  const result = register.data ?? null;
+  /* Only a load that actually succeeded re-scopes the screen: `overallMode` is
+     the All-subjects path, and the reply carries no subject figure at all. */
+  const overallMode = Boolean(result) && isAllSubjects(click?.request.subject);
+  const rows = result
+    ? registerRows(result.students, onlyIrregular, overallMode)
+    : [];
+  const summary = result?.summary;
+  let loadNote = "";
+  if (optionsLoading) {
+    loadNote = "Loading options...";
+  } else if (register.isLoading) {
+    loadNote = "Reading the register from ECAP...";
+  }
+  const failure = optionsError ?? register.error ?? profile.error;
+  const filterNote: Note | null =
+    formNote ??
+    (optionsError || register.error
+      ? { kind: "error", text: messageOf(optionsError ?? register.error) }
+      : null);
+  const profileNote: Note | null = profile.error
+    ? { kind: "error", text: messageOf(profile.error) }
+    : null;
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The name arriving is also the moment the saved classes become readable, so
    *  both are set together: a restore never went through the sign-in form. The
@@ -169,305 +171,188 @@ const App = (): React.JSX.Element => {
   }, []);
   const signedOut = useCallback(
     (why: string) => {
-      refreshToken.current += 1;
+      cascadeRun.current?.abort();
+      // The Portal's answers belong to the session that read them, so they leave
+      // with it rather than waiting on the next person's screen. The cache sweep
+      // is not enough on its own: a mutation's failure is the hook's own state,
+      // so a 401 left there would sit in the next session's class picker.
+      resetCascade();
+      void forgetServerData();
+      setClick(null);
       setUserId("");
       setPassword("");
       setSignedIn(false);
       setLoginNote(why ? { kind: "warning", text: why } : null);
-      setFilterNote(null);
-      setBusy(false);
-      setLoadNote("");
+      setFormNote(null);
       setSel(EMPTY_SEL);
       setOpts(EMPTY_OPTS);
-      setResult(null);
       setOnlyIrregular(false);
-      detailToken.current += 1;
       setDetail(null);
-      setProfile(null);
-      setProfileBusy(false);
-      setProfileNote(null);
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
       setSubjectNames(new Map());
       navigate(LOGIN_PATH, { replace: true });
     },
-    [navigate]
+    [navigate, resetCascade]
   );
-  const fetchRegister = useCallback(
-    async (levels: Record<Level, Option>, dates: Range) => {
-      setBusy(true);
-      setLoadNote("Reading the register from ECAP...");
-      const token = ++refreshToken.current;
-      try {
-        const request: RegisterRequest = {
-          ...levels,
-          from: toPortalDate(dates.from),
-          to: toPortalDate(dates.to),
-        };
-        const body = await api<RegisterReply>("/api/register", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(request),
-        });
-        if (token !== refreshToken.current) return;
-        setResult(body);
-        // A panel left open would go on showing the previous register's numbers
-        // beside a table that has already been replaced.
-        setDetail(null);
-        // Only a load that actually succeeded re-scopes the screen.
-        setOverallMode(isAllSubjects(levels.subject));
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          signedOut("Your session expired. Please sign in again.");
-          return;
-        }
-        setFilterNote({
-          kind: "error",
-          text: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        if (token === refreshToken.current) {
-          setBusy(false);
-          setLoadNote("");
-        }
-      }
+  /** Settles the cascade for a selection. Both arguments are values rather than
+   *  state read inside: a pass is built before React has committed the render that
+   *  produced it, so a version closing over `sel` or `opts` would ask the Portal
+   *  about the selection before last. */
+  const runRefresh = useCallback(
+    async (seed: Sel, known: OptionsReply) => {
+      cascadeRun.current?.abort();
+      const run = new AbortController();
+      cascadeRun.current = run;
+      setFormNote(null);
+      const outcome = await triggerCascade({
+        seed,
+        known,
+        signal: run.signal,
+      }).catch(() => null);
+      // A run the screen stopped wanting answers null, and a run that was
+      // superseded while it settled is dropped here: the newer one is the one on
+      // screen.
+      if (!outcome || run.signal.aborted) return;
+      setSel(outcome.sel);
+      setOpts(outcome.opts);
+      setSubjectNames((previous) => new Map([...previous, ...outcome.names]));
     },
-    [signedOut]
+    [triggerCascade]
   );
-  const loadRegister = useCallback(async () => {
-    setFilterNote(null);
+  const loadRegister = () => {
+    setFormNote(null);
     if (!range.from || !range.to) {
-      setFilterNote({ kind: "warning", text: "Choose a date range." });
+      setFormNote({ kind: "warning", text: "Choose a date range." });
       return;
     }
     const chosen = chosenLevels(opts, sel);
     if (!chosen.ok) {
-      setFilterNote({
+      setFormNote({
         kind: "warning",
         text: `Choose a ${chosen.label.toLowerCase()} first.`,
       });
       return;
     }
-    await fetchRegister(chosen.levels, range);
-    // A range that produced a register is one worth opening at again.
-    rememberRangeStart(range.from);
-  }, [fetchRegister, opts, range, sel]);
-  /** Opening a row shows the panel and reads the one thing the register does not
-   *  state: the student's GPA and phone numbers. A reply that arrives after the
-   *  panel has been closed or replaced is dropped, the rule `refreshToken`
-   *  already follows — a slower read of the previous student must not land under
-   *  the next student's name. */
-  const showDetails = useCallback(
-    async (student: Student) => {
-      setDetail(student);
-      setProfile(null);
-      setProfileNote(null);
-      setProfileBusy(true);
-      const token = ++detailToken.current;
-      try {
-        const request: StudentRequest = { roll: student.roll };
-        const body = await api<StudentProfile>("/api/student", {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body: JSON.stringify(request),
-        });
-        if (token !== detailToken.current) return;
-        setProfile(body);
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          signedOut("Your session expired. Please sign in again.");
-          return;
-        }
-        if (token !== detailToken.current) return;
-        setProfileNote({
-          kind: "error",
-          text: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        if (token === detailToken.current) setProfileBusy(false);
-      }
-    },
-    [signedOut]
-  );
-  const hideDetails = useCallback(() => {
-    detailToken.current += 1;
+    const request: RegisterRequest = {
+      ...chosen.levels,
+      from: toPortalDate(range.from),
+      to: toPortalDate(range.to),
+    };
+    // A new register replaces the table, so a panel opened from the old one goes:
+    // it would otherwise show one student's numbers beside a table they need not
+    // be in.
     setDetail(null);
-  }, []);
-  const runRefresh = useCallback(
-    async (changed: Level | null, arriving?: Sel) => {
-      const token = ++refreshToken.current;
-      let draft = { ...selRef.current };
-      // A changed level invalidates the ones below it — unless the change arrived
-      // with its own selection, which is what opening a saved class does.
-      const cleared = changed ? resetFor(changed, arriving ?? draft) : [];
-      if (cleared.length) {
-        draft = { ...draft };
-        for (const key of cleared) draft[key] = "";
-      }
-      selRef.current = draft;
-      setSel(draft);
-      setBusy(true);
-      setLoadNote("Loading options...");
-      try {
-        for (const _pass of LEVEL_KEYS) {
-          if (token !== refreshToken.current) return;
-          const semesterTitle = draft.semester
-            ? optsRef.current.semester.find(
-                (o) => String(o.value) === String(draft.semester)
-              )?.title
-            : undefined;
-          const request: OptionsRequest = {
-            course: draft.course || undefined,
-            semester: draft.semester || undefined,
-            semesterTitle,
-            branch: draft.branch || undefined,
-            section: draft.section || undefined,
-          };
-          const reply = await api<OptionsReply>("/api/options", {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(request),
-          });
-          if (token !== refreshToken.current) return;
-          const before = draft;
-          const fresh = reply.subject.filter((o) => !isAllSubjects(o));
-          if (fresh.length) {
-            setSubjectNames((previous) => {
-              const merged = new Map(previous);
-              for (const o of fresh) {
-                merged.set(
-                  subjectNameKey(draft.section, String(o.value)),
-                  o.label
-                );
-              }
-              return merged;
-            });
-          }
-          draft = applyOptions(draft, reply);
-          selRef.current = draft;
-          setSel(draft);
-          setOpts(reply);
-          if (!shouldContinue(draft, before, reply)) break;
-        }
-      } catch (error) {
-        if (error instanceof ApiError && error.status === 401) {
-          signedOut("Your session expired. Please sign in again.");
-          return;
-        }
-        setFilterNote({
-          kind: "error",
-          text: error instanceof Error ? error.message : String(error),
-        });
-      } finally {
-        if (token === refreshToken.current) {
-          setBusy(false);
-          setLoadNote("");
-        }
-      }
-    },
-    [signedOut]
-  );
+    setClick((previous) => ({
+      request,
+      attempt: (previous?.attempt ?? 0) + 1,
+    }));
+    // The range someone asked for is the one worth opening at again.
+    rememberRangeStart(range.from);
+  };
   const signIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoginNote(null);
-    setBusy(true);
+    const name = userId.trim();
     try {
-      const body: LoginRequest = { userId: userId.trim(), password };
-      await api<OkReply>("/api/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      await login.trigger({ userId: name, password });
       setPassword("");
+      // The session the server has just made is the truth about itself, so ask
+      // it rather than assert it here.
+      const started = await reloadSession();
+      if (!started?.signedIn) {
+        throw new Error("The session did not start. Sign in again.");
+      }
+      setBooted(true);
       setSignedIn(true);
-      noteUserId(body.userId);
+      noteUserId(started.userId || name);
       navigate(DASHBOARD_PATH, { replace: true });
-      await runRefresh(null);
+      await runRefresh(EMPTY_SEL, EMPTY_OPTS);
     } catch (error) {
-      setLoginNote({
-        kind: "error",
-        text: error instanceof Error ? error.message : String(error),
-      });
-    } finally {
-      setBusy(false);
+      setLoginNote({ kind: "error", text: messageOf(error) });
     }
   };
   const signOut = async () => {
-    await api<OkReply>("/api/logout", { method: "POST" }).catch(() => null);
+    await logout.trigger(undefined).catch(() => null);
     signedOut("");
   };
+  /*
+   * The three effects below are where the app's own view of the session meets
+   * what the server has just said: the boot check, the expiry, and which route a
+   * session puts you on. Each answers an external read with app state, which is
+   * what they are for, and each is guarded so it runs once per change.
+   */
+  /* oxlint-disable react/set-state-in-effect */
+  /** The probe: a session that was working and now is not says so, and why. A
+   *  session that was never there is the boot check's business, which says
+   *  nothing. */
   useEffect(() => {
-    if (onLogin) return;
-    let cancelled = false;
-    const probe = async () => {
-      if (busyRef.current) return;
-      const s = await api<SessionReply>("/api/session").catch(() => null);
-      if (cancelled || !s) return;
-      setPersisted(s.persisted);
-      if (!s.signedIn) {
-        signedOut("Your session expired. Please sign in again.");
-      }
-    };
-    const id = setInterval(probe, SESSION_PROBE_MS);
-    document.addEventListener("visibilitychange", probe);
-    return () => {
-      cancelled = true;
-      clearInterval(id);
-      document.removeEventListener("visibilitychange", probe);
-    };
-  }, [onLogin, signedOut]);
+    if (!booted || !signedIn) return;
+    if (session.data && !session.data.signedIn) {
+      signedOut("Your session expired. Please sign in again.");
+    }
+  }, [booted, signedIn, session.data, signedOut]);
+  /** The boot check: whether there is a session at all, and what it says. */
   useEffect(() => {
-    if (booted) return;
-    (async () => {
-      let alive = false;
-      let kept = false;
-      let name = "";
-      try {
-        const s = await api<SessionReply>("/api/session");
-        alive = !!(s && s.signedIn);
-        kept = Boolean(s?.persisted);
-        name = s?.userId ?? "";
-      } catch {
-        alive = false;
-      }
-      if (booted) return;
-      setBooted(true);
-      setSignedIn(alive);
-      setPersisted(kept);
-      if (alive) {
-        // A restored session never went through the sign-in form, so this is the
-        // only place the name can arrive. Without it the header and the profile
-        // panel show a dash for a session that is working.
-        if (name) noteUserId(name);
-        if (!onLogin && !onProfile) {
-          navigate(DASHBOARD_PATH, { replace: true });
-        }
-        if (!onLogin) await runRefresh(null);
-      } else if (!onLogin) {
-        navigate(LOGIN_PATH, { replace: true });
-      }
-    })();
-  }, [booted, onLogin, onProfile, navigate, runRefresh, noteUserId]);
+    if (booted || session.isLoading) return;
+    setBooted(true);
+    const alive = Boolean(session.data?.signedIn);
+    setSignedIn(alive);
+    if (!alive) {
+      if (!onLogin) navigate(LOGIN_PATH, { replace: true });
+      return;
+    }
+    // A restored session never went through the sign-in form, so this is the
+    // only place the name can arrive. Without it the rail and the profile panel
+    // show a dash for a session that is working.
+    if (session.data?.userId) noteUserId(session.data.userId);
+    if (!onLogin && !onProfile) {
+      navigate(DASHBOARD_PATH, { replace: true });
+    }
+    if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
+  }, [
+    booted,
+    session.isLoading,
+    session.data,
+    onLogin,
+    onProfile,
+    navigate,
+    runRefresh,
+    noteUserId,
+  ]);
+  /** A 401 is ECAP refusing the session, from whichever request met it: the app
+   *  signs out through the one path, so nothing goes on showing the numbers of a
+   *  session that no longer exists. A 502 evicts nothing — it is ambiguous, and
+   *  ADR 0002 and ADR 0013 both refuse to treat it as an expiry. */
+  useEffect(() => {
+    if (isExpired(failure)) {
+      signedOut("Your session expired. Please sign in again.");
+    }
+  }, [failure, signedOut]);
+  /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {
       navigate(DASHBOARD_PATH, { replace: true });
     }
   }, [booted, signedIn, onLogin, navigate]);
   const disabled = disabledLevels(sel);
-  const summary = result?.summary;
   // No sort: the rows are the Portal's own roster order, which the Sl.No column
   // carries. Reordering them by attendance made the numbers read as a ranking
   // rather than as a roster. A student needing a check-in is found by the tint,
   // not by being at the top of the list.
-  const rows = result
-    ? registerRows(result.students, onlyIrregular, overallMode)
-    : [];
   const registerName = chosenText(opts, sel, summary?.range);
   const onSelectLevel = (key: Level, value: string) => {
-    setSel((s) => ({ ...s, [key]: value }));
-    selRef.current = { ...selRef.current, [key]: value };
-    if (key !== "subject") runRefresh(key);
+    const changed = { ...sel, [key]: value };
+    // The subject has nothing below it, so it re-reads nothing; every other level
+    // invalidates what is under it, and the screen shows that immediately.
+    if (key === "subject") {
+      setSel(changed);
+      return;
+    }
+    const next = selectionAfter(changed, key);
+    setSel(next);
+    void runRefresh(next, opts);
   };
   const onRangeChange = (part: "from" | "to", value: string) => {
     setRange((r) => ({ ...r, [part]: value }));
@@ -495,10 +380,8 @@ const App = (): React.JSX.Element => {
   /** Opening a saved class fills all five levels and nothing else: no register
    *  is fetched, and Load register stays a decision. */
   const applySavedClass = (target: Sel) => {
-    const next: Sel = { ...target };
-    selRef.current = next;
-    setSel(next);
-    runRefresh("section", next);
+    setSel(target);
+    void runRefresh(selectionAfter(target, "section", target), opts);
   };
   /** Each card's names come from the cascade wherever this session has offered them,
    *  falling back to the label cached at save time for the cards it has not. The
@@ -592,17 +475,17 @@ const App = (): React.JSX.Element => {
               summary={summary}
               onlyIrregular={onlyIrregular}
               onToggleIrregular={setOnlyIrregular}
-              onShowDetails={showDetails}
+              onShowDetails={setDetail}
               chosenText={registerName}
               overallMode={overallMode}
             />
           ) : null}
           <StudentDetails
             student={detail}
-            onClose={hideDetails}
+            onClose={() => setDetail(null)}
             chosenText={registerName}
-            profile={profile}
-            busy={profileBusy}
+            profile={profile.data ?? null}
+            busy={profile.isLoading}
             note={profileNote}
           />
         </>
