@@ -244,6 +244,7 @@ export const StudentDetails = ({
               </Table>
             </>
           ) : null}
+          {hasGpa && phones.length ? <Divider /> : null}
           {phones.length ? (
             <>
               <Text c="dimmed" size="xs" tt="uppercase">
