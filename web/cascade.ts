@@ -472,15 +472,24 @@ export function tintFor(
   return critical ? "var(--mantine-color-red-light)" : undefined;
 }
 /**
+ * Fixed percentage bars, strictest first. One entry is the bar's key in the
+ * filter, its threshold, and its place in the empty-register sentence — the
+ * array order decides which ticked bar wins that sentence, so a third bar is
+ * one line here rather than branches in three functions.
+ */
+const FIXED_BARS = [
+  { key: "below65", below: 65 },
+  { key: "below75", below: 75 },
+] as const;
+export type FixedBarKey = (typeof FIXED_BARS)[number]["key"];
+/**
  * Which worklist filters are ticked. Ticked bars intersect: a row must clear
  * every one, so ticking Below 65% beside Below 75% changes nothing — the
  * stricter bar already implies the other.
  */
 export type RowFilter = {
   irregular: boolean;
-  below75: boolean;
-  below65: boolean;
-};
+} & Record<FixedBarKey, boolean>;
 export const NO_FILTER: RowFilter = {
   irregular: false,
   below75: false,
@@ -531,8 +540,9 @@ export function visibleStudents(
     )
       return false;
     const figure = figureFor(s, overallMode);
-    if (filter.below75 && !(figure != null && figure < 75)) return false;
-    if (filter.below65 && !(figure != null && figure < 65)) return false;
+    for (const { key, below } of FIXED_BARS) {
+      if (filter[key] && !(figure != null && figure < below)) return false;
+    }
     return true;
   });
 }
@@ -585,8 +595,8 @@ export function emptyRegisterText(
   filter: RowFilter,
   irregularBelow: number
 ): string {
-  if (filter.below65) return "No students below 65%.";
-  if (filter.below75) return "No students below 75%.";
+  const bar = FIXED_BARS.find(({ key }) => filter[key]);
+  if (bar) return `No students below ${bar.below}%.`;
   if (filter.irregular)
     return `No irregular students. Everyone is at or above ${irregularBelow}%.`;
   return "No students in this register.";
