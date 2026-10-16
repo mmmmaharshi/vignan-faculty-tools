@@ -96,7 +96,10 @@ export function useSession(paused: boolean) {
     refreshInterval: paused ? 0 : SESSION_PROBE_MS,
     revalidateOnFocus: !paused,
     revalidateOnReconnect: !paused,
-    /** Every probe is a probe: they are minutes apart, so nothing to throttle. */
+    /* SWR measures its focus window from when the *key* last changed, and this
+       key never does — so the window would be measured from the mount. A deep
+       link to /dashboard mounts the hook signed out, with focus revalidation
+       already on, and would then swallow the first five seconds of probes. */
     focusThrottleInterval: 0,
     dedupingInterval: 0,
     /** The interval is the retry; a failed read starts no second one behind it. */

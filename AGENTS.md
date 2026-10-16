@@ -118,7 +118,8 @@ test/bands.spec.ts   where the attendance lines sit
 test/routes.spec.ts  the options ladder and the register handler, over a fake portal
 test/api.spec.ts     handleApi over a fake vault and a fake portal: what a dead
                      session does, and what a 502 must never do
-test/cascade.spec.ts the cascade's rules
+test/cascade.spec.ts the cascade's rules, and its option loop over a fake fetcher
+test/client.spec.ts  the data layer, over a stub API in the browser
 test/session-store.spec.ts  session persistence, over a fake vault
 test/smoke.spec.ts   one end-to-end pass against the live portal
 tsconfig*.json       three projects, split so web/ has DOM and server.ts does not
@@ -611,7 +612,12 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
 - **`focusThrottleInterval: 0` and `dedupingInterval: 0` on the session hook.**
   SWR throttles a focus revalidation to 5 seconds and dedupes within 2 by
   default; the smoke test dispatches one `visibilitychange` and expects a probe,
-  so both defaults would have made the app look alive when it was not.
+  so both defaults would have made the app look alive when it was not. The
+  throttle is the subtler of the two: SWR measures its window from when the *key*
+  last changed, and `/api/session` never changes, so the window is measured from
+  the mount — and a deep link to `/dashboard` mounts the hook with focus
+  revalidation already on, which is the case that would swallow the probe.
+  `test/client.spec.ts` enters that way on purpose.
 - **A mutation's callbacks are stable and its state is not, so they are taken
   apart at the call site.** `{ trigger, reset }` are `useCallback(..., [])`; the
   object holding them is rebuilt every render. A dependency on the object re-runs
@@ -635,9 +641,17 @@ ECAP_USER=... ECAP_PASS=... bun run test
 **Almost every test needs no credentials, and the whole suite runs in seconds.**
 Only `test/smoke.spec.ts` touches the network, so everything else — the portal's
 seam, its wire conventions, the attendance bands, the route handlers over a fake
-portal, the cascade's rules and its option loop over an injected fetcher, session
-liveness, and session persistence over a fake vault — runs with
-`bunx playwright test` and no environment at all, in seconds.
+portal, the cascade's rules and its option loop over an injected fetcher, the
+app's own data layer over a stub API in a real browser, session liveness, and
+session persistence over a fake vault — runs with `bunx playwright test` and no
+environment at all, in seconds.
+
+**A stub API can vouch for the app's own data layer, but never for the Portal's.**
+`test/client.spec.ts` serves the built app and answers `/api/*` in the browser, so
+the keys, the click-only register, the probe and the sweep on sign-out are
+exercised where SWR actually runs; the shapes it answers with are the app's own
+contract, which is all it is testing. What the *Portal* sends is `smoke.spec.ts`'s
+job, against the real thing.
 
 **No test count appears in this file, on purpose.** A number here goes stale the
 moment a test is added, and a stale count in a manual is worse than none: it
@@ -653,7 +667,11 @@ when the code is wrong and proves nothing. Assert a property instead: for the
 fast suite, where the line sits and what must never happen across it; for the
 smoke test, the unfiltered rows are in the Portal's own `Sl.No` order, the
 flagged-row count equals the stat card, and the register on screen is named. Each
-breaks for its own distinct reason.
+breaks for its own distinct reason. A probe that passes under the mutation is
+not a near miss — it is a test that was never testing anything, and the first
+version of `client.spec.ts`'s probe test was exactly that: it mounted the app on
+`/login`, where the session hook is paused, and so could not see the focus
+throttle it was written to pin.
 
 **The register is in roster order; only the filtered table is sorted.** There are
 two orders and they are both deliberate, so do not "fix" one into the other. Whole
@@ -681,8 +699,9 @@ found, and how a session-state test that silently could not fail was caught.
 Use a Playwright config without `globalSetup` for the probe, because the lint
 gate refuses the deliberate breakage first.
 
-Two traps in that probe, both hit the hard way. **The smoke test drives
-`dist/`, not the source**, so a mutation to `web/` needs `bun run build` before it
+Two traps in that probe, both hit the hard way. **Anything that drives the app
+in a browser — the smoke test, and `client.spec.ts` — drives `dist/`, not the
+source**, so a mutation to `web/` needs `bun run build` before it
 will be observed — without the rebuild, four mutations "passed". And **a test that
 signs in again after `page.goto` cannot see leaked state at all**, because a
 reload discards it; inspect state in the same document, or the test passes

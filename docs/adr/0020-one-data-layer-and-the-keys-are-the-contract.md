@@ -95,6 +95,12 @@ Alternatives considered:
   `optsRef` class of bug — which shipped, and sent the wrong batch number — is
   gone by construction rather than by care. `cascade.spec.ts` drives the loop over
   a fake fetcher, including both abort checks.
+- **The layer is tested where it runs, and without a credential.** `client.spec.ts`
+  serves the built app and answers `/api/*` in the browser, so the keys, the
+  click-only register, the probe and the sweep are exercised in a real browser.
+  A stub cannot vouch for what the *Portal* sends — that stays `smoke.spec.ts`'s
+  job — but this is the first check of the app's own fetch layer, and it caught a
+  probe test of its own that could not fail.
 - **There is now a cache, and it has rules.** A new key is a new cache entry; a
   read added without thinking about *whose* answers those are will outlive a
   session unless the sweep covers it. That is the price of the deletion, and it is

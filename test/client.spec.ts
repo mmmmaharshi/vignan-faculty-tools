@@ -1,0 +1,286 @@
+import { test, expect } from "@playwright/test";
+import type { Page, Route } from "@playwright/test";
+
+import { ALL_SUBJECTS } from "../shared/api";
+import type {
+  Option,
+  OptionsReply,
+  OptionsRequest,
+  RegisterReply,
+} from "../shared/api";
+
+/*
+ * The data layer, over a stubbed API and no credentials.
+ *
+ * `smoke.spec.ts` drives the real Portal, because the Portal's own wire is not
+ * something a stub can vouch for. This is the other half: the app's own fetch
+ * layer — the keys, the click-only register, the probe, the sweep on sign-out —
+ * exercised in a browser, where SWR's behaviour actually happens. The API is
+ * stubbed in the *browser*, so nothing here reaches ECAP.
+ */
+
+const opt = (value: string, label: string, title = ""): Option => ({
+  value,
+  label,
+  title,
+});
+/** What the last read of `/api/session` said, and what the stub has been asked
+ *  for so far. Reset for each test. */
+let signedIn = false;
+let sessionCalls = 0;
+let optionsCalls = 0;
+let registerCalls = 0;
+let registerFails = false;
+/** The chain, level by level: each pass answers with the level the request has
+ *  unlocked. Fixed options, so a settled selection is a known one. */
+const optionsFor = (request: OptionsRequest): OptionsReply => ({
+  course: [opt("1", "B.Tech"), opt("2", "M.Tech")],
+  semester: request.course ? [opt("3", "III Semester", "2025")] : [],
+  branch: request.semester ? [opt("4", "Information Technology")] : [],
+  section: request.branch ? [opt("5", "IT-3A"), opt("6", "IT-3B")] : [],
+  subject: request.section
+    ? [ALL_SUBJECTS, opt("7", "MFCS"), opt("8", "DBMS")]
+    : [],
+  emptyLevels: [],
+});
+const registerReply = (): RegisterReply => ({
+  students: [
+    {
+      sl: "1",
+      roll: "21A",
+      name: "A student",
+      attendedOfHeld: "38/45",
+      pct: 84.4,
+      irregular: false,
+      critical: false,
+      overallPct: 81,
+      overallAttendedOfHeld: "120/148",
+      overallIrregular: false,
+      overallCritical: false,
+    },
+    {
+      sl: "2",
+      roll: "21B",
+      name: "B student",
+      attendedOfHeld: "20/45",
+      pct: 44.4,
+      irregular: true,
+      critical: false,
+      overallPct: 52,
+      overallAttendedOfHeld: "77/148",
+      overallIrregular: true,
+      overallCritical: false,
+    },
+    {
+      sl: "3",
+      roll: "21C",
+      name: "C student",
+      attendedOfHeld: "10/45",
+      pct: 22.2,
+      irregular: true,
+      critical: true,
+      overallPct: 30,
+      overallAttendedOfHeld: "44/148",
+      overallIrregular: true,
+      overallCritical: true,
+    },
+  ],
+  summary: {
+    total: 3,
+    irregular: 2,
+    critical: 1,
+    irregularBelow: 65,
+    criticalBelow: 50,
+    average: 50.3,
+    overallAverage: 54.3,
+    overallIrregular: 2,
+    overallCritical: 1,
+    range: { from: "01/07/2026", to: "16/10/2026" },
+  },
+});
+const stub = async (route: Route): Promise<void> => {
+  const request = route.request();
+  const path = new URL(request.url()).pathname;
+  const json = (body: unknown, status = 200): Promise<void> =>
+    route.fulfill({
+      status,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+  if (path === "/api/session") {
+    sessionCalls += 1;
+    await json({
+      signedIn,
+      persisted: false,
+      userId: signedIn ? "faculty" : "",
+    });
+    return;
+  }
+  if (path === "/api/login") {
+    signedIn = true;
+    await json({ ok: true });
+    return;
+  }
+  if (path === "/api/logout") {
+    signedIn = false;
+    await json({ ok: true });
+    return;
+  }
+  if (path === "/api/options") {
+    optionsCalls += 1;
+    await json(optionsFor(request.postDataJSON() as OptionsRequest));
+    return;
+  }
+  if (path === "/api/register") {
+    registerCalls += 1;
+    if (registerFails) {
+      await json({ error: "Your session has expired." }, 401);
+      return;
+    }
+    await json(registerReply());
+    return;
+  }
+  await json({ error: `no stub for ${path}` }, 500);
+};
+/** What a Select shows. Mantine puts the chosen option's *label* in the input,
+ *  which is the thing a reader of the screen can see. */
+async function selectValue(page: Page, label: string): Promise<string | null> {
+  const index = await page.evaluate((text) => {
+    const inputs = [
+      ...document.querySelectorAll<HTMLInputElement>(
+        "input.mantine-Select-input"
+      ),
+    ];
+    return inputs.findIndex((input) => {
+      const forIt = document.querySelector(`label[for="${input.id}"]`);
+      return (
+        forIt?.textContent
+          .replace(/\s*\*$/, "")
+          .trim()
+          .toLowerCase() === text
+      );
+    });
+  }, label.toLowerCase());
+  if (index < 0) return null;
+  return page.locator("input.mantine-Select-input").nth(index).inputValue();
+}
+async function signIn(page: Page): Promise<void> {
+  await page.getByLabel("ECAP user name").fill("faculty");
+  await page.locator('input[type="password"]').fill("secret");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect
+    .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })
+    .toBe("/dashboard");
+}
+/** Signed in, with the cascade settled on the stub's first class. */
+async function signInAndSettle(page: Page): Promise<void> {
+  await page.goto("/login");
+  await signIn(page);
+  await expect
+    .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+    .toBe("ALL SUBJECTS");
+}
+
+test.describe("the app's own data layer", () => {
+  test.beforeEach(async ({ page }) => {
+    signedIn = false;
+    sessionCalls = 0;
+    optionsCalls = 0;
+    registerCalls = 0;
+    registerFails = false;
+    await page.route("**/api/**", stub);
+  });
+  test("the boot read decides which screen a stranger gets", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
+    expect(
+      new URL(page.url()).pathname,
+      "a dashboard with no session is the sign-in screen"
+    ).toBe("/login");
+    expect(sessionCalls, "and it was asked, not assumed").toBe(1);
+  });
+  test("a sign-in settles the whole cascade, one pass per level", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    expect(
+      {
+        course: await selectValue(page, "Course"),
+        semester: await selectValue(page, "Semester"),
+        branch: await selectValue(page, "Branch"),
+        section: await selectValue(page, "Section"),
+        subject: await selectValue(page, "Subject"),
+      },
+      "every level filled itself, in order"
+    ).toEqual({
+      course: "B.Tech",
+      semester: "III Semester",
+      branch: "Information Technology",
+      section: "IT-3A",
+      subject: "ALL SUBJECTS",
+    });
+    expect(optionsCalls, "a pass per level, and no more").toBe(5);
+    expect(registerCalls, "and no register until the click").toBe(0);
+  });
+  test("the click is what fetches a register, every time it is clicked", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(3, { timeout: 15_000 });
+    expect(registerCalls, "one click, one fetch").toBe(1);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect.poll(() => registerCalls, { timeout: 15_000 }).toBe(2);
+    await expect(page.locator("tbody tr")).toHaveCount(3);
+    expect(optionsCalls, "and the click asked for no options").toBe(5);
+  });
+  test("a tab that comes back is probed, even just after a deep link in", async ({
+    page,
+  }) => {
+    // The deep link matters: `/dashboard` is where the session hook mounts with
+    // focus revalidation already on, and SWR measures its focus window from the
+    // mount when the key does not change. Arriving here rather than at `/login`
+    // is the case a throttle would swallow.
+    await page.goto("/dashboard");
+    await signIn(page);
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    const before = sessionCalls;
+    await page.waitForTimeout(500);
+    expect(sessionCalls, "an idle session asks nothing by itself").toBe(before);
+    await page.evaluate(() =>
+      document.dispatchEvent(new Event("visibilitychange"))
+    );
+    await expect.poll(() => sessionCalls, { timeout: 5000 }).toBe(before + 1);
+  });
+  test("a 401 ends the session, and nothing of it is left for the next one", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(3, { timeout: 15_000 });
+    registerFails = true;
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("alert")).toHaveText(/session expired/i);
+    registerFails = false;
+    optionsCalls = 0;
+    await signIn(page);
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    expect(
+      optionsCalls,
+      "the new session runs its own cascade from the top"
+    ).toBe(5);
+    await expect(
+      page.locator("tbody tr"),
+      "and the previous session's register did not come back with it"
+    ).toHaveCount(0);
+  });
+});
