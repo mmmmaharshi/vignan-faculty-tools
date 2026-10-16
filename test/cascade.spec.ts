@@ -32,7 +32,7 @@ import {
   toPortalDate,
   visibleStudents,
 } from "../web/cascade";
-import type { Level, RowFilter, Sel } from "../web/cascade";
+import type { ChosenFact, Level, RowFilter, Sel } from "../web/cascade";
 
 const opt = (value: string, label = `L${value}`, title = ""): Option => ({
   value,
@@ -64,10 +64,10 @@ const nothing = reply({
 });
 /** The old single-checkbox filter, spelled in the new shape. */
 const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
-/** The Data Range facts' values for a fixed selection and range, varying only
- *  the register's own class-day count: the range line, then working days,
- *  then holidays — or the bare range where the Portal stated no count. */
-const dataRangeTail = (workingDays?: number | null): (string | undefined)[] => {
+/** The Data Range tail for a fixed selection and range, varying only the
+ *  register's own class-day count: the range fact, then working days, then
+ *  holidays — or the bare range where the Portal stated no count. */
+const dataRangeTail = (workingDays?: number | null): ChosenFact[] => {
   const facts = chosenFacts(
     reply({
       course: ["1"],
@@ -86,9 +86,9 @@ const dataRangeTail = (workingDays?: number | null): (string | undefined)[] => {
     { from: "01/10/2026", to: "16/10/2026" },
     workingDays
   );
-  return facts
-    .slice(facts.findIndex((fact) => fact.label === "Data Range"))
-    .map((fact) => fact.value);
+  return facts.slice(
+    facts.findIndex((fact) => fact.label.startsWith("Data Range"))
+  );
 };
 /** The reply for a selection the Portal agrees with: every level offered. */
 const fullReply = (): OptionsReply =>
@@ -320,17 +320,21 @@ test.describe("the register, before it is sent", () => {
     // 01/10 to 16/10 is 16 calendar days; the register states 6 class days,
     // so 10 are holidays by complement. Only the working figure is read.
     expect(dataRangeTail(6)).toEqual([
-      "01/10/2026 to 16/10/2026 (16 days)",
-      "6 days",
-      "10 days",
+      { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
+      { label: "Working Days", value: "6 days" },
+      { label: "Holidays", value: "10 days" },
     ]);
     expect(dataRangeTail(1)).toEqual([
-      "01/10/2026 to 16/10/2026 (16 days)",
-      "1 day",
-      "15 days",
+      { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
+      { label: "Working Days", value: "1 day" },
+      { label: "Holidays", value: "15 days" },
     ]);
-    expect(dataRangeTail(null)).toEqual(["01/10/2026 to 16/10/2026"]);
-    expect(dataRangeTail(undefined)).toEqual(["01/10/2026 to 16/10/2026"]);
+    expect(dataRangeTail(null)).toEqual([
+      { label: "Data Range", value: "01/10/2026 to 16/10/2026" },
+    ]);
+    expect(dataRangeTail(undefined)).toEqual([
+      { label: "Data Range", value: "01/10/2026 to 16/10/2026" },
+    ]);
   });
 });
 const student = (pct: number | null): Student => ({

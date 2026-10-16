@@ -317,7 +317,7 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("row", {
-        name: "Data Range 01/07/2026 to 16/10/2026 (108 days)",
+        name: "Data Range (108 days) 01/07/2026 to 16/10/2026",
       }),
       "the range carries the calendar-day frame"
     ).toBeVisible();
