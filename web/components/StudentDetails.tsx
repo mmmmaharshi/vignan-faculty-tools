@@ -22,7 +22,15 @@ import { badgeFor } from "./RegisterTable";
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */
   student: Student | null;
+  /** Whether the drawer is showing. Separate from `student` so the panel keeps
+   *  its content through the ~200ms slide-out: on `opened` going false the
+   *  drawer still has a student to draw, and an empty one sliding away was the
+   *  bug. `student` is cleared on the way out — see `onExitTransitionEnd`. */
+  opened: boolean;
   onClose: () => void;
+  /** Called once the slide-out has finished, which is when the panel's student
+   *  may be dropped. Clearing it at the click instead empties the drawer first. */
+  onExitTransitionEnd: () => void;
   /** The register this student was read from, with the period it was read over:
    *  a percentage means nothing without the two, and the table says the same
    *  sentence above itself. */
@@ -71,7 +79,9 @@ const Figure = ({
  */
 export const StudentDetails = ({
   student,
+  opened,
   onClose,
+  onExitTransitionEnd,
   chosenText,
   profile,
   busy,
@@ -86,12 +96,13 @@ export const StudentDetails = ({
   const hasGpa = cgpaShown || sgpa.length > 0;
   return (
     <Drawer
-      opened={student !== null}
+      opened={opened}
       onClose={onClose}
       position="right"
       size="md"
       title="Student details"
       closeButtonProps={{ "aria-label": "Close student details" }}
+      onExitTransitionEnd={onExitTransitionEnd}
     >
       {student ? (
         <Stack gap="sm">

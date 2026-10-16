@@ -89,6 +89,15 @@ const App = (): React.JSX.Element => {
   /** The row whose panel is open. Held here, not in the table, because the table
    *  is a presentational module with no state of its own. */
   const [detail, setDetail] = useState<Student | null>(null);
+  /** Whether that panel is showing. Two facts, not one, because the drawer slides
+   *  out for ~200ms after `opened` goes false: `detail` is what it draws with
+   *  while it leaves, and it is dropped only when the slide-out ends. Held here
+   *  for the same reason as `detail`. */
+  const [detailOpen, setDetailOpen] = useState(false);
+  const showDetails = (student: Student) => {
+    setDetail(student);
+    setDetailOpen(true);
+  };
   /** Every subject name this session has been offered, by section and value.
    *
    *  The Portal answers subjects one section at a time, so on a cold load a card
@@ -475,14 +484,16 @@ const App = (): React.JSX.Element => {
               summary={summary}
               onlyIrregular={onlyIrregular}
               onToggleIrregular={setOnlyIrregular}
-              onShowDetails={setDetail}
+              onShowDetails={showDetails}
               chosenText={registerName}
               overallMode={overallMode}
             />
           ) : null}
           <StudentDetails
             student={detail}
-            onClose={() => setDetail(null)}
+            opened={detailOpen}
+            onClose={() => setDetailOpen(false)}
+            onExitTransitionEnd={() => setDetail(null)}
             chosenText={registerName}
             profile={profile.data ?? null}
             busy={profile.isLoading}

@@ -270,6 +270,13 @@ test.describe("the app's own data layer", () => {
       "21B",
     ]);
     await page.getByRole("button", { name: "Close student details" }).click();
+    /* Read straight after the click, because this bug only exists during the
+     * slide-out: the panel used to empty itself the moment Close was pressed
+     * and then travel off screen bare. */
+    expect(
+      await page.getByText("CGPA 5.61").isVisible(),
+      "the drawer leaves with its content, not empty"
+    ).toBe(true);
     await expect(page.getByText("CGPA 5.61")).toBeHidden();
     // Reopening: the last answer is on screen at once and one read lands behind
     // it, which is the whole point of holding it — and then it stops.
