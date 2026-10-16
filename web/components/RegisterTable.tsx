@@ -27,19 +27,33 @@ type RegisterTableProps = {
    *  because a subject was either chosen or not; two names for it could disagree. */
   overallMode?: boolean;
 };
+/** Which figure a percentage is: the subject's own, or the section-wide overall.
+ *  The two differ in emphasis — the subject figure reads heavier, and its low
+ *  badge is yellow where the overall's is orange — so that pairing lives here,
+ *  in one map, instead of as literals at every call site. */
+export type FigureKind = "subject" | "overall";
+const FIGURE_STYLE = {
+  subject: { weight: 700, low: "yellow" },
+  overall: { weight: 600, low: "orange" },
+} as const;
 /** The overall badge is orange where the subject one is yellow, so a row
  *  badged on one and not the other is readable at a glance. Exported because a
  *  student's own panel badges the same two figures and must say the same words. */
 export const badgeFor = (
   critical: boolean,
   irregular: boolean,
-  low: string
+  kind: FigureKind
 ): { badge: string; color: string } => {
   if (critical) return { badge: "critical", color: "red" };
-  if (irregular) return { badge: "low", color: low };
+  if (irregular) return { badge: "low", color: FIGURE_STYLE[kind].low };
   return { badge: "", color: "red" };
 };
-type CellProps = { pct: number; weight: number; badge: string; color: string };
+type CellProps = {
+  pct: number;
+  kind: FigureKind;
+  critical: boolean;
+  irregular: boolean;
+};
 /** The register's own naming — course through period, one fact per row. Shared
  *  by the card above the register and a student's panel, so the two cannot
  *  disagree about which register is on screen; exported for the same reason as
@@ -80,23 +94,31 @@ export const FactsTable = ({
     </Table>
   );
 };
+/** One badged percentage in the register's dense table: the figure reads its own
+ *  weight and badge from its kind, so call sites name the figure, not the
+ *  styling. The panel's rows are their own component — roomier type and a
+ *  leading cell — and stay that way on purpose; unifying the two would trade
+ *  that difference for a prop. */
 const Figure = ({
   pct,
-  weight,
-  badge,
-  color,
-}: CellProps): React.JSX.Element => (
-  <Group gap={6} justify="flex-end" wrap="nowrap">
-    <Text fw={weight} size="sm">
-      {pct.toFixed(2)}%
-    </Text>
-    {badge && (
-      <Badge color={color} size="xs" variant="light">
-        {badge}
-      </Badge>
-    )}
-  </Group>
-);
+  kind,
+  critical,
+  irregular,
+}: CellProps): React.JSX.Element => {
+  const { badge, color } = badgeFor(critical, irregular, kind);
+  return (
+    <Group gap={6} justify="flex-end" wrap="nowrap">
+      <Text fw={FIGURE_STYLE[kind].weight} size="sm">
+        {pct.toFixed(2)}%
+      </Text>
+      {badge && (
+        <Badge color={color} size="xs" variant="light">
+          {badge}
+        </Badge>
+      )}
+    </Group>
+  );
+};
 export const RegisterTable = ({
   rows,
   total,
@@ -184,8 +206,9 @@ export const RegisterTable = ({
                         ) : (
                           <Figure
                             pct={s.pct}
-                            weight={700}
-                            {...badgeFor(s.critical, s.irregular, "yellow")}
+                            kind="subject"
+                            critical={s.critical}
+                            irregular={s.irregular}
                           />
                         )}
                       </Table.Td>
@@ -207,14 +230,9 @@ export const RegisterTable = ({
                           // irregular filter reads the subject band alone.
                           <Figure
                             pct={s.overallPct}
-                            weight={600}
-                            {...(overallMode
-                              ? badgeFor(
-                                  s.overallCritical,
-                                  s.overallIrregular,
-                                  "orange"
-                                )
-                              : { badge: "", color: "red" })}
+                            kind="overall"
+                            critical={s.overallCritical}
+                            irregular={s.overallIrregular}
                           />
                         )}
                       </Table.Td>

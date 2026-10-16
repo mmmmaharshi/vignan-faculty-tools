@@ -1,6 +1,7 @@
 import {
   Alert,
   Badge,
+  Box,
   Divider,
   Drawer,
   Group,
@@ -119,7 +120,7 @@ export const StudentDetails = ({
     >
       {student ? (
         <Stack gap="sm">
-          <div>
+          <Box>
             <Title order={4} tt="uppercase">
               {student.name}
             </Title>
@@ -131,7 +132,7 @@ export const StudentDetails = ({
                 Sl.No {student.sl}
               </Text>
             </Group>
-          </div>
+          </Box>
           <Divider />
           {/* A figure the Portal did not give is an absence, not a zero, so its
               row is left out rather than printed as a dash — and a subject
@@ -149,7 +150,11 @@ export const StudentDetails = ({
                     label="Subject attendance"
                     cell={student.attendedOfHeld}
                     pct={student.pct}
-                    {...badgeFor(student.critical, student.irregular, "yellow")}
+                    {...badgeFor(
+                      student.critical,
+                      student.irregular,
+                      "subject"
+                    )}
                   />
                 ) : null}
                 {overallMode &&
@@ -162,7 +167,7 @@ export const StudentDetails = ({
                     {...badgeFor(
                       student.overallCritical,
                       student.overallIrregular,
-                      "orange"
+                      "overall"
                     )}
                   />
                 ) : null}
