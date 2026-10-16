@@ -7,6 +7,8 @@ import type {
   OptionsReply,
   OptionsRequest,
   RegisterReply,
+  StudentProfile,
+  StudentRequest,
 } from "../shared/api";
 
 /*
@@ -31,6 +33,7 @@ let sessionCalls = 0;
 let optionsCalls = 0;
 let registerCalls = 0;
 let registerFails = false;
+const profileRolls: string[] = [];
 /** The chain, level by level: each pass answers with the level the request has
  *  unlocked. Fixed options, so a settled selection is a known one. */
 const optionsFor = (request: OptionsRequest): OptionsReply => ({
@@ -98,6 +101,15 @@ const registerReply = (): RegisterReply => ({
     range: { from: "01/07/2026", to: "16/10/2026" },
   },
 });
+/** What ECAP states for one student. The roll that has nothing is the one the
+ *  panel has to say so about. */
+const profileFor = (roll: string): StudentProfile => ({
+  cgpa: roll === "21C" ? "NA" : "5.61",
+  credits: roll === "21C" ? "" : "16/19",
+  cgpaPercent: roll === "21C" ? "" : "48.55",
+  sgpa: roll === "21C" ? [] : [{ semester: "I Semester", value: "5.61" }],
+  phones: roll === "21C" ? [] : [{ label: "Mobile.No", number: "9876543210" }],
+});
 const stub = async (route: Route): Promise<void> => {
   const request = route.request();
   const path = new URL(request.url()).pathname;
@@ -138,6 +150,12 @@ const stub = async (route: Route): Promise<void> => {
       return;
     }
     await json(registerReply());
+    return;
+  }
+  if (path === "/api/student") {
+    const { roll } = request.postDataJSON() as StudentRequest;
+    profileRolls.push(roll);
+    await json(profileFor(roll));
     return;
   }
   await json({ error: `no stub for ${path}` }, 500);
@@ -188,6 +206,7 @@ test.describe("the app's own data layer", () => {
     optionsCalls = 0;
     registerCalls = 0;
     registerFails = false;
+    profileRolls.length = 0;
     await page.route("**/api/**", stub);
   });
   test("the boot read decides which screen a stranger gets", async ({
@@ -235,6 +254,38 @@ test.describe("the app's own data layer", () => {
     await expect.poll(() => registerCalls, { timeout: 15_000 }).toBe(2);
     await expect(page.locator("tbody tr")).toHaveCount(3);
     expect(optionsCalls, "and the click asked for no options").toBe(5);
+  });
+  test("a student's details are read once per open, and not again and again", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(3, { timeout: 15_000 });
+    const panel = page.getByRole("button", {
+      name: "Show details for B student",
+    });
+    await panel.click();
+    await expect(page.getByText("CGPA 5.61")).toBeVisible({ timeout: 15_000 });
+    expect(profileRolls, "one open, one read, for that student").toEqual([
+      "21B",
+    ]);
+    await page.getByRole("button", { name: "Close student details" }).click();
+    await expect(page.getByText("CGPA 5.61")).toBeHidden();
+    // Reopening: the last answer is on screen at once and one read lands behind
+    // it, which is the whole point of holding it — and then it stops.
+    await panel.click();
+    await expect(page.getByText("CGPA 5.61")).toBeVisible();
+    await expect.poll(() => profileRolls.length, { timeout: 15_000 }).toBe(2);
+    await page.waitForTimeout(1000);
+    expect(profileRolls, "and it stops there").toEqual(["21B", "21B"]);
+    // A different student is a different key: their own read, and only theirs.
+    await page.getByRole("button", { name: "Close student details" }).click();
+    await page
+      .getByRole("button", { name: "Show details for C student" })
+      .click();
+    await expect
+      .poll(() => profileRolls, { timeout: 15_000 })
+      .toEqual(["21B", "21B", "21C"]);
   });
   test("a tab that comes back is probed, even just after a deep link in", async ({
     page,
