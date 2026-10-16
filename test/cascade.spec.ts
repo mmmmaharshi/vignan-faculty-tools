@@ -287,7 +287,7 @@ test.describe("the register, before it is sent", () => {
       { label: "Branch", value: "L4" },
       { label: "Section", value: "L5" },
       { label: "Subject", value: "L6" },
-      { label: "Period", value: "01/10/2026 to 16/10/2026" },
+      { label: "Data Range", value: "01/10/2026 to 16/10/2026" },
     ]);
   });
 });

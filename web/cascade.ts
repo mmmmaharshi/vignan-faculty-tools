@@ -446,7 +446,7 @@ export function chosenFacts(
   // The period is part of naming the register: the card above it and
   // a student's panel state the same facts, so it is written once here.
   if (facts.length && range?.from)
-    facts.push({ label: "Period", value: `${range.from} to ${range.to}` });
+    facts.push({ label: "Data Range", value: `${range.from} to ${range.to}` });
   return facts;
 }
 /**
