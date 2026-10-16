@@ -570,7 +570,7 @@ requests racing is a loop bug.
   register loads; that is now carried by `All subjects` leading the list, so the
   auto-fill lands on the section-wide view and the user narrows from there. A
   section with no subjects at all still leaves it empty, which is what keeps the
-  cascade loop honest. The line above the table names the register on screen so
+  cascade loop honest. The facts table above the register names it on screen so
   a wrong pick is visible rather than silent.
 - **A newer refresh always wins, and the signal is what says so.** A change
   aborts the run before it — `cascadeRun` in `App.tsx` — and the run answers

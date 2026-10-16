@@ -248,11 +248,19 @@ test.describe("the app's own data layer", () => {
   }) => {
     await signInAndSettle(page);
     await page.getByRole("button", { name: "Load register" }).click();
-    await expect(page.locator("tbody tr")).toHaveCount(3, { timeout: 15_000 });
+    // The register is the headed table; the facts tables above it and in the
+    // panel have bodies only, so an unscoped row count would include them.
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
     expect(registerCalls, "one click, one fetch").toBe(1);
+    await expect(
+      page.getByRole("row", { name: "Subject ALL SUBJECTS" }),
+      "the card names the register it shows"
+    ).toBeVisible();
     await page.getByRole("button", { name: "Load register" }).click();
     await expect.poll(() => registerCalls, { timeout: 15_000 }).toBe(2);
-    await expect(page.locator("tbody tr")).toHaveCount(3);
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
     expect(optionsCalls, "and the click asked for no options").toBe(5);
   });
   test("a student's details are read once per open, and not again and again", async ({
@@ -260,7 +268,9 @@ test.describe("the app's own data layer", () => {
   }) => {
     await signInAndSettle(page);
     await page.getByRole("button", { name: "Load register" }).click();
-    await expect(page.locator("tbody tr")).toHaveCount(3, { timeout: 15_000 });
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
     const panel = page.getByRole("button", {
       name: "Show details for B student",
     });
@@ -319,7 +329,9 @@ test.describe("the app's own data layer", () => {
   }) => {
     await signInAndSettle(page);
     await page.getByRole("button", { name: "Load register" }).click();
-    await expect(page.locator("tbody tr")).toHaveCount(3, { timeout: 15_000 });
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
     registerFails = true;
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(page.getByLabel("ECAP user name")).toBeVisible({

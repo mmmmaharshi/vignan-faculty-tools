@@ -25,7 +25,6 @@ import {
   chosenLevels,
   isAllSubjects,
   chosenFacts,
-  chosenText,
   disabledLevels,
   rememberRangeStart,
   selectionAfter,
@@ -351,7 +350,6 @@ const App = (): React.JSX.Element => {
   // carries. Reordering them by attendance made the numbers read as a ranking
   // rather than as a roster. A student needing a check-in is found by the tint,
   // not by being at the top of the list.
-  const registerName = chosenText(opts, sel, summary?.range);
   const registerFacts = chosenFacts(opts, sel, summary?.range);
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };
@@ -487,7 +485,7 @@ const App = (): React.JSX.Element => {
               onlyIrregular={onlyIrregular}
               onToggleIrregular={setOnlyIrregular}
               onShowDetails={showDetails}
-              chosenText={registerName}
+              chosen={registerFacts}
               overallMode={overallMode}
             />
           ) : null}

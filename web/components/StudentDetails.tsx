@@ -19,7 +19,7 @@ import {
 import type { Student, StudentProfile } from "../../shared/api";
 import type { ChosenFact } from "../cascade";
 import type { Note } from "../types";
-import { badgeFor } from "./RegisterTable";
+import { badgeFor, FactsTable } from "./RegisterTable";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */
@@ -257,22 +257,7 @@ export const StudentDetails = ({
           {chosen.length ? (
             <>
               <Divider />
-              <Table striped withTableBorder tabularNums>
-                <Table.Tbody>
-                  {chosen.map((fact) => (
-                    <Table.Tr key={fact.label}>
-                      <Table.Td c="dimmed">
-                        <Text size="sm">{fact.label}</Text>
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text size="sm" fw={600}>
-                          {fact.value}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
+              <FactsTable facts={chosen} />
             </>
           ) : null}
         </Stack>

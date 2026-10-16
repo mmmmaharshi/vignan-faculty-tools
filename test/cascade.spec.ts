@@ -12,7 +12,6 @@ import {
   applyOptions,
   chosenFacts,
   chosenLevels,
-  chosenText,
   defaultRange,
   rememberRangeStart,
   resetFor,
@@ -260,27 +259,7 @@ test.describe("the register, before it is sent", () => {
       expect(chosen.levels.subject.label).toBe("L6");
     }
   });
-  test("names the register on screen, so a stale read is visible", () => {
-    const text = chosenText(
-      reply({
-        course: ["1"],
-        semester: ["3"],
-        branch: ["4"],
-        section: ["5"],
-        subject: ["6"],
-      }),
-      sel({
-        course: "1",
-        semester: "3",
-        branch: "4",
-        section: "5",
-        subject: "6",
-      })
-    );
-    expect(text).toContain("Course: L1");
-    expect(text).toContain("Subject: L6");
-  });
-  test("the same naming as rows, for the panel's own table", () => {
+  test("the register's naming, one fact per row", () => {
     const facts = chosenFacts(
       reply({
         course: ["1"],

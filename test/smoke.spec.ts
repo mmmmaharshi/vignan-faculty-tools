@@ -74,7 +74,7 @@ async function loadFirstSubject(page: Page): Promise<string> {
   expect(subject).not.toBe("ALL SUBJECTS");
   await page.getByRole("option", { name: subject, exact: true }).click();
   await page.getByRole("button", { name: "Load register" }).click();
-  await expect(page.locator("tbody tr").first()).toBeVisible({
+  await expect(page.locator("thead ~ tbody tr").first()).toBeVisible({
     timeout: 90_000,
   });
   return subject;
@@ -168,7 +168,7 @@ test.describe("Vignan Faculty Tools", () => {
     await page.getByLabel("From").fill("2026-06-01");
     await page.getByLabel("To").fill("2026-09-30");
     await page.getByRole("button", { name: "Load register" }).click();
-    await expect(page.locator("tbody tr").first()).toBeVisible({
+    await expect(page.locator("thead ~ tbody tr").first()).toBeVisible({
       timeout: 90_000,
     });
     const table = await page.evaluate(() => {
@@ -178,7 +178,7 @@ test.describe("Vignan Faculty Tools", () => {
       const at = (name: string): number => head.indexOf(name);
       const pctIdx = at("Subject Attendance %");
       const heldIdx = at("Attend / Held");
-      return [...document.querySelectorAll("tbody tr")].map((tr) => {
+      return [...document.querySelectorAll("thead ~ tbody tr")].map((tr) => {
         const cells = [...tr.querySelectorAll("td")];
         const num = (i: number): number | null => {
           const found = Number(
@@ -259,11 +259,12 @@ test.describe("Vignan Faculty Tools", () => {
       statCards["BELOW 75%"],
       `flagged rows (${flagged.length}) should match the Below 75% card, got ${JSON.stringify(statCards)}`
     ).toBe(flagged.length);
-    const selection = page
-      .locator("p")
-      .filter({ hasText: /^Course:/ })
-      .first();
-    await expect(selection).toContainText(`Subject: ${subject}`);
+    // The card names the register in a facts table now, not a sentence: the
+    // Subject row must pair with the subject this register was read for.
+    const selection = page.getByRole("row", {
+      name: `Subject ${subject}`,
+    });
+    await expect(selection).toBeVisible();
     expect(
       problems,
       `browser reported problems: ${problems.join("; ")}`
@@ -430,7 +431,7 @@ test.describe("Vignan Faculty Tools", () => {
     await page.getByLabel("From").fill("2026-06-01");
     await page.getByLabel("To").fill("2026-09-30");
     await page.getByRole("button", { name: "Load register" }).click();
-    await expect(page.locator("tbody tr").first()).toBeVisible({
+    await expect(page.locator("thead ~ tbody tr").first()).toBeVisible({
       timeout: 90_000,
     });
     const head = await page.evaluate(() =>
@@ -446,7 +447,7 @@ test.describe("Vignan Faculty Tools", () => {
     expect(head).not.toContain("Attended / Total");
     const overallPctIdx = head.indexOf("Overall Attendance %");
     const overalls = await page.evaluate((pct) => {
-      const rows = [...document.querySelectorAll("tbody tr")];
+      const rows = [...document.querySelectorAll("thead ~ tbody tr")];
       const cells = [...rows].map(
         (tr) => [...tr.querySelectorAll("td")] as Element[]
       );
@@ -495,14 +496,14 @@ test.describe("Vignan Faculty Tools", () => {
     await page.getByLabel("From").fill("2026-06-01");
     await page.getByLabel("To").fill("2026-09-30");
     await page.getByRole("button", { name: "Load register" }).click();
-    await expect(page.locator("tbody tr").first()).toBeVisible({
+    await expect(page.locator("thead ~ tbody tr").first()).toBeVisible({
       timeout: 90_000,
     });
     const state = await page.evaluate(() => {
       const head = [...document.querySelectorAll("thead th")].map((th) =>
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       );
-      const rows = [...document.querySelectorAll("tbody tr")];
+      const rows = [...document.querySelectorAll("thead ~ tbody tr")];
       const overallIdx = head.indexOf("Overall Attendance %");
       const cellIdx = head.indexOf("Attended / Total");
       const cells = [...rows].map(
@@ -558,11 +559,12 @@ test.describe("Vignan Faculty Tools", () => {
       `badged rows (${state.flagged}) should match the overall card; got ${JSON.stringify(state.cards)}`
     ).toBe(String(state.flagged));
     expect(state.cards["OVERALL CLASS AVERAGE"]).toMatch(/\d/);
-    const selection = page
-      .locator("p")
-      .filter({ hasText: /^Course:/ })
-      .first();
-    await expect(selection).toContainText("Subject: ALL SUBJECTS");
+    // The card names the register in a facts table now, not a sentence: the
+    // Subject row must pair with ALL SUBJECTS.
+    const selection = page.getByRole("row", {
+      name: "Subject ALL SUBJECTS",
+    });
+    await expect(selection).toBeVisible();
     expect(
       problems,
       `no uncaught errors; got ${JSON.stringify(problems)}`
@@ -585,7 +587,7 @@ test.describe("Vignan Faculty Tools", () => {
     expect(pctIdx, "the row should state a subject percentage").toBeGreaterThan(
       -1
     );
-    const row = page.locator("tbody tr").first();
+    const row = page.locator("thead ~ tbody tr").first();
     const name = ((await row.locator("td").nth(nameIdx).textContent()) ?? "")
       .replaceAll(/\s+/g, " ")
       .trim();
@@ -690,8 +692,8 @@ test.describe("Vignan Faculty Tools", () => {
     const subjectText = await loadFirstSubject(page);
     expect(registerCalls, "one click, one request").toHaveLength(1);
     await expect(
-      page.locator("p").filter({ hasText: /^Course:/ })
-    ).toContainText(`Subject: ${subjectText}`);
+      page.getByRole("row", { name: `Subject ${subjectText}` })
+    ).toBeVisible();
     registerCalls.length = 0;
     const branch = page.getByRole("combobox", { name: "Branch" });
     const before = await branch.inputValue();

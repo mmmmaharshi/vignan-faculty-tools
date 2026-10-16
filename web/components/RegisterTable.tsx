@@ -12,6 +12,7 @@ import {
 import { overallCellForDisplay } from "../../attendance-bands";
 import type { RegisterReply, Student } from "../../shared/api";
 import { tintFor } from "../cascade";
+import type { ChosenFact } from "../cascade";
 
 type RegisterTableProps = {
   rows: Student[];
@@ -20,7 +21,7 @@ type RegisterTableProps = {
   onlyIrregular: boolean;
   onToggleIrregular: (value: boolean) => void;
   onShowDetails: (student: Student) => void;
-  chosenText: string;
+  chosen: ChosenFact[];
   /** The All subjects path: no subject was chosen, so there are no subject columns
    *  and the bands on show — and the row tint — are the overall ones. One prop,
    *  because a subject was either chosen or not; two names for it could disagree. */
@@ -39,6 +40,33 @@ export const badgeFor = (
   return { badge: "", color: "red" };
 };
 type CellProps = { pct: number; weight: number; badge: string; color: string };
+/** The register's own naming — course through period, one fact per row. Shared
+ *  by the card above the register and a student's panel, so the two cannot
+ *  disagree about which register is on screen; exported for the same reason as
+ *  `badgeFor`. It stays headless on purpose: the specs count register rows as
+ *  `thead ~ tbody tr`, and a thead here would join that count. */
+export const FactsTable = ({
+  facts,
+}: {
+  facts: ChosenFact[];
+}): React.JSX.Element => (
+  <Table striped withTableBorder tabularNums>
+    <Table.Tbody>
+      {facts.map((fact) => (
+        <Table.Tr key={fact.label}>
+          <Table.Td c="dimmed">
+            <Text size="sm">{fact.label}</Text>
+          </Table.Td>
+          <Table.Td ta="right">
+            <Text size="sm" fw={600}>
+              {fact.value}
+            </Text>
+          </Table.Td>
+        </Table.Tr>
+      ))}
+    </Table.Tbody>
+  </Table>
+);
 const Figure = ({
   pct,
   weight,
@@ -63,7 +91,7 @@ export const RegisterTable = ({
   onlyIrregular,
   onToggleIrregular,
   onShowDetails,
-  chosenText,
+  chosen,
   overallMode = false,
 }: RegisterTableProps): React.JSX.Element => {
   // A class report that failed leaves every figure absent; showing two columns
@@ -80,14 +108,12 @@ export const RegisterTable = ({
           onChange={(e) => onToggleIrregular(e.currentTarget.checked)}
         />
       </Group>
-      {chosenText && (
+      {chosen.length ? (
         <>
-          <Text c="dimmed" size="sm" mb="sm">
-            {chosenText}
-          </Text>
-          <Divider mb="sm" />
+          <FactsTable facts={chosen} />
+          <Divider my="sm" />
         </>
-      )}
+      ) : null}
       {rows.length === 0 ? (
         <Text c="dimmed" size="sm">
           {onlyIrregular

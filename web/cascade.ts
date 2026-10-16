@@ -443,20 +443,11 @@ export function chosenFacts(
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
     return hit ? [{ label, value: hit.label }] : [];
   });
-  // The period is part of naming the register: the table's own line above it and
+  // The period is part of naming the register: the card above it and
   // a student's panel state the same facts, so it is written once here.
   if (facts.length && range?.from)
     facts.push({ label: "Period", value: `${range.from} to ${range.to}` });
   return facts;
-}
-export function chosenText(
-  opts: OptionsReply,
-  sel: Sel,
-  range?: Range
-): string {
-  return chosenFacts(opts, sel, range)
-    .map(({ label, value }) => `${label}: ${value}`)
-    .join("   ·   ");
 }
 /**
  * A row's background, and nothing else: only a **critical** student is tinted.
