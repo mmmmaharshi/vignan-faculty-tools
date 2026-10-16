@@ -17,6 +17,7 @@ import {
   overallCellForDisplay,
 } from "../../attendance-bands";
 import type { Student, StudentProfile } from "../../shared/api";
+import type { ChosenFact } from "../cascade";
 import type { Note } from "../types";
 import { badgeFor } from "./RegisterTable";
 
@@ -34,8 +35,8 @@ type StudentDetailsProps = {
   onExitTransitionEnd: () => void;
   /** The register this student was read from, with the period it was read over:
    *  a percentage means nothing without the two, and the table says the same
-   *  sentence above itself. */
-  chosenText: string;
+   *  facts above itself. One fact per row, in the order the line names them. */
+  chosen: ChosenFact[];
   /** The student's GPA and phone numbers, which the register does not state and
    *  ECAP answers for one roll number at a time. Read when the panel opens, so
    *  the attendance figures are on screen while this is still arriving. */
@@ -89,7 +90,7 @@ export const StudentDetails = ({
   opened,
   onClose,
   onExitTransitionEnd,
-  chosenText,
+  chosen,
   profile,
   busy,
   note,
@@ -253,12 +254,25 @@ export const StudentDetails = ({
               </Table>
             </>
           ) : null}
-          {chosenText ? (
+          {chosen.length ? (
             <>
               <Divider />
-              <Text c="dimmed" size="sm">
-                {chosenText}
-              </Text>
+              <Table striped withTableBorder tabularNums>
+                <Table.Tbody>
+                  {chosen.map((fact) => (
+                    <Table.Tr key={fact.label}>
+                      <Table.Td c="dimmed">
+                        <Text size="sm">{fact.label}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Text size="sm" fw={600}>
+                          {fact.value}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
             </>
           ) : null}
         </Stack>

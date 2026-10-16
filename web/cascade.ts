@@ -433,20 +433,30 @@ export function abbreviate(name: string): string {
     name
   );
 }
+export type ChosenFact = { label: string; value: string };
+export function chosenFacts(
+  opts: OptionsReply,
+  sel: Sel,
+  range?: Range
+): ChosenFact[] {
+  const facts = LEVELS.flatMap(([key, label]) => {
+    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
+    return hit ? [{ label, value: hit.label }] : [];
+  });
+  // The period is part of naming the register: the table's own line above it and
+  // a student's panel state the same facts, so it is written once here.
+  if (facts.length && range?.from)
+    facts.push({ label: "Period", value: `${range.from} to ${range.to}` });
+  return facts;
+}
 export function chosenText(
   opts: OptionsReply,
   sel: Sel,
   range?: Range
 ): string {
-  const line = LEVELS.flatMap(([key, label]) => {
-    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
-    return hit ? [`${label}: ${hit.label}`] : [];
-  }).join("   ·   ");
-  // The period is part of naming the register: the table's own line above it and
-  // a student's panel state the same sentence, so it is written once here.
-  return line && range?.from
-    ? `${line}   ·   ${range.from} to ${range.to}`
-    : line;
+  return chosenFacts(opts, sel, range)
+    .map(({ label, value }) => `${label}: ${value}`)
+    .join("   ·   ");
 }
 /**
  * A row's background, and nothing else: only a **critical** student is tinted.

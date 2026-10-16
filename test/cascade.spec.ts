@@ -10,6 +10,7 @@ import { ALL_SUBJECTS } from "../shared/api";
 import {
   abbreviate,
   applyOptions,
+  chosenFacts,
   chosenLevels,
   chosenText,
   defaultRange,
@@ -278,6 +279,33 @@ test.describe("the register, before it is sent", () => {
     );
     expect(text).toContain("Course: L1");
     expect(text).toContain("Subject: L6");
+  });
+  test("the same naming as rows, for the panel's own table", () => {
+    const facts = chosenFacts(
+      reply({
+        course: ["1"],
+        semester: ["3"],
+        branch: ["4"],
+        section: ["5"],
+        subject: ["6"],
+      }),
+      sel({
+        course: "1",
+        semester: "3",
+        branch: "4",
+        section: "5",
+        subject: "6",
+      }),
+      { from: "01/10/2026", to: "16/10/2026" }
+    );
+    expect(facts).toEqual([
+      { label: "Course", value: "L1" },
+      { label: "Semester", value: "L3" },
+      { label: "Branch", value: "L4" },
+      { label: "Section", value: "L5" },
+      { label: "Subject", value: "L6" },
+      { label: "Period", value: "01/10/2026 to 16/10/2026" },
+    ]);
   });
 });
 const student = (pct: number | null): Student => ({

@@ -24,6 +24,7 @@ import {
   abbreviate,
   chosenLevels,
   isAllSubjects,
+  chosenFacts,
   chosenText,
   disabledLevels,
   rememberRangeStart,
@@ -351,6 +352,7 @@ const App = (): React.JSX.Element => {
   // rather than as a roster. A student needing a check-in is found by the tint,
   // not by being at the top of the list.
   const registerName = chosenText(opts, sel, summary?.range);
+  const registerFacts = chosenFacts(opts, sel, summary?.range);
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };
     // The subject has nothing below it, so it re-reads nothing; every other level
@@ -494,7 +496,7 @@ const App = (): React.JSX.Element => {
             opened={detailOpen}
             onClose={() => setDetailOpen(false)}
             onExitTransitionEnd={() => setDetail(null)}
-            chosenText={registerName}
+            chosen={registerFacts}
             profile={profile.data ?? null}
             busy={profile.isLoading}
             note={profileNote}
