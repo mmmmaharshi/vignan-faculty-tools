@@ -8,6 +8,7 @@ import {
   parseRegister,
   parseStudentProfile,
   realOptions,
+  registerDates,
   unquoteJs,
 } from "../portal-replies";
 
@@ -88,6 +89,23 @@ test.describe("portal replies", () => {
     expect(
       parseRegister("<table><tr><th>Something else</th></tr></table>")
     ).toEqual([]);
+  });
+  test("the register's date columns are read as its class days", () => {
+    // A real Academic Register lays one column per day the subject met —
+    // 10/10 to 16/10 here, with Sunday 11/10 simply absent — and the count is
+    // the official working-days figure, never calendar arithmetic.
+    const html = `<table>
+      <tr><th>Sl.No</th><th>Roll No</th><th>Student Name</th><th>10/10</th><th>12/10</th><th>13/10</th><th>Attend/Held</th><th>%</th></tr>
+      <tr><td>1</td><td>21CS001</td><td>Asha Rao</td><td>P</td><td>A</td><td>P</td><td>2/3</td><td>66.67</td></tr>
+    </table>`;
+    expect(registerDates(html)).toEqual(["10/10", "12/10", "13/10"]);
+    expect(
+      registerDates(
+        `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
+        <tr><td>1</td><td>21CS001</td><td>A</td><td>38/45</td><td>84.44</td></tr></table>`
+      )
+    ).toEqual([]);
+    expect(registerDates(LOGIN_PAGE)).toEqual([]);
   });
   test("the class report is read from the portal's own last two cells", () => {
     const html = `<center><div id='tblReport'><table width='95%'>

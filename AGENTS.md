@@ -288,6 +288,14 @@ carries one also has its name in text.
   `GetDates` returns month-to-date and the report's date pickers carry no
   bounds, so the user's chosen range is the definition of the period.
 
+- **The Data Range count is read from the register's own date columns, never
+  subtracted.** `ShowAcademicCalendar` lays one column per day the subject met —
+  10/10 to 16/10 for a 01/10–16/10 range, with Sunday 11/10 simply absent — so
+  `registerDates` counts those headers and the summary carries the figure as
+  `workingDays`. Calendar arithmetic misaligns the moment a holiday falls
+  inside; the count on screen is the Portal's. The class report aggregates by
+  subject and states no dates, so All subjects shows the bare range.
+
 - **Attendance figures are read, never computed.** Both the subject register and
   the class report state their percentages, and the app displays those. The
   combined attended-of-held cell is never split. Measured against a real

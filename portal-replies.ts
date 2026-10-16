@@ -126,6 +126,22 @@ function cellText(html: string): string {
 }
 const cellsOf = (row: string): string[] =>
   [...row.matchAll(CELL)].map((m) => cellText(m.groups?.cell ?? ""));
+const DATE_CELL = /^\d{1,2}\/\d{1,2}$/;
+/**
+ * The dates the Portal lists across the register's own grid: one column per
+ * day the subject met, holidays and Sundays simply absent. The count is the
+ * official working-days figure for the range — calendar arithmetic misaligns
+ * the moment a holiday falls inside, so it is read, never subtracted. A grid
+ * whose headers state no dates yields nothing rather than a wrong count.
+ */
+export function registerDates(html: string): string[] {
+  for (const t of html.match(TABLE) ?? []) {
+    const first = (t.match(FIRST_ROW) ?? [])[0] ?? "";
+    if (!ROLL_HEADER.test(cellText(first))) continue;
+    return cellsOf(first).filter((c) => DATE_CELL.test(c));
+  }
+  return [];
+}
 export function parseRegister(html: string): RegisterRow[] {
   let table: string | null = null;
   for (const t of html.match(TABLE) ?? []) {

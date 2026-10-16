@@ -63,7 +63,8 @@ const oneDecimal = (total: number, n: number): number | null =>
 export function summarise(
   rows: readonly RegisterRow[],
   range: { from: string; to: string },
-  overall: OverallLookup = new Map()
+  overall: OverallLookup = new Map(),
+  workingDays: number | null = null
 ): { students: Student[]; summary: RegisterReply["summary"] } {
   const students: Student[] = [];
   let irregular = 0;
@@ -103,6 +104,7 @@ export function summarise(
       overallIrregular,
       overallCritical,
       range,
+      workingDays,
     },
   };
 }

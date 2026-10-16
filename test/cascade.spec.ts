@@ -64,6 +64,27 @@ const nothing = reply({
 });
 /** The old single-checkbox filter, spelled in the new shape. */
 const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
+/** The Data Range fact's value for a fixed selection and range, varying only
+ *  the register's own class-day count. */
+const dataRangeValue = (workingDays?: number | null): string | undefined =>
+  chosenFacts(
+    reply({
+      course: ["1"],
+      semester: ["3"],
+      branch: ["4"],
+      section: ["5"],
+      subject: ["6"],
+    }),
+    sel({
+      course: "1",
+      semester: "3",
+      branch: "4",
+      section: "5",
+      subject: "6",
+    }),
+    { from: "01/10/2026", to: "16/10/2026" },
+    workingDays
+  ).at(-1)?.value;
 /** The reply for a selection the Portal agrees with: every level offered. */
 const fullReply = (): OptionsReply =>
   reply({
@@ -289,6 +310,12 @@ test.describe("the register, before it is sent", () => {
       { label: "Subject", value: "L6" },
       { label: "Data Range", value: "01/10/2026 to 16/10/2026" },
     ]);
+  });
+  test("the data range carries the register's own class-day count", () => {
+    expect(dataRangeValue(6)).toBe("01/10/2026 to 16/10/2026 (6 days)");
+    expect(dataRangeValue(1)).toBe("01/10/2026 to 16/10/2026 (1 day)");
+    expect(dataRangeValue(null)).toBe("01/10/2026 to 16/10/2026");
+    expect(dataRangeValue(undefined)).toBe("01/10/2026 to 16/10/2026");
   });
 });
 const student = (pct: number | null): Student => ({

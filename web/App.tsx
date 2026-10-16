@@ -355,7 +355,12 @@ const App = (): React.JSX.Element => {
   // carries. Reordering them by attendance made the numbers read as a ranking
   // rather than as a roster. A student needing a check-in is found by the tint,
   // not by being at the top of the list.
-  const registerFacts = chosenFacts(opts, sel, summary?.range);
+  const registerFacts = chosenFacts(
+    opts,
+    sel,
+    summary?.range,
+    summary?.workingDays
+  );
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };
     // The subject has nothing below it, so it re-reads nothing; every other level

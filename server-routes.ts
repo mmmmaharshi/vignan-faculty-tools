@@ -8,6 +8,7 @@ import {
   parseRegister,
   parseStudentProfile,
   realOptions,
+  registerDates,
 } from "./portal-replies";
 import type { OverallRow } from "./portal-replies";
 import { ALL_SUBJECTS, isAllSubjects } from "./shared/api";
@@ -166,7 +167,8 @@ export async function handleRegister(
       byRoll
     );
   }
-  const rows = parseRegister(await portal.register({ ...p, from, to }));
+  const reply = await portal.register({ ...p, from, to });
+  const rows = parseRegister(reply);
   if (!rows.length) {
     throw new HttpError(
       502,
@@ -174,7 +176,10 @@ export async function handleRegister(
     );
   }
   const { byRoll } = await readOverall(portal, { ...p, from, to });
-  return summarise(rows, range, byRoll);
+  // The grid's own date columns are the working-days count: a grid that
+  // states none leaves the summary bare rather than printing a zero.
+  const dates = registerDates(reply);
+  return summarise(rows, range, byRoll, dates.length || null);
 }
 /**
  * One student's GPA and phone numbers, read on demand when their row is opened.

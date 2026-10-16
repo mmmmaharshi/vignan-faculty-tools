@@ -68,6 +68,11 @@ export interface RegisterReply {
     overallIrregular: number;
     overallCritical: number;
     range: { from: string; to: string };
+    /** Days the subject met in the range, read from the register's own date
+     *  columns — the Portal's count, holidays absent by construction. Null on
+     *  the All subjects path, whose report aggregates by subject and states
+     *  no dates, and wherever the grid states none. */
+    workingDays: number | null;
   };
 }
 export interface ErrorReply {

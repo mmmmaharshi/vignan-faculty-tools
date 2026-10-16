@@ -437,16 +437,25 @@ export type ChosenFact = { label: string; value: string };
 export function chosenFacts(
   opts: OptionsReply,
   sel: Sel,
-  range?: Range
+  range?: Range,
+  workingDays?: number | null
 ): ChosenFact[] {
   const facts = LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
     return hit ? [{ label, value: hit.label }] : [];
   });
   // The period is part of naming the register: the card above it and
-  // a student's panel state the same facts, so it is written once here.
+  // a student's panel state the same facts, so it is written once here. The
+  // day count is the register's own — never calendar arithmetic — and travels
+  // beside the range only where the Portal stated it.
   if (facts.length && range?.from)
-    facts.push({ label: "Data Range", value: `${range.from} to ${range.to}` });
+    facts.push({
+      label: "Data Range",
+      value:
+        workingDays == null
+          ? `${range.from} to ${range.to}`
+          : `${range.from} to ${range.to} (${workingDays} ${workingDays === 1 ? "day" : "days"})`,
+    });
   return facts;
 }
 /**

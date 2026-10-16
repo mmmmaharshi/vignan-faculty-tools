@@ -7,6 +7,7 @@ import type {
   OptionsReply,
   OptionsRequest,
   RegisterReply,
+  RegisterRequest,
   StudentProfile,
   StudentRequest,
 } from "../shared/api";
@@ -46,7 +47,7 @@ const optionsFor = (request: OptionsRequest): OptionsReply => ({
     : [],
   emptyLevels: [],
 });
-const registerReply = (): RegisterReply => ({
+const registerReply = (workingDays: number | null): RegisterReply => ({
   students: [
     {
       sl: "1",
@@ -99,6 +100,7 @@ const registerReply = (): RegisterReply => ({
     overallIrregular: 2,
     overallCritical: 1,
     range: { from: "01/07/2026", to: "16/10/2026" },
+    workingDays,
   },
 });
 /** What ECAP states for one student. The roll that has nothing is the one the
@@ -149,7 +151,12 @@ const stub = async (route: Route): Promise<void> => {
       await json({ error: "Your session has expired." }, 401);
       return;
     }
-    await json(registerReply());
+    // A subject register states its class days in its own grid; the
+    // section-wide report aggregates by subject and states none.
+    const asked = request.postDataJSON() as RegisterRequest;
+    await json(
+      registerReply(asked.subject?.value === ALL_SUBJECTS.value ? null : 6)
+    );
     return;
   }
   if (path === "/api/student") {
@@ -258,6 +265,11 @@ test.describe("the app's own data layer", () => {
       page.getByRole("row", { name: "Subject ALL SUBJECTS" }),
       "the card names the register it shows"
     ).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "Data Range 01/07/2026 to 16/10/2026" })
+    ).toBeVisible();
+    // The section-wide report states no dates, so its range carries no count.
+    await expect(page.getByText("days)")).toHaveCount(0);
     await page.getByRole("button", { name: "Load register" }).click();
     await expect.poll(() => registerCalls, { timeout: 15_000 }).toBe(2);
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
@@ -302,6 +314,12 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("row", { name: "Subject MFCS" }),
       "the card names the subject register it shows"
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row", {
+        name: "Data Range 01/07/2026 to 16/10/2026 (6 days)",
+      }),
+      "the range carries the register grid's own class-day count"
     ).toBeVisible();
     await page
       .getByRole("button", { name: "Show details for B student" })
