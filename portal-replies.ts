@@ -56,7 +56,6 @@ const TAG = /<[^>]*>/g;
 const WHITESPACE = /\s+/g;
 const PLACEHOLDER = /^-?\s*select\s*-?$/i;
 const TABLE = /<table[\s\S]*?<\/table>/gi;
-const FIRST_ROW = /<tr[\s\S]*?<\/tr>/i;
 const ROLL_HEADER = /roll\s*\.?\s*no/i;
 const ROW = /<tr[\s\S]*?<\/tr>/gi;
 const CELL = /<t[dh]\b[^>]*>(?<cell>[\s\S]*?)<\/t[dh]>/gi;
@@ -126,6 +125,32 @@ function cellText(html: string): string {
 }
 const cellsOf = (row: string): string[] =>
   [...row.matchAll(CELL)].map((m) => cellText(m.groups?.cell ?? ""));
+/**
+ * Every table in a Portal reply, head first, as cell arrays. The one place
+ * the reply's table shape is understood, so a Portal layout shift is fixed
+ * once rather than once per reader.
+ */
+function gridTables(html: string): string[][][] {
+  return (html.match(TABLE) ?? []).map((t) =>
+    (t.match(ROW) ?? []).map(cellsOf)
+  );
+}
+/** Grids whose first row is the roll-number header: the subject register. */
+function firstHeaded(grids: string[][][]): string[][] | null {
+  return (
+    grids.find((rows) => (rows[0] ?? []).some((c) => ROLL_HEADER.test(c))) ??
+    null
+  );
+}
+/** Grids holding a roll-number header anywhere: the class attendance report,
+ *  whose title and held-band rows sit above its header. */
+function anyHeaded(grids: string[][][]): string[][] | null {
+  return (
+    grids.find((rows) =>
+      rows.some((cells) => cells.some((c) => ROLL_HEADER.test(c)))
+    ) ?? null
+  );
+}
 const DATE_CELL = /^\d{1,2}\/\d{1,2}$/;
 /**
  * The dates the Portal lists across the register's own grid: one column per
@@ -135,26 +160,15 @@ const DATE_CELL = /^\d{1,2}\/\d{1,2}$/;
  * whose headers state no dates yields nothing rather than a wrong count.
  */
 export function registerDates(html: string): string[] {
-  for (const t of html.match(TABLE) ?? []) {
-    const first = (t.match(FIRST_ROW) ?? [])[0] ?? "";
-    if (!ROLL_HEADER.test(cellText(first))) continue;
-    return cellsOf(first).filter((c) => DATE_CELL.test(c));
-  }
-  return [];
+  return (
+    firstHeaded(gridTables(html))?.[0]?.filter((c) => DATE_CELL.test(c)) ?? []
+  );
 }
 export function parseRegister(html: string): RegisterRow[] {
-  let table: string | null = null;
-  for (const t of html.match(TABLE) ?? []) {
-    const head = cellText((t.match(FIRST_ROW) ?? [""])[0] ?? "");
-    if (ROLL_HEADER.test(head)) {
-      table = t;
-      break;
-    }
-  }
-  if (!table) return [];
+  const grid = firstHeaded(gridTables(html));
+  if (!grid) return [];
   const rows: RegisterRow[] = [];
-  for (const tr of (table.match(ROW) ?? []).slice(1)) {
-    const cells = cellsOf(tr);
+  for (const cells of grid.slice(1)) {
     if (cells.length < 4) continue;
     const roll = cells[1] ?? "";
     if (!roll) continue;
@@ -180,20 +194,9 @@ export interface OverallRow {
 }
 export function parseClassAttendance(html: string): OverallRow[] {
   const rows: OverallRow[] = [];
-  let table: string | null = null;
-  for (const t of html.match(TABLE) ?? []) {
-    if (
-      [...t.matchAll(ROW)].some((tr) =>
-        [...tr[0].matchAll(CELL)].some((c) => ROLL_HEADER.test(cellText(c[0])))
-      )
-    ) {
-      table = t;
-      break;
-    }
-  }
-  if (!table) return rows;
-  for (const tr of table.match(ROW) ?? []) {
-    const cells = cellsOf(tr);
+  const grid = anyHeaded(gridTables(html));
+  if (!grid) return rows;
+  for (const cells of grid) {
     if (cells.length < 4) continue;
     const sl = cells[0] ?? "";
     const roll = cells[1] ?? "";
