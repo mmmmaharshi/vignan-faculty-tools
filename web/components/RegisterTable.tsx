@@ -182,7 +182,7 @@ export const RegisterTable = ({
                     <Table.Th ta="right">Subject Attendance %</Table.Th>
                   )}
                   {overallMode && (
-                    <Table.Th ta="right">Attended / Total</Table.Th>
+                    <Table.Th ta="center">Attended / Total</Table.Th>
                   )}
                   {showOverall && (
                     <Table.Th ta="right">Overall Attendance %</Table.Th>
@@ -222,7 +222,7 @@ export const RegisterTable = ({
                       </Table.Td>
                     )}
                     {overallMode && (
-                      <Table.Td ta="right">
+                      <Table.Td ta="center">
                         {overallCellForDisplay(s.overallAttendedOfHeld) || "—"}
                       </Table.Td>
                     )}
