@@ -321,12 +321,12 @@ test.describe("the register, before it is sent", () => {
     // so 10 are holidays by complement. Only the working figure is read.
     expect(dataRangeTail(6)).toEqual([
       { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
-      { label: "Classes Held", value: "6 days" },
+      { label: "Classes Held", value: "6 classes" },
       { label: "Days Without Class", value: "10 days" },
     ]);
     expect(dataRangeTail(1)).toEqual([
       { label: "Data Range (16 days)", value: "01/10/2026 to 16/10/2026" },
-      { label: "Classes Held", value: "1 day" },
+      { label: "Classes Held", value: "1 class" },
       { label: "Days Without Class", value: "15 days" },
     ]);
     expect(dataRangeTail(null)).toEqual([

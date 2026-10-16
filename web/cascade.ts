@@ -435,6 +435,7 @@ export function abbreviate(name: string): string {
 }
 export type ChosenFact = { label: string; value: string };
 const dayWord = (n: number): string => (n === 1 ? "day" : "days");
+const classWord = (n: number): string => (n === 1 ? "class" : "classes");
 /**
  * Calendar days in a dd/mm/yyyy range, both ends counted. Null when the range
  * will not parse, so the facts stay bare rather than printing nonsense.
@@ -486,7 +487,7 @@ export function chosenFacts(
         },
         {
           label: "Classes Held",
-          value: `${classesHeld} ${dayWord(classesHeld)}`,
+          value: `${classesHeld} ${classWord(classesHeld)}`,
         }
       );
       const withoutClass = total - classesHeld;

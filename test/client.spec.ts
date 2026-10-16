@@ -322,7 +322,7 @@ test.describe("the app's own data layer", () => {
       "the range carries the calendar-day frame"
     ).toBeVisible();
     await expect(
-      page.getByRole("row", { name: "Classes Held 6 days" }),
+      page.getByRole("row", { name: "Classes Held 6 classes" }),
       "the held figure is the register grid's own"
     ).toBeVisible();
     await expect(
@@ -354,6 +354,17 @@ test.describe("the app's own data layer", () => {
     });
     await panel.click();
     await expect(page.getByText("CGPA 5.61")).toBeVisible({ timeout: 15_000 });
+    // ALL SUBJECTS mode, so the Overall row is showing: its figure and band,
+    // but not its count — that lives in the table's Attended / Total column.
+    const dialog = page.getByRole("dialog");
+    await expect(
+      dialog.getByText("77/148", { exact: true }),
+      "the count lives in the table, not the panel"
+    ).toHaveCount(0);
+    await expect(
+      dialog.getByText("52.00%", { exact: true }),
+      "the panel keeps the figure and its band"
+    ).toBeVisible();
     expect(profileRolls, "one open, one read, for that student").toEqual([
       "21B",
     ]);
