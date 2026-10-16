@@ -64,10 +64,11 @@ const nothing = reply({
 });
 /** The old single-checkbox filter, spelled in the new shape. */
 const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
-/** The Data Range fact's value for a fixed selection and range, varying only
- *  the register's own class-day count. */
-const dataRangeValue = (workingDays?: number | null): string | undefined =>
-  chosenFacts(
+/** The Data Range facts' values for a fixed selection and range, varying only
+ *  the register's own class-day count: the range line, then working days,
+ *  then holidays — or the bare range where the Portal stated no count. */
+const dataRangeTail = (workingDays?: number | null): (string | undefined)[] => {
+  const facts = chosenFacts(
     reply({
       course: ["1"],
       semester: ["3"],
@@ -84,7 +85,11 @@ const dataRangeValue = (workingDays?: number | null): string | undefined =>
     }),
     { from: "01/10/2026", to: "16/10/2026" },
     workingDays
-  ).at(-1)?.value;
+  );
+  return facts
+    .slice(facts.findIndex((fact) => fact.label === "Data Range"))
+    .map((fact) => fact.value);
+};
 /** The reply for a selection the Portal agrees with: every level offered. */
 const fullReply = (): OptionsReply =>
   reply({
@@ -312,10 +317,20 @@ test.describe("the register, before it is sent", () => {
     ]);
   });
   test("the data range carries the register's own class-day count", () => {
-    expect(dataRangeValue(6)).toBe("01/10/2026 to 16/10/2026 (6 days)");
-    expect(dataRangeValue(1)).toBe("01/10/2026 to 16/10/2026 (1 day)");
-    expect(dataRangeValue(null)).toBe("01/10/2026 to 16/10/2026");
-    expect(dataRangeValue(undefined)).toBe("01/10/2026 to 16/10/2026");
+    // 01/10 to 16/10 is 16 calendar days; the register states 6 class days,
+    // so 10 are holidays by complement. Only the working figure is read.
+    expect(dataRangeTail(6)).toEqual([
+      "01/10/2026 to 16/10/2026 (16 days)",
+      "6 days",
+      "10 days",
+    ]);
+    expect(dataRangeTail(1)).toEqual([
+      "01/10/2026 to 16/10/2026 (16 days)",
+      "1 day",
+      "15 days",
+    ]);
+    expect(dataRangeTail(null)).toEqual(["01/10/2026 to 16/10/2026"]);
+    expect(dataRangeTail(undefined)).toEqual(["01/10/2026 to 16/10/2026"]);
   });
 });
 const student = (pct: number | null): Student => ({

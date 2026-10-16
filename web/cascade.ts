@@ -434,6 +434,25 @@ export function abbreviate(name: string): string {
   );
 }
 export type ChosenFact = { label: string; value: string };
+const dayWord = (n: number): string => (n === 1 ? "day" : "days");
+/**
+ * Calendar days in a dd/mm/yyyy range, both ends counted. Null when the range
+ * will not parse, so the facts stay bare rather than printing nonsense.
+ */
+function calendarDays(from: string, to: string): number | null {
+  const [fd, fm, fy] = from.split("/").map(Number);
+  const [td, tm, ty] = to.split("/").map(Number);
+  if (!fd || !fm || !fy || !td || !tm || !ty) return null;
+  const start = new Date(fy, fm - 1, fd);
+  const end = new Date(ty, tm - 1, td);
+  if (
+    Number.isNaN(start.getTime()) ||
+    Number.isNaN(end.getTime()) ||
+    end < start
+  )
+    return null;
+  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+}
 export function chosenFacts(
   opts: OptionsReply,
   sel: Sel,
@@ -448,14 +467,34 @@ export function chosenFacts(
   // a student's panel state the same facts, so it is written once here. The
   // day count is the register's own — never calendar arithmetic — and travels
   // beside the range only where the Portal stated it.
-  if (facts.length && range?.from)
-    facts.push({
-      label: "Data Range",
-      value:
-        workingDays == null
-          ? `${range.from} to ${range.to}`
-          : `${range.from} to ${range.to} (${workingDays} ${workingDays === 1 ? "day" : "days"})`,
-    });
+  if (facts.length && range?.from) {
+    const total = calendarDays(range.from, range.to);
+    if (workingDays == null || total == null) {
+      facts.push({
+        label: "Data Range",
+        value: `${range.from} to ${range.to}`,
+      });
+    } else {
+      // Total and holidays ARE calendar arithmetic by definition: the frame,
+      // and the frame minus the Portal's own working days. Only the working
+      // figure is read; the other two are its complement, stated as such.
+      facts.push(
+        {
+          label: "Data Range",
+          value: `${range.from} to ${range.to} (${total} ${dayWord(total)})`,
+        },
+        {
+          label: "Working Days",
+          value: `${workingDays} ${dayWord(workingDays)}`,
+        }
+      );
+      const holidays = total - workingDays;
+      facts.push({
+        label: "Holidays",
+        value: `${holidays} ${dayWord(holidays)}`,
+      });
+    }
+  }
   return facts;
 }
 /**

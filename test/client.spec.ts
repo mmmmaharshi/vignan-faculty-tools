@@ -317,9 +317,17 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("row", {
-        name: "Data Range 01/07/2026 to 16/10/2026 (6 days)",
+        name: "Data Range 01/07/2026 to 16/10/2026 (108 days)",
       }),
-      "the range carries the register grid's own class-day count"
+      "the range carries the calendar-day frame"
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "Working Days 6 days" }),
+      "the working figure is the register grid's own"
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "Holidays 102 days" }),
+      "holidays are the frame minus the register's own count"
     ).toBeVisible();
     await page
       .getByRole("button", { name: "Show details for B student" })
