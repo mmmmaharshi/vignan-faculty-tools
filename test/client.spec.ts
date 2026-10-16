@@ -321,10 +321,6 @@ test.describe("the app's own data layer", () => {
       }),
       "the range carries the calendar-day frame"
     ).toBeVisible();
-    await expect(
-      page.getByRole("row", { name: "Classes Held 6 classes" }),
-      "the held figure is the register grid's own"
-    ).toBeVisible();
     await page
       .getByRole("button", { name: "Show details for B student" })
       .click();

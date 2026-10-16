@@ -435,7 +435,6 @@ export function abbreviate(name: string): string {
 }
 export type ChosenFact = { label: string; value: string };
 const dayWord = (n: number): string => (n === 1 ? "day" : "days");
-const classWord = (n: number): string => (n === 1 ? "class" : "classes");
 /**
  * Calendar days in a dd/mm/yyyy range, both ends counted. Null when the range
  * will not parse, so the facts stay bare rather than printing nonsense.
@@ -466,8 +465,8 @@ export function chosenFacts(
   });
   // The period is part of naming the register: the card above it and
   // a student's panel state the same facts, so it is written once here. The
-  // classes-held count is the register's own — never calendar arithmetic —
-  // and travels beside the Date Range label only where the Portal stated it.
+  // frame count travels beside the Date Range label only where the Portal
+  // stated its days — never calendar arithmetic for the figure itself.
   if (facts.length && range?.from) {
     const total = calendarDays(range.from, range.to);
     if (classesHeld == null || total == null) {
@@ -476,16 +475,10 @@ export function chosenFacts(
         value: `${range.from} to ${range.to}`,
       });
     } else {
-      facts.push(
-        {
-          label: `Date Range (${total} ${dayWord(total)})`,
-          value: `${range.from} to ${range.to}`,
-        },
-        {
-          label: "Classes Held",
-          value: `${classesHeld} ${classWord(classesHeld)}`,
-        }
-      );
+      facts.push({
+        label: `Date Range (${total} ${dayWord(total)})`,
+        value: `${range.from} to ${range.to}`,
+      });
     }
   }
   return facts;

@@ -292,11 +292,9 @@ carries one also has its name in text.
   subtracted.** `ShowAcademicCalendar` lays one column per day the subject met —
   10/10 to 16/10 for a 01/10–16/10 range, with Sunday 11/10 simply absent — so
   `registerDates` counts those headers and the summary carries the figure as
-  `classesHeld`, shown beside it as Classes Held. The range label carries the
-  calendar-day frame inclusive. Only the held figure is the Portal's; calendar
-  arithmetic for that one misaligns the moment a holiday falls inside. The
-  class report aggregates by subject and states no dates, so All subjects
-  shows the bare range.
+  `classesHeld`. The frame count travels beside the Date Range label only
+  where the Portal stated its days. The class report aggregates by subject
+  and states no dates, so All subjects shows the bare range.
 
 - **Attendance figures are read, never computed.** Both the subject register and
   the class report state their percentages, and the app displays those. The

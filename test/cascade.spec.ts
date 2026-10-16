@@ -317,15 +317,14 @@ test.describe("the register, before it is sent", () => {
     ]);
   });
   test("the date range carries the register's own class-day count", () => {
-    // 01/10 to 16/10 is 16 calendar days; the register states 6 classes held.
-    // Only the held figure is read.
+    // 01/10 to 16/10 is 16 calendar days, and the register states classes
+    // held there — so the frame count travels with the label. Only the held
+    // figure is read.
     expect(dateRangeTail(6)).toEqual([
       { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
-      { label: "Classes Held", value: "6 classes" },
     ]);
     expect(dateRangeTail(1)).toEqual([
       { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
-      { label: "Classes Held", value: "1 class" },
     ]);
     expect(dateRangeTail(null)).toEqual([
       { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
