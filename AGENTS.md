@@ -677,8 +677,10 @@ throttle it was written to pin.
 two orders and they are both deliberate, so do not "fix" one into the other. Whole
 class, the rows are the Portal's own `Sl.No` order — sorting it lowest-first made
 the numbers read as a league table and stopped `Sl.No` running down the page.
-With *Show only irregular students* ticked, the table is a worklist rather than a
-roster, so it sorts worst-first: that is the one thing the checkbox is for. **The
+With any filter ticked — *Show only irregular students*, *Below 75%*,
+*Below 65%* — the table is a worklist rather than a roster, so it sorts
+worst-first: that is the one thing the checkboxes are for. Ticked bars
+intersect, so the strictest one wins. **The
 figure read is the one the table shows**, so on All subjects it sorts by the
 overall percentage, and **a missing percentage sorts last**, never first — `null`
 is an absence of evidence, and putting such a student at the top of a triage list

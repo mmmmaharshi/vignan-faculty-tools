@@ -472,20 +472,23 @@ export function tintFor(
   return critical ? "var(--mantine-color-red-light)" : undefined;
 }
 /**
- * `Show only irregular` keeps a student who is in trouble in whichever band the
- * table is actually showing. Reading the Subject band on the All subjects path
- * hid the very student the overall column was added to expose: healthy in the
- * one Subject you happened to open, critical across the section.
+ * Which worklist filters are ticked. Ticked bars intersect: a row must clear
+ * every one, so ticking Below 65% beside Below 75% changes nothing — the
+ * stricter bar already implies the other.
  */
-export function visibleStudents(
-  students: readonly RegisterReply["students"][number][],
-  onlyIrregular: boolean,
-  overallMode: boolean
-): RegisterReply["students"][number][] {
-  if (!onlyIrregular) return [...students];
-  return students.filter((s) =>
-    overallMode ? s.overallIrregular : s.overallIrregular || s.irregular
-  );
+export type RowFilter = {
+  irregular: boolean;
+  below75: boolean;
+  below65: boolean;
+};
+export const NO_FILTER: RowFilter = {
+  irregular: false,
+  below75: false,
+  below65: false,
+};
+/** Whether any bar is ticked: the table is a worklist then, sorted worst-first. */
+export function isFiltering(filter: RowFilter): boolean {
+  return filter.irregular || filter.below75 || filter.below65;
 }
 /**
  * The figure a row is judged on, and the one the worklist is ordered by.
@@ -507,6 +510,33 @@ function figureFor(
   return s.pct ?? s.overallPct;
 }
 /**
+ * `Show only irregular` keeps a student who is in trouble in whichever band the
+ * table is actually showing. Reading the Subject band on the All subjects path
+ * hid the very student the overall column was added to expose: healthy in the
+ * one Subject you happened to open, critical across the section.
+ *
+ * The fixed bars read the same figure the worklist is ordered by. A missing
+ * figure is an absence, not a low one, so it clears no fixed bar.
+ */
+export function visibleStudents(
+  students: readonly RegisterReply["students"][number][],
+  filter: RowFilter,
+  overallMode: boolean
+): RegisterReply["students"][number][] {
+  if (!isFiltering(filter)) return [...students];
+  return students.filter((s) => {
+    if (
+      filter.irregular &&
+      !(overallMode ? s.overallIrregular : s.overallIrregular || s.irregular)
+    )
+      return false;
+    const figure = figureFor(s, overallMode);
+    if (filter.below75 && !(figure != null && figure < 75)) return false;
+    if (filter.below65 && !(figure != null && figure < 65)) return false;
+    return true;
+  });
+}
+/**
  * The rows as the table shows them, and the order it shows them in.
  *
  * **Unfiltered, the Portal's own roster order — no sort.** The register used to be
@@ -516,7 +546,7 @@ function figureFor(
  * stopped running down the page. Over a whole class the sort answers a question
  * nobody asked.
  *
- * **Filtered, worst first — and that is the point of the checkbox.** The filtered
+ * **Filtered, worst first — and that is the point of the ticked filters.** The filtered
  * table is a worklist, not a roster: it exists to be worked through, so the
  * student who most needs a check-in is the first one reached. Sorting only here is
  * what lets both be true at once, where sorting everywhere could only be one or
@@ -532,11 +562,11 @@ function figureFor(
  */
 export function registerRows(
   students: readonly RegisterReply["students"][number][],
-  onlyIrregular: boolean,
+  filter: RowFilter,
   overallMode: boolean
 ): RegisterReply["students"][number][] {
-  const shown = visibleStudents(students, onlyIrregular, overallMode);
-  if (!onlyIrregular) return shown;
+  const shown = visibleStudents(students, filter, overallMode);
+  if (!isFiltering(filter)) return shown;
   return shown.toSorted((a, b) => {
     const left = figureFor(a, overallMode);
     const right = figureFor(b, overallMode);
@@ -544,4 +574,20 @@ export function registerRows(
     if (right == null) return -1;
     return left - right;
   });
+}
+/**
+ * What an empty register says: the bar the reader set, so an empty worklist
+ * reads as "nobody is under the bar" rather than "the register failed". The
+ * strictest fixed bar wins the sentence; the irregular one keeps its own,
+ * which points at the Portal's threshold instead of a number.
+ */
+export function emptyRegisterText(
+  filter: RowFilter,
+  irregularBelow: number
+): string {
+  if (filter.below65) return "No students below 65%.";
+  if (filter.below75) return "No students below 75%.";
+  if (filter.irregular)
+    return `No irregular students. Everyone is at or above ${irregularBelow}%.`;
+  return "No students in this register.";
 }

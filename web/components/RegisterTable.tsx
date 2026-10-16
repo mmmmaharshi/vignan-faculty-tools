@@ -11,15 +11,15 @@ import {
 
 import { overallCellForDisplay } from "../../attendance-bands";
 import type { RegisterReply, Student } from "../../shared/api";
-import { tintFor } from "../cascade";
-import type { ChosenFact } from "../cascade";
+import { tintFor, emptyRegisterText, isFiltering } from "../cascade";
+import type { ChosenFact, RowFilter } from "../cascade";
 
 type RegisterTableProps = {
   rows: Student[];
   total: number;
   summary: RegisterReply["summary"];
-  onlyIrregular: boolean;
-  onToggleIrregular: (value: boolean) => void;
+  filter: RowFilter;
+  onToggleFilter: (key: keyof RowFilter, value: boolean) => void;
   onShowDetails: (student: Student) => void;
   chosen: ChosenFact[];
   /** The All subjects path: no subject was chosen, so there are no subject columns
@@ -123,8 +123,8 @@ export const RegisterTable = ({
   rows,
   total,
   summary,
-  onlyIrregular,
-  onToggleIrregular,
+  filter,
+  onToggleFilter,
   onShowDetails,
   chosen,
   overallMode = false,
@@ -139,11 +139,21 @@ export const RegisterTable = ({
     rows.some((s) => s.overallPct != null || s.overallAttendedOfHeld !== "");
   return (
     <Paper withBorder p="lg">
-      <Group justify="space-between" mb="sm">
+      <Group gap="md" mb="sm">
         <Checkbox
           label="Show only irregular students"
-          checked={onlyIrregular}
-          onChange={(e) => onToggleIrregular(e.currentTarget.checked)}
+          checked={filter.irregular}
+          onChange={(e) => onToggleFilter("irregular", e.currentTarget.checked)}
+        />
+        <Checkbox
+          label="Below 75%"
+          checked={filter.below75}
+          onChange={(e) => onToggleFilter("below75", e.currentTarget.checked)}
+        />
+        <Checkbox
+          label="Below 65%"
+          checked={filter.below65}
+          onChange={(e) => onToggleFilter("below65", e.currentTarget.checked)}
         />
       </Group>
       {chosen.length ? (
@@ -154,9 +164,7 @@ export const RegisterTable = ({
       ) : null}
       {rows.length === 0 ? (
         <Text c="dimmed" size="sm">
-          {onlyIrregular
-            ? `No irregular students. Everyone is at or above ${summary.irregularBelow}%.`
-            : "No students in this register."}
+          {emptyRegisterText(filter, summary.irregularBelow)}
         </Text>
       ) : (
         <>
@@ -254,7 +262,7 @@ export const RegisterTable = ({
           </Table.ScrollContainer>
           <Text c="dimmed" size="sm" mt="sm">
             Showing {rows.length} of {total} students,{" "}
-            {onlyIrregular
+            {isFiltering(filter)
               ? "lowest attendance first."
               : "in the Portal's own order."}{" "}
             A tinted row is a student below {summary.criticalBelow}%.

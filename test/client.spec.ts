@@ -263,6 +263,25 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
     expect(optionsCalls, "and the click asked for no options").toBe(5);
   });
+  test("ticked bars narrow the register, and unticking restores it", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    // Overall figures on the stub: 81, 52, 30. Below 65 keeps two of them.
+    await page.getByLabel("Below 65%").click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(2);
+    await expect(page.getByText("lowest attendance first")).toBeVisible();
+    // Below 75 keeps the same two here; ticking it changes nothing further.
+    await page.getByLabel("Below 75%").click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(2);
+    await page.getByLabel("Below 65%").click();
+    await page.getByLabel("Below 75%").click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
+  });
   test("a subject register shows its own figures alone, table and panel", async ({
     page,
   }) => {

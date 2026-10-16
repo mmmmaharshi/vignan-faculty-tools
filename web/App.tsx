@@ -33,13 +33,14 @@ import {
   forgetClass,
   startingRange,
   registerRows,
+  NO_FILTER,
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVELS,
   subjectNameKey,
   toPortalDate,
 } from "./cascade";
-import type { Level, Range, SavedClass, Sel } from "./cascade";
+import type { Level, Range, RowFilter, SavedClass, Sel } from "./cascade";
 import {
   forgetServerData,
   isExpired,
@@ -85,7 +86,13 @@ const App = (): React.JSX.Element => {
   /** The click on `Load register` that the table is showing, or null when nobody
    *  has asked for one. The click number is what makes a second click a load. */
   const [click, setClick] = useState<RegisterClick | null>(null);
-  const [onlyIrregular, setOnlyIrregular] = useState(false);
+  /** Which worklist filters are ticked. Ticked bars intersect, so the table
+   *  shows the students under every bar set. Held here for the same reason as
+   *  the cascade's own state: the table is presentational and keeps none. */
+  const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
+  const toggleFilter = (key: keyof RowFilter, value: boolean): void => {
+    setFilter((f) => ({ ...f, [key]: value }));
+  };
   /** The row whose panel is open. Held here, not in the table, because the table
    *  is a presentational module with no state of its own. */
   const [detail, setDetail] = useState<Student | null>(null);
@@ -150,9 +157,7 @@ const App = (): React.JSX.Element => {
   /* Only a load that actually succeeded re-scopes the screen: `overallMode` is
      the All-subjects path, and the reply carries no subject figure at all. */
   const overallMode = Boolean(result) && isAllSubjects(click?.request.subject);
-  const rows = result
-    ? registerRows(result.students, onlyIrregular, overallMode)
-    : [];
+  const rows = result ? registerRows(result.students, filter, overallMode) : [];
   const summary = result?.summary;
   let loadNote = "";
   if (optionsLoading) {
@@ -195,7 +200,7 @@ const App = (): React.JSX.Element => {
       setFormNote(null);
       setSel(EMPTY_SEL);
       setOpts(EMPTY_OPTS);
-      setOnlyIrregular(false);
+      setFilter(NO_FILTER);
       setDetail(null);
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
@@ -482,8 +487,8 @@ const App = (): React.JSX.Element => {
               rows={rows}
               total={result?.students.length ?? 0}
               summary={summary}
-              onlyIrregular={onlyIrregular}
-              onToggleIrregular={setOnlyIrregular}
+              filter={filter}
+              onToggleFilter={toggleFilter}
               onShowDetails={showDetails}
               chosen={registerFacts}
               overallMode={overallMode}

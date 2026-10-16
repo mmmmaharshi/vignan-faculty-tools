@@ -13,6 +13,7 @@ import {
   chosenFacts,
   chosenLevels,
   defaultRange,
+  emptyRegisterText,
   rememberRangeStart,
   resetFor,
   runCascade,
@@ -23,6 +24,7 @@ import {
   startingRange,
   disabledLevels,
   isReady,
+  NO_FILTER,
   registerRows,
   shouldContinue,
   subjectNameKey,
@@ -30,7 +32,7 @@ import {
   toPortalDate,
   visibleStudents,
 } from "../web/cascade";
-import type { Level, Sel } from "../web/cascade";
+import type { Level, RowFilter, Sel } from "../web/cascade";
 
 const opt = (value: string, label = `L${value}`, title = ""): Option => ({
   value,
@@ -60,6 +62,8 @@ const nothing = reply({
   section: [],
   subject: [],
 });
+/** The old single-checkbox filter, spelled in the new shape. */
+const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
 /** The reply for a selection the Portal agrees with: every level offered. */
 const fullReply = (): OptionsReply =>
   reply({
@@ -351,7 +355,7 @@ test.describe("the rows as shown", () => {
   test("the rows stay in the Portal's own order", () => {
     // The register used to be sorted lowest-first. That is a league table, not a
     // roster, and it broke the Sl.No column's job of tying a row to the Portal.
-    expect(registerRows(roster, false, false).map((s) => s.roll)).toEqual([
+    expect(registerRows(roster, NO_FILTER, false).map((s) => s.roll)).toEqual([
       "A",
       "B",
       "C",
@@ -361,7 +365,7 @@ test.describe("the rows as shown", () => {
     // Filtering drops rows; it does not invent rows. A is healthy and must not
     // appear just because the other two are being sorted.
     expect(
-      registerRows(roster, true, false)
+      registerRows(roster, irregularOnly, false)
         .map((s) => s.roll)
         .toSorted()
     ).toEqual(["B", "C"]);
@@ -370,10 +374,9 @@ test.describe("the rows as shown", () => {
     // The filtered table exists to be worked through: the student who most needs a
     // check-in should be the first one reached. That is the whole reason to sort,
     // and it is why this is a separate case from the unfiltered table.
-    expect(registerRows(roster, true, false).map((s) => s.roll)).toEqual([
-      "C",
-      "B",
-    ]);
+    expect(
+      registerRows(roster, irregularOnly, false).map((s) => s.roll)
+    ).toEqual(["C", "B"]);
   });
   test("the filtered sort reads the figure the table is showing", () => {
     // Both rows are in the filtered set, and they are in the wrong order for the
@@ -395,7 +398,9 @@ test.describe("the rows as shown", () => {
       overallCritical: true,
     };
     expect(
-      registerRows([mildOverall, worstOverall], true, true).map((s) => s.roll)
+      registerRows([mildOverall, worstOverall], irregularOnly, true).map(
+        (s) => s.roll
+      )
     ).toEqual(["B", "A"]);
   });
   test("a student with no percentage sorts last, not first", () => {
@@ -410,7 +415,9 @@ test.describe("the rows as shown", () => {
       pct: null,
     };
     expect(
-      registerRows([unknownFigure, ...roster], true, false).map((s) => s.roll)
+      registerRows([unknownFigure, ...roster], irregularOnly, false).map(
+        (s) => s.roll
+      )
     ).toEqual(["C", "B", "U"]);
   });
   test("a student kept only for the overall figure is not buried", () => {
@@ -432,13 +439,15 @@ test.describe("the rows as shown", () => {
       overallCritical: true,
     };
     expect(
-      registerRows([noSubjectFigure, ...roster], true, false).map((s) => s.roll)
+      registerRows([noSubjectFigure, ...roster], irregularOnly, false).map(
+        (s) => s.roll
+      )
     ).toEqual(["C", "U", "B"]);
   });
   test("the caller's array is never sorted in place", () => {
     const input = [...roster];
-    registerRows(input, false, false);
-    registerRows(input, true, false);
+    registerRows(input, NO_FILTER, false);
+    registerRows(input, irregularOnly, false);
     expect(input.map((s) => s.roll)).toEqual(["A", "B", "C"]);
   });
 });
@@ -453,7 +462,11 @@ test.describe("show only irregular", () => {
     overallCritical: true,
   };
   test("on a Subject register, a student Critical overall is kept", () => {
-    const kept = visibleStudents([subjectCleanOverallBad], true, false);
+    const kept = visibleStudents(
+      [subjectCleanOverallBad],
+      irregularOnly,
+      false
+    );
     expect(
       kept.map((s) => s.roll),
       "the case the overall feature exists to catch was filtered out"
@@ -462,18 +475,18 @@ test.describe("show only irregular", () => {
   test("on the All subjects path the overall band is what is read", () => {
     const healthySubject = { ...student(40), overallPct: 95 };
     expect(
-      visibleStudents([healthySubject], true, true),
+      visibleStudents([healthySubject], irregularOnly, true),
       "a Subject problem does not make an overall problem"
     ).toEqual([]);
   });
   test("a student in neither band is always filtered out", () => {
-    expect(visibleStudents([student(90)], true, false)).toEqual([]);
-    expect(visibleStudents([student(90)], true, true)).toEqual([]);
+    expect(visibleStudents([student(90)], irregularOnly, false)).toEqual([]);
+    expect(visibleStudents([student(90)], irregularOnly, true)).toEqual([]);
   });
   test("the filter is off by default, and keeps the healthy alongside the bad", () => {
     const roster = [student(90), subjectCleanOverallBad];
-    expect(visibleStudents(roster, false, false)).toHaveLength(2);
-    expect(visibleStudents(roster, false, true)).toHaveLength(2);
+    expect(visibleStudents(roster, NO_FILTER, false)).toHaveLength(2);
+    expect(visibleStudents(roster, NO_FILTER, true)).toHaveLength(2);
   });
   test("the boundary is the band's own, and no threshold is invented here", () => {
     const exactlySeventyFive = {
@@ -482,8 +495,90 @@ test.describe("show only irregular", () => {
       overallPct: 75,
       overallIrregular: false,
     };
-    expect(visibleStudents([exactlySeventyFive], true, false)).toEqual([]);
-    expect(visibleStudents([exactlySeventyFive], true, true)).toEqual([]);
+    expect(visibleStudents([exactlySeventyFive], irregularOnly, false)).toEqual(
+      []
+    );
+    expect(visibleStudents([exactlySeventyFive], irregularOnly, true)).toEqual(
+      []
+    );
+  });
+});
+test.describe("fixed thresholds", () => {
+  /* Same descending roster as above: 90, 70, 40. Below 75 keeps B and C and
+   * sorts them worst first; below 65 keeps only C. */
+  const roster = [
+    { ...student(90), sl: "1", roll: "A" },
+    { ...student(70), sl: "2", roll: "B" },
+    { ...student(40), sl: "3", roll: "C" },
+  ];
+  const below75: RowFilter = { ...NO_FILTER, below75: true };
+  const below65: RowFilter = { ...NO_FILTER, below65: true };
+  test("below 75 keeps the strugglers and still sorts worst first", () => {
+    expect(registerRows(roster, below75, false).map((s) => s.roll)).toEqual([
+      "C",
+      "B",
+    ]);
+  });
+  test("below 65 is the stricter bar", () => {
+    expect(registerRows(roster, below65, false).map((s) => s.roll)).toEqual([
+      "C",
+    ]);
+  });
+  test("the fixed bars read the figure the table is showing", () => {
+    // Overall figures 81, 52, 30 on healthy subject rows: the bar follows the
+    // mode like the sort does, and it reads figures, not band flags.
+    const overallRoster = [
+      { ...student(90), sl: "1", roll: "A", overallPct: 81 },
+      { ...student(90), sl: "2", roll: "B", overallPct: 52 },
+      { ...student(90), sl: "3", roll: "C", overallPct: 30 },
+    ];
+    expect(
+      registerRows(overallRoster, below65, true).map((s) => s.roll)
+    ).toEqual(["C", "B"]);
+  });
+  test("ticked bars intersect: a flag alone clears no fixed bar", () => {
+    // Flagged irregular at 80%: the irregular box alone keeps them, but 80 is
+    // not below 75, so both boxes together keep nobody.
+    const flaggedHealthy = { ...student(80), irregular: true };
+    expect(
+      visibleStudents([flaggedHealthy], irregularOnly, false).map((s) => s.roll)
+    ).toEqual(["21CS001"]);
+    expect(
+      visibleStudents(
+        [flaggedHealthy],
+        { ...NO_FILTER, irregular: true, below75: true },
+        false
+      )
+    ).toEqual([]);
+  });
+  test("a missing figure clears no fixed bar", () => {
+    const unknownFigure = {
+      ...student(70),
+      sl: "1",
+      roll: "U",
+      pct: null,
+      overallPct: null,
+    };
+    expect(visibleStudents([unknownFigure], below75, false)).toEqual([]);
+    expect(visibleStudents([unknownFigure], below65, false)).toEqual([]);
+  });
+  test("the boundary is strict: 75 is not below 75", () => {
+    expect(visibleStudents([student(75)], below75, false)).toEqual([]);
+  });
+  test("an empty register names the bar the reader set", () => {
+    expect(
+      emptyRegisterText(
+        { ...NO_FILTER, irregular: true, below75: true, below65: true },
+        65
+      )
+    ).toBe("No students below 65%.");
+    expect(emptyRegisterText(below75, 65)).toBe("No students below 75%.");
+    expect(emptyRegisterText(irregularOnly, 65)).toBe(
+      "No irregular students. Everyone is at or above 65%."
+    );
+    expect(emptyRegisterText(NO_FILTER, 65)).toBe(
+      "No students in this register."
+    );
   });
 });
 /** Node has no localStorage, and the range helpers are written to survive its
