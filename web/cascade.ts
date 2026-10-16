@@ -476,10 +476,6 @@ export function chosenFacts(
         value: `${range.from} to ${range.to}`,
       });
     } else {
-      // Total and days-without-class ARE calendar arithmetic by definition:
-      // the frame, and the frame minus the Portal's own classes-held count.
-      // Only the held figure is read; the other two are its complement,
-      // stated as such.
       facts.push(
         {
           label: `Date Range (${total} ${dayWord(total)})`,
@@ -490,11 +486,6 @@ export function chosenFacts(
           value: `${classesHeld} ${classWord(classesHeld)}`,
         }
       );
-      const withoutClass = total - classesHeld;
-      facts.push({
-        label: "Days Without Class",
-        value: `${withoutClass} ${dayWord(withoutClass)}`,
-      });
     }
   }
   return facts;

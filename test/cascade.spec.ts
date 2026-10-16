@@ -65,8 +65,8 @@ const nothing = reply({
 /** The old single-checkbox filter, spelled in the new shape. */
 const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
 /** The Date Range tail for a fixed selection and range, varying only the
- *  register's own class-day count: the range fact, then working days, then
- *  holidays — or the bare range where the Portal stated no count. */
+ *  register's own class-day count: the range fact, then classes held — or
+ *  the bare range where the Portal stated no count. */
 const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
   const facts = chosenFacts(
     reply({
@@ -317,17 +317,15 @@ test.describe("the register, before it is sent", () => {
     ]);
   });
   test("the date range carries the register's own class-day count", () => {
-    // 01/10 to 16/10 is 16 calendar days; the register states 6 class days,
-    // so 10 are holidays by complement. Only the working figure is read.
+    // 01/10 to 16/10 is 16 calendar days; the register states 6 classes held.
+    // Only the held figure is read.
     expect(dateRangeTail(6)).toEqual([
       { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
       { label: "Classes Held", value: "6 classes" },
-      { label: "Days Without Class", value: "10 days" },
     ]);
     expect(dateRangeTail(1)).toEqual([
       { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
       { label: "Classes Held", value: "1 class" },
-      { label: "Days Without Class", value: "15 days" },
     ]);
     expect(dateRangeTail(null)).toEqual([
       { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
