@@ -295,8 +295,8 @@ carries one also has its name in text.
   subject columns 69 of 69 — which is precisely why it must not be recomputed.
   See ADR 0017.
 
-- **A failing class report must never fail the register.** On the subject path it
-  is allowed to fail: the register renders with the overall column absent. On the
+- **A failing class report must never fail the register.** The subject path shows
+  no overall column at all, so a failed report changes nothing visible there. On the
   **All subjects** path it *is* the register, so an empty one is a named 502. The
   two paths have opposite failure rules on purpose.
 

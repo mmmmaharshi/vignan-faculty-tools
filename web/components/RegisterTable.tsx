@@ -107,10 +107,13 @@ export const RegisterTable = ({
   chosen,
   overallMode = false,
 }: RegisterTableProps): React.JSX.Element => {
-  // A class report that failed leaves every figure absent; showing two columns
-  // of dashes would read as "nobody has an overall", which is a different lie.
+  // A subject register shows its own figures alone: the overall column belongs
+  // to the all-subjects view, so a class report that failed changes nothing
+  // visible here. On the all-subjects path the column shows whenever any row
+  // carries an overall — a report that failed leaves every figure absent, and
+  // showing a column of dashes would read as "nobody has an overall".
   const showOverall =
-    overallMode ||
+    overallMode &&
     rows.some((s) => s.overallPct != null || s.overallAttendedOfHeld !== "");
   return (
     <Paper withBorder p="lg">

@@ -439,37 +439,13 @@ test.describe("Vignan Faculty Tools", () => {
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       )
     );
-    expect(head).toContain("Overall Attendance %");
     // The subject columns must still be there: this is the subject path.
     expect(head).toContain("Attend / Held");
     expect(head).toContain("Subject Attendance %");
-    // The raw all-classes count belongs to the all-subjects view only.
+    // The overall figure belongs to the all-subjects view only: beside a
+    // subject there is no overall column at all, badged or otherwise.
     expect(head).not.toContain("Attended / Total");
-    const overallPctIdx = head.indexOf("Overall Attendance %");
-    const overalls = await page.evaluate((pct) => {
-      const rows = [...document.querySelectorAll("thead ~ tbody tr")];
-      const cells = [...rows].map(
-        (tr) => [...tr.querySelectorAll("td")] as Element[]
-      );
-      return {
-        rows: rows.length,
-        filled: cells.filter((c) => /\d/.test(c[pct]?.textContent ?? ""))
-          .length,
-        badged: cells.filter(
-          (c) =>
-            (c[pct]?.querySelectorAll(".mantine-Badge-root").length ?? 0) > 0
-        ).length,
-      };
-    }, overallPctIdx);
-    expect(overalls.rows, "the register should have rows").toBeGreaterThan(0);
-    expect(
-      overalls.filled,
-      "the real portal should give every student an overall percentage"
-    ).toBeGreaterThan(0);
-    expect(
-      overalls.badged,
-      "beside a subject the overall figure carries no badge of its own"
-    ).toBe(0);
+    expect(head).not.toContain("Overall Attendance %");
     expect(
       problems,
       `no uncaught errors; got ${JSON.stringify(problems)}`

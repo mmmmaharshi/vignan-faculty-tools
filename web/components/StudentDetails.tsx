@@ -33,6 +33,10 @@ type StudentDetailsProps = {
   /** Called once the slide-out has finished, which is when the panel's student
    *  may be dropped. Clearing it at the click instead empties the drawer first. */
   onExitTransitionEnd: () => void;
+  /** The All subjects path: the panel shows the overall figure, while a subject
+   *  register shows its own alone. Shared with the table — one prop, because a
+   *  subject was either chosen or not. */
+  overallMode?: boolean;
   /** The register this student was read from, with the period it was read over:
    *  a percentage means nothing without the two, and the table says the same
    *  facts above itself. One fact per row, in the order the line names them. */
@@ -80,8 +84,8 @@ const FigureRow = ({
   </Table.Tr>
 );
 /**
- * One student: the register row that was clicked, with the band each of its two
- * figures sits in spelled out, then the GPA and phone numbers ECAP holds for
+ * One student: the register row that was clicked, with the band each figure it
+ * shows sits in spelled out, then the GPA and phone numbers ECAP holds for
  * them. The row itself is not fetched — it is repeated from the table — and the
  * profile is, once, when the panel opens.
  */
@@ -90,6 +94,7 @@ export const StudentDetails = ({
   opened,
   onClose,
   onExitTransitionEnd,
+  overallMode = false,
   chosen,
   profile,
   busy,
@@ -129,12 +134,14 @@ export const StudentDetails = ({
           </div>
           <Divider />
           {/* A figure the Portal did not give is an absence, not a zero, so its
-              row is left out rather than printed as a dash — the rule the table
-              already follows for a class report that failed. */}
+              row is left out rather than printed as a dash — and a subject
+              register shows its own figure alone, so the overall row belongs
+              to the all-subjects view. */}
           {student.pct != null ||
           student.attendedOfHeld !== "" ||
-          student.overallPct != null ||
-          student.overallAttendedOfHeld !== "" ? (
+          (overallMode &&
+            (student.overallPct != null ||
+              student.overallAttendedOfHeld !== "")) ? (
             <Table striped withTableBorder tabularNums>
               <Table.Tbody>
                 {student.pct != null || student.attendedOfHeld !== "" ? (
@@ -145,8 +152,9 @@ export const StudentDetails = ({
                     {...badgeFor(student.critical, student.irregular, "yellow")}
                   />
                 ) : null}
-                {student.overallPct != null ||
-                student.overallAttendedOfHeld !== "" ? (
+                {overallMode &&
+                (student.overallPct != null ||
+                  student.overallAttendedOfHeld !== "") ? (
                   <FigureRow
                     label="Overall attendance"
                     cell={overallCellForDisplay(student.overallAttendedOfHeld)}

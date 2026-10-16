@@ -263,6 +263,39 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
     expect(optionsCalls, "and the click asked for no options").toBe(5);
   });
+  test("a subject register shows its own figures alone, table and panel", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByRole("columnheader", { name: "Subject Attendance %" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Overall Attendance %" }),
+      "the overall column belongs to the all-subjects view"
+    ).toHaveCount(0);
+    await expect(
+      page.getByRole("row", { name: "Subject MFCS" }),
+      "the card names the subject register it shows"
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "Show details for B student" })
+      .click();
+    const panel = page.getByRole("dialog");
+    await expect(
+      panel.getByText("Subject attendance", { exact: true })
+    ).toBeVisible();
+    await expect(
+      panel.getByText("Overall attendance", { exact: true }),
+      "the panel shows the subject figure alone"
+    ).toHaveCount(0);
+  });
   test("a student's details are read once per open, and not again and again", async ({
     page,
   }) => {

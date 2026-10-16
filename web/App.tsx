@@ -494,6 +494,7 @@ const App = (): React.JSX.Element => {
             opened={detailOpen}
             onClose={() => setDetailOpen(false)}
             onExitTransitionEnd={() => setDetail(null)}
+            overallMode={overallMode}
             chosen={registerFacts}
             profile={profile.data ?? null}
             busy={profile.isLoading}
