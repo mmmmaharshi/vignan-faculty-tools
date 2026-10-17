@@ -311,3 +311,13 @@ export function chosenFacts(
   }
   return facts;
 }
+const CLASS_LABELS = new Set(
+  LEVELS.filter(([key]) => key !== "subject").map(([, label]) => label)
+);
+/** The facts a student's panel states: the register that was read, with the
+ *  class levels dropped. Course, semester, branch and section are already on
+ *  screen in the facts table above the register, so the panel repeats only what
+ *  the figures beside it depend on — the subject and the period. */
+export function panelFacts(facts: ChosenFact[]): ChosenFact[] {
+  return facts.filter((fact) => !CLASS_LABELS.has(fact.label));
+}

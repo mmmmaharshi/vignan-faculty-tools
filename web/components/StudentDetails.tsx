@@ -36,8 +36,9 @@ type StudentDetailsProps = {
    *  subject was either chosen or not. */
   overallMode?: boolean;
   /** The register this student was read from, with the period it was read over:
-   *  a percentage means nothing without the two, and the table says the same
-   *  facts above itself. One fact per row, in the order the line names them. */
+   *  a percentage means nothing without the two. `panelFacts` drops the class
+   *  levels, which the table above the register already names, so the panel
+   *  states the subject and the period and nothing it would be repeating. */
   chosen: ChosenFact[];
   /** The student's GPA and phone numbers, which the register does not state and
    *  ECAP answers for one roll number at a time. Read when the panel opens, so

@@ -24,6 +24,7 @@ import {
   chosenLevels,
   isAllSubjects,
   chosenFacts,
+  panelFacts,
   disabledLevels,
   rememberRangeStart,
   selectionAfter,
@@ -524,7 +525,7 @@ const App = (): React.JSX.Element => {
             onClose={() => setDetailOpen(false)}
             onExitTransitionEnd={() => setDetail(null)}
             overallMode={overallMode}
-            chosen={registerFacts}
+            chosen={panelFacts(registerFacts)}
             profile={profile.data ?? null}
             busy={profile.isLoading}
             note={profileNote}
