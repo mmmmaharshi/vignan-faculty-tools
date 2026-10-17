@@ -151,7 +151,10 @@ function anyHeaded(grids: string[][][]): string[][] | null {
     ) ?? null
   );
 }
-const DATE_CELL = /^\d{1,2}\/\d{1,2}$/;
+/* A real day and month, never 0: an empty range's grid heads its one column
+ * "0/0", and counting that as a class day would state one day where the Portal
+ * held none. */
+const DATE_CELL = /^(?:0?[1-9]|[12]\d|3[01])\/(?:0?[1-9]|1[0-2])$/;
 /**
  * The dates the Portal lists across the register's own grid: one column per
  * day the subject met, holidays and Sundays simply absent. The count is the

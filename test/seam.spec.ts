@@ -117,6 +117,13 @@ test.describe("portal replies", () => {
       )
     ).toEqual([]);
     expect(registerDates(LOGIN_PAGE)).toEqual([]);
+    // An empty range heads its one column "0/0"; that is a placeholder, not a
+    // day the subject met, so it is not a class day.
+    expect(
+      registerDates(
+        `<table><tr><th>Sl.No</th><th>Roll No</th><th>Student Name</th><th>0/0</th><th>Attend/Held</th><th>%</th></tr></table>`
+      )
+    ).toEqual([]);
   });
   test("the class report is read from the portal's own last two cells", () => {
     const html = `<center><div id='tblReport'><table width='95%'>
