@@ -126,14 +126,9 @@ export const StudentDetails = ({
             <Title order={4} tt="uppercase">
               {student.name}
             </Title>
-            <Group gap="xs">
-              <Text ff="monospace" size="sm">
-                Roll No {student.roll}
-              </Text>
-              <Text c="dimmed" size="sm">
-                Sl.No {student.sl}
-              </Text>
-            </Group>
+            <Text ff="monospace" size="sm">
+              Roll No {student.roll}
+            </Text>
           </Box>
           <Divider />
           {/* A figure the Portal did not give is an absence, not a zero, so its
