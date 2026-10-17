@@ -61,6 +61,7 @@ const registerReply = (classesHeld: number | null): RegisterReply => ({
       overallAttendedOfHeld: "120/148",
       overallIrregular: false,
       overallCritical: false,
+      absent: ["12/10"],
     },
     {
       sl: "2",
@@ -74,6 +75,7 @@ const registerReply = (classesHeld: number | null): RegisterReply => ({
       overallAttendedOfHeld: "77/148",
       overallIrregular: true,
       overallCritical: false,
+      absent: ["12/10"],
     },
     {
       sl: "3",
@@ -87,6 +89,7 @@ const registerReply = (classesHeld: number | null): RegisterReply => ({
       overallAttendedOfHeld: "44/148",
       overallIrregular: true,
       overallCritical: true,
+      absent: [],
     },
   ],
   summary: {
@@ -337,6 +340,10 @@ test.describe("the app's own data layer", () => {
       panel.getByText("Overall attendance", { exact: true }),
       "the panel shows the subject figure alone"
     ).toHaveCount(0);
+    await expect(
+      panel.getByText("Absent on 12/10", { exact: true }),
+      "absence dates are read from the register's own columns"
+    ).toBeVisible();
   });
   test("a student's details are read once per open, and not again and again", async ({
     page,

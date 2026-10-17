@@ -99,6 +99,17 @@ test.describe("portal replies", () => {
       <tr><td>1</td><td>21CS001</td><td>Asha Rao</td><td>P</td><td>A</td><td>P</td><td>2/3</td><td>66.67</td></tr>
     </table>`;
     expect(registerDates(html)).toEqual(["10/10", "12/10", "13/10"]);
+    const rows = parseRegister(html);
+    expect(
+      rows[0]?.absent,
+      "the A cells are read under their own date headers"
+    ).toEqual(["12/10"]);
+    expect(
+      parseRegister(
+        `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
+        <tr><td>1</td><td>21CS001</td><td>A</td><td>38/45</td><td>84.44</td></tr></table>`
+      )[0]?.absent
+    ).toEqual([]);
     expect(
       registerDates(
         `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>

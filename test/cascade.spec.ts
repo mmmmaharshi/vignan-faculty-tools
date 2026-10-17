@@ -351,6 +351,7 @@ const student = (pct: number | null): Student => ({
   overallAttendedOfHeld: "381\\481",
   overallIrregular: false,
   overallCritical: false,
+  absent: [],
 });
 test.describe("the bands", () => {
   test("only a critical student is tinted", () => {

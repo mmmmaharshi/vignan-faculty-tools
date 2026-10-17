@@ -162,6 +162,7 @@ export async function handleRegister(
         name: row.name,
         attendedOfHeld: "",
         pct: null,
+        absent: [],
       })),
       range,
       byRoll

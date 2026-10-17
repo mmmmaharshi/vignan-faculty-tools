@@ -169,6 +169,15 @@ export const StudentDetails = ({
               </Table.Tbody>
             </Table>
           ) : null}
+          {/* The dates the register's own columns say "A" for this student, in
+              the order the register lists them. No list when there are none:
+              a 6/6 row says so already, and a grid that states no dates
+              (All subjects) must not be read as a clean sheet. */}
+          {student.absent.length ? (
+            <Text c="dimmed" size="sm">
+              {`Absent on ${student.absent.join(", ")}`}
+            </Text>
+          ) : null}
           {/* Both figures are badged here where the table badges the subject
               alone: two badges on one table row is noise, but two labelled lines
               are how the reader sees which band each figure sits in. */}

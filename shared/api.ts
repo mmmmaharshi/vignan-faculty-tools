@@ -54,6 +54,9 @@ export interface Student {
   overallAttendedOfHeld: string;
   overallIrregular: boolean;
   overallCritical: boolean;
+  /** Dates (dd/mm) the register states "A" for this student. Read from the
+   *  register's own grid — no extra Portal call. */
+  absent: string[];
 }
 export interface RegisterReply {
   students: Student[];

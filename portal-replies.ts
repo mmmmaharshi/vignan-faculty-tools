@@ -167,7 +167,10 @@ export function registerDates(html: string): string[] {
 export function parseRegister(html: string): RegisterRow[] {
   const grid = firstHeaded(gridTables(html));
   if (!grid) return [];
+  const [header] = grid;
+  if (!header) return [];
   const rows: RegisterRow[] = [];
+  const dates = header.filter((c) => DATE_CELL.test(c));
   for (const cells of grid.slice(1)) {
     if (cells.length < 4) continue;
     const roll = cells[1] ?? "";
@@ -181,6 +184,7 @@ export function parseRegister(html: string): RegisterRow[] {
       name: cells[2] ?? "",
       attendedOfHeld,
       pct: Number.isNaN(num) ? null : num,
+      absent: dates.filter((d) => cells[header.indexOf(d)] === "A"),
     });
   }
   return rows;

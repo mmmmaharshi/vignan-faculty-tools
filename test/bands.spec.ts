@@ -16,6 +16,7 @@ const row = (pct: number | null, roll = "21CS001"): RegisterRow => ({
   name: "A Student",
   attendedOfHeld: "38/45",
   pct,
+  absent: [],
 });
 const named = (pct: number | null, roll: string): RegisterRow => ({
   ...row(pct, roll),

@@ -20,7 +20,11 @@ export type RegisterRow = Omit<
   | "overallAttendedOfHeld"
   | "overallIrregular"
   | "overallCritical"
->;
+> & {
+  /** The dates whose column says "A" for this student. Read from the register's
+   *  own grid — no extra Portal call. */
+  absent: string[];
+};
 type Band = ReturnType<typeof band>;
 const isBelow = (b: Band): boolean => b === "Irregular" || b === "Critical";
 export function band(
