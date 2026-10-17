@@ -341,8 +341,8 @@ test.describe("the app's own data layer", () => {
       "the panel shows the subject figure alone"
     ).toHaveCount(0);
     await expect(
-      panel.getByText("Absent on 12/10", { exact: true }),
-      "absence dates are read from the register's own columns"
+      panel.getByText("12/10", { exact: true }),
+      "absence dates are read from the register's own columns, five to a row"
     ).toBeVisible();
   });
   test("a student's details are read once per open, and not again and again", async ({

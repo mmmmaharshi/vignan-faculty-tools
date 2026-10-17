@@ -53,6 +53,11 @@ type FigureProps = {
   badge: string;
   color: string;
 };
+/** The absent dates, five to a row, so a long list stays readably wide. */
+const chunked = (dates: readonly string[]): string[][] =>
+  Array.from({ length: Math.ceil(dates.length / 5) }, (_, i) =>
+    dates.slice(i * 5, i * 5 + 5)
+  );
 const FigureRow = ({
   label,
   cell,
@@ -174,9 +179,26 @@ export const StudentDetails = ({
               a 6/6 row says so already, and a grid that states no dates
               (All subjects) must not be read as a clean sheet. */}
           {student.absent.length ? (
-            <Text c="dimmed" size="sm">
-              {`Absent on ${student.absent.join(", ")}`}
-            </Text>
+            <>
+              <Text c="dimmed" size="xs" tt="uppercase">
+                Absent
+              </Text>
+              <Table striped withTableBorder tabularNums>
+                <Table.Tbody>
+                  {chunked(student.absent).map((row) => (
+                    <Table.Tr key={row[0]}>
+                      {row.map((date) => (
+                        <Table.Td key={date} ta="center">
+                          <Text size="sm" fw={600}>
+                            {date}
+                          </Text>
+                        </Table.Td>
+                      ))}
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            </>
           ) : null}
           {/* Both figures are badged here where the table badges the subject
               alone: two badges on one table row is noise, but two labelled lines
