@@ -2,13 +2,10 @@ import { Table, Text } from "@mantine/core";
 
 import type { ChosenFact } from "../cascade";
 
-/** The register's own naming — course through period, one fact per row. Shared
- *  by the card above the register and a student's panel, so the two cannot
- *  disagree about which register is on screen; the panel passes it through
- *  `panelFacts`, which drops the class levels the card above the register already
- *  names. Exported for the same reason as `badgeFor`. It stays headless on
- *  purpose: the specs count register rows as `thead ~ tbody tr`, and a thead here
- *  would join that count. */
+/** The register's own naming — course through period, one fact per row, for the
+ *  card above the register. It stays headless on purpose: the specs count
+ *  register rows as `thead ~ tbody tr`, and a thead here would join that count.
+ *  Exported for the same reason as `badgeFor`. */
 export const FactsTable = ({
   facts,
 }: {

@@ -14,10 +14,8 @@ import {
 
 import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../attendance-bands";
 import type { Student, StudentProfile } from "../../shared/api";
-import type { ChosenFact } from "../cascade";
 import type { Note } from "../types";
 import { badgeFor } from "../worklist";
-import { FactsTable } from "./FactsTable";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */
@@ -35,11 +33,6 @@ type StudentDetailsProps = {
    *  register shows its own alone. Shared with the table — one prop, because a
    *  subject was either chosen or not. */
   overallMode?: boolean;
-  /** The register this student was read from, with the period it was read over:
-   *  a percentage means nothing without the two. `panelFacts` drops the class
-   *  levels, which the table above the register already names, so the panel
-   *  states the subject and the period and nothing it would be repeating. */
-  chosen: ChosenFact[];
   /** The student's GPA and phone numbers, which the register does not state and
    *  ECAP answers for one roll number at a time. Read when the panel opens, so
    *  the attendance figures are on screen while this is still arriving. */
@@ -99,7 +92,6 @@ export const StudentDetails = ({
   onClose,
   onExitTransitionEnd,
   overallMode = false,
-  chosen,
   profile,
   busy,
   note,
@@ -303,12 +295,6 @@ export const StudentDetails = ({
                   ))}
                 </Table.Tbody>
               </Table>
-            </>
-          ) : null}
-          {chosen.length ? (
-            <>
-              <Divider />
-              <FactsTable facts={chosen} />
             </>
           ) : null}
         </Stack>

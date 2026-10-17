@@ -10,7 +10,6 @@ import { ALL_SUBJECTS } from "../shared/api";
 import {
   applyOptions,
   chosenFacts,
-  panelFacts,
   chosenLevels,
   defaultRange,
   rememberRangeStart,
@@ -375,32 +374,6 @@ test.describe("the register, before it is sent", () => {
     expect(statedTail("")).toEqual([
       { label: "Date Range (108 days)", value: "01/07/2026 to 16/10/2026" },
     ]);
-  });
-  test("a student's panel keeps the register and drops its class", () => {
-    // Course, semester, branch and section are already in the facts table above
-    // the register, so the panel states only what its own figures hang on: the
-    // subject, and the period they were read over.
-    const facts = chosenFacts(
-      fullReply(),
-      sel({
-        course: "1",
-        semester: "3",
-        branch: "4",
-        section: "5",
-        subject: "6",
-      }),
-      { from: "01/10/2026", to: "16/10/2026" },
-      6
-    );
-    expect(panelFacts(facts)).toEqual([
-      { label: "Subject", value: "L6" },
-      { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
-    ]);
-    expect(
-      facts.map((fact) => fact.label),
-      "the table above the register still names the class"
-    ).toContain("Course");
-    expect(panelFacts([])).toEqual([]);
   });
 });
 const student = (pct: number | null): Student => ({

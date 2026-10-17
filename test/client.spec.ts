@@ -382,12 +382,8 @@ test.describe("the app's own data layer", () => {
       "the panel shows the subject figure alone"
     ).toHaveCount(0);
     await expect(
-      panel.getByRole("row", { name: "Subject MFCS" }),
-      "the panel names the register its figures were read from"
-    ).toBeVisible();
-    await expect(
-      panel.getByText("Course", { exact: true }),
-      "the class levels are already in the facts table above the register"
+      panel.getByText("Date Range", { exact: false }),
+      "the facts table above the register belongs to the register, not the panel"
     ).toHaveCount(0);
     await expect(
       panel.getByText("12/10", { exact: true }),
