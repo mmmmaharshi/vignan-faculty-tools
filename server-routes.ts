@@ -6,6 +6,7 @@ import {
   level,
   parseClassAttendance,
   parseRegister,
+  parseStudentAbsences,
   parseStudentProfile,
   realOptions,
   registerDates,
@@ -46,6 +47,13 @@ export type PortalReader = {
   ) => Promise<string>;
   /** The StudentProfile page's markup for one roll number. */
   studentProfile: (roll: string) => Promise<string>;
+  /** The Student Wise report: one student's grid, every subject, one column per
+   *  day the section met. */
+  studentRegister: (
+    roll: string,
+    name: string,
+    p: Record<Level, Option> & { from: string; to: string }
+  ) => Promise<string>;
 };
 export async function handleOptions(
   portal: PortalReader,
@@ -194,6 +202,37 @@ export async function handleRegister(
  * The register states neither, so this is the one place the Portal is asked
  * about a single student.
  */
+/**
+ * The dates this student missed, across every subject, but only when the register
+ * on screen is the **All subjects** view: its report aggregates by subject and
+ * states no dates, so this student's own grid is the only place they exist. A
+ * subject register already states them, and one Portal call per panel open is the
+ * budget (ADR 0018), so nothing is asked for on that path.
+ *
+ * A report ECAP will not give changes nothing else: the panel's GPA and numbers
+ * are the main read, and a 401 still ends the session.
+ */
+async function readAbsences(
+  portal: PortalReader,
+  roll: string,
+  b: Partial<StudentRequest>
+): Promise<{ absent?: string[] }> {
+  const { register } = b;
+  if (!register || !isAllSubjects(register.subject)) return {};
+  try {
+    const absent = parseStudentAbsences(
+      await portal.studentRegister(roll, b.name ?? "", {
+        ...requireLevels(register),
+        from: register.from,
+        to: register.to,
+      })
+    );
+    return absent ? { absent } : {};
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401) throw error;
+    return {};
+  }
+}
 export async function handleStudentProfile(
   portal: PortalReader,
   b: Partial<StudentRequest>
@@ -207,5 +246,5 @@ export async function handleStudentProfile(
       "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
     );
   }
-  return profile;
+  return { ...profile, ...(await readAbsences(portal, roll, b)) };
 }

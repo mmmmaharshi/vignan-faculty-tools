@@ -32,6 +32,7 @@ type Calls = {
   register: (RegisterRequest & Record<string, unknown>)[];
   classAttendance: (RegisterRequest & Record<string, unknown>)[];
   studentProfile: string[];
+  studentRegister: [string, string][];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
@@ -56,6 +57,14 @@ const ONE_CLASS_ROW = classGrid([["21CS001", "381\\481", "79.21"]]);
 const PROFILE_PAGE = `<div id='divProfile_BioData'><table>
 <tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
 <center><span>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
+/** A Student Wise report: one row per subject, one column per day the section
+ *  met, and one mark per period inside a cell. MFCS says `A` on 05/08 and SE on
+ *  06/08, so the student missed both dates, each once. */
+const STUDENT_GRID = `<table>
+<tr><th>Sl.No</th><th>Subject</th><th>05/08</th><th>06/08</th><th>07/08</th><th>Atted/Held</th><th>%</th></tr>
+<tr><td>1</td><td>MFCS</td><td>P&nbsp;P</td><td>A&nbsp;A</td><td>-</td><td>12/14</td><td>85.71</td></tr>
+<tr><td>2</td><td>SE</td><td>A</td><td>P</td><td>P</td><td>10/14</td><td>71.43</td></tr>
+</table>`;
 const fake = (
   answers: {
     course?: Option[];
@@ -67,6 +76,8 @@ const fake = (
     classAttendance?: string;
     classFails?: boolean;
     studentProfile?: string;
+    studentRegister?: string;
+    studentFails?: boolean;
   } = {}
 ): { reader: PortalReader; calls: Calls } => {
   const calls: Calls = {
@@ -77,6 +88,7 @@ const fake = (
     register: [],
     classAttendance: [],
     studentProfile: [],
+    studentRegister: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -114,6 +126,13 @@ const fake = (
     studentProfile: (roll) => {
       calls.studentProfile.push(roll);
       return resolved(answers.studentProfile ?? PROFILE_PAGE);
+    },
+    studentRegister: (roll, name) => {
+      calls.studentRegister.push([roll, name]);
+      if (answers.studentFails) {
+        return Promise.reject(new HttpError(502, "student report unavailable"));
+      }
+      return resolved(answers.studentRegister ?? STUDENT_GRID);
     },
   };
   return { reader, calls };
@@ -579,6 +598,56 @@ test.describe("the student profile handler", () => {
     const failure = await handleStudentProfile(dead, { roll: "21CS001" }).catch(
       (error: unknown) => error
     );
+    expect((failure as HttpError).status).toBe(401);
+  });
+  test("the All subjects register gets the student's own absent dates, once", async () => {
+    const { reader, calls } = fake();
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      name: "A Student",
+      register: levels({ subject: ALL_SUBJECTS }),
+    });
+    expect(
+      calls.studentRegister,
+      "one call, over that register's own range"
+    ).toEqual([["21CS001", "A Student"]]);
+    expect(reply.absent, "the union, in the grid's own date order").toEqual([
+      "05/08",
+      "06/08",
+    ]);
+    expect(reply.cgpa).toBe("5.61");
+  });
+  test("a subject register asks for no second call: its own rows state the dates", async () => {
+    const { reader, calls } = fake();
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels(),
+    });
+    expect(calls.studentRegister).toEqual([]);
+    expect(reply.absent).toBeUndefined();
+  });
+  test("a report ECAP will not give leaves the panel, not the student", async () => {
+    const { reader } = fake({ studentFails: true });
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels({ subject: ALL_SUBJECTS }),
+    });
+    expect(reply.cgpa, "the panel's own read still lands").toBe("5.61");
+    expect(
+      reply.absent,
+      "stated as nothing rather than as no absences"
+    ).toBeUndefined();
+  });
+  test("a dead session on the absent dates is still a 401", async () => {
+    const { reader } = fake();
+    const dead: PortalReader = {
+      ...reader,
+      studentRegister: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleStudentProfile(dead, {
+      roll: "21CS001",
+      register: levels({ subject: ALL_SUBJECTS }),
+    }).catch((error: unknown) => error);
     expect((failure as HttpError).status).toBe(401);
   });
 });

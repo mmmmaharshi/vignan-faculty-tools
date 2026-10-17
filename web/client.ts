@@ -10,6 +10,7 @@ import type {
   RegisterRequest,
   SessionReply,
   StudentProfile,
+  StudentRequest,
 } from "../shared/api";
 import { runCascade } from "./cascade";
 import type { CascadeOutcome, CascadeSetup } from "./cascade";
@@ -138,14 +139,24 @@ export function useRegisterLoad(click: RegisterClick | null) {
 /**
  * One student's GPA and phone numbers, keyed by their roll number: the register
  * states none of them, and ECAP answers for one student at a time, when their
- * panel is opened (ADR 0018). The key is the roll number and nothing else, so a
- * reply read for one student cannot land under another's name.
+ * panel is opened (ADR 0018). The key is the roll number and the register it was
+ * read from, so a reply read for one student cannot land under another's name,
+ * and one read from another register is its own entry.
+ *
+ * `register` also carries the dates on the All subjects path, where the report
+ * on screen states none — the server asks for them, over this same range, only
+ * when the subject in it is the section-wide one.
  */
-export function useStudentProfile(roll: string | null) {
+export function useStudentProfile(
+  roll: string | null,
+  register: RegisterRequest | null = null,
+  name = ""
+) {
+  const asked = roll ? { roll, name, register: register ?? undefined } : null;
   return useSWR<StudentProfile, ApiError>(
-    roll ? [STUDENT_PATH, roll] : null,
-    ([, chosen]: [string, string]) =>
-      postJson<StudentProfile>(STUDENT_PATH, { roll: chosen }),
+    asked ? [STUDENT_PATH, asked] : null,
+    ([, body]: [string, StudentRequest]) =>
+      postJson<StudentProfile>(STUDENT_PATH, body),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,

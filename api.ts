@@ -3,6 +3,7 @@ import {
   classPairs,
   CookieJar,
   portalEncrypt,
+  studentPairs,
 } from "./portal-conventions";
 import { liveness } from "./portal-liveness";
 import type { CourseReader } from "./portal-liveness";
@@ -176,6 +177,21 @@ class Portal {
       ["RollNo", roll],
       ["isImageDisplay", "true"],
     ]);
+  }
+  /** The Student Wise report: one student's grid, every subject, one column per
+   *  day the section met. It lives on the register's own proxy and wants the
+   *  same `no` session marker as the register it sits beside. */
+  studentRegister(
+    roll: string,
+    name: string,
+    p: Record<Level, Option> & { from: string; to: string }
+  ): Promise<string> {
+    return portalWebMethod(
+      this.jar,
+      REGISTER_REMOTE,
+      "ShowAcademicCalendar_StudentWise",
+      studentPairs(roll, name, p)
+    );
   }
 }
 function refreshedCookie(id: string): Record<string, string> {

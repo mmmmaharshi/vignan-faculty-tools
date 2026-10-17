@@ -6,6 +6,7 @@ import {
   options,
   parseClassAttendance,
   parseRegister,
+  parseStudentAbsences,
   parseStudentProfile,
   realOptions,
   registerDates,
@@ -165,6 +166,33 @@ test.describe("portal replies", () => {
       parseClassAttendance("<table><tr><th>Subject</th></tr></table>")
     ).toEqual([]);
     expect(parseClassAttendance("")).toEqual([]);
+  });
+  test("a student's own grid states their absences across every subject", () => {
+    // One row per subject, one mark per period inside a cell, so a date is
+    // missed if any subject's cell for it carries an A — the union, in the
+    // grid's own date order.
+    const html = `<table>
+      <tr><th>Sl.No</th><th>Subject</th><th>05/08</th><th>06/08</th><th>07/08</th><th>Atted/Held</th><th>%</th></tr>
+      <tr><td>1</td><td>MFCS</td><td>P&nbsp;P</td><td>A&nbsp;A</td><td>-</td><td>12/14</td><td>85.71</td></tr>
+      <tr><td>2</td><td>SE</td><td>A</td><td>P</td><td>P</td><td>10/14</td><td>71.43</td></tr>
+      <tr><td>3</td><td>UHV</td><td>P</td><td>P</td><td>A</td><td>12/14</td><td>85.71</td></tr>
+    </table>`;
+    expect(parseStudentAbsences(html)).toEqual(["05/08", "06/08", "07/08"]);
+    // A student with no A anywhere is an empty list, which is a real answer.
+    expect(
+      parseStudentAbsences(
+        `<table><tr><th>Sl.No</th><th>Subject</th><th>05/08</th><th>Atted/Held</th><th>%</th></tr>
+        <tr><td>1</td><td>MFCS</td><td>P</td><td>14/14</td><td>100.00</td></tr></table>`
+      )
+    ).toEqual([]);
+    // Not that report at all: null, so nothing is claimed about the student.
+    expect(parseStudentAbsences(LOGIN_PAGE)).toBeNull();
+    expect(
+      parseStudentAbsences(
+        `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend/Held</th><th>%</th></tr>
+        <tr><td>1</td><td>21CS001</td><td>Asha Rao</td><td>38/45</td><td>84.44</td></tr></table>`
+      )
+    ).toBeNull();
   });
 });
 /** The per-semester grid, copied from the same response, **unclosed `Grade` row

@@ -110,6 +110,12 @@ export const StudentDetails = ({
   const sgpa = profile?.sgpa ?? [];
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
+  /* Where the dates come from: the register row's own cells where it has them
+     (a subject register), and otherwise the Student Wise report the panel asks
+     for by this student's roll number — the All subjects report states none. */
+  const absences = student?.absent.length
+    ? student.absent
+    : (profile?.absent ?? []);
   return (
     <Drawer
       opened={opened}
@@ -170,17 +176,18 @@ export const StudentDetails = ({
             </Table>
           ) : null}
           {/* The dates the register's own columns say "A" for this student, in
-              the order the register lists them. No list when there are none:
-              a 6/6 row says so already, and a grid that states no dates
-              (All subjects) must not be read as a clean sheet. */}
-          {student.absent.length ? (
+              the order the register lists them — or, on the All subjects path,
+              the ones that student's own grid states, unioned over subjects. No
+              list when there are none, because a grid that states no dates must
+              not be read as a clean sheet. */}
+          {absences.length ? (
             <>
               <Text c="dimmed" size="xs" tt="uppercase">
                 Absent
               </Text>
               <Table striped withTableBorder withColumnBorders tabularNums>
                 <Table.Tbody>
-                  {chunked(student.absent).map((row) => (
+                  {chunked(absences).map((row) => (
                     <Table.Tr key={row[0]}>
                       {row.map((date) => (
                         <Table.Td key={date} ta="center">

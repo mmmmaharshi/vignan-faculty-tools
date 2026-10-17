@@ -57,6 +57,9 @@ const WHITESPACE = /\s+/g;
 const PLACEHOLDER = /^-?\s*select\s*-?$/i;
 const TABLE = /<table[\s\S]*?<\/table>/gi;
 const ROLL_HEADER = /roll\s*\.?\s*no/i;
+/** The Student Wise report's own header: `Sl.No | Subject | dates …`. It is what
+ *  tells that grid apart from the subject register's, whose header names Roll.No. */
+const SUBJECT_HEADER = /^subject$/i;
 const ROW = /<tr[\s\S]*?<\/tr>/gi;
 const CELL = /<t[dh]\b[^>]*>(?<cell>[\s\S]*?)<\/t[dh]>/gi;
 const INPUT = /<input[^>]*>/gi;
@@ -151,6 +154,13 @@ function anyHeaded(grids: string[][][]): string[][] | null {
     ) ?? null
   );
 }
+/** Grids headed by a Subject column: the Student Wise report. */
+function subjectHeaded(grids: string[][][]): string[][] | null {
+  return (
+    grids.find((rows) => (rows[0] ?? []).some((c) => SUBJECT_HEADER.test(c))) ??
+    null
+  );
+}
 /* A real day and month, never 0: an empty range's grid heads its one column
  * "0/0", and counting that as a class day would state one day where the Portal
  * held none. */
@@ -191,6 +201,29 @@ export function parseRegister(html: string): RegisterRow[] {
     });
   }
   return rows;
+}
+/**
+ * The dates one student was absent, unioned over every subject, out of ECAP's
+ * Student Wise report: one row per subject, one column per day the section met,
+ * and a cell holding one mark per period that day, so any `A` in it is that date
+ * missed. The union is what the panel shows, in the grid's own date order.
+ *
+ * `null` when the reply is not that report — which is not a clean sheet, so the
+ * caller states nothing rather than claiming no absences.
+ */
+export function parseStudentAbsences(html: string): string[] | null {
+  const grid = subjectHeaded(gridTables(html));
+  const header = grid?.[0];
+  if (!grid || !header) return null;
+  const body = grid.slice(1).filter((cells) => /^\d+$/.test(cells[0] ?? ""));
+  const absent: string[] = [];
+  for (const date of header.filter((c) => DATE_CELL.test(c))) {
+    const column = header.indexOf(date);
+    if (body.some((cells) => /\bA\b/.test(cells[column] ?? ""))) {
+      absent.push(date);
+    }
+  }
+  return absent;
 }
 export interface OverallRow {
   sl: string;

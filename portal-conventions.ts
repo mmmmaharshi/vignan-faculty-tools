@@ -50,6 +50,33 @@ export function calendarPairs(
   ];
 }
 /**
+ * The Student Wise report's twelve values, in the order that method's own proxy
+ * declares them — **lower-cased**, unlike the subject register's, and the wrong
+ * case is the bare `Object of type 'System.DBNull' cannot be converted to type
+ * 'System.String'` rather than an empty report. It is the one call that lays
+ * per-day columns for **every** subject at once, for one student.
+ */
+export function studentPairs(
+  roll: string,
+  name: string,
+  p: Record<CascadeLevel, Option> & { from: string; to: string }
+): [string, string | number][] {
+  return [
+    ["rollNo", roll],
+    ["sectionId", p.section.value],
+    ["courseId", p.course.value],
+    ["courseName", p.course.label],
+    ["branchId", p.branch.value],
+    ["branchName", p.branch.label],
+    ["semesterId", p.semester.value],
+    ["semesterName", p.semester.label],
+    ["studentName", name],
+    ["allowPrint", "false"],
+    ["fromdate", p.from],
+    ["todate", p.to],
+  ];
+}
+/**
  * The Class attendance report's thirteen values, in the order its generated
  * proxy declares them. All thirteen go on every call. The report honours any
  * date range and the Portal has no semester start date to send, so the range

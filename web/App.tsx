@@ -151,7 +151,11 @@ const App = (): React.JSX.Element => {
   } = useOptionsChain();
   const login = useSignIn();
   const logout = useSignOut();
-  const profile = useStudentProfile(detail?.roll ?? null);
+  const profile = useStudentProfile(
+    detail?.roll ?? null,
+    click?.request ?? null,
+    detail?.name ?? ""
+  );
   /** A request the user is waiting on is already proving the session works, and
    *  the read that would probe it is one more thing competing with it. */
   const busy = register.isLoading || optionsLoading || login.isMutating;

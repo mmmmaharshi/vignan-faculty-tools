@@ -106,14 +106,37 @@ The flags on a row and the counts in the summary come from one pass in
 ## The student
 
 **Student details**:
-The panel a register row opens: that row's own figures, then the GPA, semesters
-and phone numbers ECAP states for the one student. The figures are the row already
-on screen; the GPA, semesters and numbers are one Portal call for that roll
-number, made when the panel opens rather than with the register, because the
-Portal answers for one student at a time. Not the same thing as **Profile**, which
+The panel a register row opens: that row's own figures, the dates the Portal says
+that student missed, and the GPA, semesters and phone numbers ECAP states for the
+one student. The figures and the absences are the row already on screen; the GPA,
+semesters and numbers are one Portal call for that roll number, made when the
+panel opens rather than with the register, because the Portal answers for one
+student at a time. On the **All subjects** view, whose report aggregates by
+subject and states no dates at all, that one call is joined by a second — the
+**Student Wise report** for the same roll number over the same range — because
+there the dates exist nowhere else. Not the same thing as **Profile**, which
 is the rail's screen about the signed-in user's own session. See
-`docs/adr/0018-read-a-students-profile-when-the-panel-opens.md`.
+`docs/adr/0018-read-a-students-profile-when-the-panel-opens.md` and
+`docs/adr/0021-the-all-subjects-panel-asks-for-one-students-grid.md`.
 _Avoid_: Profile page, student profile, sidebar
+
+**Absent dates**:
+The dates a Portal grid says `A` for one student, in that grid's own date order —
+read, never a count subtracted from a calendar. A subject register states them in
+the row that was opened; the All subjects report states none, so there the panel
+reads that one student's own **Student Wise report** instead
+(ADR 0021). A grid that states no dates leaves the list off rather than reading
+as a clean sheet.
+_Avoid_: Missed days, absent count, leave
+
+**Student Wise report**:
+ECAP's own report for one roll number across every subject of the section —
+`ShowAcademicCalendar_StudentWise` on the register's own proxy, one row per
+subject and one column per day the section met. It is the only Portal answer
+that carries per-day data for a whole section at once, and its wire names are
+lower-cased, unlike the subject register's. Its Cumulative sibling states no
+dates.
+_Avoid_: Student report, per-student register, day-wise report
 
 **GPA**:
 The Portal's own line for one student — `CGPA: 5.61   Credits:16/19   48.55 %` —

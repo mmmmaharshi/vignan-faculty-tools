@@ -110,9 +110,20 @@ export interface StudentProfile {
   cgpaPercent: string;
   sgpa: StudentSgpa[];
   phones: StudentPhone[];
+  /** The dates this student missed, unioned over every subject, out of the
+   *  Student Wise report — read only when the register on screen is the All
+   *  subjects view, whose own report aggregates by subject and states no dates.
+   *  Left out when ECAP would not give it, which is not a clean sheet. */
+  absent?: string[];
 }
 export interface StudentRequest {
   roll: string;
+  /** The student's name, which the Student Wise report is asked for by. */
+  name?: string;
+  /** The register this student's row was read from, so the panel can ask for
+   *  that one student's own grid over the same range. The subject path needs no
+   *  such call: its register rows already state the dates. */
+  register?: RegisterRequest;
 }
 export interface OptionsRequest {
   course?: string;

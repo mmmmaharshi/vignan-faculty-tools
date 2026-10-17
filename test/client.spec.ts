@@ -36,6 +36,9 @@ let registerCalls = 0;
 let registerFails = false;
 let statedFrom = "";
 const profileRolls: string[] = [];
+/** Whether the panel asked for a student's own day-wise grid — sent only when
+ *  the register on screen states no dates of its own (the All subjects view). */
+let absentAsked = false;
 /** The chain, level by level: each pass answers with the level the request has
  *  unlocked. Fixed options, so a settled selection is a known one. */
 const optionsFor = (request: OptionsRequest): OptionsReply => ({
@@ -48,7 +51,13 @@ const optionsFor = (request: OptionsRequest): OptionsReply => ({
     : [],
   emptyLevels: [],
 });
-const registerReply = (classesHeld: number | null): RegisterReply => ({
+/** The register's own reply. The All subjects path states no dates at all — its
+ *  report aggregates by subject — so its rows carry no absences and the panel
+ *  has to ask the Portal for that student's own grid. */
+const registerReply = (
+  classesHeld: number | null,
+  overall = false
+): RegisterReply => ({
   students: [
     {
       sl: "1",
@@ -62,7 +71,7 @@ const registerReply = (classesHeld: number | null): RegisterReply => ({
       overallAttendedOfHeld: "120/148",
       overallIrregular: false,
       overallCritical: false,
-      absent: ["12/10"],
+      absent: overall ? [] : ["12/10"],
     },
     {
       sl: "2",
@@ -76,7 +85,7 @@ const registerReply = (classesHeld: number | null): RegisterReply => ({
       overallAttendedOfHeld: "77/148",
       overallIrregular: true,
       overallCritical: false,
-      absent: ["12/10"],
+      absent: overall ? [] : ["12/10"],
     },
     {
       sl: "3",
@@ -159,15 +168,23 @@ const stub = async (route: Route): Promise<void> => {
     // A subject register states its class days in its own grid; the
     // section-wide report aggregates by subject and states none.
     const asked = request.postDataJSON() as RegisterRequest;
-    await json(
-      registerReply(asked.subject?.value === ALL_SUBJECTS.value ? null : 6)
-    );
+    const overall = asked.subject?.value === ALL_SUBJECTS.value;
+    await json(registerReply(overall ? null : 6, overall));
     return;
   }
   if (path === "/api/student") {
-    const { roll } = request.postDataJSON() as StudentRequest;
+    const { roll, register } = request.postDataJSON() as StudentRequest;
     profileRolls.push(roll);
-    await json(profileFor(roll));
+    // The All subjects report states no dates, so the panel asks for this
+    // student's own grid over the same range; the stub answers as that report
+    // would. A subject register's rows already carry their dates, so nothing is
+    // asked for.
+    const allSubjects = register?.subject?.value === ALL_SUBJECTS.value;
+    absentAsked ||= allSubjects;
+    await json({
+      ...profileFor(roll),
+      ...(allSubjects ? { absent: ["02/09"] } : {}),
+    });
     return;
   }
   await json({ error: `no stub for ${path}` }, 500);
@@ -220,6 +237,7 @@ test.describe("the app's own data layer", () => {
     registerFails = false;
     statedFrom = "";
     profileRolls.length = 0;
+    absentAsked = false;
     await page.route("**/api/**", stub);
   });
   test("the boot read decides which screen a stranger gets", async ({
@@ -392,6 +410,14 @@ test.describe("the app's own data layer", () => {
       dialog.getByText("52.00%", { exact: true }),
       "the panel keeps the figure and its band"
     ).toBeVisible();
+    await expect(
+      dialog.getByText("02/09", { exact: true }),
+      "the All subjects report states no dates, so the student's own grid answers with them"
+    ).toBeVisible();
+    expect(
+      absentAsked,
+      "asked for only because that register is the section-wide one"
+    ).toBe(true);
     expect(profileRolls, "one open, one read, for that student").toEqual([
       "21B",
     ]);

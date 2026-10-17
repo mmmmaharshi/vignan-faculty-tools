@@ -327,6 +327,25 @@ carries one also has its name in text.
   a 502, while a student whose page states `CGPA: NA` and no numbers is an answer
   the panel states in words.
 
+- **The All subjects panel's absent dates are one more Portal answer, not a
+  Monday-to-Friday subtraction.** The class report aggregates by subject and
+  states **no dates at all** — its header is `Sl.No | Roll.No | Student Name |
+  <subjects> | Total | Percent`, and its own page's All / Monthly / Period modes
+  are all that same method, none of them day-wise. The only answer that lays
+  per-day columns for a whole section is the register page's **Student Wise**
+  mode: `ShowAcademicCalendar_StudentWise(rollNo, …, fromdate, todate)`, one row
+  per subject and one column per day the section met, one mark per period inside
+  a cell. It is asked for **only** when the register on screen is the All subjects
+  view, inside the `/api/student` read the panel already makes — one call per
+  panel open, never with the register. Three traps: its wire names are
+  **lower-cased** where the subject register's are Pascal-cased, and the wrong
+  case is the bare `Object of type 'System.DBNull' cannot be converted to type
+  'System.String'` rather than an empty report; its `_Cumulative` sibling states
+  no dates; and its reply is not the profile page, so a reply that is not that
+  grid is `null` — stated as nothing, never as a clean sheet. `parseStudentAbsences`
+  reads the union of the `A` cells in the grid's own date order, and ADR 0021
+  records why the panel pays one call instead of sixteen.
+
 - **The GPA is the Portal's own line, printed as it stands.** `CGPA: 5.61
   Credits:16/19 48.55 %` is one sentence on the page, and the percentage beside
   it is read the same way the attendance columns are — never recomputed from the
