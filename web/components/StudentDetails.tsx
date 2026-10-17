@@ -276,7 +276,15 @@ export const StudentDetails = ({
                   {phones.map((phone) => (
                     <Table.Tr key={phone.number}>
                       <Table.Td c="dimmed">
-                        <Text size="sm">{phone.label}</Text>
+                        {/* The page's own word for the student's line is
+                            "Mobile.No"; it is renamed here for the reader, and
+                            any other line's label (a parent's, say) is kept. */}
+                        <Text size="sm">
+                          {/mobile|phone/i.test(phone.label) &&
+                          !/parent|father|mother|guardian/i.test(phone.label)
+                            ? "Student Mobile No"
+                            : phone.label}
+                        </Text>
                       </Table.Td>
                       <Table.Td ta="right">
                         <Text ff="monospace" size="sm">
