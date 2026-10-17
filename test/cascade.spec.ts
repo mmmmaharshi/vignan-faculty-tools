@@ -95,6 +95,32 @@ const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
     facts.findIndex((fact) => fact.label.startsWith("Date Range"))
   );
 };
+/** The same tail, with the register stating where its own data begins: the
+ *  fact then names that day, and the frame counts from it. */
+const statedTail = (statedFrom: string): ChosenFact[] => {
+  const facts = chosenFacts(
+    reply({
+      course: ["1"],
+      semester: ["3"],
+      branch: ["4"],
+      section: ["5"],
+      subject: ["6"],
+    }),
+    sel({
+      course: "1",
+      semester: "3",
+      branch: "4",
+      section: "5",
+      subject: "6",
+    }),
+    { from: "01/07/2026", to: "16/10/2026" },
+    6,
+    statedFrom
+  );
+  return facts.slice(
+    facts.findIndex((fact) => fact.label.startsWith("Date Range"))
+  );
+};
 /** The reply for a selection the Portal agrees with: every level offered. */
 const fullReply = (): OptionsReply =>
   reply({
@@ -336,6 +362,17 @@ test.describe("the register, before it is sent", () => {
     ]);
     expect(dateRangeTail(undefined)).toEqual([
       { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
+    ]);
+  });
+  test("the register's own first date is the start the fact names", () => {
+    // The Portal holds nothing before the semester began, so a range asked
+    // from July shows figures that begin in September — the fact names that
+    // day, and the frame counts the period the register covers.
+    expect(statedTail("01/09/2026")).toEqual([
+      { label: "Date Range (46 days)", value: "01/09/2026 to 16/10/2026" },
+    ]);
+    expect(statedTail("")).toEqual([
+      { label: "Date Range (108 days)", value: "01/07/2026 to 16/10/2026" },
     ]);
   });
 });

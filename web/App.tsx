@@ -373,7 +373,8 @@ const App = (): React.JSX.Element => {
     opts,
     sel,
     summary?.range,
-    summary?.classesHeld
+    summary?.classesHeld,
+    summary?.statedFrom
   );
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };

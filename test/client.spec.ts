@@ -294,6 +294,12 @@ test.describe("the app's own data layer", () => {
       page.getByLabel("From"),
       "the input names the day the figures begin on"
     ).toHaveValue("2026-09-01");
+    await expect(
+      page.getByRole("row", {
+        name: "Date Range 01/09/2026 to 16/10/2026",
+      }),
+      "the range fact agrees with the input it just snapped"
+    ).toBeVisible();
   });
   test("ticked bars narrow the register, and unticking restores it", async ({
     page,

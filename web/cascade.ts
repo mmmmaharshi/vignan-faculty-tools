@@ -283,7 +283,8 @@ export function chosenFacts(
   opts: OptionsReply,
   sel: Sel,
   range?: Range,
-  classesHeld?: number | null
+  classesHeld?: number | null,
+  statedFrom?: string | null
 ): ChosenFact[] {
   const facts = LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
@@ -291,19 +292,20 @@ export function chosenFacts(
   });
   // The period is part of naming the register: the card above it and
   // a student's panel state the same facts, so it is written once here. The
-  // frame count travels beside the Date Range label only where the Portal
-  // stated its days — never calendar arithmetic for the figure itself.
+  // start is the register's own first date where the Portal stated one — it
+  // holds nothing before the semester began, so that is where the figures
+  // begin, and the From input says the same thing. The frame count travels
+  // beside the label only where the Portal stated its days, never calendar
+  // arithmetic for the figure itself.
   if (facts.length && range?.from) {
-    const total = calendarDays(range.from, range.to);
+    const from = statedFrom || range.from;
+    const total = calendarDays(from, range.to);
     if (classesHeld == null || total == null) {
-      facts.push({
-        label: "Date Range",
-        value: `${range.from} to ${range.to}`,
-      });
+      facts.push({ label: "Date Range", value: `${from} to ${range.to}` });
     } else {
       facts.push({
         label: `Date Range (${total} ${dayWord(total)})`,
-        value: `${range.from} to ${range.to}`,
+        value: `${from} to ${range.to}`,
       });
     }
   }
