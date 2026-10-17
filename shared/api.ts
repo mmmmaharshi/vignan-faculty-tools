@@ -76,6 +76,11 @@ export interface RegisterReply {
      *  the All subjects path, whose report aggregates by subject and states
      *  no dates, and wherever the grid states none. */
     classesHeld: number | null;
+    /** The first date the register's own grid states, as a full dd/mm/yyyy
+     *  date. The Portal keeps no data before the semester started, so this is
+     *  where the figures actually begin; the client snaps its From input here
+     *  after a load. Null where the register states no dates. */
+    statedFrom: string | null;
   };
 }
 export interface ErrorReply {

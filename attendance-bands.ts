@@ -64,11 +64,37 @@ export function withBands(
 }
 const oneDecimal = (total: number, n: number): number | null =>
   n ? Math.round((total / n) * 10) / 10 : null;
+/**
+ * The register's own first date column, carried as a full dd/mm/yyyy date. The
+ * grid states dd/mm only, so the year is whichever year inside the range puts
+ * the day between `from` and `to`, earliest first — the portal reports the
+ * first day it holds data for, which is where the figures begin. Null when the
+ * grid states no dates or the range will not parse.
+ */
+export function statedStartDate(
+  dates: readonly string[],
+  range: { from: string; to: string }
+): string | null {
+  const [d, m] = (dates[0] ?? "").split("/").map(Number);
+  const [fd, fm, fy] = range.from.split("/").map(Number);
+  const [td, tm, ty] = range.to.split("/").map(Number);
+  if (!d || !m || !fd || !fm || !td || !tm || !fy || !ty) return null;
+  const code = (y: number): number => y * 10_000 + m * 100 + d;
+  const low = fy * 10_000 + fm * 100 + fd;
+  const high = ty * 10_000 + tm * 100 + td;
+  for (let y = fy; y <= ty; y++) {
+    if (code(y) >= low && code(y) <= high) {
+      return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
+    }
+  }
+  return null;
+}
 export function summarise(
   rows: readonly RegisterRow[],
   range: { from: string; to: string },
   overall: OverallLookup = new Map(),
-  classesHeld: number | null = null
+  classesHeld: number | null = null,
+  statedFrom: string | null = null
 ): { students: Student[]; summary: RegisterReply["summary"] } {
   const students: Student[] = [];
   let irregular = 0;
@@ -109,6 +135,7 @@ export function summarise(
       overallCritical,
       range,
       classesHeld,
+      statedFrom,
     },
   };
 }

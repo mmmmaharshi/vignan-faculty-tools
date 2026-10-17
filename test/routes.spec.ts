@@ -507,13 +507,21 @@ test.describe("all subjects", () => {
     const dated = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>10/10</th><th>12/10</th><th>Attend / Held</th><th>%</th></tr>
     <tr><td>1</td><td>21CS001</td><td>A Student</td><td>P</td><td>A</td><td>1/2</td><td>50</td></tr></table>`;
     const { reader } = fake({ register: dated });
-    const reply = await handleRegister(reader, levels());
+    const reply = await handleRegister(
+      reader,
+      levels({ from: "01/01/2026", to: "28/10/2026" })
+    );
     expect(reply.summary.classesHeld).toBe(2);
+    expect(
+      reply.summary.statedFrom,
+      "the register's own first date, with the range's year"
+    ).toBe("10/10/2026");
   });
   test("a register grid with no date columns leaves the count absent, not zero", async () => {
     const { reader } = fake({ register: oneRow });
     const reply = await handleRegister(reader, levels());
     expect(reply.summary.classesHeld).toBeNull();
+    expect(reply.summary.statedFrom).toBeNull();
   });
   test("a class report with nothing in it is a 502, not an empty table", async () => {
     const { reader } = fake({ classAttendance: "<p>nothing here</p>" });

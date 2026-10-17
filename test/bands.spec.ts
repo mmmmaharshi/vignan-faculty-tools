@@ -5,6 +5,7 @@ import {
   CRITICAL_BELOW,
   IRREGULAR_BELOW,
   overallCellForDisplay,
+  statedStartDate,
   summarise,
   withBands,
 } from "../attendance-bands";
@@ -112,6 +113,30 @@ test.describe("the counts and the flags cannot disagree", () => {
       critical: 0,
       average: null,
     });
+  });
+});
+test.describe("where the register itself begins", () => {
+  test("the stated start's year is the range's, same-year case", () => {
+    expect(
+      statedStartDate(["10/10", "12/10"], {
+        from: "01/01/2026",
+        to: "28/10/2026",
+      })
+    ).toBe("10/10/2026");
+  });
+  test("a December semester read over New Year lands in the older year", () => {
+    expect(
+      statedStartDate(["15/12"], { from: "01/12/2025", to: "17/02/2026" })
+    ).toBe("15/12/2025");
+    expect(
+      statedStartDate(["10/01"], { from: "01/12/2025", to: "17/02/2026" })
+    ).toBe("10/01/2026");
+  });
+  test("a grid with no dates, and a range that will not parse, state nothing", () => {
+    expect(statedStartDate([], { from: "01/01/2026", to: "28/09/2026" })).toBe(
+      null
+    );
+    expect(statedStartDate(["nonsense"], { from: "", to: "" })).toBe(null);
   });
 });
 const figure = (pct: number | null, held = "381\\481") => ({

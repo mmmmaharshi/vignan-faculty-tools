@@ -1,5 +1,5 @@
 import type { OverallLookup } from "./attendance-bands";
-import { summarise } from "./attendance-bands";
+import { statedStartDate, summarise } from "./attendance-bands";
 import { courseVerdict } from "./portal-liveness";
 import {
   HttpError,
@@ -178,9 +178,16 @@ export async function handleRegister(
   }
   const { byRoll } = await readOverall(portal, { ...p, from, to });
   // The grid's own date columns are the working-days count: a grid that
-  // states none leaves the summary bare rather than printing a zero.
+  // states none leaves the summary bare rather than printing a zero. The
+  // first one is where the figures begin, so the input can snap to it.
   const dates = registerDates(reply);
-  return summarise(rows, range, byRoll, dates.length || null);
+  return summarise(
+    rows,
+    range,
+    byRoll,
+    dates.length || null,
+    statedStartDate(dates, range)
+  );
 }
 /**
  * One student's GPA and phone numbers, read on demand when their row is opened.

@@ -33,6 +33,7 @@ import {
   LEVELS,
   subjectNameKey,
   toPortalDate,
+  toInputDate,
 } from "./cascade";
 import type { Level, Range, Sel } from "./cascade";
 import {
@@ -347,6 +348,16 @@ const App = (): React.JSX.Element => {
       signedOut("Your session expired. Please sign in again.");
     }
   }, [failure, signedOut]);
+  /** After a load, the From input names where the register itself starts: the
+   *  Portal keeps nothing before the semester began, so the figures on screen
+   *  begin there even when an older date was asked for, and the input should
+   *  say the same thing the table does. The clicked request lives in the SWR
+   *  key, so this state change cannot trigger a refetch. */
+  useEffect(() => {
+    const iso = toInputDate(register.data?.summary.statedFrom ?? "");
+    if (!iso || iso === range.from) return;
+    setRange((r) => ({ ...r, from: iso }));
+  }, [register.data, range.from]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {

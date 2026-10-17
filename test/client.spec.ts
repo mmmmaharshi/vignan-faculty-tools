@@ -34,6 +34,7 @@ let sessionCalls = 0;
 let optionsCalls = 0;
 let registerCalls = 0;
 let registerFails = false;
+let statedFrom = "";
 const profileRolls: string[] = [];
 /** The chain, level by level: each pass answers with the level the request has
  *  unlocked. Fixed options, so a settled selection is a known one. */
@@ -104,6 +105,7 @@ const registerReply = (classesHeld: number | null): RegisterReply => ({
     overallCritical: 1,
     range: { from: "01/07/2026", to: "16/10/2026" },
     classesHeld,
+    statedFrom: statedFrom || null,
   },
 });
 /** What ECAP states for one student. The roll that has nothing is the one the
@@ -216,6 +218,7 @@ test.describe("the app's own data layer", () => {
     optionsCalls = 0;
     registerCalls = 0;
     registerFails = false;
+    statedFrom = "";
     profileRolls.length = 0;
     await page.route("**/api/**", stub);
   });
@@ -277,6 +280,20 @@ test.describe("the app's own data layer", () => {
     await expect.poll(() => registerCalls, { timeout: 15_000 }).toBe(2);
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
     expect(optionsCalls, "and the click asked for no options").toBe(5);
+  });
+  test("the from input snaps to where the register itself starts", async ({
+    page,
+  }) => {
+    statedFrom = "01/09/2026";
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByLabel("From"),
+      "the input names the day the figures begin on"
+    ).toHaveValue("2026-09-01");
   });
   test("ticked bars narrow the register, and unticking restores it", async ({
     page,

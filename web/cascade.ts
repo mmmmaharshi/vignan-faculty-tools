@@ -215,6 +215,12 @@ export function toPortalDate(iso: string): string {
   if (!y || !m || !d) return "";
   return `${d}/${m}/${y}`;
 }
+export function toInputDate(portal: string): string {
+  if (!portal) return "";
+  const [d, m, y] = portal.split("/");
+  if (!d || !m || !y) return "";
+  return `${y}-${m}-${d}`;
+}
 function isoDay(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");
