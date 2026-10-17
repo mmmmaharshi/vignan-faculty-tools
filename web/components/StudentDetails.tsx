@@ -183,7 +183,7 @@ export const StudentDetails = ({
               <Text c="dimmed" size="xs" tt="uppercase">
                 Absent
               </Text>
-              <Table striped withTableBorder tabularNums>
+              <Table striped withTableBorder withColumnBorders tabularNums>
                 <Table.Tbody>
                   {chunked(student.absent).map((row) => (
                     <Table.Tr key={row[0]}>
