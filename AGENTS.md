@@ -638,7 +638,8 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   login screen is up. And the **profile** hook keeps SWR's own "revalidate on
   mount if stale", which is why reopening a student's panel shows the last answer
   at once and refreshes it behind the panel — the panel's read is still one call
-  per open, per ADR 0018.
+  per open, per ADR 0018, joined by one more only on the **All subjects** path,
+  whose report states no dates at all (ADR 0021).
 - **`focusThrottleInterval: 0` and `dedupingInterval: 0` on the session hook.**
   SWR throttles a focus revalidation to 5 seconds and dedupes within 2 by
   default; the smoke test dispatches one `visibilitychange` and expects a probe,
@@ -711,8 +712,11 @@ With any filter ticked — *All irregular students*, *Below 75%*,
 *Below 65%* — the table is a worklist rather than a roster, so it sorts
 worst-first: that is the one thing the checkboxes are for. Ticked bars
 intersect, so the strictest one wins. **The
-figure read is the one the table shows**, so on All subjects it sorts by the
-overall percentage, and **a missing percentage sorts last**, never first — `null`
+figure read is the one the table shows**: the overall percentage on All subjects,
+the Subject's own on a subject register — where the overall figure is not read as
+a fallback, because that path puts no overall figure on screen, and a row admitted
+or ordered by one would carry nothing to explain it. **A missing percentage sorts
+last**, never first — `null`
 is an absence of evidence, and putting such a student at the top of a triage list
 sends someone after them for the wrong reason. `registerRows` in `web/worklist.ts`
 owns all three rules, which is where they can be pinned without booting a server.

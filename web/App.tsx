@@ -152,9 +152,9 @@ const App = (): React.JSX.Element => {
   const login = useSignIn();
   const logout = useSignOut();
   const profile = useStudentProfile(
-    detail?.roll ?? null,
-    click?.request ?? null,
-    detail?.name ?? ""
+    detail
+      ? { roll: detail.roll, name: detail.name, register: click?.request }
+      : null
   );
   /** A request the user is waiting on is already proving the session works, and
    *  the read that would probe it is one more thing competing with it. */

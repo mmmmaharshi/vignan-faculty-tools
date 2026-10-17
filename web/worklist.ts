@@ -72,29 +72,27 @@ export function isFiltering(filter: RowFilter): boolean {
   return filter.irregular || filter.below75 || filter.below65;
 }
 /**
- * The figure a row is judged on, and the one the worklist is ordered by.
- *
- * `overallMode` is the All subjects path, where there is no subject percentage at
- * all. Everywhere else the Subject figure is the one the table leads with — with
- * one exception that is easy to miss: on a Subject register the filter also admits
- * a student for being Irregular *overall*, and such a student may have no subject
- * figure at all. Reading the subject figure alone put the very student the
- * worklist exists to surface at the bottom of it, so the overall figure is used
- * when the subject one is absent. This is the same figure the filter admits a row
- * on, and reading a different one is how the two halves disagree.
+ * The figure a row is judged on, and the one the worklist is ordered by: the one
+ * the table is actually showing. `overallMode` is the All subjects path, which
+ * shows the overall percentage and no subject percentage at all; everywhere else
+ * the table shows the Subject figure alone. The overall figure is deliberately
+ * not read as a fallback here — on a Subject register it is not on screen, so a
+ * row admitted or ordered by it would be a row with nothing to explain it.
  */
 function figureFor(
   s: RegisterReply["students"][number],
   overallMode: boolean
 ): number | null {
-  if (overallMode) return s.overallPct;
-  return s.pct ?? s.overallPct;
+  return overallMode ? s.overallPct : s.pct;
 }
 /**
- * `Show only irregular` keeps a student who is in trouble in whichever band the
- * table is actually showing. Reading the Subject band on the All subjects path
- * hid the very student the overall column was added to expose: healthy in the
- * one Subject you happened to open, critical across the section.
+ * `All irregular students` keeps a student who is in trouble in whichever band
+ * the table is actually showing — the Subject band on a subject register, the
+ * overall band on All subjects. Reading the Subject band on the All subjects path
+ * hid the very student the overall column was added to expose: healthy in the one
+ * Subject you happened to open, critical across the section. Reading the overall
+ * band on the subject path fails the other way round: it keeps a row for a band
+ * that path does not show, so nothing on screen explains why the row is there.
  *
  * The fixed bars read the same figure the worklist is ordered by. A missing
  * figure is an absence, not a low one, so it clears no fixed bar.
@@ -106,10 +104,7 @@ export function visibleStudents(
 ): RegisterReply["students"][number][] {
   if (!isFiltering(filter)) return [...students];
   return students.filter((s) => {
-    if (
-      filter.irregular &&
-      !(overallMode ? s.overallIrregular : s.overallIrregular || s.irregular)
-    )
+    if (filter.irregular && !(overallMode ? s.overallIrregular : s.irregular))
       return false;
     const figure = figureFor(s, overallMode);
     for (const { key, below } of FIXED_BARS) {

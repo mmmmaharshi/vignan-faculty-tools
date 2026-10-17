@@ -147,12 +147,7 @@ export function useRegisterLoad(click: RegisterClick | null) {
  * on screen states none — the server asks for them, over this same range, only
  * when the subject in it is the section-wide one.
  */
-export function useStudentProfile(
-  roll: string | null,
-  register: RegisterRequest | null = null,
-  name = ""
-) {
-  const asked = roll ? { roll, name, register: register ?? undefined } : null;
+export function useStudentProfile(asked: StudentRequest | null) {
   return useSWR<StudentProfile, ApiError>(
     asked ? [STUDENT_PATH, asked] : null,
     ([, body]: [string, StudentRequest]) =>

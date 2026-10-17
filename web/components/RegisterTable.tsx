@@ -180,9 +180,9 @@ export const RegisterTable = ({
                             —
                           </Text>
                         ) : (
-                          // Beside a subject the only badge is the subject's:
-                          // two badged figures on one row is noise, and the
-                          // irregular filter reads the subject band alone.
+                          // This is the overall view: the row carries no
+                          // subject figure, so this is the only badge on it and
+                          // the irregular filter reads this same band.
                           <Figure
                             pct={s.overallPct}
                             kind="overall"

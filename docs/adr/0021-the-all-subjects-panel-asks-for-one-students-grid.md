@@ -63,6 +63,10 @@ Wise report**, asked for inside the read the panel already makes.
   date absent if any subject's cell for it says so — the cell holds one mark per
   period, so any `A` in it is that date missed. That is what the panel shows: the
   flat list a subject register also shows, not a subject-by-subject table.
+- **Nothing is computed to get a date.** A date is a column header a marked cell
+  sits under; the grid's own attendance figures are read past entirely, so no
+  count is subtracted from a calendar and no percentage is divided. The same rule
+  the register's own absent dates are read by holds here.
 - **A report ECAP will not give changes nothing.** The panel's GPA and numbers are
   the main read; a 502 on the grid leaves the dates out rather than failing the
   panel or claiming no absences, and a 401 still ends the session. A reply that is

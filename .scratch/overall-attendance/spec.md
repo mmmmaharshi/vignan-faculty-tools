@@ -301,3 +301,43 @@ student's enrolment may report a figure that flatters them.
 **The date range is the only definition of the period, on both columns.** A row
 showing 82% for a Subject and 79% overall is describing the same range in both
 cells. The line above the table already names the range and must keep doing so.
+
+# Amendments
+
+Recorded after the feature shipped, where the built app and this spec disagree.
+The app is the decision in each case; the tickets carry the same notes under
+their own `## Comments`.
+
+**1. The overall columns are on the All subjects view alone.** The Solution above
+adds the overall pair beside every Subject's own, and ticket 01's first criterion
+and ticket 04's first both read that way. What shipped shows them on **All
+subjects** only: a subject register's table carries the Subject's two columns and
+no overall figure at all (`overallMode` in `web/components/RegisterTable.tsx`,
+pinned by `test/smoke.spec.ts`). The reason is in `AGENTS.md` — a failing class
+report must never fail the register, and the subject path stays legible without
+it. The subject register still *reads* the class report to band every row
+overall in the summary; it shows none of it.
+
+**2. Absent dates are in scope, and they come from a screen Out of Scope names.**
+The panel's absent dates are not mentioned above; they were asked for afterwards.
+On a Subject register they are the opened row's own `A` cells. On All subjects,
+whose report states no dates at all, they are read from that one student's
+**Student Wise report** — `ShowAcademicCalendar_StudentWise`, inside the
+`/api/student` read the panel already makes, one call per open. The Out of Scope
+line about "the cumulative student-wise register" is about a *section-wide*
+day-wise view, which is still not built, and the Cumulative sibling of the method
+used here states no dates. See ADR 0021. Nothing is computed to get a date: it is
+the header a marked cell sits under, and every figure in that grid is ignored.
+
+**3. The filter reads the band and the figure the table on screen shows.** Ticket
+04's criterion stands, and the app now holds to it on both paths — the Subject
+band on a subject register, the overall band on All subjects. The subject path
+previously admitted a student for the overall band while showing no overall
+figure; `visibleStudents` in `web/worklist.ts` no longer does, so every kept row
+is kept for a band on screen. A student whose only trouble is overall is
+surfaced on the All subjects view.
+
+**4. The Critical threshold is 65, not 60.** Tickets 03 and 04 say "below 60".
+The app's own `CRITICAL_BELOW` is 65 (`attendance-bands.ts`, **Critical** in
+`CONTEXT.md`) — which is the "existing thresholds, unchanged" both tickets
+actually ask for. The tickets' wording was the error.

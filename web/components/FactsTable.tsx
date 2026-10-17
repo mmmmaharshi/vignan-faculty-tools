@@ -4,8 +4,7 @@ import type { ChosenFact } from "../cascade";
 
 /** The register's own naming — course through period, one fact per row, for the
  *  card above the register. It stays headless on purpose: the specs count
- *  register rows as `thead ~ tbody tr`, and a thead here would join that count.
- *  Exported for the same reason as `badgeFor`. */
+ *  register rows as `thead ~ tbody tr`, and a thead here would join that count. */
 export const FactsTable = ({
   facts,
 }: {

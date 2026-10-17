@@ -506,14 +506,11 @@ test.describe("the rows as shown", () => {
       )
     ).toEqual(["C", "B", "U"]);
   });
-  test("a student kept only for the overall figure is not buried", () => {
-    // The trap: on a Subject register the filter admits a student for being
-    // Irregular *overall* even when they have no subject figure at all. Sorting
-    // on the subject figure alone pushed the very student the worklist exists to
-    // surface to the bottom of it, which is the opposite of the request.
-    //
-    // U is on 52% overall, so the worklist reads C 40, U 52, B 70 — and U is
-    // judged on the figure that actually put them in it.
+  test("a student only the all-subjects view can judge is left to it", () => {
+    // U is Irregular across the section and has no subject figure at all — a dash
+    // in the column this table leads with. Admitting them to a subject worklist
+    // would put a row in it that nothing on screen explains. The All subjects view
+    // shows the band that admits them, and that is where they are kept.
     const noSubjectFigure = {
       ...student(70),
       sl: "1",
@@ -527,8 +524,15 @@ test.describe("the rows as shown", () => {
     expect(
       registerRows([noSubjectFigure, ...roster], irregularOnly, false).map(
         (s) => s.roll
-      )
-    ).toEqual(["C", "U", "B"]);
+      ),
+      "a subject register shows no overall figure to judge them on"
+    ).toEqual(["C", "B"]);
+    expect(
+      registerRows([noSubjectFigure, ...roster], irregularOnly, true).map(
+        (s) => s.roll
+      ),
+      "and the section-wide view is where that band is read"
+    ).toEqual(["U"]);
   });
   test("the caller's array is never sorted in place", () => {
     const input = [...roster];
@@ -539,23 +543,28 @@ test.describe("the rows as shown", () => {
 });
 
 test.describe("show only irregular", () => {
-  /** A student the Subject path would hide and the All subjects path would keep:
-   *  healthy in the Subject, Critical across the Section. */
+  /** A student the two paths judge differently: healthy in the Subject, Critical
+   *  across the Section. */
   const subjectCleanOverallBad = {
     ...student(90),
     overallPct: 58,
     overallIrregular: true,
     overallCritical: true,
   };
-  test("on a Subject register, a student Critical overall is kept", () => {
-    const kept = visibleStudents(
-      [subjectCleanOverallBad],
-      irregularOnly,
-      false
-    );
+  test("each path keeps the student its own band flags", () => {
+    // The Subject register's table shows no overall figure at all, so the overall
+    // band is not read there; All subjects is the view that shows it, so it is
+    // read there. One of the two has to be chosen, and it is the band on screen:
+    // a row kept for a band the table does not show is a row with no explanation.
     expect(
-      kept.map((s) => s.roll),
-      "the case the overall feature exists to catch was filtered out"
+      visibleStudents([subjectCleanOverallBad], irregularOnly, false),
+      "a subject register cannot show why this student is in the list"
+    ).toEqual([]);
+    expect(
+      visibleStudents([subjectCleanOverallBad], irregularOnly, true).map(
+        (s) => s.roll
+      ),
+      "All subjects is the view the overall band belongs to"
     ).toEqual(["21CS001"]);
   });
   test("on the All subjects path the overall band is what is read", () => {
@@ -647,6 +656,24 @@ test.describe("fixed thresholds", () => {
     };
     expect(visibleStudents([unknownFigure], below75, false)).toEqual([]);
     expect(visibleStudents([unknownFigure], below65, false)).toEqual([]);
+  });
+  test("the overall figure is not a stand-in for a missing subject one", () => {
+    // The subject path shows a dash where the subject figure is absent, so a row
+    // admitted by its overall figure would show a dash and nothing explaining it.
+    // The All subjects view shows that figure, so there the same bar keeps them.
+    const overallOnly = {
+      ...student(70),
+      sl: "1",
+      roll: "U",
+      pct: null,
+      irregular: false,
+      overallPct: 50,
+      overallIrregular: true,
+    };
+    expect(visibleStudents([overallOnly], below75, false)).toEqual([]);
+    expect(
+      visibleStudents([overallOnly], below75, true).map((s) => s.roll)
+    ).toEqual(["U"]);
   });
   test("the boundary is strict: 75 is not below 75", () => {
     expect(visibleStudents([student(75)], below75, false)).toEqual([]);

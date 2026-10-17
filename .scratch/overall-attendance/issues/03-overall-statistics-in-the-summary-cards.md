@@ -25,3 +25,10 @@ Overall %.
       thresholds, unchanged. No new threshold is introduced.
 - [ ] A student counted in the register total is also counted in the student
       card, so the row count, the table and the cards agree.
+
+## Comments
+
+**The Critical threshold is 65, not 60.** Two criteria above say "below 60". The
+app's own `CRITICAL_BELOW` is 65 (`attendance-bands.ts`, **Critical** in
+`CONTEXT.md`), which is what "the app's existing thresholds, unchanged" asks for.
+The cards read 75 and 65, and they always have.

@@ -22,6 +22,15 @@ const SELECT = `<select id="ddlcourse">
 </select>`;
 const LOGIN_PAGE = `<!DOCTYPE html><html><head><title>ECAP</title></head><body>Sign in</body></html>`;
 const SELECT_ONLY_PLACEHOLDER = `<select><option value="-Select-">-Select-</option></select>`;
+/** The Student Wise report's grid: one row per subject, one mark per period inside
+ *  a cell. Deliberately not `routes.spec.ts`'s fixture — it carries a third
+ *  subject, because the union across rows is what this test reads. */
+const STUDENT_WISE_GRID = `<table>
+  <tr><th>Sl.No</th><th>Subject</th><th>05/08</th><th>06/08</th><th>07/08</th><th>Atted/Held</th><th>%</th></tr>
+  <tr><td>1</td><td>MFCS</td><td>P&nbsp;P</td><td>A&nbsp;A</td><td>-</td><td>12/14</td><td>85.71</td></tr>
+  <tr><td>2</td><td>SE</td><td>A</td><td>P</td><td>P</td><td>10/14</td><td>71.43</td></tr>
+  <tr><td>3</td><td>UHV</td><td>P</td><td>P</td><td>A</td><td>12/14</td><td>85.71</td></tr>
+</table>`;
 test.describe("portal replies", () => {
   test("a dead session's markup is told apart from real data", () => {
     expect(looksLikeHtml(LOGIN_PAGE)).toBe(true);
@@ -171,13 +180,11 @@ test.describe("portal replies", () => {
     // One row per subject, one mark per period inside a cell, so a date is
     // missed if any subject's cell for it carries an A — the union, in the
     // grid's own date order.
-    const html = `<table>
-      <tr><th>Sl.No</th><th>Subject</th><th>05/08</th><th>06/08</th><th>07/08</th><th>Atted/Held</th><th>%</th></tr>
-      <tr><td>1</td><td>MFCS</td><td>P&nbsp;P</td><td>A&nbsp;A</td><td>-</td><td>12/14</td><td>85.71</td></tr>
-      <tr><td>2</td><td>SE</td><td>A</td><td>P</td><td>P</td><td>10/14</td><td>71.43</td></tr>
-      <tr><td>3</td><td>UHV</td><td>P</td><td>P</td><td>A</td><td>12/14</td><td>85.71</td></tr>
-    </table>`;
-    expect(parseStudentAbsences(html)).toEqual(["05/08", "06/08", "07/08"]);
+    expect(parseStudentAbsences(STUDENT_WISE_GRID)).toEqual([
+      "05/08",
+      "06/08",
+      "07/08",
+    ]);
     // A student with no A anywhere is an empty list, which is a real answer.
     expect(
       parseStudentAbsences(

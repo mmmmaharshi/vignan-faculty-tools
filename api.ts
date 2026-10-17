@@ -181,7 +181,7 @@ class Portal {
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. It lives on the register's own proxy and wants the
    *  same `no` session marker as the register it sits beside. */
-  studentRegister(
+  studentWise(
     roll: string,
     name: string,
     p: Record<Level, Option> & { from: string; to: string }

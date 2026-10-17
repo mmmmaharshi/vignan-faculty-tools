@@ -31,3 +31,21 @@ Overall %.
 - [ ] Filtering to irregular students uses the Subject bands, as it does today,
       and the overall badge does not silently change which students the filter
       keeps.
+
+## Comments
+
+**Amended 2026-10-17: the two overall columns are on the All subjects view.** The
+first criterion reads as though they sit beside a Subject's own; what shipped
+shows them on **All subjects** alone (`overallMode` in
+`web/components/RegisterTable.tsx`, pinned by `test/smoke.spec.ts`). Everything
+else in this ticket holds on both paths.
+
+**The filter criterion now holds on both paths.** A subject register reads the
+Subject band; All subjects reads the overall band, which is the band that view
+shows. The subject path used to *also* admit a student for the overall band while
+displaying no overall figure, so a row could be kept for a band with nothing on
+screen to explain it. `visibleStudents` in `web/worklist.ts` no longer does that —
+each path reads the figure and the band its own table shows, and a student whose
+only trouble is overall is surfaced on All subjects.
+
+**And the Critical threshold is 65, not 60** — see ticket 03.

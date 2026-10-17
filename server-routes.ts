@@ -49,7 +49,7 @@ export type PortalReader = {
   studentProfile: (roll: string) => Promise<string>;
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. */
-  studentRegister: (
+  studentWise: (
     roll: string,
     name: string,
     p: Record<Level, Option> & { from: string; to: string }
@@ -198,11 +198,6 @@ export async function handleRegister(
   );
 }
 /**
- * One student's GPA and phone numbers, read on demand when their row is opened.
- * The register states neither, so this is the one place the Portal is asked
- * about a single student.
- */
-/**
  * The dates this student missed, across every subject, but only when the register
  * on screen is the **All subjects** view: its report aggregates by subject and
  * states no dates, so this student's own grid is the only place they exist. A
@@ -221,7 +216,7 @@ async function readAbsences(
   if (!register || !isAllSubjects(register.subject)) return {};
   try {
     const absent = parseStudentAbsences(
-      await portal.studentRegister(roll, b.name ?? "", {
+      await portal.studentWise(roll, b.name ?? "", {
         ...requireLevels(register),
         from: register.from,
         to: register.to,
@@ -233,6 +228,13 @@ async function readAbsences(
     return {};
   }
 }
+/**
+ * One student's GPA and phone numbers, read on demand when their row is opened.
+ * The register states neither, so the Portal is asked about a single student here
+ * and nowhere else — except on the All subjects path, where `readAbsences` asks
+ * for one more thing, that student's own grid, because the report on screen states
+ * no dates at all.
+ */
 export async function handleStudentProfile(
   portal: PortalReader,
   b: Partial<StudentRequest>

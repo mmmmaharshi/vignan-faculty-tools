@@ -32,7 +32,7 @@ type Calls = {
   register: (RegisterRequest & Record<string, unknown>)[];
   classAttendance: (RegisterRequest & Record<string, unknown>)[];
   studentProfile: string[];
-  studentRegister: [string, string][];
+  studentWise: [string, string][];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
@@ -76,7 +76,7 @@ const fake = (
     classAttendance?: string;
     classFails?: boolean;
     studentProfile?: string;
-    studentRegister?: string;
+    studentWise?: string;
     studentFails?: boolean;
   } = {}
 ): { reader: PortalReader; calls: Calls } => {
@@ -88,7 +88,7 @@ const fake = (
     register: [],
     classAttendance: [],
     studentProfile: [],
-    studentRegister: [],
+    studentWise: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -127,12 +127,12 @@ const fake = (
       calls.studentProfile.push(roll);
       return resolved(answers.studentProfile ?? PROFILE_PAGE);
     },
-    studentRegister: (roll, name) => {
-      calls.studentRegister.push([roll, name]);
+    studentWise: (roll, name) => {
+      calls.studentWise.push([roll, name]);
       if (answers.studentFails) {
         return Promise.reject(new HttpError(502, "student report unavailable"));
       }
-      return resolved(answers.studentRegister ?? STUDENT_GRID);
+      return resolved(answers.studentWise ?? STUDENT_GRID);
     },
   };
   return { reader, calls };
@@ -608,7 +608,7 @@ test.describe("the student profile handler", () => {
       register: levels({ subject: ALL_SUBJECTS }),
     });
     expect(
-      calls.studentRegister,
+      calls.studentWise,
       "one call, over that register's own range"
     ).toEqual([["21CS001", "A Student"]]);
     expect(reply.absent, "the union, in the grid's own date order").toEqual([
@@ -623,7 +623,7 @@ test.describe("the student profile handler", () => {
       roll: "21CS001",
       register: levels(),
     });
-    expect(calls.studentRegister).toEqual([]);
+    expect(calls.studentWise).toEqual([]);
     expect(reply.absent).toBeUndefined();
   });
   test("a report ECAP will not give leaves the panel, not the student", async () => {
@@ -642,7 +642,7 @@ test.describe("the student profile handler", () => {
     const { reader } = fake();
     const dead: PortalReader = {
       ...reader,
-      studentRegister: () => Promise.reject(new HttpError(401, "expired")),
+      studentWise: () => Promise.reject(new HttpError(401, "expired")),
     };
     const failure = await handleStudentProfile(dead, {
       roll: "21CS001",

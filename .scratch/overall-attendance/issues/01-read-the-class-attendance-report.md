@@ -42,3 +42,16 @@ its own ticket and each breaks for its own reason.
       thing the front end has to trigger.
 - [ ] No client-side code computes the overall percentage. It is rendered as
       received.
+
+## Comments
+
+**Amended 2026-10-17: the overall column is on the All subjects view, not beside a
+Subject.** The first criterion above is waived. What shipped shows the overall
+pair on **All subjects** alone; a subject register's table carries the Subject's
+own two columns and no overall figure at all (`overallMode` in
+`web/components/RegisterTable.tsx`, pinned by `test/smoke.spec.ts`). Every other
+criterion here holds on both paths: the Portal's own cell as written, the join by
+roll number, a dash rather than a zero, one request per load, and the failure
+behaviour. The change came with the decision in `AGENTS.md` that a failing class
+report must never fail the register — the subject path reads the report and
+ignores it, so there is nothing there to show. See `../spec.md#amendments`.
