@@ -67,7 +67,7 @@ export const ClassPicker = ({
             onChange={(value) => {
               if (value !== null) onSelect(key, value);
             }}
-            disabled={disabled[key]}
+            disabled={disabled[key] || busy}
             searchable={false}
             allowDeselect={false}
           />
@@ -76,12 +76,14 @@ export const ClassPicker = ({
           label="From"
           type="date"
           value={range.from}
+          disabled={busy}
           onChange={(e) => onRange("from", e.currentTarget.value)}
         />
         <TextInput
           label="To"
           type="date"
           value={range.to}
+          disabled={busy}
           onChange={(e) => onRange("to", e.currentTarget.value)}
         />
       </SimpleGrid>
