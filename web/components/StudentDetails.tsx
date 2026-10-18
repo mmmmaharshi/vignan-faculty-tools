@@ -2,6 +2,8 @@ import {
   Alert,
   Badge,
   Box,
+  Button,
+  CopyButton,
   Divider,
   Drawer,
   Group,
@@ -180,9 +182,18 @@ export const StudentDetails = ({
               not be read as a clean sheet. */}
           {absences.length ? (
             <>
-              <Text c="dimmed" size="xs" tt="uppercase">
-                Absent ({absences.length})
-              </Text>
+              <Group gap="xs" align="center">
+                <Text c="dimmed" size="xs" tt="uppercase">
+                  Absent ({absences.length})
+                </Text>
+                <CopyButton value={absences.join(", ")} timeout={2000}>
+                  {({ copied, copy }) => (
+                    <Button size="xs" variant="subtle" onClick={copy}>
+                      {copied ? "Copied" : "Copy"}
+                    </Button>
+                  )}
+                </CopyButton>
+              </Group>
               {absenceRange ? (
                 <Text c="dimmed" size="xs">
                   {absenceRange}
