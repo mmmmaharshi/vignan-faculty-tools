@@ -4,6 +4,7 @@ import {
   Button,
   Container,
   Group,
+  Loader,
   Stack,
   Text,
   Title,
@@ -520,6 +521,17 @@ const App = (): React.JSX.Element => {
   );
   let body: React.JSX.Element | null = null;
   switch (screen) {
+    case "booting": {
+      body = (
+        <Stack align="center" mt="xl" gap="sm">
+          <Loader size="lg" />
+          <Text c="dimmed" size="sm">
+            Loading...
+          </Text>
+        </Stack>
+      );
+      break;
+    }
     case "login": {
       body = (
         <SignInPanel
