@@ -39,6 +39,10 @@ type StudentDetailsProps = {
   profile: StudentProfile | null;
   busy: boolean;
   note: Note | null;
+  /** The date window the absent dates came from, so the block names its own
+   *  period rather than borrowing the register's Date Range fact above. Null
+   *  when no register has loaded yet. */
+  absenceRange?: string | null;
 };
 type FigureProps = {
   label: string;
@@ -95,6 +99,7 @@ export const StudentDetails = ({
   profile,
   busy,
   note,
+  absenceRange,
 }: StudentDetailsProps): React.JSX.Element => {
   const phones = profile?.phones ?? [];
   const cgpa = profile?.cgpa ?? "";
@@ -178,6 +183,11 @@ export const StudentDetails = ({
               <Text c="dimmed" size="xs" tt="uppercase">
                 Absent
               </Text>
+              {absenceRange ? (
+                <Text c="dimmed" size="xs">
+                  {absenceRange}
+                </Text>
+              ) : null}
               <Table striped withTableBorder withColumnBorders tabularNums>
                 <Table.Tbody>
                   {chunked(absences).map((row) => (

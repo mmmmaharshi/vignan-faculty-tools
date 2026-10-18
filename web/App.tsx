@@ -527,6 +527,11 @@ const App = (): React.JSX.Element => {
             profile={profile.data ?? null}
             busy={profile.isLoading}
             note={profileNote}
+            absenceRange={
+              range.from
+                ? `${summary?.statedFrom || range.from} to ${range.to}`
+                : null
+            }
           />
         </>
       );
