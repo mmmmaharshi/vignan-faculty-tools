@@ -315,6 +315,27 @@ const App = (): React.JSX.Element => {
       signedOut("Your session expired. Please sign in again.");
     }
   }, [booted, signedIn, session.data, signedOut]);
+  /** When the portal answers "no courses" (empty levels), re-check the session
+   *  immediately rather than waiting for the next probe tick: the probe is
+   *  paused while a request is in flight, so a session that died during the
+   *  load would otherwise sit on the dashboard until the next probe (up to five
+   *  minutes). Only a genuinely dead session redirects; a 502 stays an alert. */
+  const checkedEmptyLevels = useRef(false);
+  useEffect(() => {
+    if (!booted || !signedIn) return;
+    if (!opts.emptyLevels.length) {
+      checkedEmptyLevels.current = false;
+      return;
+    }
+    if (checkedEmptyLevels.current) return;
+    checkedEmptyLevels.current = true;
+    void (async () => {
+      const fresh = await reloadSession();
+      if (fresh && !fresh.signedIn) {
+        signedOut("Your session expired. Please sign in again.");
+      }
+    })();
+  }, [booted, signedIn, opts.emptyLevels, signedOut]);
   /** The boot check: whether there is a session at all, and what it says. */
   useEffect(() => {
     if (booted || session.isLoading) return;
