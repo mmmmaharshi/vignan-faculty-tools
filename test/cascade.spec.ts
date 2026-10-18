@@ -367,9 +367,11 @@ test.describe("the register, before it is sent", () => {
   test("the register's own first date is the start the fact names", () => {
     // The Portal holds nothing before the semester began, so a range asked
     // from July shows figures that begin in September — the fact names that
-    // day, and the frame counts the period the register covers.
+    // day, and the frame counts the period the register covers. The same day
+    // is named on its own Sem Start Date row.
     expect(statedTail("01/09/2026")).toEqual([
       { label: "Date Range (46 days)", value: "01/09/2026 to 16/10/2026" },
+      { label: "Sem Start Date", value: "01/09/2026" },
     ]);
     expect(statedTail("")).toEqual([
       { label: "Date Range (108 days)", value: "01/07/2026 to 16/10/2026" },

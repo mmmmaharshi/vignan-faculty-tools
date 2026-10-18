@@ -319,6 +319,12 @@ test.describe("the app's own data layer", () => {
       }),
       "the range fact agrees with the input it just snapped"
     ).toBeVisible();
+    await expect(
+      page.getByRole("row", {
+        name: "Sem Start Date 01/09/2026",
+      }),
+      "the register's first day is named on its own row"
+    ).toBeVisible();
   });
   test("ticked bars narrow the register, and unticking restores it", async ({
     page,

@@ -330,6 +330,12 @@ export function chosenFacts(
         value: `${from} to ${range.to}`,
       });
     }
+    // The register's own first day, named on its own row: the earliest day
+    // the Portal holds data for, which is what the From input snaps to. Only
+    // stated when the register named one — the typed From is not a start date.
+    if (statedFrom) {
+      facts.push({ label: "Sem Start Date", value: statedFrom });
+    }
   }
   return facts;
 }
