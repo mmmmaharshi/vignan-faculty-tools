@@ -66,7 +66,7 @@ export const ProfilePanel = ({
           />
         </Group>
       ) : null}
-      <Row label="ECAP user name" value={userId || "—"} />
+      <Row label="Employee Id" value={userId || "—"} />
       <Row
         label="Name (ECAP)"
         value={nameValue(faculty ?? null, busy ?? false)}
