@@ -15,6 +15,7 @@ import type { OverallRow } from "./portal-replies";
 import { ALL_SUBJECTS, isAllSubjects } from "./shared/api";
 import type {
   CascadeLevel,
+  FacultyProfile,
   Option,
   OptionsReply,
   OptionsRequest,
@@ -47,6 +48,7 @@ export type PortalReader = {
   ) => Promise<string>;
   /** The StudentProfile page's markup for one roll number. */
   studentProfile: (roll: string) => Promise<string>;
+  facultyProfile: () => Promise<FacultyProfile>;
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. */
   studentWise: (
@@ -249,4 +251,16 @@ export async function handleStudentProfile(
     );
   }
   return { ...profile, ...(await readAbsences(portal, roll, b)) };
+}
+export async function handleFacultyProfile(
+  portal: PortalReader
+): Promise<FacultyProfile> {
+  const profile = await portal.facultyProfile();
+  if (!profile.name) {
+    throw new HttpError(
+      502,
+      "ECAP's main page came back without a faculty name, so the profile could not be read."
+    );
+  }
+  return profile;
 }

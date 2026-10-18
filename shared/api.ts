@@ -116,6 +116,15 @@ export interface StudentProfile {
    *  Left out when ECAP would not give it, which is not a clean sheet. */
   absent?: string[];
 }
+/** What ECAP's main.aspx states about the signed-in faculty member. Read once
+ *  when the profile page is opened. ECAP exposes no structured faculty profile,
+ *  so only the name (from the `lblUser` span), the photo URL (GetPhotoPath), and
+ *  the designation code (CheckEmployeeDesignation: 0 = faculty) are available. */
+export interface FacultyProfile {
+  name: string;
+  photo: string;
+  designation: string;
+}
 export interface StudentRequest {
   roll: string;
   /** The student's name, which the Student Wise report is asked for by. */

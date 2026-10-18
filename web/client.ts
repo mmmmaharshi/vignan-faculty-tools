@@ -8,6 +8,7 @@ import type {
   OptionsRequest,
   RegisterReply,
   RegisterRequest,
+  FacultyProfile,
   SessionReply,
   StudentProfile,
   StudentRequest,
@@ -32,6 +33,7 @@ export const SESSION_PROBE_MS = 5 * 60_000;
 const SESSION_PATH = "/api/session";
 const REGISTER_PATH = "/api/register";
 const STUDENT_PATH = "/api/student";
+const FACULTY_PROFILE_PATH = "/api/faculty-profile";
 const OPTIONS_PATH = "/api/options";
 /** The option chain is one key, not five: its requests depend on each other, so
  *  the thing worth caching is a run, and a run is named by its seed. */
@@ -152,6 +154,20 @@ export function useStudentProfile(asked: StudentRequest | null) {
     asked ? [STUDENT_PATH, asked] : null,
     ([, body]: [string, StudentRequest]) =>
       postJson<StudentProfile>(STUDENT_PATH, body),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+      dedupingInterval: 0,
+    }
+  );
+}
+/** The faculty member's own details from ECAP's main.aspx: name, photo URL, and
+ *  designation code. Read once when the profile page is opened. */
+export function useFacultyProfile(enabled: boolean) {
+  return useSWR<FacultyProfile, ApiError>(
+    enabled ? FACULTY_PROFILE_PATH : null,
+    () => postJson<FacultyProfile>(FACULTY_PROFILE_PATH, {}),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,

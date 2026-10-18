@@ -52,6 +52,7 @@ import {
   useSignIn,
   useSignOut,
   useStudentProfile,
+  useFacultyProfile,
 } from "./client";
 import type { RegisterClick } from "./client";
 import { ClassPicker } from "./components/ClassPicker";
@@ -161,6 +162,7 @@ const App = (): React.JSX.Element => {
       ? { roll: detail.roll, name: detail.name, register: click?.request }
       : null
   );
+  const facultyProfile = useFacultyProfile(Boolean(onProfile));
   /** A request the user is waiting on is already proving the session works, and
    *  the read that would probe it is one more thing competing with it. */
   const busy = register.isLoading || optionsLoading || login.isMutating;
@@ -206,7 +208,8 @@ const App = (): React.JSX.Element => {
   } else if (register.isLoading) {
     loadNote = "Reading the register from ECAP...";
   }
-  const failure = optionsError ?? register.error ?? profile.error;
+  const failure =
+    optionsError ?? register.error ?? profile.error ?? facultyProfile.error;
   const filterNote: Note | null =
     formNote ??
     (optionsError || register.error
@@ -527,7 +530,12 @@ const App = (): React.JSX.Element => {
     }
     case "app": {
       body = onProfile ? (
-        <ProfilePanel userId={userId} persisted={persisted} />
+        <ProfilePanel
+          userId={userId}
+          persisted={persisted}
+          faculty={facultyProfile.data ?? null}
+          busy={facultyProfile.isLoading}
+        />
       ) : (
         <>
           {savedClassCards.length ? (

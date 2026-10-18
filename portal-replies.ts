@@ -315,6 +315,15 @@ export function parseStudentProfile(html: string): StudentProfile | null {
     phones,
   };
 }
+/** ECAP states the faculty member's name inside the `lblUser` span on
+ *  main.aspx, prefixed with "Welcome ". Returns the name, or empty when the
+ *  page did not state one (not logged in, or the span is empty). */
+export function parseFacultyName(html: string): string {
+  const m = html.match(
+    /id="lblUser"[^>]*>\s*Welcome\s+(?<name>[\s\S]*?)<\/span>/i
+  );
+  return m?.groups?.name?.trim() ?? "";
+}
 export function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(INPUT) ?? []) {
     if (new RegExp(`name="${name}"`, "i").test(tag)) {

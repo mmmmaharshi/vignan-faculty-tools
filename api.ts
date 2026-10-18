@@ -7,13 +7,20 @@ import {
 } from "./portal-conventions";
 import { liveness } from "./portal-liveness";
 import type { CourseReader } from "./portal-liveness";
-import { hiddenValue, HttpError, options } from "./portal-replies";
+import {
+  hiddenValue,
+  HttpError,
+  options,
+  parseFacultyName,
+} from "./portal-replies";
 import {
   BASE,
   CLASS_REMOTE,
   HTTP_TIMEOUT_MS,
   LOGIN_PAGE,
   LOGIN_POST,
+  MAIN_DESIGNATION_REMOTE,
+  MAIN_PHOTO_REMOTE,
   portalJq,
   portalRequest,
   portalWebMethod,
@@ -23,6 +30,7 @@ import {
   UA,
 } from "./portal-transport";
 import {
+  handleFacultyProfile,
   handleOptions,
   handleRegister,
   handleStudentProfile,
@@ -33,6 +41,7 @@ import type { Secrets, StoredSession } from "./session-store";
 import type {
   CascadeLevel,
   ErrorReply,
+  FacultyProfile,
   LoginRequest,
   OkReply,
   Option,
@@ -177,6 +186,30 @@ class Portal {
       ["RollNo", roll],
       ["isImageDisplay", "true"],
     ]);
+  }
+  /** ECAP's main.aspx states the faculty member's name in the `lblUser` span and
+   *  offers a photo path and a designation code through its proxy. None of it is
+   *  structured, so each piece is read and combined here. */
+  async facultyProfile(): Promise<FacultyProfile> {
+    const page = await portalRequest(this.jar, LOGIN_PAGE, {
+      method: "GET",
+      headers: { "user-agent": UA, referer: LOGIN_PAGE },
+    });
+    const html = await page.text();
+    const name = parseFacultyName(html);
+    const photo = await portalWebMethod(
+      this.jar,
+      MAIN_PHOTO_REMOTE,
+      "GetPhotoPath",
+      []
+    ).catch(() => "");
+    const designation = await portalWebMethod(
+      this.jar,
+      MAIN_DESIGNATION_REMOTE,
+      "CheckEmployeeDesignation",
+      []
+    ).catch(() => "-1");
+    return { name, photo: photo.trim(), designation: designation.trim() };
   }
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. It lives on the register's own proxy and wants the
@@ -482,6 +515,13 @@ export function createApi({
         const body = await readJson<StudentRequest>(req);
         return json(
           await withPortal(s, (p) => handleStudentProfile(p.reader, body)),
+          200,
+          cookie
+        );
+      }
+      if (req.method === "POST" && path === "/api/faculty-profile") {
+        return json(
+          await withPortal(s, (p) => handleFacultyProfile(p.reader)),
           200,
           cookie
         );

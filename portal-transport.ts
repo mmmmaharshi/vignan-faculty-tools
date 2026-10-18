@@ -45,6 +45,18 @@ export const PROFILE_REMOTE: Remote = {
   referer: REGISTER_PAGE_URL,
   session: "rw",
 };
+/** The faculty's photo and designation come from the main.aspx proxy, not the
+ *  register proxy. Different session markers per method (see the proxy def). */
+export const MAIN_PHOTO_REMOTE: Remote = {
+  proxy: `${BASE}/vignanit/ajax/main,App_Web_main.aspx.cdcab7d2.ashx`,
+  referer: LOGIN_PAGE,
+  session: "rw",
+};
+export const MAIN_DESIGNATION_REMOTE: Remote = {
+  proxy: `${BASE}/vignanit/ajax/main,App_Web_main.aspx.cdcab7d2.ashx`,
+  referer: LOGIN_PAGE,
+  session: "r",
+};
 // oxlint-disable-next-line typescript/no-explicit-any -- the debt ADR 0002 records
 type PortalPayload = any;
 /**
