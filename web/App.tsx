@@ -554,8 +554,8 @@ const App = (): React.JSX.Element => {
             busy={profile.isLoading}
             note={profileNote}
             absenceRange={
-              range.from
-                ? `${summary?.statedFrom || range.from} to ${range.to}`
+              summary?.range
+                ? `${summary.statedFrom || summary.range.from} to ${summary.range.to}`
                 : null
             }
           />
