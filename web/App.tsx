@@ -167,7 +167,6 @@ const App = (): React.JSX.Element => {
    *  the read that would probe it is one more thing competing with it. */
   const busy = register.isLoading || optionsLoading || login.isMutating;
   const session = useSession(busy || onLogin);
-  const persisted = Boolean(session.data?.persisted);
   const result = register.data ?? null;
   /* Only a load that actually succeeded re-scopes the screen: `overallMode` is
      the All-subjects path, and the reply carries no subject figure at all. */
@@ -532,7 +531,6 @@ const App = (): React.JSX.Element => {
       body = onProfile ? (
         <ProfilePanel
           userId={userId}
-          persisted={persisted}
           faculty={facultyProfile.data ?? null}
           busy={facultyProfile.isLoading}
         />

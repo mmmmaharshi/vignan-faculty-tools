@@ -1,18 +1,9 @@
-import {
-  Divider,
-  Group,
-  Image,
-  Paper,
-  Stack,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Group, Image, Paper, Stack, Text, Title } from "@mantine/core";
 
 import type { FacultyProfile } from "../../shared/api";
 
 export type ProfilePanelProps = {
   userId: string;
-  persisted: boolean;
   /** ECAP's own details for the signed-in faculty member, read once when the
    *  panel opens. Null while loading or when ECAP did not provide them. */
   faculty?: FacultyProfile | null;
@@ -57,7 +48,6 @@ const designationValue = (
 };
 export const ProfilePanel = ({
   userId,
-  persisted,
   faculty,
   busy,
 }: ProfilePanelProps): React.JSX.Element => (
@@ -85,29 +75,6 @@ export const ProfilePanel = ({
         label="Designation"
         value={designationValue(faculty ?? null, busy ?? false)}
       />
-      <Divider my="xs" />
-      <Row
-        label="Session"
-        value={
-          persisted
-            ? "Kept in the server's credential vault, so restarting the server keeps you signed in."
-            : "In memory only, so restarting the server signs you out."
-        }
-      />
-      <Row
-        label="Your password"
-        value="Kept in the server's credential vault (the OS vault in production, a plaintext dev file otherwise), so the app can sign you back in when ECAP times the session out. Never sent to the browser or logged."
-      />
-      <Row
-        label="What is stored"
-        value="The ECAP session token and your sign-in credential. Sign out deletes both."
-      />
-      <Divider my="xs" />
-      <Text size="sm">
-        ECAP ends a session after about twenty minutes of inactivity. When it
-        does, this app signs in again with the stored credential, so a break
-        does not send you back to the form.
-      </Text>
     </Stack>
   </Paper>
 );
