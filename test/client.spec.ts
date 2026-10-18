@@ -35,6 +35,9 @@ let optionsCalls = 0;
 let registerCalls = 0;
 let registerFails = false;
 let statedFrom = "";
+/** How often the All subjects view probed one subject's earliest held day —
+ *  sent only on that path, where the report on screen states no dates. */
+let semStartCalls = 0;
 const profileRolls: string[] = [];
 /** Whether the panel asked for a student's own day-wise grid — sent only when
  *  the register on screen states no dates of its own (the All subjects view). */
@@ -173,6 +176,11 @@ const stub = async (route: Route): Promise<void> => {
     await json(registerReply(overall ? null : 6, overall));
     return;
   }
+  if (path === "/api/sem-start") {
+    semStartCalls += 1;
+    await json({ statedFrom: "05/08/2026" });
+    return;
+  }
   if (path === "/api/student") {
     const { roll, register } = request.postDataJSON() as StudentRequest;
     profileRolls.push(roll);
@@ -237,6 +245,7 @@ test.describe("the app's own data layer", () => {
     registerCalls = 0;
     registerFails = false;
     statedFrom = "";
+    semStartCalls = 0;
     profileRolls.length = 0;
     absentAsked = false;
     await page.route("**/api/**", stub);
@@ -325,6 +334,30 @@ test.describe("the app's own data layer", () => {
       }),
       "the register's first day is named on its own row"
     ).toBeVisible();
+  });
+  test("the All subjects view names one subject's earliest held day", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    // The section-wide report states no dates, so the view probes one
+    // subject's own register for its first day — and names that subject.
+    await expect(
+      page.getByRole("row", { name: "Sem Start Date (MFCS) 05/08/2026" }),
+      "the earliest day seen, with the subject it was seen in"
+    ).toBeVisible();
+    expect(semStartCalls, "one probe per register load").toBe(1);
+    // A subject register states its own days, so it probes nothing.
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    expect(semStartCalls, "no probe beside a subject register").toBe(1);
   });
   test("ticked bars narrow the register, and unticking restores it", async ({
     page,

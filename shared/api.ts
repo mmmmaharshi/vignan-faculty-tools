@@ -120,6 +120,13 @@ export interface StudentProfile {
    *  Left out when ECAP would not give it, which is not a clean sheet. */
   absent?: string[];
 }
+/** The earliest day ECAP holds for one subject inside the asked window: the
+ *  register's own first date column, resolved to a full dd/mm/yyyy date. Null
+ *  where the register states no dates. Read by `handleSemStart`, which asks
+ *  the subject register the All subjects report cannot be. */
+export interface SemStartReply {
+  statedFrom: string | null;
+}
 /** What ECAP's main.aspx states about the signed-in faculty member. Read once
  *  when the profile page is opened. ECAP exposes no structured faculty profile,
  *  so only the name (from the `lblUser` span), the photo URL (GetPhotoPath), and

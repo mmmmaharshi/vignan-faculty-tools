@@ -21,6 +21,7 @@ import type {
   OptionsRequest,
   RegisterReply,
   RegisterRequest,
+  SemStartReply,
   StudentProfile,
   StudentRequest,
 } from "./shared/api";
@@ -252,6 +253,26 @@ export async function handleStudentProfile(
     );
   }
   return { ...profile, ...(await readAbsences(portal, roll, b)) };
+}
+/**
+ * One subject's earliest held day inside the asked window, for the All subjects
+ * path whose own report states no dates at all. Reads that subject's register
+ * grid and returns only its first date — never a roster — so the All subjects
+ * view can name a start date without fetching a second register. Null where
+ * the grid states no dates, which is not a clean sheet; a 401 still propagates
+ * so a dead session signs out.
+ */
+export async function handleSemStart(
+  portal: PortalReader,
+  b: Partial<RegisterRequest>
+): Promise<SemStartReply> {
+  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
+  const p = requireLevels(b);
+  const dates = registerDates(
+    await portal.register({ ...p, from: b.from, to: b.to })
+  );
+  if (!dates.length) return { statedFrom: null };
+  return { statedFrom: statedStartDate(dates, { from: b.from, to: b.to }) };
 }
 export async function handleFacultyProfile(
   portal: PortalReader

@@ -4,6 +4,7 @@ import { HttpError } from "../portal-replies";
 import {
   handleOptions,
   handleRegister,
+  handleSemStart,
   handleStudentProfile,
   requireLevels,
 } from "../server-routes";
@@ -650,6 +651,44 @@ test.describe("the student profile handler", () => {
       roll: "21CS001",
       register: levels({ subject: ALL_SUBJECTS }),
     }).catch((error: unknown) => error);
+    expect((failure as HttpError).status).toBe(401);
+  });
+});
+test.describe("the semester start probe", () => {
+  const GRID = `<table>
+    <tr><th>Sl.No</th><th>Roll.No</th><th>Name</th><th>05/08</th><th>06/08</th><th>Attend/Held</th><th>%</th></tr>
+    <tr><td>1</td><td>21CS001</td><td>A</td><td>P</td><td>A</td><td>1/2</td><td>50</td></tr>
+  </table>`;
+  test("one subject's earliest held day, resolved into the asked range", async () => {
+    const { reader, calls } = fake({ register: GRID });
+    const reply = await handleSemStart(
+      reader,
+      levels({ from: "01/05/2026", to: "18/10/2026" })
+    );
+    expect(calls.register, "one grid read, never a roster").toHaveLength(1);
+    expect(reply).toEqual({ statedFrom: "05/08/2026" });
+  });
+  test("a grid that states no dates states no start, not a wrong one", async () => {
+    const { reader } = fake();
+    const reply = await handleSemStart(reader, levels());
+    expect(reply).toEqual({ statedFrom: null });
+  });
+  test("no date range is refused before the portal is asked", async () => {
+    const { reader, calls } = fake();
+    await expect(handleSemStart(reader, levels({ from: "" }))).rejects.toThrow(
+      "Choose a date range."
+    );
+    expect(calls.register).toHaveLength(0);
+  });
+  test("a dead session stays a 401, so the client signs out", async () => {
+    const { reader } = fake();
+    const dead: PortalReader = {
+      ...reader,
+      register: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleSemStart(dead, levels()).catch(
+      (error: unknown) => error
+    );
     expect((failure as HttpError).status).toBe(401);
   });
 });

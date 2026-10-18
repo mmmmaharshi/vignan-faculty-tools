@@ -33,6 +33,7 @@ import {
   handleFacultyProfile,
   handleOptions,
   handleRegister,
+  handleSemStart,
   handleStudentProfile,
 } from "./server-routes";
 import type { PortalReader } from "./server-routes";
@@ -507,6 +508,14 @@ export function createApi({
         const body = await readJson<RegisterRequest>(req);
         return json(
           await withPortal(s, (p) => handleRegister(p.reader, body)),
+          200,
+          cookie
+        );
+      }
+      if (req.method === "POST" && path === "/api/sem-start") {
+        const body = await readJson<RegisterRequest>(req);
+        return json(
+          await withPortal(s, (p) => handleSemStart(p.reader, body)),
           200,
           cookie
         );

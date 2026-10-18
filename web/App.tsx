@@ -55,6 +55,7 @@ import {
   useSignOut,
   useStudentProfile,
   useFacultyProfile,
+  useSemStart,
 } from "./client";
 import type { RegisterClick } from "./client";
 import { ClassPicker } from "./components/ClassPicker";
@@ -178,6 +179,20 @@ const App = (): React.JSX.Element => {
   const overallMode = Boolean(result) && isAllSubjects(click?.request.subject);
   const rows = result ? registerRows(result.students, filter, overallMode) : [];
   const summary = result?.summary;
+  /** The All subjects report states no dates, so its first day is read from one
+   *  subject's own register instead: the first subject this session was offered,
+   *  over the same range, asked once per register and never revalidated. A probe
+   *  that fails changes nothing — the register on screen is complete without
+   *  it — except a 401, which still ends the session through the sweep below. */
+  const semProbeSubject =
+    result && overallMode
+      ? (opts.subject.find((o) => !isAllSubjects(o)) ?? null)
+      : null;
+  const semStart = useSemStart(
+    result && overallMode && semProbeSubject && click?.request
+      ? { ...click.request, subject: semProbeSubject }
+      : null
+  );
   const classChosen =
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
@@ -213,7 +228,11 @@ const App = (): React.JSX.Element => {
     loadNote = "Reading the register from ECAP...";
   }
   const failure =
-    optionsError ?? register.error ?? profile.error ?? facultyProfile.error;
+    optionsError ??
+    register.error ??
+    profile.error ??
+    facultyProfile.error ??
+    semStart.error;
   const filterNote: Note | null =
     formNote ??
     (optionsError || register.error
@@ -448,6 +467,16 @@ const App = (): React.JSX.Element => {
     summary?.classesHeld,
     summary?.statedFrom
   );
+  /** The All subjects report states no dates, so its first day is read from one
+   *  subject's own register instead: the first subject this session was offered,
+   *  over the same range, asked once per register and never revalidated. The
+   *  fact names that subject, so a day from MFCS never poses as the section's. */
+  if (semStart.data?.statedFrom && semProbeSubject) {
+    registerFacts.push({
+      label: `Sem Start Date (${semProbeSubject.label})`,
+      value: semStart.data.statedFrom,
+    });
+  }
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };
     // The subject has nothing below it, so it re-reads nothing; every other level

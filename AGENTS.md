@@ -346,6 +346,15 @@ carries one also has its name in text.
   reads the union of the `A` cells in the grid's own date order, and ADR 0021
   records why the panel pays one call instead of sixteen.
 
+- **The All subjects view names one subject's earliest held day, and nothing
+  else, to stand in for its missing start date.** `ShowAllAttendance` states no
+  dates, so the facts card asks `/api/sem-start` for the first offered subject's
+  own register over the same range and prints its first day as `Sem Start Date
+  (<subject>)` — subject named, so a day from MFCS never poses as the section's.
+  One extra call per All subjects load, never on a subject register (whose own
+  grid already states its days); a probe that fails changes nothing, except a
+  401, which still signs out. See ADR 0022.
+
 - **The GPA is the Portal's own line, printed as it stands.** `CGPA: 5.61
   Credits:16/19 48.55 %` is one sentence on the page, and the percentage beside
   it is read the same way the attendance columns are — never recomputed from the

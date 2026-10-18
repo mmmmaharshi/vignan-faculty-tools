@@ -9,6 +9,7 @@ import type {
   RegisterReply,
   RegisterRequest,
   FacultyProfile,
+  SemStartReply,
   SessionReply,
   StudentProfile,
   StudentRequest,
@@ -33,6 +34,7 @@ export const SESSION_PROBE_MS = 5 * 60_000;
 const SESSION_PATH = "/api/session";
 const REGISTER_PATH = "/api/register";
 const STUDENT_PATH = "/api/student";
+const SEM_START_PATH = "/api/sem-start";
 const FACULTY_PROFILE_PATH = "/api/faculty-profile";
 const OPTIONS_PATH = "/api/options";
 /** The option chain is one key, not five: its requests depend on each other, so
@@ -154,6 +156,27 @@ export function useStudentProfile(asked: StudentRequest | null) {
     asked ? [STUDENT_PATH, asked] : null,
     ([, body]: [string, StudentRequest]) =>
       postJson<StudentProfile>(STUDENT_PATH, body),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+      dedupingInterval: 0,
+    }
+  );
+}
+/**
+ * One subject's earliest held day inside the asked window, for the All subjects
+ * path whose own report states no dates (ADR 0022). Keyed by the full request
+ * so another range is another entry; read once per register, never revalidated.
+ * A failure stays where it happened — the register on screen is complete
+ * without it — except a 401, which still ends the session through the shared
+ * failure sweep.
+ */
+export function useSemStart(request: RegisterRequest | null) {
+  return useSWR<SemStartReply, ApiError>(
+    request ? [SEM_START_PATH, request] : null,
+    ([, body]: [string, RegisterRequest]) =>
+      postJson<SemStartReply>(SEM_START_PATH, body),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,
