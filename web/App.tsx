@@ -146,6 +146,9 @@ const App = (): React.JSX.Element => {
   /** The cascade run in flight, as the flag that says the screen has stopped
    *  wanting it: a newer change aborts the one before. */
   const cascadeRun = useRef<AbortController | null>(null);
+  /** Set true when a register load is initiated, consumed by the snap effect so
+   *  a manual range edit cannot be overridden by a stale register. */
+  const justLoaded = useRef(false);
   /** Every fetch the app makes, through its own key. See `web/client.ts`. */
   const register = useRegisterLoad(click);
   /* The two callbacks are stable and the state is not, so they are taken apart:
@@ -281,6 +284,7 @@ const App = (): React.JSX.Element => {
     [triggerCascade]
   );
   const loadRegister = () => {
+    justLoaded.current = true;
     setFormNote(null);
     if (!range.from || !range.to) {
       setFormNote({ kind: "warning", text: "Choose a date range." });
@@ -415,6 +419,8 @@ const App = (): React.JSX.Element => {
    *  say the same thing the table does. The clicked request lives in the SWR
    *  key, so this state change cannot trigger a refetch. */
   useEffect(() => {
+    if (!justLoaded.current) return;
+    justLoaded.current = false;
     let stated = register.data?.summary.statedFrom ?? "";
     if (!stated && register.data?.summary.dates?.length) {
       stated = statedStartDate(register.data.summary.dates, range) ?? "";
@@ -455,6 +461,7 @@ const App = (): React.JSX.Element => {
     void runRefresh(next, opts);
   };
   const onRangeChange = (part: "from" | "to", value: string) => {
+    justLoaded.current = false;
     setRange((r) => ({ ...r, [part]: value }));
   };
   const saveClass = () => {
