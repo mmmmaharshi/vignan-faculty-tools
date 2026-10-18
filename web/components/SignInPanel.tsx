@@ -1,9 +1,9 @@
 import {
   Alert,
   Button,
-  Group,
   Paper,
   PasswordInput,
+  SimpleGrid,
   Stack,
   TextInput,
   Title,
@@ -34,7 +34,7 @@ export const SignInPanel = ({
     <form onSubmit={onSubmit}>
       <Stack>
         <Title order={4}>Sign in</Title>
-        <Group grow align="flex-end" wrap="wrap">
+        <SimpleGrid cols={{ base: 1, sm: 3 }} spacing="md">
           <TextInput
             label="ECAP user name"
             value={userId}
@@ -52,7 +52,7 @@ export const SignInPanel = ({
           <Button type="submit" loading={busy} fullWidth>
             Sign in
           </Button>
-        </Group>
+        </SimpleGrid>
         {note && (
           <Alert color={note.kind === "error" ? "red" : "yellow"}>
             {note.text}
