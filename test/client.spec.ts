@@ -499,4 +499,25 @@ test.describe("the app's own data layer", () => {
       "and the previous session's register did not come back with it"
     ).toHaveCount(0);
   });
+
+  test("a fully chosen class is remembered without pressing Save", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.evaluate(() => localStorage.removeItem("section-faculty"));
+    await signIn(page);
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Saved classes" }),
+      "the card appears on its own, without 'Save this class'"
+    ).toBeVisible({ timeout: 5000 });
+    const stored = await page.evaluate(() =>
+      localStorage.getItem("section-faculty")
+    );
+    expect(stored, "the class was persisted to storage").toContain("MFCS");
+  });
 });
