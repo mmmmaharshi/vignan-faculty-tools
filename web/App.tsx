@@ -58,7 +58,6 @@ import { SignInPanel } from "./components/SignInPanel";
 import { StudentDetails } from "./components/StudentDetails";
 import {
   abbreviate,
-  classKey,
   rememberClass,
   savedClasses,
   forgetClass,
@@ -244,6 +243,14 @@ const App = (): React.JSX.Element => {
     },
     [triggerCascade]
   );
+  const classChosen =
+    Boolean(sel.course) &&
+    Boolean(sel.semester) &&
+    Boolean(sel.branch) &&
+    Boolean(sel.section) &&
+    // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
+    Boolean(sel.subject) &&
+    !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
   const loadRegister = () => {
     setFormNote(null);
     if (!range.from || !range.to) {
@@ -257,6 +264,14 @@ const App = (): React.JSX.Element => {
         text: `Choose a ${chosen.label.toLowerCase()} first.`,
       });
       return;
+    }
+    if (classChosen) {
+      rememberClass(
+        userId,
+        sel,
+        opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
+      );
+      setSaved({ userId, list: savedClasses(userId) });
     }
     const request: RegisterRequest = {
       ...chosen.levels,
@@ -414,28 +429,6 @@ const App = (): React.JSX.Element => {
   const onRangeChange = (part: "from" | "to", value: string) => {
     setRange((r) => ({ ...r, [part]: value }));
   };
-  const classChosen =
-    Boolean(sel.course) &&
-    Boolean(sel.semester) &&
-    Boolean(sel.branch) &&
-    Boolean(sel.section) &&
-    // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
-    Boolean(sel.subject) &&
-    !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
-  const lastRemembered = useRef("");
-  useEffect(() => {
-    if (!userId || !classChosen) {
-      lastRemembered.current = "";
-      return;
-    }
-    const key = classKey(sel);
-    if (key === lastRemembered.current) return;
-    lastRemembered.current = key;
-    const label =
-      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? "";
-    rememberClass(userId, sel, label);
-    setSaved({ userId, list: savedClasses(userId) });
-  }, [userId, classChosen, sel, opts]);
   const saveClass = () => {
     rememberClass(
       userId,

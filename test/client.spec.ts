@@ -500,7 +500,7 @@ test.describe("the app's own data layer", () => {
     ).toHaveCount(0);
   });
 
-  test("a fully chosen class is remembered without pressing Save", async ({
+  test("a fully chosen class is remembered when Load register is clicked", async ({
     page,
   }) => {
     await page.goto("/login");
@@ -511,9 +511,10 @@ test.describe("the app's own data layer", () => {
       .toBe("ALL SUBJECTS");
     await page.getByRole("combobox", { name: "Subject" }).click();
     await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await page.getByRole("button", { name: "Load register" }).click();
     await expect(
       page.getByRole("heading", { name: "Saved classes" }),
-      "the card appears on its own, without 'Save this class'"
+      "the card appears once the register is loaded"
     ).toBeVisible({ timeout: 5000 });
     const stored = await page.evaluate(() =>
       localStorage.getItem("section-faculty")
