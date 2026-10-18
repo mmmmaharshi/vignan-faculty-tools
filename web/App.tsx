@@ -315,26 +315,23 @@ const App = (): React.JSX.Element => {
       signedOut("Your session expired. Please sign in again.");
     }
   }, [booted, signedIn, session.data, signedOut]);
-  /** When the portal answers "no courses" (empty levels), re-check the session
-   *  immediately rather than waiting for the next probe tick: the probe is
-   *  paused while a request is in flight, so a session that died during the
-   *  load would otherwise sit on the dashboard until the next probe (up to five
-   *  minutes). Only a genuinely dead session redirects; a 502 stays an alert. */
+  /** When the portal answers "no courses" there is nothing to pick from and
+   *  nothing to load: every account has at least one course, so an empty
+   *  course list means the session is gone or ECAP is not answering. Either
+   *  way there is nothing to do on the dashboard, so go to login instead of
+   *  leaving an alert on screen. Other empty levels (branch, semester, section,
+   *  subject) are genuine "this combination does not run" cases and keep their
+   *  alert. */
   const checkedEmptyLevels = useRef(false);
   useEffect(() => {
     if (!booted || !signedIn) return;
-    if (!opts.emptyLevels.length) {
+    if (!opts.emptyLevels.includes("course")) {
       checkedEmptyLevels.current = false;
       return;
     }
     if (checkedEmptyLevels.current) return;
     checkedEmptyLevels.current = true;
-    void (async () => {
-      const fresh = await reloadSession();
-      if (fresh && !fresh.signedIn) {
-        signedOut("Your session expired. Please sign in again.");
-      }
-    })();
+    signedOut("ECAP returned no courses. Please sign in again.");
   }, [booted, signedIn, opts.emptyLevels, signedOut]);
   /** The boot check: whether there is a session at all, and what it says. */
   useEffect(() => {
