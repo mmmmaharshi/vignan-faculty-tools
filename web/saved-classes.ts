@@ -40,7 +40,7 @@ const CLASS_LEVELS = [
 ] as const;
 /** The identity of a saved class: the five levels in a fixed order, so two saves
  *  of the same class compare equal without depending on key order. */
-export const classKey = (values: Record<string, string>): string =>
+const classKey = (values: Record<string, string>): string =>
   CLASS_LEVELS.map((key) => values[key]).join(" ");
 /** A stored entry becomes a class only if all five levels are strings. Anything
  *  else is dropped rather than half-read. A missing label is not a fault: an entry

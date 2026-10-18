@@ -251,6 +251,15 @@ const App = (): React.JSX.Element => {
     // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
     Boolean(sel.subject) &&
     !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
+  const rememberCurrentClass = () => {
+    if (!userId || !classChosen) return;
+    rememberClass(
+      userId,
+      sel,
+      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
+    );
+    setSaved({ userId, list: savedClasses(userId) });
+  };
   const loadRegister = () => {
     setFormNote(null);
     if (!range.from || !range.to) {
@@ -265,14 +274,7 @@ const App = (): React.JSX.Element => {
       });
       return;
     }
-    if (classChosen) {
-      rememberClass(
-        userId,
-        sel,
-        opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
-      );
-      setSaved({ userId, list: savedClasses(userId) });
-    }
+    if (classChosen) rememberCurrentClass();
     const request: RegisterRequest = {
       ...chosen.levels,
       from: toPortalDate(range.from),
@@ -430,12 +432,7 @@ const App = (): React.JSX.Element => {
     setRange((r) => ({ ...r, [part]: value }));
   };
   const saveClass = () => {
-    rememberClass(
-      userId,
-      sel,
-      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
-    );
-    setSaved({ userId, list: savedClasses(userId) });
+    rememberCurrentClass();
   };
   const clearSavedClass = (target: Sel) => {
     forgetClass(userId, target);

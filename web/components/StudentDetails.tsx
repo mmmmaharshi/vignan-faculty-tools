@@ -189,7 +189,7 @@ export const StudentDetails = ({
                 <CopyButton value={absences.join(", ")} timeout={2000}>
                   {({ copied, copy }) => (
                     <Button size="xs" variant="subtle" onClick={copy}>
-                      {copied ? "Copied" : "Copy"}
+                      {copied ? "Copied Dates" : "Copy Dates"}
                     </Button>
                   )}
                 </CopyButton>

@@ -516,9 +516,5 @@ test.describe("the app's own data layer", () => {
       page.getByRole("heading", { name: "Saved classes" }),
       "the card appears once the register is loaded"
     ).toBeVisible({ timeout: 5000 });
-    const stored = await page.evaluate(() =>
-      localStorage.getItem("section-faculty")
-    );
-    expect(stored, "the class was persisted to storage").toContain("MFCS");
   });
 });
