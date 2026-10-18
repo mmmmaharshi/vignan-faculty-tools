@@ -415,6 +415,11 @@ const App = (): React.JSX.Element => {
   useEffect(() => {
     const iso = toInputDate(register.data?.summary.statedFrom ?? "");
     if (!iso || iso === range.from) return;
+    // The register's own first day is where the figures begin, so that is the
+    // date worth opening at next time — not the older date the user typed to
+    // find it. rememberRangeStart at click time saved the typed date; this
+    // overwrites it with the snapped one.
+    rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
   }, [register.data, range.from]);
   /* oxlint-enable react/set-state-in-effect */
