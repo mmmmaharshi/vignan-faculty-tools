@@ -196,7 +196,8 @@ export async function handleRegister(
     range,
     byRoll,
     dates.length || null,
-    statedStartDate(dates, range)
+    statedStartDate(dates, range),
+    dates
   );
 }
 /**

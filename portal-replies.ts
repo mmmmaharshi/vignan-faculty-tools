@@ -164,7 +164,8 @@ function subjectHeaded(grids: string[][][]): string[][] | null {
 /* A real day and month, never 0: an empty range's grid heads its one column
  * "0/0", and counting that as a class day would state one day where the Portal
  * held none. */
-const DATE_CELL = /^(?:0?[1-9]|[12]\d|3[01])\/(?:0?[1-9]|1[0-2])$/;
+const DATE_CELL =
+  /^(?:0?[1-9]|[12]\d|3[01])\/(?:0?[1-9]|1[0-2])(?:\/\d{2,4})?$/;
 /**
  * The dates the Portal lists across the register's own grid: one column per
  * day the subject met, holidays and Sundays simply absent. The count is the
@@ -174,7 +175,9 @@ const DATE_CELL = /^(?:0?[1-9]|[12]\d|3[01])\/(?:0?[1-9]|1[0-2])$/;
  */
 export function registerDates(html: string): string[] {
   return (
-    firstHeaded(gridTables(html))?.[0]?.filter((c) => DATE_CELL.test(c)) ?? []
+    firstHeaded(gridTables(html))?.[0]
+      ?.filter((c) => DATE_CELL.test(c))
+      .map((c) => c.split("/").slice(0, 2).join("/")) ?? []
   );
 }
 export function parseRegister(html: string): RegisterRow[] {

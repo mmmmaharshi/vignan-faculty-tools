@@ -115,6 +115,7 @@ const registerReply = (
     range: { from: "01/07/2026", to: "16/10/2026" },
     classesHeld,
     statedFrom: statedFrom || null,
+    dates: [],
   },
 });
 /** What ECAP states for one student. The roll that has nothing is the one the

@@ -81,6 +81,10 @@ export interface RegisterReply {
      *  where the figures actually begin; the client snaps its From input here
      *  after a load. Null where the register states no dates. */
     statedFrom: string | null;
+    /** The register's own date columns (dd/mm), for client-side fallback when
+     *  statedFrom could not be resolved server-side. Empty on the All subjects
+     *  path and wherever the grid states no dates. */
+    dates: string[];
   };
 }
 export interface ErrorReply {

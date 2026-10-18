@@ -40,6 +40,7 @@ import {
   subjectNameKey,
   toPortalDate,
   toInputDate,
+  statedStartDate,
 } from "./cascade";
 import type { Level, Range, Sel } from "./cascade";
 import {
@@ -414,15 +415,15 @@ const App = (): React.JSX.Element => {
    *  say the same thing the table does. The clicked request lives in the SWR
    *  key, so this state change cannot trigger a refetch. */
   useEffect(() => {
-    const iso = toInputDate(register.data?.summary.statedFrom ?? "");
+    let stated = register.data?.summary.statedFrom ?? "";
+    if (!stated && register.data?.summary.dates?.length) {
+      stated = statedStartDate(register.data.summary.dates, range) ?? "";
+    }
+    const iso = toInputDate(stated);
     if (!iso || iso === range.from) return;
-    // The register's own first day is where the figures begin, so that is the
-    // date worth opening at next time — not the older date the user typed to
-    // find it. rememberRangeStart at click time saved the typed date; this
-    // overwrites it with the snapped one.
     rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
-  }, [register.data, range.from]);
+  }, [register.data, range]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {

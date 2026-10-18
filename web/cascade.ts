@@ -221,6 +221,28 @@ export function toInputDate(portal: string): string {
   if (!d || !m || !y) return "";
   return `${y}-${m}-${d}`;
 }
+/** Resolve a dd/mm (or dd/mm/yyyy) date list's first entry to a full ISO date,
+ *  but only when it falls inside the chosen range. Mirrors statedStartDate in
+ *  attendance-bands.ts so the client can snap even if the server could not
+ *  resolve it (e.g. an unrecognised header shape). */
+export function statedStartDate(
+  dates: readonly string[],
+  range: { from: string; to: string }
+): string | null {
+  const [d, m] = (dates[0] ?? "").split("/").map(Number);
+  const [fy, fm, fd] = range.from.split("-").map(Number);
+  const [ty, tm, td] = range.to.split("-").map(Number);
+  if (!d || !m || !fy || !fm || !fd || !ty || !tm || !td) return null;
+  const code = (y: number): number => y * 10_000 + m * 100 + d;
+  const low = fy * 10_000 + fm * 100 + fd;
+  const high = ty * 10_000 + tm * 100 + td;
+  for (let y = fy; y <= ty; y++) {
+    if (code(y) >= low && code(y) <= high) {
+      return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+    }
+  }
+  return null;
+}
 function isoDay(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
   const day = String(d.getDate()).padStart(2, "0");

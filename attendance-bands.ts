@@ -94,7 +94,8 @@ export function summarise(
   range: { from: string; to: string },
   overall: OverallLookup = new Map(),
   classesHeld: number | null = null,
-  statedFrom: string | null = null
+  statedFrom: string | null = null,
+  dates: readonly string[] = []
 ): { students: Student[]; summary: RegisterReply["summary"] } {
   const students: Student[] = [];
   let irregular = 0;
@@ -136,6 +137,7 @@ export function summarise(
       range,
       classesHeld,
       statedFrom,
+      dates: [...dates],
     },
   };
 }
