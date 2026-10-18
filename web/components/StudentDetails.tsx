@@ -182,7 +182,7 @@ export const StudentDetails = ({
               not be read as a clean sheet. */}
           {absences.length ? (
             <>
-              <Group gap="xs" align="center">
+              <Group gap="xs" align="center" justify="space-between" w="100%">
                 <Text c="dimmed" size="xs" tt="uppercase">
                   Absent ({absences.length})
                 </Text>
