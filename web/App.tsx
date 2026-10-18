@@ -19,7 +19,12 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import type { OptionsReply, RegisterRequest, Student } from "../shared/api";
+import type {
+  OptionsReply,
+  RegisterReply,
+  RegisterRequest,
+  Student,
+} from "../shared/api";
 import {
   chosenLevels,
   isAllSubjects,
@@ -167,6 +172,34 @@ const App = (): React.JSX.Element => {
   const overallMode = Boolean(result) && isAllSubjects(click?.request.subject);
   const rows = result ? registerRows(result.students, filter, overallMode) : [];
   const summary = result?.summary;
+  const classChosen =
+    Boolean(sel.course) &&
+    Boolean(sel.semester) &&
+    Boolean(sel.branch) &&
+    Boolean(sel.section) &&
+    // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
+    Boolean(sel.subject) &&
+    !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
+  const rememberCurrentClass = useCallback(() => {
+    if (!userId || !classChosen) return;
+    rememberClass(
+      userId,
+      sel,
+      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
+    );
+    setSaved({ userId, list: savedClasses(userId) });
+  }, [userId, classChosen, sel, opts]);
+  /** Persist the class only once its register has actually loaded, so a failed
+   *  or ambiguous request never saves a card and "Load register stays a decision"
+   *  (ADR 0016). rememberClass dedupes, so re-loading the same class just moves
+   *  it to the front. */
+  const lastSavedRegister = useRef<RegisterReply | null>(null);
+  useEffect(() => {
+    if (!userId || !classChosen || !register.data) return;
+    if (register.data === lastSavedRegister.current) return;
+    lastSavedRegister.current = register.data;
+    rememberCurrentClass();
+  }, [userId, classChosen, register.data, rememberCurrentClass]);
   let loadNote = "";
   if (optionsLoading) {
     loadNote = "Loading options...";
@@ -243,23 +276,6 @@ const App = (): React.JSX.Element => {
     },
     [triggerCascade]
   );
-  const classChosen =
-    Boolean(sel.course) &&
-    Boolean(sel.semester) &&
-    Boolean(sel.branch) &&
-    Boolean(sel.section) &&
-    // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
-    Boolean(sel.subject) &&
-    !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
-  const rememberCurrentClass = () => {
-    if (!userId || !classChosen) return;
-    rememberClass(
-      userId,
-      sel,
-      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
-    );
-    setSaved({ userId, list: savedClasses(userId) });
-  };
   const loadRegister = () => {
     setFormNote(null);
     if (!range.from || !range.to) {
@@ -274,7 +290,6 @@ const App = (): React.JSX.Element => {
       });
       return;
     }
-    if (classChosen) rememberCurrentClass();
     const request: RegisterRequest = {
       ...chosen.levels,
       from: toPortalDate(range.from),
