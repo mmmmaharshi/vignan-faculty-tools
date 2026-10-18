@@ -421,6 +421,25 @@ const App = (): React.JSX.Element => {
     // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
     Boolean(sel.subject) &&
     !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
+  /** A fully-chosen class is remembered on its own, so the faculty never has to
+   *  press "Save this class" before it survives a reload: the card is there to
+   *  reopen the form with one click. rememberClass dedupes by the five levels
+   *  and moves the latest to the front, so a class taught twice is stored once
+   *  and the most recent stays first. */
+  const lastRemembered = useRef("");
+  useEffect(() => {
+    if (!userId || !classChosen) {
+      lastRemembered.current = "";
+      return;
+    }
+    const key = `${sel.course} ${sel.semester} ${sel.branch} ${sel.section} ${sel.subject}`;
+    if (key === lastRemembered.current) return;
+    lastRemembered.current = key;
+    const label =
+      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? "";
+    rememberClass(userId, sel, label);
+    setSaved({ userId, list: savedClasses(userId) });
+  }, [userId, classChosen, sel, opts]);
   const saveClass = () => {
     rememberClass(
       userId,
