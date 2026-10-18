@@ -181,7 +181,7 @@ export const StudentDetails = ({
           {absences.length ? (
             <>
               <Text c="dimmed" size="xs" tt="uppercase">
-                Absent
+                Absent ({absences.length})
               </Text>
               {absenceRange ? (
                 <Text c="dimmed" size="xs">
