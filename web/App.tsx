@@ -325,6 +325,7 @@ const App = (): React.JSX.Element => {
       setSignedIn(true);
       noteUserId(started.userId || name);
       navigate(DASHBOARD_PATH, { replace: true });
+      nav.close();
       await runRefresh(EMPTY_SEL, EMPTY_OPTS);
     } catch (error) {
       setLoginNote({ kind: "error", text: messageOf(error) });
@@ -332,6 +333,7 @@ const App = (): React.JSX.Element => {
   };
   const signOut = async () => {
     await logout.trigger(undefined).catch(() => null);
+    nav.close();
     signedOut("");
   };
   /*
@@ -613,7 +615,10 @@ const App = (): React.JSX.Element => {
         <AppShell.Section grow>
           <Stack gap="xs">
             <Button
-              onClick={() => navigate(DASHBOARD_PATH)}
+              onClick={() => {
+                nav.close();
+                navigate(DASHBOARD_PATH);
+              }}
               variant={!onLogin && !onProfile ? "filled" : "subtle"}
               aria-current={!onLogin && !onProfile ? "page" : undefined}
               leftSection={<SquaresFour size={18} aria-hidden />}
@@ -623,7 +628,10 @@ const App = (): React.JSX.Element => {
               Dashboard
             </Button>
             <Button
-              onClick={() => navigate(PROFILE_PATH)}
+              onClick={() => {
+                nav.close();
+                navigate(PROFILE_PATH);
+              }}
               variant={onProfile ? "filled" : "subtle"}
               aria-current={onProfile ? "page" : undefined}
               leftSection={<UserCircle size={18} aria-hidden />}
