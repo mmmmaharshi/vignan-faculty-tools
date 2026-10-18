@@ -34,7 +34,7 @@ export const SignInPanel = ({
     <form onSubmit={onSubmit}>
       <Stack>
         <Title order={4}>Sign in</Title>
-        <Group grow align="flex-end">
+        <Group grow align="flex-end" wrap="wrap">
           <TextInput
             label="ECAP user name"
             value={userId}
