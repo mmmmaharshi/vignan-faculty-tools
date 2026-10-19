@@ -28,6 +28,7 @@
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
     "bun-types": "^1.4.3",
+    "react-grab": "^0.2.0",
     "typescript": "^7.0.2",
     "ultracite": "^7.12.1",
     "vite": "npm:@voidzero-dev/vite-plus-core@1.0.0",

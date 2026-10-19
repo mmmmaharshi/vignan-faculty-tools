@@ -7,6 +7,8 @@ import { BrowserRouter, Route, Routes } from "react-router";
 
 import App from "./App";
 
+if (import.meta.env.DEV) void import("react-grab");
+
 const theme = createTheme({
   fontFamily: '"Scoutie Sans Variable", sans-serif',
 });
