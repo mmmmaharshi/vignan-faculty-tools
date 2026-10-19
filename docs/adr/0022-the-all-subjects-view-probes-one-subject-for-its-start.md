@@ -30,21 +30,36 @@ snap that had failed.
 On the All subjects path only, after the register loads, the client asks a
 new `/api/sem-start` endpoint for the **first offered subject's** own register
 over the **same range**, and the server answers with only that grid's first
-date (`{ statedFrom }`). The facts card prints it as `Sem Start Date
-(<subject>)` — subject named, so a day from MFCS never poses as the section's.
+date (`{ statedFrom }`). The facts card prints it as `Sem Start Date`, the
+From input snaps to it, and the Date Range fact starts from it — everywhere
+the subject path's own `statedFrom` already does all three. The row carries no
+subject name; the probe subject is an implementation detail, not a claim about
+the section.
 
 Three deliberate limits:
 
 - **One subject, not all.** The section's true earliest day is the min across
   subjects, but that is a fan-out of N register reads per load — the shape ADR
-  0016 built and removed. One probe is the affordable answer; the label says
-  which subject it came from.
+  0016 built and removed. One probe is the affordable answer.
 - **The user's own range, not a wider one.** A fixed "five months back" window
   is a magic number that misses older semesters and assumes the Portal answers
   wide ranges the same way. The probe reuses the asked window: when the user
   widens to find the start, the probe finds it too.
 - **Never on the subject path.** A subject register's own grid already states
   its days, so the probe is not sent there (`useSemStart` is keyed null).
+
+## The earliest day ever seen wins
+
+A probe — and a register grid — only ever sees the asked window. Ask from
+October and the first day on screen is October's, even when the semester began
+in August. So the client remembers, per class in `localStorage`
+(`web/sem-starts.ts`), the earliest start day any load has stated, and the Sem
+Start Date row names the memory, not the window. A later From still moves the
+figures, the From input and the Date Range — those describe the window on
+screen — but the row keeps the original start. The key is the five levels plus
+the Portal's batch title (`2025`), so a new academic year starts a new memory
+rather than inheriting last year's; it is Portal data, not personal data, so it
+is not scoped by user id and survives sign-out.
 
 Failure rules: a probe that fails changes nothing — the register on screen is
 complete without it — except a 401, which still ends the session through the

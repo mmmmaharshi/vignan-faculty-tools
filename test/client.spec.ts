@@ -117,7 +117,9 @@ const registerReply = (
     overallCritical: 1,
     range: { from: "01/07/2026", to: "16/10/2026" },
     classesHeld,
-    statedFrom: statedFrom || null,
+    // The section-wide report aggregates by subject and states no dates, so
+    // the stub states none on that path either — like the real portal.
+    statedFrom: overall ? null : statedFrom || null,
     dates: [],
   },
 });
@@ -300,9 +302,13 @@ test.describe("the app's own data layer", () => {
       "the card names the register it shows"
     ).toBeVisible();
     await expect(
-      page.getByRole("row", { name: "Date Range 01/07/2026 to 16/10/2026" })
+      page.getByRole("row", {
+        name: "Date Range 05/08/2026 to 16/10/2026",
+      }),
+      "the probe's first day starts the range where the report states none"
     ).toBeVisible();
-    // The section-wide report states no dates, so its range carries no count.
+    // The class report states no count either, so the range stays bare — the
+    // probed day names the start but no frame count travels with it.
     await expect(page.getByText("days)")).toHaveCount(0);
     await page.getByRole("button", { name: "Load register" }).click();
     await expect.poll(() => registerCalls, { timeout: 15_000 }).toBe(2);
@@ -314,6 +320,13 @@ test.describe("the app's own data layer", () => {
   }) => {
     statedFrom = "01/09/2026";
     await signInAndSettle(page);
+    // The subject path: the register's own statedFrom is the snap. (On the
+    // All subjects path there is none, and the probe's day snaps instead.)
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("MFCS");
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
       timeout: 15_000,
@@ -323,15 +336,11 @@ test.describe("the app's own data layer", () => {
       "the input names the day the figures begin on"
     ).toHaveValue("2026-09-01");
     await expect(
-      page.getByRole("row", {
-        name: "Date Range 01/09/2026 to 16/10/2026",
-      }),
+      page.getByText("01/09/2026 to 16/10/2026", { exact: true }),
       "the range fact agrees with the input it just snapped"
     ).toBeVisible();
     await expect(
-      page.getByRole("row", {
-        name: "Sem Start Date 01/09/2026",
-      }),
+      page.getByText("01/09/2026", { exact: true }),
       "the register's first day is named on its own row"
     ).toBeVisible();
   });
@@ -346,10 +355,14 @@ test.describe("the app's own data layer", () => {
     // The section-wide report states no dates, so the view probes one
     // subject's own register for its first day — and names that subject.
     await expect(
-      page.getByRole("row", { name: "Sem Start Date (MFCS) 05/08/2026" }),
-      "the earliest day seen, with the subject it was seen in"
+      page.getByRole("row", { name: "Sem Start Date 05/08/2026" }),
+      "the earliest day seen, without naming the probed subject"
     ).toBeVisible();
     expect(semStartCalls, "one probe per register load").toBe(1);
+    await expect(
+      page.getByLabel("From"),
+      "the input snaps to the probed first day"
+    ).toHaveValue("2026-08-05");
     // A subject register states its own days, so it probes nothing.
     await page.getByRole("combobox", { name: "Subject" }).click();
     await page.getByRole("option", { name: "MFCS", exact: true }).click();
@@ -358,6 +371,33 @@ test.describe("the app's own data layer", () => {
       timeout: 15_000,
     });
     expect(semStartCalls, "no probe beside a subject register").toBe(1);
+  });
+  test("a later window keeps the earliest start day seen", async ({ page }) => {
+    statedFrom = "01/09/2026";
+    await signInAndSettle(page);
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("MFCS");
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(
+      page.getByText("01/09/2026", { exact: true }),
+      "the first load names its own start"
+    ).toBeVisible();
+    // A narrower window moves the figures — and the From input with them —
+    // but the row keeps the original start the memory holds.
+    statedFrom = "01/10/2026";
+    await page.getByLabel("From").fill("2026-10-01");
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await expect(page.getByLabel("From")).toHaveValue("2026-10-01");
+    await expect(
+      page.getByText("01/09/2026", { exact: true }),
+      "the row keeps the original start, not the window's"
+    ).toBeVisible();
   });
   test("ticked bars narrow the register, and unticking restores it", async ({
     page,

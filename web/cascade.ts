@@ -306,7 +306,12 @@ export function chosenFacts(
   sel: Sel,
   range?: Range,
   classesHeld?: number | null,
-  statedFrom?: string | null
+  statedFrom?: string | null,
+  /** The earliest start day known for this class — the memory in
+   *  `sem-starts.ts`, which can predate the window this register covers. Named
+   *  on its own row; the Date Range above it always names this register's own
+   *  window, never the memory. */
+  semStart?: string | null
 ): ChosenFact[] {
   const facts = LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
@@ -330,11 +335,12 @@ export function chosenFacts(
         value: `${from} to ${range.to}`,
       });
     }
-    // The register's own first day, named on its own row: the earliest day
-    // the Portal holds data for, which is what the From input snaps to. Only
-    // stated when the register named one — the typed From is not a start date.
-    if (statedFrom) {
-      facts.push({ label: "Sem Start Date", value: statedFrom });
+    // The earliest start day known for the class, which can predate the window
+    // this register covers: the row keeps naming the original start even when
+    // a later From is asked for. Only stated when one is known — a missing
+    // memory is not a missing semester.
+    if (semStart) {
+      facts.push({ label: "Sem Start Date", value: semStart });
     }
   }
   return facts;

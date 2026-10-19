@@ -1,6 +1,7 @@
 import {
   Alert,
   Button,
+  Group,
   Paper,
   PasswordInput,
   SimpleGrid,
@@ -49,9 +50,13 @@ export const SignInPanel = ({
             autoComplete="current-password"
             required
           />
-          <Button type="submit" loading={busy} fullWidth>
-            Sign in
-          </Button>
+          {/* The button has no label above it, so without this it sits higher
+              than the inputs it submits beside. */}
+          <Group align="flex-end" h="100%">
+            <Button type="submit" loading={busy} fullWidth>
+              Sign in
+            </Button>
+          </Group>
         </SimpleGrid>
         {note && (
           <Alert color={note.kind === "error" ? "red" : "yellow"}>

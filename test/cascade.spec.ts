@@ -30,6 +30,7 @@ import {
   savedClasses,
   forgetClass,
 } from "../web/saved-classes";
+import { noteSemStart, semStartKey } from "../web/sem-starts";
 import {
   emptyRegisterText,
   NO_FILTER,
@@ -96,8 +97,9 @@ const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
   );
 };
 /** The same tail, with the register stating where its own data begins: the
- *  fact then names that day, and the frame counts from it. */
-const statedTail = (statedFrom: string): ChosenFact[] => {
+ *  fact then names that day, and the frame counts from it. The Sem Start Date
+ *  row takes the earliest day known, which can predate this window. */
+const statedTail = (statedFrom: string, semStart?: string): ChosenFact[] => {
   const facts = chosenFacts(
     reply({
       course: ["1"],
@@ -115,7 +117,8 @@ const statedTail = (statedFrom: string): ChosenFact[] => {
     }),
     { from: "01/07/2026", to: "16/10/2026" },
     6,
-    statedFrom
+    statedFrom,
+    semStart
   );
   return facts.slice(
     facts.findIndex((fact) => fact.label.startsWith("Date Range"))
@@ -367,15 +370,73 @@ test.describe("the register, before it is sent", () => {
   test("the register's own first date is the start the fact names", () => {
     // The Portal holds nothing before the semester began, so a range asked
     // from July shows figures that begin in September — the fact names that
-    // day, and the frame counts the period the register covers. The same day
-    // is named on its own Sem Start Date row.
+    // day, and the frame counts the period the register covers.
     expect(statedTail("01/09/2026")).toEqual([
       { label: "Date Range (46 days)", value: "01/09/2026 to 16/10/2026" },
-      { label: "Sem Start Date", value: "01/09/2026" },
     ]);
     expect(statedTail("")).toEqual([
       { label: "Date Range (108 days)", value: "01/07/2026 to 16/10/2026" },
     ]);
+  });
+  test("the Sem Start Date row names the earliest day known, not the window", () => {
+    // A later From moves the Date Range — the figures on screen are that
+    // window's — but the row keeps the original start the memory holds.
+    expect(statedTail("01/10/2026", "01/09/2026")).toEqual([
+      { label: "Date Range (16 days)", value: "01/10/2026 to 16/10/2026" },
+      { label: "Sem Start Date", value: "01/09/2026" },
+    ]);
+    expect(statedTail("01/09/2026", "01/09/2026")).toEqual([
+      { label: "Date Range (46 days)", value: "01/09/2026 to 16/10/2026" },
+      { label: "Sem Start Date", value: "01/09/2026" },
+    ]);
+    // No memory and no stated start: no row, never a bare range passed off as
+    // a semester start.
+    expect(statedTail("", undefined)).toEqual([
+      { label: "Date Range (108 days)", value: "01/07/2026 to 16/10/2026" },
+    ]);
+  });
+  test.describe("the semester start memory", () => {
+    const key = semStartKey(
+      { course: "1", semester: "3", branch: "4", section: "5", subject: "6" },
+      "2025"
+    );
+    test("the earliest day seen wins, whatever the window says", () => {
+      const first = noteSemStart({}, key, "01/09/2026");
+      expect(first[key]).toBe("01/09/2026");
+      // A later window's first day never moves the memory forward.
+      const kept = noteSemStart(first, key, "01/10/2026");
+      expect(kept).toBe(first);
+      expect(kept[key]).toBe("01/09/2026");
+      // An earlier day does move it back.
+      expect(noteSemStart(first, key, "05/08/2026")[key]).toBe("05/08/2026");
+    });
+    test("a garbage date and an empty key remember nothing", () => {
+      expect(noteSemStart({}, key, null)).toEqual({});
+      expect(noteSemStart({}, key, "not a date")).toEqual({});
+      expect(noteSemStart({}, key, "99/99/9999")).toEqual({});
+      expect(noteSemStart({}, "", "01/09/2026")).toEqual({});
+    });
+    test("one class never takes another's start", () => {
+      const other = semStartKey(
+        { course: "1", semester: "3", branch: "4", section: "5", subject: "7" },
+        "2025"
+      );
+      expect(other).not.toBe(key);
+      const both = noteSemStart(
+        noteSemStart({}, key, "01/09/2026"),
+        other,
+        "01/10/2026"
+      );
+      expect(both[key]).toBe("01/09/2026");
+      expect(both[other]).toBe("01/10/2026");
+    });
+    test("a new batch year starts a new memory", () => {
+      const next = semStartKey(
+        { course: "1", semester: "3", branch: "4", section: "5", subject: "6" },
+        "2026"
+      );
+      expect(next).not.toBe(key);
+    });
   });
 });
 const student = (pct: number | null): Student => ({

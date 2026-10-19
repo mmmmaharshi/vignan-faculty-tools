@@ -24,6 +24,7 @@ import type {
   OptionsReply,
   RegisterReply,
   RegisterRequest,
+  SemStartReply,
   Student,
 } from "../shared/api";
 import {
@@ -72,6 +73,13 @@ import {
   forgetClass,
 } from "./saved-classes";
 import type { SavedClass } from "./saved-classes";
+import {
+  noteSemStart,
+  readSemStarts,
+  semStartKey,
+  writeSemStarts,
+} from "./sem-starts";
+import type { SemStarts } from "./sem-starts";
 import type { Note } from "./types";
 import { NO_FILTER, registerRows } from "./worklist";
 import type { RowFilter } from "./worklist";
@@ -150,6 +158,9 @@ const App = (): React.JSX.Element => {
   /** Set true when a register load is initiated, consumed by the snap effect so
    *  a manual range edit cannot be overridden by a stale register. */
   const justLoaded = useRef(false);
+  /** The probe answer the All subjects snap already ran for (see below). A ref
+   *  rather than state: it guards an effect and must never render. */
+  const semSnapApplied = useRef<SemStartReply | null>(null);
   /** Every fetch the app makes, through its own key. See `web/client.ts`. */
   const register = useRegisterLoad(click);
   /* The two callbacks are stable and the state is not, so they are taken apart:
@@ -193,6 +204,30 @@ const App = (): React.JSX.Element => {
       ? { ...click.request, subject: semProbeSubject }
       : null
   );
+  /** The earliest start day ever seen for the class on screen, remembered in
+   *  `sem-starts.ts`: the probe (or the register's own grid) only ever sees the
+   *  asked window, so without this a later From would move "Sem Start Date"
+   *  forward to the window's first day instead of the semester's. Keyed by the
+   *  five levels plus the Portal's batch title, so a new year starts a new
+   *  memory. Portal data, not personal data: it is not scoped by user id. */
+  const [semStarts, setSemStarts] = useState<SemStarts>(() => readSemStarts());
+  const semKey =
+    result &&
+    sel.course &&
+    sel.semester &&
+    sel.branch &&
+    sel.section &&
+    (overallMode ? semProbeSubject?.value : sel.subject)
+      ? semStartKey(
+          overallMode && semProbeSubject
+            ? { ...sel, subject: semProbeSubject.value }
+            : sel,
+          opts.semester.find((o) => String(o.value) === sel.semester)?.title ??
+            ""
+        )
+      : null;
+  const semSeen = summary?.statedFrom ?? semStart.data?.statedFrom ?? null;
+  const semStartShown = (semKey && (semStarts[semKey] ?? semSeen)) || null;
   const classChosen =
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
@@ -449,6 +484,30 @@ const App = (): React.JSX.Element => {
     rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
   }, [register.data, range]);
+  /** The All subjects snap: the probe's first day plays the role the register's
+   *  own `statedFrom` plays on the subject path, so From, Date Range and Sem
+   *  Start Date all name it. Runs once per probe answer, so a manual edit made
+   *  afterwards is never snapped back. */
+  useEffect(() => {
+    const answer = semStart.data;
+    if (!answer?.statedFrom || answer === semSnapApplied.current) return;
+    semSnapApplied.current = answer;
+    const iso = toInputDate(answer.statedFrom);
+    if (!iso || iso === range.from) return;
+    rememberRangeStart(iso);
+    setRange((r) => ({ ...r, from: iso }));
+  }, [semStart.data, range]);
+  /** Fold the window's first day into the earliest-start memory: without this a
+   *  later From would move "Sem Start Date" forward to the window's first day
+   *  instead of the semester's (the memory lives in `sem-starts.ts`). */
+  useEffect(() => {
+    if (!semKey || !semSeen) return;
+    setSemStarts((prev) => {
+      const next = noteSemStart(prev, semKey, semSeen);
+      if (next !== prev) writeSemStarts(next);
+      return next;
+    });
+  }, [semKey, semSeen]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {
@@ -465,18 +524,9 @@ const App = (): React.JSX.Element => {
     sel,
     summary?.range,
     summary?.classesHeld,
-    summary?.statedFrom
+    semSeen,
+    semStartShown
   );
-  /** The All subjects report states no dates, so its first day is read from one
-   *  subject's own register instead: the first subject this session was offered,
-   *  over the same range, asked once per register and never revalidated. The
-   *  fact names that subject, so a day from MFCS never poses as the section's. */
-  if (semStart.data?.statedFrom && semProbeSubject) {
-    registerFacts.push({
-      label: `Sem Start Date (${semProbeSubject.label})`,
-      value: semStart.data.statedFrom,
-    });
-  }
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };
     // The subject has nothing below it, so it re-reads nothing; every other level
