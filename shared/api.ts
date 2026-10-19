@@ -102,6 +102,31 @@ export interface StudentSgpa {
   semester: string;
   value: string;
 }
+/** One subject ECAP lists under a student's backlogs. The page marks some of
+ *  them in red with a leading asterisk and does not say what the mark means, so
+ *  it is kept as written and not explained. */
+export interface StudentBacklogSubject {
+  code: string;
+  marked: boolean;
+}
+/** One semester's backlogs, as ECAP's own backlogs table states them. */
+export interface StudentBacklog {
+  /** The semester the page names the row under ("I Semester"). */
+  semester: string;
+  subjects: StudentBacklogSubject[];
+}
+/** The backlogs the StudentProfile page states, as that page's section states
+ *  them. A page with none says so in words on one build and leaves the section
+ *  empty on another, so its words are carried rather than lost. */
+export interface StudentBacklogs {
+  /** One entry per semester the page lists. */
+  rows: StudentBacklog[];
+  /** The page's own total, where it states one ("Total backlogs: 1"). */
+  total: number | null;
+  /** The page's own words where it states there are none ("Student have no
+   *  backlogs") — an answer, not an empty table. Empty where it said nothing. */
+  note: string;
+}
 /**
  * What ECAP's StudentProfile page states about one student. Read, never
  * computed: `cgpaPercent` is the figure the page prints beside the CGPA, and a
@@ -114,6 +139,8 @@ export interface StudentProfile {
   cgpaPercent: string;
   sgpa: StudentSgpa[];
   phones: StudentPhone[];
+  /** The backlogs the page's own backlogs section states. */
+  backlogs: StudentBacklogs;
   /** The dates this student missed, unioned over every subject, out of the
    *  Student Wise report — read only when the register on screen is the All
    *  subjects view, whose own report aggregates by subject and states no dates.

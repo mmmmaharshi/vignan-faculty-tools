@@ -1,6 +1,9 @@
 import type { RegisterRow } from "./attendance-bands";
 import type {
   Option,
+  StudentBacklog,
+  StudentBacklogSubject,
+  StudentBacklogs,
   StudentPhone,
   StudentProfile,
   StudentSgpa,
@@ -72,6 +75,10 @@ const PHONE_LABEL = /(?:phone|mobile)/i;
 /** The page's own summary line: "CGPA: 5.61   Credits:16/19    48.55 %". */
 const GPA_LINE =
   /CGPA:\s*(?<cgpa>\S+)\s+Credits:\s*(?<credits>\S+)(?:\s+(?<pct>[\d.]+)\s*%)?/;
+/** The backlogs table's own total: "Total backlogs: 1". */
+const BACKLOG_TOTAL = /Total backlogs:\s*(?<count>\d+)/i;
+/** A backlogs row's first cell: the semester it is filed under. */
+const BACKLOG_SEMESTER = /^(?:I|II|III|IV|V|VI|VII|VIII)\s+Semester$/i;
 /** The per-semester grid: the header names its own SGPA column, the value sits
  *  on the row beginning "Grade", and the semester is named by the span above the
  *  table. */
@@ -283,6 +290,64 @@ function sgpaBySemester(html: string): StudentSgpa[] {
   }
   return out;
 }
+/** The subject codes in one backlogs cell: one per line, each keeping the red
+ *  asterisk the page put before it. */
+function backlogSubjects(raw: string): StudentBacklogSubject[] {
+  const out: StudentBacklogSubject[] = [];
+  for (const line of raw.split(/<br\s*\/?>/i)) {
+    const text = cellText(line);
+    if (!text) continue;
+    const marked = text.startsWith("*");
+    const code = (marked ? text.replace(/^\*\s*/, "") : text).trim();
+    if (!code) continue;
+    out.push({ code, marked });
+  }
+  return out;
+}
+/**
+ * The backlogs ECAP's StudentProfile page lists, out of `divProfile_Backlogs`.
+ *
+ * The page's markup is unclosed — a data row never closes before the total row's
+ * tag — so its rows cannot be read as rows. The cells are read in order instead:
+ * a cell naming a semester opens a row, and the cell right after it holds that
+ * semester's subjects, one per line. The page's own total ends the table.
+ *
+ * A page with no backlogs says so in words on one build ("Student have no
+ * backlogs") and leaves the section empty on another. The words are carried in
+ * `note`, because a stated absence is an answer and an empty table is not.
+ *
+ * A subject the page marks in red with a leading asterisk keeps the mark: the
+ * page does not say what it means, so the app does not either.
+ */
+export function parseStudentBacklogs(html: string): StudentBacklogs {
+  const div = html.match(
+    /<div[^>]*id=['"]divProfile_Backlogs['"][^>]*>(?<inner>[\s\S]*?)<\/div>/i
+  );
+  const inner = div?.groups?.inner ?? "";
+  const table = inner.match(/<table[\s\S]*?<\/table>/i)?.[0] ?? "";
+  const rows: StudentBacklog[] = [];
+  let total: number | null = null;
+  let current: StudentBacklog | null = null;
+  let expectSubjects = false;
+  for (const cell of table.matchAll(/<td[^>]*>(?<cell>[\s\S]*?)<\/td>/gi)) {
+    const raw = cell.groups?.cell ?? "";
+    const text = cellText(raw);
+    const stated = BACKLOG_TOTAL.exec(text);
+    if (stated) {
+      total = Number(stated.groups?.count);
+      break;
+    }
+    if (BACKLOG_SEMESTER.test(text)) {
+      current = { semester: text, subjects: [] };
+      rows.push(current);
+      expectSubjects = true;
+    } else if (expectSubjects && current) {
+      current.subjects = backlogSubjects(raw);
+      expectSubjects = false;
+    }
+  }
+  return { rows, total, note: table ? "" : cellText(inner) };
+}
 /**
  * One student's GPA, semesters and phone numbers, out of ECAP's StudentProfile
  * page. The page is a label/separator/value grid — "Mobile.No", ":",
@@ -316,6 +381,7 @@ export function parseStudentProfile(html: string): StudentProfile | null {
     cgpaPercent: gpa?.groups?.pct ?? "",
     sgpa: sgpaBySemester(html),
     phones,
+    backlogs: parseStudentBacklogs(html),
   };
 }
 /** ECAP states the faculty member's name inside the `lblUser` span on

@@ -7,6 +7,7 @@ import {
   parseClassAttendance,
   parseRegister,
   parseStudentAbsences,
+  parseStudentBacklogs,
   parseStudentProfile,
   realOptions,
   registerDates,
@@ -231,6 +232,7 @@ test.describe("the student profile page", () => {
         { label: "Mobile.No", number: "7661864881" },
         { label: "Father Mobile.No", number: "8790011786" },
       ],
+      backlogs: { rows: [], total: null, note: "" },
     });
   });
   test("the SGPA is its column's, not the row's last cell", () => {
@@ -276,6 +278,7 @@ test.describe("the student profile page", () => {
       cgpaPercent: "75.91",
       sgpa: [],
       phones: [{ label: "Phone.No", number: "6300113013" }],
+      backlogs: { rows: [], total: null, note: "" },
     });
   });
   test("a student with no past semesters keeps the page's own NA, and no percentage", () => {
@@ -286,11 +289,91 @@ test.describe("the student profile page", () => {
       cgpaPercent: "",
       sgpa: [],
       phones: [{ label: "Mobile.No", number: "9182979977" }],
+      backlogs: { rows: [], total: null, note: "" },
     });
   });
   test("a reply that is not that page is told apart from one with nothing in it", () => {
     expect(parseStudentProfile(LOGIN_PAGE)).toBeNull();
     expect(parseStudentProfile("<p>nothing here</p>")).toBeNull();
     expect(parseStudentProfile("")).toBeNull();
+  });
+  test("the backlogs it lists, by semester, with the page's own total", () => {
+    // Copied from a captured page, including the table after it: the data row is
+    // never closed, so it and the total row arrive as one, and only the first
+    // table in the section is the backlogs one.
+    const html = `<div id='divProfile_Backlogs'><table width='100%' cellspacing='0' cellpadding='2'><tr class='reportHeading2WithBackground'><td style='width:30%' class='cellBorder' align='left'>Semester</td><td align='left' class='cellBorder'>Backlogs</td><td class='cellBorder'></td></tr><tr><td align='left' valign='top' class='cellBorder'>I Semester</td><td align='left' class='cellBorder'><font color='red'>*&nbsp;</font>EP<br/></td><td class='cellBorder' align='center'>1</td><tr><td colspan='3' align='center' class='cellBorder'><b>Total backlogs:&nbsp;1</b></td></tr></table><br/><span class='reportHeading2WithBackground'>SUPPLEMENTARY DETAILS</span><table><tr><td>I Semester</td></tr></table></div>`;
+    expect(parseStudentBacklogs(html)).toEqual({
+      rows: [
+        { semester: "I Semester", subjects: [{ code: "EP", marked: true }] },
+      ],
+      total: 1,
+      note: "",
+    });
+  });
+  test("a second semester is its own row, and the cells after it still line up", () => {
+    // Modelled on that same unclosed shape: no capture lists two semesters, and
+    // the row after the first must not inherit its subjects.
+    const html = `<div id='divProfile_Backlogs'><table>
+<tr><td>Semester</td><td>Backlogs</td><td></td></tr>
+<tr><td>I Semester</td><td>EP<br/>ASAP</td><td>2</td>
+<tr><td>II Semester</td><td>MFCS</td><td>1</td>
+<tr><td colspan='3'>Total backlogs: 3</td></tr></table></div>`;
+    expect(parseStudentBacklogs(html)).toEqual({
+      rows: [
+        {
+          semester: "I Semester",
+          subjects: [
+            { code: "EP", marked: false },
+            { code: "ASAP", marked: false },
+          ],
+        },
+        {
+          semester: "II Semester",
+          subjects: [{ code: "MFCS", marked: false }],
+        },
+      ],
+      total: 3,
+      note: "",
+    });
+  });
+  test("a page that states there are no backlogs says so in its own words", () => {
+    expect(
+      parseStudentBacklogs(
+        "<div id='divProfile_Backlogs'><span class='style24'>Student have no backlogs</span></div>"
+      )
+    ).toEqual({
+      rows: [],
+      total: null,
+      note: "Student have no backlogs",
+    });
+    // Another build leaves the section empty: no rows and nothing said, which is
+    // not the same answer as the page stating there are none.
+    expect(
+      parseStudentBacklogs("<div id='divProfile_Backlogs'></div>")
+    ).toEqual({ rows: [], total: null, note: "" });
+    expect(parseStudentBacklogs("<p>nothing here</p>")).toEqual({
+      rows: [],
+      total: null,
+      note: "",
+    });
+  });
+  test("a profile carries the backlogs section as the page states it", () => {
+    const html = `<div id='divProfile_BioData'><table><tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
+CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</div>`;
+    expect(
+      parseStudentProfile(
+        `${html}<div id='divProfile_Backlogs'><span class='style24'>Student have no backlogs</span></div>`
+      )?.backlogs
+    ).toEqual({
+      rows: [],
+      total: null,
+      note: "Student have no backlogs",
+    });
+    // A page with no backlogs section at all says nothing about them.
+    expect(parseStudentProfile(BIO_DATA)?.backlogs).toEqual({
+      rows: [],
+      total: null,
+      note: "",
+    });
   });
 });

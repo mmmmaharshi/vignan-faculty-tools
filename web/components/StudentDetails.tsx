@@ -168,6 +168,9 @@ export const StudentDetails = ({
   const credits = profile?.credits ?? "";
   const cgpaPercent = profile?.cgpaPercent ?? "";
   const sgpa = profile?.sgpa ?? [];
+  const backlogs = profile?.backlogs.rows ?? [];
+  const backlogTotal = profile?.backlogs.total ?? null;
+  const backlogNote = profile?.backlogs.note ?? "";
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
   /* Where the dates come from: the register row's own cells where it has them
@@ -356,6 +359,59 @@ export const StudentDetails = ({
                   ))}
                 </Table.Tbody>
               </Table>
+            </>
+          ) : null}
+          {/* The backlogs the page's own section states, by semester. A page
+              that says there are none says so in words, and that is shown too;
+              a page that says nothing about them shows no section at all. */}
+          {backlogs.length || backlogNote ? (
+            <>
+              {hasGpa || phones.length ? <Divider /> : null}
+              <Text c="dimmed" size="xs" tt="uppercase">
+                Backlogs
+              </Text>
+              {backlogs.length ? (
+                <Table striped withTableBorder tabularNums>
+                  <Table.Tbody>
+                    {backlogs.map((row) => (
+                      <Table.Tr key={row.semester}>
+                        <Table.Td c="dimmed">
+                          <Text size="sm">{row.semester}</Text>
+                        </Table.Td>
+                        <Table.Td ta="right">
+                          <Group gap={4} justify="flex-end">
+                            {row.subjects.map((subject) => (
+                              <Text key={subject.code} size="sm">
+                                {/* The page marks some subjects in red with an
+                                    asterisk and does not say what it means, so
+                                    the mark is shown as written. */}
+                                {subject.marked ? (
+                                  <Text span c="red" size="xs">
+                                    *
+                                  </Text>
+                                ) : null}
+                                {subject.code}
+                              </Text>
+                            ))}
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                    {backlogTotal == null ? null : (
+                      <Table.Tr>
+                        <Table.Td c="dimmed">
+                          <Text size="sm">Total backlogs</Text>
+                        </Table.Td>
+                        <Table.Td ta="right">
+                          <Text size="sm">{backlogTotal}</Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    )}
+                  </Table.Tbody>
+                </Table>
+              ) : (
+                <Text size="sm">{backlogNote}</Text>
+              )}
             </>
           ) : null}
         </Stack>

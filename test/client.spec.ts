@@ -8,6 +8,7 @@ import type {
   OptionsRequest,
   RegisterReply,
   RegisterRequest,
+  StudentBacklogs,
   StudentProfile,
   StudentRequest,
 } from "../shared/api";
@@ -126,14 +127,38 @@ const registerReply = (
     dates: [],
   },
 });
-/** What ECAP states for one student. The roll that has nothing is the one the
- *  panel has to say so about. */
+/** The backlogs section of each student's page: one with backlogs, one that says
+ *  in words there are none, and one that says nothing about them. */
+const backlogsFor = (roll: string): StudentBacklogs => {
+  if (roll === "21B") {
+    return {
+      rows: [
+        {
+          semester: "I Semester",
+          subjects: [
+            { code: "EP", marked: true },
+            { code: "Com.Eng", marked: false },
+          ],
+        },
+      ],
+      total: 2,
+      note: "",
+    };
+  }
+  if (roll === "21C") {
+    return { rows: [], total: null, note: "Student have no backlogs" };
+  }
+  return { rows: [], total: null, note: "" };
+};
+/** What ECAP states for one student. 21C's page says in words that there are
+ *  none, 21A's says nothing about them, and 21B has a backlog to show. */
 const profileFor = (roll: string): StudentProfile => ({
   cgpa: roll === "21C" ? "NA" : "5.61",
   credits: roll === "21C" ? "" : "16/19",
   cgpaPercent: roll === "21C" ? "" : "48.55",
   sgpa: roll === "21C" ? [] : [{ semester: "I Semester", value: "5.61" }],
   phones: roll === "21C" ? [] : [{ label: "Mobile.No", number: "9876543210" }],
+  backlogs: backlogsFor(roll),
 });
 const stub = async (route: Route): Promise<void> => {
   const request = route.request();
@@ -552,6 +577,63 @@ test.describe("the app's own data layer", () => {
     await expect(
       panel.getByText("12/10", { exact: true }),
       "absence dates are read from the register's own columns, five to a row"
+    ).toBeVisible();
+    await expect(
+      panel.getByText("Backlogs", { exact: true }),
+      "the backlogs the profile states are on the panel"
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("row", { name: /I Semester.*Com\.Eng/ }),
+      "under the semester ECAP names them by"
+    ).toBeVisible();
+    await expect(
+      panel.getByText("*EP", { exact: true }),
+      "with the subject codes it lists, the marked one keeping its asterisk"
+    ).toBeVisible();
+    await expect(
+      panel.getByText("Com.Eng", { exact: true }),
+      "every one of them"
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("row", { name: "Total backlogs 2" }),
+      "and the page's own total, as it states it"
+    ).toBeVisible();
+  });
+  test("a page that says nothing about backlogs gets no backlog section", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page
+      .getByRole("button", { name: "Show details for A student" })
+      .click();
+    const panel = page.getByRole("dialog");
+    await expect(panel.getByText("CGPA 5.61")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      panel.getByText("Backlogs", { exact: true }),
+      "a page that states nothing about them is not a clean sheet"
+    ).toHaveCount(0);
+  });
+  test("a page that states there are no backlogs says so in its own words", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page
+      .getByRole("button", { name: "Show details for C student" })
+      .click();
+    const panel = page.getByRole("dialog");
+    await expect(
+      panel.getByText("Student have no backlogs"),
+      "the page's own answer is shown, not an empty table"
     ).toBeVisible();
   });
   test("a student's details are read once per open, and not again and again", async ({

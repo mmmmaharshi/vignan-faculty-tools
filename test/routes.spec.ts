@@ -604,6 +604,7 @@ test.describe("the student profile handler", () => {
       cgpaPercent: "",
       sgpa: [],
       phones: [],
+      backlogs: { rows: [], total: null, note: "" },
     });
   });
   test("a dead session stays a 401, so the client signs out", async () => {

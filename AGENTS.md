@@ -315,17 +315,24 @@ carries one also has its name in text.
   report is read *inside* that one request, so the smoke test that counts
   `/api/register` POSTs on the wire is unchanged by all of this.
 
-- **A student's GPA, semesters and phone numbers are a third Portal screen, read
-  once per open.** The register states none of them, so `Show Details` asks
-  `/api/student` for that one roll number, through the `StudentProfile` proxy and
-  `ShowStudentProfileNew`. **It is the one method here that wants
+- **A student's GPA, semesters, phone numbers and backlogs are a third Portal
+  screen, read once per open.** The register states none of them, so `Show Details`
+  asks `/api/student` for that one roll number, through the `StudentProfile` proxy
+  and `ShowStudentProfileNew`. **It is the one method here that wants
   `_session=rw`**, not `no` — the wrong marker is a bare
   `NullReferenceException` with no parameter name in it — so the marker is a
   field of the remote rather than a constant inside `#webMethod`. It is not read
   with the register: that would be one Portal call per row, on load.
   `parseStudentProfile` anchors on `divProfile_BioData`, so a reply without it is
   a 502, while a student whose page states `CGPA: NA` and no numbers is an answer
-  the panel states in words.
+  the panel states in words. **The backlogs table is on that same page and its
+  data row is never closed** — it and the `Total backlogs` row arrive as one
+  `<tr>` — so `parseStudentBacklogs` reads the cells in order rather than by row,
+  the same defect as the unclosed SGPA row. The red `*` it puts before a subject
+  is kept as written: the page says nowhere what it means. A page with no
+  backlogs either says so in words (`Student have no backlogs`) or leaves the
+  section empty, and those are different answers — the words are shown, the empty
+  section is not.
 
 - **The All subjects panel's absent dates are one more Portal answer, not a
   Monday-to-Friday subtraction.** The class report aggregates by subject and

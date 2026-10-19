@@ -107,8 +107,8 @@ The flags on a row and the counts in the summary come from one pass in
 
 **Student details**:
 The panel a register row opens: that row's own figures, the dates the Portal says
-that student missed, and the GPA, semesters and phone numbers ECAP states for the
-one student. The figures are the row already on screen; the absences are the
+that student missed, and the GPA, semesters, phone numbers and backlogs ECAP
+states for the one student. The figures are the row already on screen; the absences are the
 dates inside the **asked window** — the Portal states only the days a window
 covers — and a second list beside them gives the same student's absences over the
 remembered semester start, so a narrowed window does not hide the semester. The
@@ -162,6 +162,16 @@ The numbers the Portal's StudentProfile page filled in for a student, under the
 Portal's own labels (`Mobile.No`, `Father Mobile.No`). A label it left blank is
 not shown at all, because a blank field is not a number the app knows.
 _Avoid_: Contact, guardian details
+
+**Backlogs**:
+The subjects the Portal's StudentProfile page lists under its own `BACKLOGS`
+heading, by semester, with the page's own `Total backlogs` line. The page marks
+some of them in red with an asterisk and says nowhere what the mark means, so it
+is shown as written and not explained. A page with no backlogs says so in words on
+one build (`Student have no backlogs`) and leaves the section empty on another: the
+words are shown, because a stated absence is an answer, and a page that says
+nothing about them gets no section at all.
+_Avoid_: Arrears, supplementary exams, failed subjects
 
 ## Identity
 
