@@ -213,6 +213,18 @@ export async function handleRegister(
  * A report ECAP will not give changes nothing else: the panel's GPA and numbers
  * are the main read, and a 401 still ends the session.
  */
+/** One student's absent days from their own day-wise grid, over the window
+ *  given. Absent where the grid states none — which is not a clean sheet. A
+ *  failure throws; the callers decide what a failure means for them. */
+async function studentWiseAbsent(
+  portal: PortalReader,
+  roll: string,
+  name: string,
+  p: Record<Level, Option> & { from: string; to: string }
+): Promise<{ absent?: string[] }> {
+  const absent = parseStudentAbsences(await portal.studentWise(roll, name, p));
+  return absent ? { absent } : {};
+}
 async function readAbsences(
   portal: PortalReader,
   roll: string,
@@ -221,14 +233,11 @@ async function readAbsences(
   const { register } = b;
   if (!register || !isAllSubjects(register.subject)) return {};
   try {
-    const absent = parseStudentAbsences(
-      await portal.studentWise(roll, b.name ?? "", {
-        ...requireLevels(register),
-        from: register.from,
-        to: register.to,
-      })
-    );
-    return absent ? { absent } : {};
+    return await studentWiseAbsent(portal, roll, b.name ?? "", {
+      ...requireLevels(register),
+      from: register.from,
+      to: register.to,
+    });
   } catch (error) {
     if (error instanceof HttpError && error.status === 401) throw error;
     return {};
@@ -281,9 +290,12 @@ export async function handleSemStart(
  * the same register read twice (subject path) or the same Student Wise read
  * twice (All subjects path), over the remembered start instead of the typed
  * From. Returns only that student's dates, never a roster, so the panel can
- * name a full-semester list beside the window's own. Absent where ECAP would
- * not give the wider read, which is not a clean sheet; a 401 still propagates
- * so a dead session signs out.
+ * name a full-semester list beside the window's own.
+ *
+ * A student the wider grid never mentions is stated as nothing, not as a clean
+ * sheet: the read said nothing about them, which is not a finding. A failing
+ * read throws, and the client says so on the panel — except a 401, which ends
+ * the session instead.
  */
 export async function handleSemAbsences(
   portal: PortalReader,
@@ -298,13 +310,17 @@ export async function handleSemAbsences(
   if (!to) throw new HttpError(400, "Choose a date range.");
   const { from } = b;
   if (isAllSubjects(p.subject)) {
-    const absent = parseStudentAbsences(
-      await portal.studentWise(roll, b.name ?? "", { ...p, from, to })
-    );
-    return absent ? { absent } : {};
+    return await studentWiseAbsent(portal, roll, b.name ?? "", {
+      ...p,
+      from,
+      to,
+    });
   }
   const rows = parseRegister(await portal.register({ ...p, from, to }));
-  return { absent: rows.find((row) => row.roll === roll)?.absent ?? [] };
+  const row = rows.find((r) => r.roll === roll);
+  // A student the wider grid does not mention is stated as nothing, never as a
+  // clean sheet: the read said nothing about them, which is not a finding.
+  return row ? { absent: row.absent } : {};
 }
 export async function handleFacultyProfile(
   portal: PortalReader

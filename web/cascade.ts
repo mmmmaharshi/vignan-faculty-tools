@@ -304,15 +304,19 @@ function calendarDays(from: string, to: string): number | null {
 export function chosenFacts(
   opts: OptionsReply,
   sel: Sel,
-  range?: Range,
-  classesHeld?: number | null,
-  statedFrom?: string | null,
-  /** The earliest start day known for this class — the memory in
-   *  `sem-starts.ts`, which can predate the window this register covers. Named
-   *  on its own row; the Date Range above it always names this register's own
-   *  window, never the memory. */
-  semStart?: string | null
+  tail?: {
+    /** The window the figures on screen cover. */
+    range?: Range;
+    /** Days the subject met in it, as the Portal counted them. */
+    classesHeld?: number | null;
+    /** The register's own first day, where it stated one. */
+    statedFrom?: string | null;
+    /** The earliest start day known for the class, which can predate the
+     *  window. Named on its own row. */
+    semStart?: string | null;
+  }
 ): ChosenFact[] {
+  const { range, classesHeld, statedFrom, semStart } = tail ?? {};
   const facts = LEVELS.flatMap(([key, label]) => {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
     return hit ? [{ label, value: hit.label }] : [];

@@ -78,7 +78,11 @@ Wise report**, asked for inside the read the panel already makes.
   cost of one more Portal call on the open — about what the profile read already
   costs, one student at a time, only where the report on screen states nothing.
 - **The subject path is untouched**: same register, same row, no second call, and
-  the panel's dates still come from the row it opened.
+  the panel's dates still come from the row it opened. **Amended 2026-10-19** (see
+  ADR 0022): when the window is narrowed, the subject path pays a second read of
+  the same register over the remembered semester start, so the panel can show the
+  semester's absences beside the window's own. The row on screen still supplies
+  the window's dates; only the wider list is a read.
 - **The rejected shape stays available.** One register call per subject is still
   something the Portal supports, and it is what a *section-wide* day-wise view
   would need; what this ADR settles is that the panel, which is about one

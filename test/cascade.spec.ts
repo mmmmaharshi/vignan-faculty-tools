@@ -89,8 +89,7 @@ const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
       section: "5",
       subject: "6",
     }),
-    { from: "01/10/2026", to: "16/10/2026" },
-    classesHeld
+    { range: { from: "01/10/2026", to: "16/10/2026" }, classesHeld }
   );
   return facts.slice(
     facts.findIndex((fact) => fact.label.startsWith("Date Range"))
@@ -115,10 +114,12 @@ const statedTail = (statedFrom: string, semStart?: string): ChosenFact[] => {
       section: "5",
       subject: "6",
     }),
-    { from: "01/07/2026", to: "16/10/2026" },
-    6,
-    statedFrom,
-    semStart
+    {
+      range: { from: "01/07/2026", to: "16/10/2026" },
+      classesHeld: 6,
+      statedFrom,
+      semStart,
+    }
   );
   return facts.slice(
     facts.findIndex((fact) => fact.label.startsWith("Date Range"))
@@ -339,7 +340,7 @@ test.describe("the register, before it is sent", () => {
         section: "5",
         subject: "6",
       }),
-      { from: "01/10/2026", to: "16/10/2026" }
+      { range: { from: "01/10/2026", to: "16/10/2026" } }
     );
     expect(facts).toEqual([
       { label: "Course", value: "L1" },

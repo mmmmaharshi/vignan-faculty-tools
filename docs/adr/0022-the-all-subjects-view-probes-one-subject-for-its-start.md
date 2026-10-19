@@ -75,9 +75,10 @@ is ever fetched" survives the rewrite.
   returned `05/08/2026` while the typed From was months earlier.
 - Where the probed subject's grid states no dates, no Sem Start Date row is
   shown — stated as nothing, never as a clean sheet, same as the snap.
-- `chosenFacts` still owns the subject path's Sem Start Date row from
-  `statedFrom`; the probe only feeds the All subjects path, which has no
-  `statedFrom` of its own.
+- `chosenFacts` owns the Sem Start Date row, from the earliest day known
+  (`semStart`) — never from the window's own start, which is the Date Range's
+  business. The Date Range names the window the figures on screen cover: the
+  register's own first day where it stated one, else the window asked for.
 
 ## The panel's full-semester absent list
 
@@ -99,3 +100,18 @@ Two windows on one panel is the risk here, so each list names its own period:
 the window's list keeps its range line, and the semester's names the remembered
 start to the same end. A grid that states no dates is stated as nothing, never
 as a clean sheet.
+
+Three further rules the panel obeys:
+
+- **The card's Date Range names the window the figures on screen cover**, and
+  the Sem Start Date row names the remembered start. They are different things:
+  the class report covers the whole window, so its Date Range is the window
+  asked for, while the row is the earliest day ever seen. The From input shows
+  where the *next* load will start.
+- **On the subject path the wider list is that subject's alone**, and its title
+  says so — "Absent — full semester, this subject" — because the All subjects
+  path's list is the whole section's under the same name.
+- **A wider read ECAP would not give says so on the panel.** A 502 is not
+  silence: no second list with no reason reads as "no absences in the
+  semester". A 401 has already ended the session, so it says nothing. A student
+  a wider grid never mentions is stated as nothing, not as a clean sheet.

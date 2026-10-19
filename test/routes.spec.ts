@@ -721,10 +721,10 @@ test.describe("the full-semester absences read", () => {
     ).toEqual([["05/08/2026", "28/09/2026"]]);
     expect(reply).toEqual({ absent: ["06/08"] });
   });
-  test("a student missing from the wider grid gets an empty list, not nothing", async () => {
+  test("a student the wider grid never mentions is stated as nothing", async () => {
     const { reader } = fake({ register: GRID });
     const reply = await handleSemAbsences(reader, semAbsencesAsked("21CS999"));
-    expect(reply).toEqual({ absent: [] });
+    expect(reply, "not a clean sheet").toEqual({});
   });
   test("the All subjects path reads that student's own grid instead", async () => {
     const { reader, calls } = fake();

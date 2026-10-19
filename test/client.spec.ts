@@ -312,9 +312,13 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("row", {
-        name: "Date Range 05/08/2026 to 16/10/2026",
+        name: "Date Range 01/07/2026 to 16/10/2026",
       }),
-      "the probe's first day starts the range where the report states none"
+      "the range names the window the class report covered, not the probe's day"
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "Sem Start Date 05/08/2026" }),
+      "the probe's day is the start, on its own row"
     ).toBeVisible();
     // The class report states no count either, so the range stays bare — the
     // probed day names the start but no frame count travels with it.
@@ -345,11 +349,13 @@ test.describe("the app's own data layer", () => {
       "the input names the day the figures begin on"
     ).toHaveValue("2026-09-01");
     await expect(
-      page.getByText("01/09/2026 to 16/10/2026", { exact: true }),
+      page.getByRole("row", {
+        name: /Date Range.*01\/09\/2026 to 16\/10\/2026/,
+      }),
       "the range fact agrees with the input it just snapped"
     ).toBeVisible();
     await expect(
-      page.getByText("01/09/2026", { exact: true }),
+      page.getByRole("row", { name: /Sem Start Date\s*01\/09\/2026/ }),
       "the register's first day is named on its own row"
     ).toBeVisible();
   });
@@ -391,7 +397,7 @@ test.describe("the app's own data layer", () => {
       .toBe("MFCS");
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(
-      page.getByText("01/09/2026", { exact: true }),
+      page.getByRole("row", { name: /Sem Start Date\s*01\/09\/2026/ }),
       "the first load names its own start"
     ).toBeVisible();
     // A narrower window moves the figures — and the From input with them —
@@ -404,7 +410,7 @@ test.describe("the app's own data layer", () => {
     });
     await expect(page.getByLabel("From")).toHaveValue("2026-10-01");
     await expect(
-      page.getByText("01/09/2026", { exact: true }),
+      page.getByRole("row", { name: /Sem Start Date\s*01\/09\/2026/ }),
       "the row keeps the original start, not the window's"
     ).toBeVisible();
   });
@@ -455,16 +461,22 @@ test.describe("the app's own data layer", () => {
     await expect(dialog.getByText("CGPA 5.61")).toBeVisible({
       timeout: 15_000,
     });
-    await expect(dialog.getByText("12/10", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByRole("cell", { name: "12/10", exact: true }),
+      "the window's own list holds the window's absences"
+    ).toBeVisible();
     await expect(
       dialog.getByText("01/10/2026 to 16/10/2026", { exact: true }),
       "the window's list names the window it came from"
     ).toBeVisible();
     await expect(
-      dialog.getByText("Absent — full semester (2)"),
+      dialog.getByText("Absent — full semester, this subject (2)"),
       "the semester's list arrives beside it, not instead of it"
     ).toBeVisible();
-    await expect(dialog.getByText("05/08", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByRole("cell", { name: "05/08", exact: true }),
+      "and it holds the semester's absences"
+    ).toBeVisible();
     await expect(
       dialog.getByText("01/09/2026 to 16/10/2026", { exact: true }),
       "and it names the remembered start, not the typed one"

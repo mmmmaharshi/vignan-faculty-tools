@@ -108,16 +108,21 @@ The flags on a row and the counts in the summary come from one pass in
 **Student details**:
 The panel a register row opens: that row's own figures, the dates the Portal says
 that student missed, and the GPA, semesters and phone numbers ECAP states for the
-one student. The figures and the absences are the row already on screen; the GPA,
-semesters and numbers are one Portal call for that roll number, made when the
-panel opens rather than with the register, because the Portal answers for one
+one student. The figures are the row already on screen; the absences are the
+dates inside the **asked window** — the Portal states only the days a window
+covers — and a second list beside them gives the same student's absences over the
+remembered semester start, so a narrowed window does not hide the semester. The
+GPA, semesters and numbers are one Portal call for that roll number, made when
+the panel opens rather than with the register, because the Portal answers for one
 student at a time. On the **All subjects** view, whose report aggregates by
 subject and states no dates at all, that one call is joined by a second — the
 **Student Wise report** for the same roll number over the same range — because
-there the dates exist nowhere else. Not the same thing as **Profile**, which
-is the rail's screen about the signed-in user's own session. See
-`docs/adr/0018-read-a-students-profile-when-the-panel-opens.md` and
-`docs/adr/0021-the-all-subjects-panel-asks-for-one-students-grid.md`.
+there the dates exist nowhere else. The wider read is a third call, over the
+remembered start, and only when the window starts after it. Not the same thing
+as **Profile**, which is the rail's screen about the signed-in user's own
+session. See `docs/adr/0018-read-a-students-profile-when-the-panel-opens.md`,
+`docs/adr/0021-the-all-subjects-panel-asks-for-one-students-grid.md` and
+`docs/adr/0022-the-all-subjects-view-probes-one-subject-for-its-start.md`.
 _Avoid_: Profile page, student profile, sidebar
 
 **Absent dates**:
@@ -126,7 +131,7 @@ read, never a count subtracted from a calendar. A subject register states them i
 the row that was opened; the All subjects report states none, so there the panel
 reads that one student's own **Student Wise report** instead
 (ADR 0021). A grid that states no dates leaves the list off rather than reading
-as a clean sheet.
+as a clean sheet, and so does a student a wider grid never mentions.
 _Avoid_: Missed days, absent count, leave
 
 **Student Wise report**:

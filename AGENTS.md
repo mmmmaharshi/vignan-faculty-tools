@@ -369,7 +369,10 @@ carries one also has its name in text.
   when they coincide the list on screen already is the full semester. Gated on
   the drawer being open, not on a student being set: `detail` survives the
   ~200ms slide-out by design, and a register loaded in that window must not
-  read for a panel that is already leaving. See ADR 0022.
+  read for a panel that is already leaving. On the subject path the wider list
+  is that subject's alone and its title says so; a wider read ECAP would not
+  give says so on the panel rather than passing for "no absences in the
+  semester". See ADR 0022.
 
 - **The GPA is the Portal's own line, printed as it stands.** `CGPA: 5.61
   Credits:16/19 48.55 %` is one sentence on the page, and the percentage beside

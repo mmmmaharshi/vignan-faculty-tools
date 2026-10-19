@@ -299,6 +299,17 @@ const App = (): React.JSX.Element => {
   const profileNote: Note | null = profile.error
     ? { kind: "error", text: messageOf(profile.error) }
     : null;
+  /** A wider read ECAP would not give is said so, not left silent: no second
+   *  list with no reason reads as "no absences in the semester". A 401 has
+   *  already ended the session through the sweep above, so it says nothing
+   *  here. */
+  const semAbsencesNote: Note | null =
+    semAbsences.error && !isExpired(semAbsences.error)
+      ? {
+          kind: "warning",
+          text: "ECAP would not give this student's full-semester absences.",
+        }
+      : null;
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The name arriving is also the moment the saved classes become readable, so
    *  both are set together: a restore never went through the sign-in form. The
@@ -542,14 +553,16 @@ const App = (): React.JSX.Element => {
   // carries. Reordering them by attendance made the numbers read as a ranking
   // rather than as a roster. A student needing a check-in is found by the tint,
   // not by being at the top of the list.
-  const registerFacts = chosenFacts(
-    opts,
-    sel,
-    summary?.range,
-    summary?.classesHeld,
-    semSeen,
-    semStartShown
-  );
+  const registerFacts = chosenFacts(opts, sel, {
+    range: summary?.range,
+    classesHeld: summary?.classesHeld,
+    // The Date Range names the window the figures on screen cover: the
+    // register's own first day where it stated one, else the window asked for.
+    // The probe's day is NOT that — the class report covers the whole window —
+    // so it belongs in the Sem Start Date row alone.
+    statedFrom: summary?.statedFrom,
+    semStart: semStartShown,
+  });
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };
     // The subject has nothing below it, so it re-reads nothing; every other level
@@ -699,13 +712,18 @@ const App = (): React.JSX.Element => {
             overallMode={overallMode}
             profile={profile.data ?? null}
             busy={profile.isLoading}
-            note={profileNote}
+            note={profileNote ?? semAbsencesNote}
             absenceRange={
               summary?.range
                 ? `${summary.statedFrom || summary.range.from} to ${summary.range.to}`
                 : null
             }
             fullAbsent={semAbsences.data?.absent ?? null}
+            fullTitle={
+              overallMode
+                ? "Absent — full semester"
+                : "Absent — full semester, this subject"
+            }
             fullRange={
               semStartShown && summary
                 ? `${semStartShown} to ${summary.range.to}`

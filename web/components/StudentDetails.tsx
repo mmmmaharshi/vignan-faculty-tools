@@ -52,6 +52,10 @@ type StudentDetailsProps = {
   fullAbsent?: string[] | null;
   /** The period the full-semester list covers, so it names its own window. */
   fullRange?: string | null;
+  /** What the full-semester list is called. On the All subjects path it is the
+   *  student's absences across every subject; on a subject path it is that
+   *  subject's alone, and the title says so. */
+  fullTitle?: string;
 };
 type FigureProps = {
   label: string;
@@ -157,6 +161,7 @@ export const StudentDetails = ({
   absenceRange,
   fullAbsent,
   fullRange,
+  fullTitle = "Absent — full semester",
 }: StudentDetailsProps): React.JSX.Element => {
   const phones = profile?.phones ?? [];
   const cgpa = profile?.cgpa ?? "";
@@ -246,7 +251,7 @@ export const StudentDetails = ({
               remembered start when the window above starts after it. */}
           {fullAbsent?.length ? (
             <AbsenceBlock
-              title="Absent — full semester"
+              title={fullTitle}
               dates={fullAbsent}
               range={fullRange}
             />
