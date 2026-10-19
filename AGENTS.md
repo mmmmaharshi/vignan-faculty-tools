@@ -358,6 +358,19 @@ carries one also has its name in text.
   in `localStorage`, keyed by the five levels plus the Portal's batch title),
   so a later From moves the figures but never the row. See ADR 0022.
 
+- **A panel's absent dates are the asked window's, and a narrowed window says
+  so.** The Portal states only the days inside the window, so the list under
+  "Absent" is window-only — a panel opened on an October register shows October
+  absences, not the semester's. The panel therefore reads the **same** read
+  again over the remembered start and shows it beside as "Absent — full
+  semester", named with its own period. No new kind of Portal call: the subject
+  path reads the same register grid, the All subjects path the same Student
+  Wise grid. Asked only when the window starts after the remembered start —
+  when they coincide the list on screen already is the full semester. Gated on
+  the drawer being open, not on a student being set: `detail` survives the
+  ~200ms slide-out by design, and a register loaded in that window must not
+  read for a panel that is already leaving. See ADR 0022.
+
 - **The GPA is the Portal's own line, printed as it stands.** `CGPA: 5.61
   Credits:16/19 48.55 %` is one sentence on the page, and the percentage beside
   it is read the same way the attendance columns are — never recomputed from the

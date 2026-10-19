@@ -4,12 +4,17 @@ import { HttpError } from "../portal-replies";
 import {
   handleOptions,
   handleRegister,
+  handleSemAbsences,
   handleSemStart,
   handleStudentProfile,
   requireLevels,
 } from "../server-routes";
 import type { PortalReader } from "../server-routes";
-import type { Option, RegisterRequest } from "../shared/api";
+import type {
+  Option,
+  RegisterRequest,
+  SemAbsencesRequest,
+} from "../shared/api";
 import { ALL_SUBJECTS } from "../shared/api";
 
 const opt = (value: string, label = `L${value}`, title = ""): Option => ({
@@ -149,6 +154,15 @@ const levels = (partial: Partial<RegisterRequest> = {}): RegisterRequest => ({
   from: "01/01/2026",
   to: "28/09/2026",
   ...partial,
+});
+const semAbsencesAsked = (
+  roll = "21CS001",
+  partial: Partial<RegisterRequest> = {}
+): SemAbsencesRequest => ({
+  roll,
+  name: "A",
+  register: levels(partial),
+  from: "05/08/2026",
 });
 test.describe("the options ladder", () => {
   test("course alone, so nothing below it is asked for", () => {
@@ -687,6 +701,70 @@ test.describe("the semester start probe", () => {
       register: () => Promise.reject(new HttpError(401, "expired")),
     };
     const failure = await handleSemStart(dead, levels()).catch(
+      (error: unknown) => error
+    );
+    expect((failure as HttpError).status).toBe(401);
+  });
+});
+test.describe("the full-semester absences read", () => {
+  const GRID = `<table>
+    <tr><th>Sl.No</th><th>Roll.No</th><th>Name</th><th>05/08</th><th>06/08</th><th>Attend/Held</th><th>%</th></tr>
+    <tr><td>1</td><td>21CS001</td><td>A</td><td>P</td><td>A</td><td>1/2</td><td>50</td></tr>
+    <tr><td>2</td><td>21CS002</td><td>B</td><td>A</td><td>P</td><td>1/2</td><td>50</td></tr>
+  </table>`;
+  test("a subject path reads that student's row over the wider window", async () => {
+    const { reader, calls } = fake({ register: GRID });
+    const reply = await handleSemAbsences(reader, semAbsencesAsked());
+    expect(
+      calls.register.map((c) => [c.from, c.to]),
+      "the same register read, over the remembered start"
+    ).toEqual([["05/08/2026", "28/09/2026"]]);
+    expect(reply).toEqual({ absent: ["06/08"] });
+  });
+  test("a student missing from the wider grid gets an empty list, not nothing", async () => {
+    const { reader } = fake({ register: GRID });
+    const reply = await handleSemAbsences(reader, semAbsencesAsked("21CS999"));
+    expect(reply).toEqual({ absent: [] });
+  });
+  test("the All subjects path reads that student's own grid instead", async () => {
+    const { reader, calls } = fake();
+    const reply = await handleSemAbsences(
+      reader,
+      semAbsencesAsked("21CS001", { subject: ALL_SUBJECTS })
+    );
+    expect(calls.register, "no roster read on this path").toHaveLength(0);
+    expect(calls.studentWise).toEqual([["21CS001", "A"]]);
+    expect(reply).toEqual({ absent: ["05/08", "06/08"] });
+  });
+  test("a grid that states no dates states nothing, not a clean sheet", async () => {
+    const { reader } = fake({ studentWise: "<p>not that report</p>" });
+    const reply = await handleSemAbsences(
+      reader,
+      semAbsencesAsked("21CS001", { subject: ALL_SUBJECTS })
+    );
+    expect(reply.absent, "absent, not an empty list").toBeUndefined();
+  });
+  test("no student, no register or no start is refused before the portal is asked", async () => {
+    const { reader, calls } = fake({ register: GRID });
+    await expect(
+      handleSemAbsences(reader, { register: levels(), from: "05/08/2026" })
+    ).rejects.toThrow("Choose a student.");
+    await expect(
+      handleSemAbsences(reader, { roll: "21CS001", from: "05/08/2026" })
+    ).rejects.toThrow("Open a register first.");
+    await expect(
+      handleSemAbsences(reader, { roll: "21CS001", register: levels() })
+    ).rejects.toThrow("Choose a date range.");
+    expect(calls.register).toHaveLength(0);
+    expect(calls.studentWise).toHaveLength(0);
+  });
+  test("a dead session stays a 401, so the client signs out", async () => {
+    const { reader } = fake();
+    const dead: PortalReader = {
+      ...reader,
+      register: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleSemAbsences(dead, semAbsencesAsked()).catch(
       (error: unknown) => error
     );
     expect((failure as HttpError).status).toBe(401);

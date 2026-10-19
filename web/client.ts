@@ -9,6 +9,8 @@ import type {
   RegisterReply,
   RegisterRequest,
   FacultyProfile,
+  SemAbsencesReply,
+  SemAbsencesRequest,
   SemStartReply,
   SessionReply,
   StudentProfile,
@@ -35,6 +37,7 @@ const SESSION_PATH = "/api/session";
 const REGISTER_PATH = "/api/register";
 const STUDENT_PATH = "/api/student";
 const SEM_START_PATH = "/api/sem-start";
+const SEM_ABSENCES_PATH = "/api/sem-absences";
 const FACULTY_PROFILE_PATH = "/api/faculty-profile";
 const OPTIONS_PATH = "/api/options";
 /** The option chain is one key, not five: its requests depend on each other, so
@@ -177,6 +180,27 @@ export function useSemStart(request: RegisterRequest | null) {
     request ? [SEM_START_PATH, request] : null,
     ([, body]: [string, RegisterRequest]) =>
       postJson<SemStartReply>(SEM_START_PATH, body),
+    {
+      revalidateOnFocus: false,
+      revalidateOnReconnect: false,
+      shouldRetryOnError: false,
+      dedupingInterval: 0,
+    }
+  );
+}
+/**
+ * One student's absent days over a wider window than the register on screen:
+ * the same register read twice (subject path) or the same Student Wise read
+ * twice (All subjects path), over the remembered semester start. Asked only
+ * when the window starts after that start — when they coincide the list on
+ * screen already is the full semester. A failure stays where it happened,
+ * except a 401, which still ends the session through the shared failure sweep.
+ */
+export function useSemAbsences(asked: SemAbsencesRequest | null) {
+  return useSWR<SemAbsencesReply, ApiError>(
+    asked ? [SEM_ABSENCES_PATH, asked] : null,
+    ([, body]: [string, SemAbsencesRequest]) =>
+      postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body),
     {
       revalidateOnFocus: false,
       revalidateOnReconnect: false,

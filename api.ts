@@ -33,6 +33,7 @@ import {
   handleFacultyProfile,
   handleOptions,
   handleRegister,
+  handleSemAbsences,
   handleSemStart,
   handleStudentProfile,
 } from "./server-routes";
@@ -48,6 +49,7 @@ import type {
   Option,
   OptionsRequest,
   RegisterRequest,
+  SemAbsencesRequest,
   SessionReply,
   StudentRequest,
 } from "./shared/api";
@@ -531,6 +533,14 @@ export function createApi({
       if (req.method === "POST" && path === "/api/faculty-profile") {
         return json(
           await withPortal(s, (p) => handleFacultyProfile(p.reader)),
+          200,
+          cookie
+        );
+      }
+      if (req.method === "POST" && path === "/api/sem-absences") {
+        const body = await readJson<SemAbsencesRequest>(req);
+        return json(
+          await withPortal(s, (p) => handleSemAbsences(p.reader, body)),
           200,
           cookie
         );

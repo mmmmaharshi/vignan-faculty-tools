@@ -45,6 +45,13 @@ type StudentDetailsProps = {
    *  period rather than borrowing the register's Date Range fact above. Null
    *  when no register has loaded yet. */
   absenceRange?: string | null;
+  /** The same student's absent days over the whole semester, read over the
+   *  remembered start when the window above starts after it. Null when the
+   *  window already is the whole semester, or when ECAP would not give the
+   *  wider read — either way there is no second list to show. */
+  fullAbsent?: string[] | null;
+  /** The period the full-semester list covers, so it names its own window. */
+  fullRange?: string | null;
 };
 type FigureProps = {
   label: string;
@@ -58,6 +65,52 @@ const chunked = (dates: readonly string[]): string[][] =>
   Array.from({ length: Math.ceil(dates.length / 5) }, (_, i) =>
     dates.slice(i * 5, i * 5 + 5)
   );
+/** One absent-dates block: a heading with its count, its own period line, the
+ *  five-per-row table, and a copy button for the comma-separated dates. */
+const AbsenceBlock = ({
+  title,
+  dates,
+  range,
+}: {
+  title: string;
+  dates: readonly string[];
+  range?: string | null;
+}): React.JSX.Element => (
+  <>
+    <Group gap="xs" align="center" justify="space-between" w="100%">
+      <Text c="dimmed" size="xs" tt="uppercase">
+        {title} ({dates.length})
+      </Text>
+      <CopyButton value={dates.join(", ")} timeout={2000}>
+        {({ copied, copy }) => (
+          <Button size="xs" variant="subtle" onClick={copy}>
+            {copied ? "Copied Dates" : "Copy Dates"}
+          </Button>
+        )}
+      </CopyButton>
+    </Group>
+    {range ? (
+      <Text c="dimmed" size="xs">
+        {range}
+      </Text>
+    ) : null}
+    <Table striped withTableBorder withColumnBorders tabularNums>
+      <Table.Tbody>
+        {chunked(dates).map((row) => (
+          <Table.Tr key={row[0]}>
+            {row.map((date) => (
+              <Table.Td key={date} ta="center">
+                <Text size="sm" fw={600}>
+                  {date}
+                </Text>
+              </Table.Td>
+            ))}
+          </Table.Tr>
+        ))}
+      </Table.Tbody>
+    </Table>
+  </>
+);
 const FigureRow = ({
   label,
   cell,
@@ -102,6 +155,8 @@ export const StudentDetails = ({
   busy,
   note,
   absenceRange,
+  fullAbsent,
+  fullRange,
 }: StudentDetailsProps): React.JSX.Element => {
   const phones = profile?.phones ?? [];
   const cgpa = profile?.cgpa ?? "";
@@ -181,40 +236,20 @@ export const StudentDetails = ({
               list when there are none, because a grid that states no dates must
               not be read as a clean sheet. */}
           {absences.length ? (
-            <>
-              <Group gap="xs" align="center" justify="space-between" w="100%">
-                <Text c="dimmed" size="xs" tt="uppercase">
-                  Absent ({absences.length})
-                </Text>
-                <CopyButton value={absences.join(", ")} timeout={2000}>
-                  {({ copied, copy }) => (
-                    <Button size="xs" variant="subtle" onClick={copy}>
-                      {copied ? "Copied Dates" : "Copy Dates"}
-                    </Button>
-                  )}
-                </CopyButton>
-              </Group>
-              {absenceRange ? (
-                <Text c="dimmed" size="xs">
-                  {absenceRange}
-                </Text>
-              ) : null}
-              <Table striped withTableBorder withColumnBorders tabularNums>
-                <Table.Tbody>
-                  {chunked(absences).map((row) => (
-                    <Table.Tr key={row[0]}>
-                      {row.map((date) => (
-                        <Table.Td key={date} ta="center">
-                          <Text size="sm" fw={600}>
-                            {date}
-                          </Text>
-                        </Table.Td>
-                      ))}
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </>
+            <AbsenceBlock
+              title="Absent"
+              dates={absences}
+              range={absenceRange}
+            />
+          ) : null}
+          {/* The same student's absences over the whole semester, read over the
+              remembered start when the window above starts after it. */}
+          {fullAbsent?.length ? (
+            <AbsenceBlock
+              title="Absent — full semester"
+              dates={fullAbsent}
+              range={fullRange}
+            />
           ) : null}
           {/* Both figures are badged here where the table badges the subject
               alone: two badges on one table row is noise, but two labelled lines

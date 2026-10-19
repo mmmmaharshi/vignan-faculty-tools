@@ -78,3 +78,24 @@ is ever fetched" survives the rewrite.
 - `chosenFacts` still owns the subject path's Sem Start Date row from
   `statedFrom`; the probe only feeds the All subjects path, which has no
   `statedFrom` of its own.
+
+## The panel's full-semester absent list
+
+The dates on a panel are the register's own columns, and the Portal states only
+the days inside the asked window — so a window narrowed to October shows October
+absences, not the semester's. The panel therefore reads the **same** read again
+over the remembered start and shows it as a second list, `Absent — full
+semester`, beside the window's own. No new kind of Portal call: the subject path
+reads the same register grid, the All subjects path the same Student Wise grid.
+
+It is asked only when the window starts after the remembered start. When they
+coincide, the list on screen already is the full semester and there is no second
+list to show. The read is gated on the drawer being open, not merely on a
+student being set: `detail` survives the ~200ms slide-out by design, and a
+register loaded in that window must not read for a panel that is already
+leaving.
+
+Two windows on one panel is the risk here, so each list names its own period:
+the window's list keeps its range line, and the semester's names the remembered
+start to the same end. A grid that states no dates is stated as nothing, never
+as a clean sheet.

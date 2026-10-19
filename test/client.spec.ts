@@ -35,6 +35,9 @@ let optionsCalls = 0;
 let registerCalls = 0;
 let registerFails = false;
 let statedFrom = "";
+/** How often the open panel asked for the wider, full-semester window — sent
+ *  only when it starts before the register on screen. */
+let semAbsencesCalls = 0;
 /** How often the All subjects view probed one subject's earliest held day —
  *  sent only on that path, where the report on screen states no dates. */
 let semStartCalls = 0;
@@ -183,6 +186,11 @@ const stub = async (route: Route): Promise<void> => {
     await json({ statedFrom: "05/08/2026" });
     return;
   }
+  if (path === "/api/sem-absences") {
+    semAbsencesCalls += 1;
+    await json({ absent: ["05/08", "06/08"] });
+    return;
+  }
   if (path === "/api/student") {
     const { roll, register } = request.postDataJSON() as StudentRequest;
     profileRolls.push(roll);
@@ -248,6 +256,7 @@ test.describe("the app's own data layer", () => {
     registerFails = false;
     statedFrom = "";
     semStartCalls = 0;
+    semAbsencesCalls = 0;
     profileRolls.length = 0;
     absentAsked = false;
     await page.route("**/api/**", stub);
@@ -398,6 +407,69 @@ test.describe("the app's own data layer", () => {
       page.getByText("01/09/2026", { exact: true }),
       "the row keeps the original start, not the window's"
     ).toBeVisible();
+  });
+  test("a narrowed window still names the full semester's absences", async ({
+    page,
+  }) => {
+    statedFrom = "01/09/2026";
+    await signInAndSettle(page);
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("MFCS");
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    // Let the From input settle on the register's own start before opening
+    // the panel: opening it against the pre-snap window would ask for the
+    // wider read the snap then makes unnecessary.
+    await expect(page.getByLabel("From")).toHaveValue("2026-09-01");
+    const panel = page.getByRole("button", {
+      name: "Show details for B student",
+    });
+    await panel.click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("CGPA 5.61")).toBeVisible({
+      timeout: 15_000,
+    });
+    // The snapped window starts at the remembered start, so the list on
+    // screen already is the full semester — no second list.
+    await expect(
+      dialog.getByText("Absent — full semester", { exact: false })
+    ).toHaveCount(0);
+    expect(
+      semAbsencesCalls,
+      "no wider read when the window is the semester"
+    ).toBe(0);
+    await page.getByRole("button", { name: "Close student details" }).click();
+    // Narrowing the window keeps the window's own list and adds the semester's.
+    statedFrom = "01/10/2026";
+    await page.getByLabel("From").fill("2026-10-01");
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await panel.click();
+    await expect(dialog.getByText("CGPA 5.61")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(dialog.getByText("12/10", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByText("01/10/2026 to 16/10/2026", { exact: true }),
+      "the window's list names the window it came from"
+    ).toBeVisible();
+    await expect(
+      dialog.getByText("Absent — full semester (2)"),
+      "the semester's list arrives beside it, not instead of it"
+    ).toBeVisible();
+    await expect(dialog.getByText("05/08", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByText("01/09/2026 to 16/10/2026", { exact: true }),
+      "and it names the remembered start, not the typed one"
+    ).toBeVisible();
+    expect(semAbsencesCalls, "one wider read for the open panel").toBe(1);
   });
   test("ticked bars narrow the register, and unticking restores it", async ({
     page,

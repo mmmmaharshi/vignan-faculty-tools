@@ -120,6 +120,22 @@ export interface StudentProfile {
    *  Left out when ECAP would not give it, which is not a clean sheet. */
   absent?: string[];
 }
+/** One student's absent days over a wider window than the register on screen —
+ *  asked with the remembered semester start so the panel can name a full-sem
+ *  list beside the window's own. The window is the same register read twice
+ *  (subject grid) or the same Student Wise read twice (All subjects), never a
+ *  new kind of Portal call. */
+export interface SemAbsencesRequest {
+  roll: string;
+  name: string;
+  register: RegisterRequest;
+  /** dd/mm/yyyy start of the wider window. */
+  from: string;
+}
+export interface SemAbsencesReply {
+  /** Absent when ECAP would not give the wider read — not a clean sheet. */
+  absent?: string[];
+}
 /** The earliest day ECAP holds for one subject inside the asked window: the
  *  register's own first date column, resolved to a full dd/mm/yyyy date. Null
  *  where the register states no dates. Read by `handleSemStart`, which asks

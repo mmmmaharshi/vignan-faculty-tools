@@ -56,6 +56,7 @@ import {
   useSignOut,
   useStudentProfile,
   useFacultyProfile,
+  useSemAbsences,
   useSemStart,
 } from "./client";
 import type { RegisterClick } from "./client";
@@ -228,6 +229,27 @@ const App = (): React.JSX.Element => {
       : null;
   const semSeen = summary?.statedFrom ?? semStart.data?.statedFrom ?? null;
   const semStartShown = (semKey && (semStarts[semKey] ?? semSeen)) || null;
+  /** The full-semester absent list for the open panel: the same read that fed
+   *  the window's own list, asked again over the remembered start. Gated on the
+   *  drawer being open, not just on a student being set: `detail` survives the
+   *  ~200ms slide-out by design, and a register loaded in that window must not
+   *  read for a panel that is already leaving. Only when the window starts
+   *  after the remembered start — when they coincide the list on screen
+   *  already is the full semester, and there is no second list to show. */
+  const semAbsences = useSemAbsences(
+    detailOpen &&
+      detail &&
+      click?.request &&
+      semStartShown &&
+      toInputDate(semStartShown) < range.from
+      ? {
+          roll: detail.roll,
+          name: detail.name,
+          register: click.request,
+          from: semStartShown,
+        }
+      : null
+  );
   const classChosen =
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
@@ -267,7 +289,8 @@ const App = (): React.JSX.Element => {
     register.error ??
     profile.error ??
     facultyProfile.error ??
-    semStart.error;
+    semStart.error ??
+    semAbsences.error;
   const filterNote: Note | null =
     formNote ??
     (optionsError || register.error
@@ -680,6 +703,12 @@ const App = (): React.JSX.Element => {
             absenceRange={
               summary?.range
                 ? `${summary.statedFrom || summary.range.from} to ${summary.range.to}`
+                : null
+            }
+            fullAbsent={semAbsences.data?.absent ?? null}
+            fullRange={
+              semStartShown && summary
+                ? `${semStartShown} to ${summary.range.to}`
                 : null
             }
           />

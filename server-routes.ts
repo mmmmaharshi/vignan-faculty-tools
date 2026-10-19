@@ -21,6 +21,8 @@ import type {
   OptionsRequest,
   RegisterReply,
   RegisterRequest,
+  SemAbsencesReply,
+  SemAbsencesRequest,
   SemStartReply,
   StudentProfile,
   StudentRequest,
@@ -273,6 +275,36 @@ export async function handleSemStart(
   );
   if (!dates.length) return { statedFrom: null };
   return { statedFrom: statedStartDate(dates, { from: b.from, to: b.to }) };
+}
+/**
+ * One student's absent days over a wider window than the register on screen —
+ * the same register read twice (subject path) or the same Student Wise read
+ * twice (All subjects path), over the remembered start instead of the typed
+ * From. Returns only that student's dates, never a roster, so the panel can
+ * name a full-semester list beside the window's own. Absent where ECAP would
+ * not give the wider read, which is not a clean sheet; a 401 still propagates
+ * so a dead session signs out.
+ */
+export async function handleSemAbsences(
+  portal: PortalReader,
+  b: Partial<SemAbsencesRequest>
+): Promise<SemAbsencesReply> {
+  const roll = b.roll?.trim();
+  if (!roll) throw new HttpError(400, "Choose a student.");
+  if (!b.register) throw new HttpError(400, "Open a register first.");
+  if (!b.from) throw new HttpError(400, "Choose a date range.");
+  const p = requireLevels(b.register);
+  const { to } = b.register;
+  if (!to) throw new HttpError(400, "Choose a date range.");
+  const { from } = b;
+  if (isAllSubjects(p.subject)) {
+    const absent = parseStudentAbsences(
+      await portal.studentWise(roll, b.name ?? "", { ...p, from, to })
+    );
+    return absent ? { absent } : {};
+  }
+  const rows = parseRegister(await portal.register({ ...p, from, to }));
+  return { absent: rows.find((row) => row.roll === roll)?.absent ?? [] };
 }
 export async function handleFacultyProfile(
   portal: PortalReader
