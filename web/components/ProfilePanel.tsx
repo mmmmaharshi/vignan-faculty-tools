@@ -1,4 +1,4 @@
-import { Group, Image, Paper, Stack, Text, Title } from "@mantine/core";
+import { Group, Image, Paper, Stack, Table, Text, Title } from "@mantine/core";
 
 import type { FacultyProfile } from "../../shared/api";
 
@@ -75,6 +75,33 @@ export const ProfilePanel = ({
         label="Designation"
         value={designationValue(faculty ?? null, busy ?? false)}
       />
+      <Title order={5} mt="sm">
+        Leaves
+      </Title>
+      {faculty?.leaves?.length ? (
+        <Table striped withTableBorder tabularNums>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Leave</Table.Th>
+              <Table.Th ta="right">Opening</Table.Th>
+              <Table.Th ta="right">Used</Table.Th>
+              <Table.Th ta="right">Available</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {faculty.leaves.map((leave) => (
+              <Table.Tr key={leave.type}>
+                <Table.Td>{leave.type}</Table.Td>
+                <Table.Td ta="right">{leave.opening}</Table.Td>
+                <Table.Td ta="right">{leave.used}</Table.Td>
+                <Table.Td ta="right">{leave.available}</Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      ) : (
+        <Text size="sm">{busy ? "Reading from ECAP..." : "—"}</Text>
+      )}
     </Stack>
   </Paper>
 );

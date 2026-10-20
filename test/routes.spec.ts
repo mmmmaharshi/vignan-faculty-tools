@@ -141,7 +141,12 @@ const fake = (
       return resolved(answers.studentWise ?? STUDENT_GRID);
     },
     facultyProfile: () =>
-      resolved({ name: "Test Faculty", photo: "", designation: "0" }),
+      resolved({
+        name: "Test Faculty",
+        photo: "",
+        designation: "0",
+        leaves: [],
+      }),
   };
   return { reader, calls };
 };

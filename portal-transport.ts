@@ -16,6 +16,10 @@ export const LOGIN_PAGE = `${BASE}/vignanit/main.aspx`;
 export const LOGIN_POST = `${BASE}/vignanit/Default.aspx?ReturnUrl=%2fvignanit%2fmain.aspx`;
 const JQ = `${BASE}/vignanit/jqmethods.aspx`;
 export const REGISTER_PAGE_URL = `${BASE}/vignanit/ACADEMICS/AcademicRegister.aspx?scrid=335`;
+/** The Employee menu's Leaves History page. It needs no query string; the menu
+ *  reaches it through CheckAuthentication, but the page itself reads the
+ *  signed-in user's own balances from the session. */
+export const FACULTY_LEAVES_PAGE_URL = `${BASE}/vignanit/Employee/rptstaffleaves.aspx`;
 const REGISTER_PROXY = `${BASE}/vignanit/ajax/Academics_AcademicRegister,App_Web_academicregister.aspx.a2a1b31c.ashx`;
 const CLASS_PAGE_URL = `${BASE}/vignanit/ACADEMICS/rptstudentsattendance.aspx?scrid=319`;
 const CLASS_PROXY = `${BASE}/vignanit/ajax/Academics_rptstudentsattendance,App_Web_rptstudentsattendance.aspx.a2a1b31c.ashx`;

@@ -170,14 +170,26 @@ export interface SemAbsencesReply {
 export interface SemStartReply {
   statedFrom: string | null;
 }
-/** What ECAP's main.aspx states about the signed-in faculty member. Read once
- *  when the profile page is opened. ECAP exposes no structured faculty profile,
- *  so only the name (from the `lblUser` span), the photo URL (GetPhotoPath), and
- *  the designation code (CheckEmployeeDesignation: 0 = faculty) are available. */
+/** One leave type's Opening, Used and Available figures, as ECAP's Leaves
+ *  History page states them. */
+export interface FacultyLeave {
+  /** The leave type as ECAP's Leaves History page names it ("Earned Leave"). */
+  type: string;
+  opening: string;
+  used: string;
+  available: string;
+}
+/** What ECAP states about the signed-in faculty member: the name from the
+ *  `lblUser` span, the photo URL (GetPhotoPath), the designation code
+ *  (CheckEmployeeDesignation: 0 = faculty), and the leave balances from the
+ *  Employee Leaves History page. Read once when the profile page is opened. */
 export interface FacultyProfile {
   name: string;
   photo: string;
   designation: string;
+  /** One entry per leave type on the Leaves History page. Empty when ECAP did
+   *  not state any, which is not the same as a zero balance. */
+  leaves: FacultyLeave[];
 }
 export interface StudentRequest {
   roll: string;

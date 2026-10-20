@@ -5,6 +5,7 @@ import {
   looksLikeHtml,
   options,
   parseClassAttendance,
+  parseFacultyLeaves,
   parseRegister,
   parseStudentAbsences,
   parseStudentBacklogs,
@@ -375,5 +376,36 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
       total: null,
       note: "",
     });
+  });
+  test("leaves come from the balance table, not the used-leaves table", () => {
+    // Copied from the Leaves History page, including the used-leaves table below
+    // it: that one also has numbered rows, and reading it as balances would
+    // report a date as a leave type.
+    const html = `<div id='tblReport'><table width='95%'><tr><td>
+<table><tr><td>LEAVES HISTORY</td></tr></table></td></tr><tr><td align='center'>
+<table width='75%'><tr><td>Sl.No</td><td>Leave Type</td><td colspan='3'>Leaves History</td></tr>
+<tr><td colspan='2'>&nbsp;</td><td>Opening</td><td>Used</td><td>Available</td></tr>
+<tr><td>1</td><td>Medical Leave</td><td>5.00</td><td>.00</td><td>5.00</td></tr>
+<tr><td>2</td><td>Eligible Casual Leave</td><td>10.00</td><td>5.00</td><td>5.00</td></tr></table>
+</td></tr><tr><td align='center'><table width='75%'><tr><td colspan='4'>Used Leaves History</td></tr>
+<tr><td>Sl.No</td><td>From Date</td><td>To Date</td><td>No.Of.Days</td></tr>
+<tr><td>1</td><td>02/01/2026</td><td>02/01/2026</td><td>1</td></tr></table>
+</td></tr></table></div>`;
+    expect(parseFacultyLeaves(html)).toEqual([
+      {
+        type: "Medical Leave",
+        opening: "5.00",
+        used: ".00",
+        available: "5.00",
+      },
+      {
+        type: "Eligible Casual Leave",
+        opening: "10.00",
+        used: "5.00",
+        available: "5.00",
+      },
+    ]);
+    // A reply without that header is not the page: no leaves is not a zero.
+    expect(parseFacultyLeaves(LOGIN_PAGE)).toEqual([]);
   });
 });

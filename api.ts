@@ -11,11 +11,13 @@ import {
   hiddenValue,
   HttpError,
   options,
+  parseFacultyLeaves,
   parseFacultyName,
 } from "./portal-replies";
 import {
   BASE,
   CLASS_REMOTE,
+  FACULTY_LEAVES_PAGE_URL,
   HTTP_TIMEOUT_MS,
   LOGIN_PAGE,
   LOGIN_POST,
@@ -212,7 +214,19 @@ class Portal {
       "CheckEmployeeDesignation",
       []
     ).catch(() => "-1");
-    return { name, photo: photo.trim(), designation: designation.trim() };
+    // A leave page ECAP will not give is no leave figures, not a failed profile:
+    // the name and photo are still the answer the page came for.
+    const leaves = await portalRequest(this.jar, FACULTY_LEAVES_PAGE_URL, {
+      headers: { "user-agent": UA, referer: LOGIN_PAGE },
+    })
+      .then(async (res) => (res.ok ? parseFacultyLeaves(await res.text()) : []))
+      .catch(() => []);
+    return {
+      name,
+      photo: photo.trim(),
+      designation: designation.trim(),
+      leaves,
+    };
   }
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. It lives on the register's own proxy and wants the

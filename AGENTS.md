@@ -381,6 +381,14 @@ carries one also has its name in text.
   give says so on the panel rather than passing for "no absences in the
   semester". See ADR 0022.
 
+- **A faculty member's leave balances are one more ECAP screen, read with the
+  profile.** `Employee/rptstaffleaves.aspx` states `Opening | Used | Available`
+  per leave type, and `parseFacultyLeaves` picks its grid by that header — the
+  used-leaves table below it also has numbered rows, so row shape cannot tell
+  them apart. The URL needs no query string. A page that will not load is no
+  leaves, not a failed profile: the name and photo still answer the screen. See
+  ADR 0023.
+
 - **The GPA is the Portal's own line, printed as it stands.** `CGPA: 5.61
   Credits:16/19 48.55 %` is one sentence on the page, and the percentage beside
   it is read the same way the attendance columns are — never recomputed from the

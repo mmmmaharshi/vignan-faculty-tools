@@ -1,5 +1,6 @@
 import type { RegisterRow } from "./attendance-bands";
 import type {
+  FacultyLeave,
   Option,
   StudentBacklog,
   StudentBacklogSubject,
@@ -392,6 +393,29 @@ export function parseFacultyName(html: string): string {
     /id="lblUser"[^>]*>\s*Welcome\s+(?<name>[\s\S]*?)<\/span>/i
   );
   return m?.groups?.name?.trim() ?? "";
+}
+/** The balances ECAP's Leaves History page states: one row per leave type,
+ *  headed `Opening | Used | Available`, which is what tells that grid apart
+ *  from the used-leaves table below it — four cells and no such header. */
+export function parseFacultyLeaves(html: string): FacultyLeave[] {
+  const grid = gridTables(html).find((rows) =>
+    rows.some(
+      (cells) =>
+        cells.includes("Opening") &&
+        cells.includes("Used") &&
+        cells.includes("Available")
+    )
+  );
+  if (!grid) return [];
+  return grid
+    .filter((cells) => /^\d+$/.test(cells[0] ?? "") && cells.length >= 5)
+    .map((cells) => ({
+      type: cells[1] ?? "",
+      opening: cells[2] ?? "",
+      used: cells[3] ?? "",
+      available: cells[4] ?? "",
+    }))
+    .filter((row) => row.type);
 }
 export function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(INPUT) ?? []) {

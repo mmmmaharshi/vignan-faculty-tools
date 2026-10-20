@@ -189,6 +189,14 @@ One signed-in user's portal cookie jar on the server. Separate per user, so two
 people can be signed in at once.
 _Avoid_: Jar, cookie store
 
+**Leave balances**:
+The `Opening`, `Used` and `Available` figures ECAP's Employee → Leaves History
+page states for the signed-in faculty member, one row per leave type. They are
+read with the profile and shown as the page writes them; `Available` is the
+page's own column, never `Opening - Used`. A reply without that table is no
+figures, not a zero balance.
+_Avoid_: Leave count, time off, leave requests
+
 ## Vocabulary to watch
 
 **Subject**:
