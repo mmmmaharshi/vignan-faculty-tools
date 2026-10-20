@@ -78,7 +78,7 @@ export const ProfilePanel = ({
       <Title order={5} mt="sm">
         Leaves
       </Title>
-      {faculty?.leaves?.length ? (
+      {faculty?.leaves?.some((leave) => Number(leave.used) > 0) ? (
         <Table striped withTableBorder tabularNums>
           <Table.Thead>
             <Table.Tr>
@@ -89,14 +89,16 @@ export const ProfilePanel = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {faculty.leaves.map((leave) => (
-              <Table.Tr key={leave.type}>
-                <Table.Td>{leave.type}</Table.Td>
-                <Table.Td ta="right">{leave.opening}</Table.Td>
-                <Table.Td ta="right">{leave.used}</Table.Td>
-                <Table.Td ta="right">{leave.available}</Table.Td>
-              </Table.Tr>
-            ))}
+            {faculty.leaves
+              .filter((leave) => Number(leave.used) > 0)
+              .map((leave) => (
+                <Table.Tr key={leave.type}>
+                  <Table.Td>{leave.type}</Table.Td>
+                  <Table.Td ta="right">{leave.opening}</Table.Td>
+                  <Table.Td ta="right">{leave.used}</Table.Td>
+                  <Table.Td ta="right">{leave.available}</Table.Td>
+                </Table.Tr>
+              ))}
           </Table.Tbody>
         </Table>
       ) : (
