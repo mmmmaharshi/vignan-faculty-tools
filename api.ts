@@ -11,14 +11,14 @@ import {
   hiddenValue,
   HttpError,
   options,
-  parseFacultyLeaves,
   parseFacultyName,
+  parseLeaveStatus,
 } from "./portal-replies";
 import {
   BASE,
   CLASS_REMOTE,
-  FACULTY_LEAVES_PAGE_URL,
   HTTP_TIMEOUT_MS,
+  LEAVE_STATUS_REMOTE,
   LOGIN_PAGE,
   LOGIN_POST,
   MAIN_DESIGNATION_REMOTE,
@@ -214,18 +214,21 @@ class Portal {
       "CheckEmployeeDesignation",
       []
     ).catch(() => "-1");
-    // A leave page ECAP will not give is no leave figures, not a failed profile:
-    // the name and photo are still the answer the page came for.
-    const leaves = await portalRequest(this.jar, FACULTY_LEAVES_PAGE_URL, {
-      headers: { "user-agent": UA, referer: LOGIN_PAGE },
-    })
-      .then(async (res) => (res.ok ? parseFacultyLeaves(await res.text()) : []))
+    // A status grid ECAP will not give is no leave figures, not a failed
+    // profile: the name and photo are still the answer the page came for.
+    const leaveStatus = await portalWebMethod(
+      this.jar,
+      LEAVE_STATUS_REMOTE,
+      "showLeaves",
+      []
+    )
+      .then(parseLeaveStatus)
       .catch(() => []);
     return {
       name,
       photo: photo.trim(),
       designation: designation.trim(),
-      leaves,
+      leaveStatus,
     };
   }
   /** The Student Wise report: one student's grid, every subject, one column per

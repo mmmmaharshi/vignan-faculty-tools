@@ -52,7 +52,7 @@ function readerWith(over: Partial<PortalReader> = {}): PortalReader {
         name: "Test Faculty",
         photo: "",
         designation: "0",
-        leaves: [],
+        leaveStatus: [],
       }),
     ...over,
   };

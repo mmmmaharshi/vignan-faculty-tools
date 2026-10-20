@@ -145,7 +145,7 @@ const fake = (
         name: "Test Faculty",
         photo: "",
         designation: "0",
-        leaves: [],
+        leaveStatus: [],
       }),
   };
   return { reader, calls };

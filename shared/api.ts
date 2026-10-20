@@ -170,26 +170,29 @@ export interface SemAbsencesReply {
 export interface SemStartReply {
   statedFrom: string | null;
 }
-/** One leave type's Opening, Used and Available figures, as ECAP's Leaves
- *  History page states them. */
-export interface FacultyLeave {
-  /** The leave type as ECAP's Leaves History page names it ("Earned Leave"). */
+/** One leave type's per-stage counts, as the APPLY-SELF page's `showLeaves`
+ *  reply states them. */
+export interface LeaveStatus {
+  /** The leave type as the grid names it ("Eligible Casual Leave"). */
   type: string;
-  opening: string;
-  used: string;
+  eligible: string;
+  applied: string;
+  approved: string;
+  pending: string;
+  declined: string;
   available: string;
 }
 /** What ECAP states about the signed-in faculty member: the name from the
  *  `lblUser` span, the photo URL (GetPhotoPath), the designation code
- *  (CheckEmployeeDesignation: 0 = faculty), and the leave balances from the
- *  Employee Leaves History page. Read once when the profile page is opened. */
+ *  (CheckEmployeeDesignation: 0 = faculty), and the leave counts from the
+ *  APPLY-SELF page. Read once when the profile page is opened. */
 export interface FacultyProfile {
   name: string;
   photo: string;
   designation: string;
-  /** One entry per leave type on the Leaves History page. Empty when ECAP did
-   *  not state any, which is not the same as a zero balance. */
-  leaves: FacultyLeave[];
+  /** One entry per leave type in the `showLeaves` grid. Empty when ECAP did
+   *  not state any, which is not the same as all zeros. */
+  leaveStatus: LeaveStatus[];
 }
 export interface StudentRequest {
   roll: string;

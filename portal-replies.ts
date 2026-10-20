@@ -1,6 +1,6 @@
 import type { RegisterRow } from "./attendance-bands";
 import type {
-  FacultyLeave,
+  LeaveStatus,
   Option,
   StudentBacklog,
   StudentBacklogSubject,
@@ -394,32 +394,40 @@ export function parseFacultyName(html: string): string {
   );
   return m?.groups?.name?.trim() ?? "";
 }
-/** ECAP prints a zero balance as `.00` and half a day as `.50`, where the same
- *  row's Available column reads `0.00`. The leading zero is added so a column of
- *  balances reads as numbers rather than stray dots; the value is untouched. */
-const balance = (v: string) => (/^\.\d+$/.test(v) ? `0${v}` : v);
-/** The balances ECAP's Leaves History page states: one row per leave type,
- *  headed `Opening | Used | Available`, which is what tells that grid apart
- *  from the used-leaves table below it — four cells and no such header. */
-export function parseFacultyLeaves(html: string): FacultyLeave[] {
+/** The number at the front of a cell: the Portal never closes the Approved
+ *  cell's div, so that cell reads `5</div` once the tags are stripped. */
+const headNumber = (v: string) => v.match(/^\d+(?:\.\d+)?/)?.[0] ?? v;
+/** The per-stage counts the APPLY-SELF page's `showLeaves` reply states: one
+ *  row per leave type, headed `Leave Type | Eligible | Applied | Approved |
+ *  Pending | Declined | Available`. The counts sit inside clickable divs and
+ *  the first cell holds a radio button, so neither cell shape nor row shape
+ *  can tell this grid apart — only its header can. */
+export function parseLeaveStatus(html: string): LeaveStatus[] {
   const grid = gridTables(html).find((rows) =>
     rows.some(
       (cells) =>
-        cells.includes("Opening") &&
-        cells.includes("Used") &&
-        cells.includes("Available")
+        cells.includes("Leave Type") &&
+        cells.includes("Applied") &&
+        cells.includes("Declined")
     )
   );
   if (!grid) return [];
   return grid
-    .filter((cells) => /^\d+$/.test(cells[0] ?? "") && cells.length >= 5)
+    .filter(
+      (cells) =>
+        cells.length >= 8 &&
+        (cells[1] ?? "") !== "" &&
+        cells[1] !== "Leave Type"
+    )
     .map((cells) => ({
       type: cells[1] ?? "",
-      opening: balance(cells[2] ?? ""),
-      used: balance(cells[3] ?? ""),
-      available: balance(cells[4] ?? ""),
-    }))
-    .filter((row) => row.type);
+      eligible: headNumber(cells[2] ?? ""),
+      applied: headNumber(cells[3] ?? ""),
+      approved: headNumber(cells[4] ?? ""),
+      pending: headNumber(cells[5] ?? ""),
+      declined: headNumber(cells[6] ?? ""),
+      available: headNumber(cells[7] ?? ""),
+    }));
 }
 export function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(INPUT) ?? []) {

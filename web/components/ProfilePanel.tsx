@@ -78,24 +78,30 @@ export const ProfilePanel = ({
       <Title order={5} mt="sm">
         Leaves
       </Title>
-      {faculty?.leaves?.some((leave) => Number(leave.used) > 0) ? (
+      {faculty?.leaveStatus?.some((leave) => Number(leave.applied) > 0) ? (
         <Table striped withTableBorder tabularNums>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Leave</Table.Th>
-              <Table.Th ta="right">Opening</Table.Th>
-              <Table.Th ta="right">Used</Table.Th>
+              <Table.Th ta="right">Eligible</Table.Th>
+              <Table.Th ta="right">Applied</Table.Th>
+              <Table.Th ta="right">Approved</Table.Th>
+              <Table.Th ta="right">Pending</Table.Th>
+              <Table.Th ta="right">Declined</Table.Th>
               <Table.Th ta="right">Available</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {faculty.leaves
-              .filter((leave) => Number(leave.used) > 0)
+            {faculty.leaveStatus
+              .filter((leave) => Number(leave.applied) > 0)
               .map((leave) => (
                 <Table.Tr key={leave.type}>
                   <Table.Td>{leave.type}</Table.Td>
-                  <Table.Td ta="right">{leave.opening}</Table.Td>
-                  <Table.Td ta="right">{leave.used}</Table.Td>
+                  <Table.Td ta="right">{leave.eligible}</Table.Td>
+                  <Table.Td ta="right">{leave.applied}</Table.Td>
+                  <Table.Td ta="right">{leave.approved}</Table.Td>
+                  <Table.Td ta="right">{leave.pending}</Table.Td>
+                  <Table.Td ta="right">{leave.declined}</Table.Td>
                   <Table.Td ta="right">{leave.available}</Table.Td>
                 </Table.Tr>
               ))}

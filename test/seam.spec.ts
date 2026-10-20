@@ -5,7 +5,7 @@ import {
   looksLikeHtml,
   options,
   parseClassAttendance,
-  parseFacultyLeaves,
+  parseLeaveStatus,
   parseRegister,
   parseStudentAbsences,
   parseStudentBacklogs,
@@ -377,51 +377,38 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
       note: "",
     });
   });
-  test("leaves come from the balance table, not the used-leaves table", () => {
-    // Copied from the Leaves History page, including the used-leaves table below
-    // it: that one also has numbered rows, and reading it as balances would
-    // report a date as a leave type.
-    const html = `<div id='tblReport'><table width='95%'><tr><td>
-<table><tr><td>LEAVES HISTORY</td></tr></table></td></tr><tr><td align='center'>
-<table width='75%'><tr><td>Sl.No</td><td>Leave Type</td><td colspan='3'>Leaves History</td></tr>
-<tr><td colspan='2'>&nbsp;</td><td>Opening</td><td>Used</td><td>Available</td></tr>
-<tr><td>1</td><td>Medical Leave</td><td>5.00</td><td>.00</td><td>5.00</td></tr>
-<tr><td>2</td><td>Eligible Casual Leave</td><td>10.00</td><td>5.00</td><td>5.00</td></tr></table>
-</td></tr><tr><td align='center'><table width='75%'><tr><td colspan='4'>Used Leaves History</td></tr>
-<tr><td>Sl.No</td><td>From Date</td><td>To Date</td><td>No.Of.Days</td></tr>
-<tr><td>1</td><td>02/01/2026</td><td>02/01/2026</td><td>1</td></tr></table>
-</td></tr></table></div>`;
-    expect(parseFacultyLeaves(html)).toEqual([
-      {
-        type: "Medical Leave",
-        opening: "5.00",
-        used: "0.00",
-        available: "5.00",
-      },
+  test("leave status comes from the application grid, per stage", () => {
+    // Copied from the APPLY-SELF page's `showLeaves` reply: the counts sit
+    // inside clickable divs, and the Portal never closes the Approved one, so
+    // its cell reads `5</div` after the tags are stripped. The reader takes
+    // the number at the front rather than the cell as it stands.
+    const html = `<table id='tblstaffleaves'><tr><td colspan='8'><b>Leave History(JANUARY to DECEMBER)-2026</b></td></tr>
+<tr><td colspan='2'></td><td colspan='6'>Leave History</td></tr>
+<tr><td></td><td>Leave Type</td><td>Eligible</td><td>Applied</td><td>Approved</td><td>Pending</td><td>Declined</td><td>Available</td></tr>
+<tr><td><input type='radio' name='rbleave' value='1'/></td><td>Eligible Casual Leave</td><td>10</td><td><div class='spanLink' onclick="showLeaveDetails(1,'a','x')">6</div></td><td><div class='spanLink' onclick="showLeaveDetails(1,'g','x')">5</div</td><td><div class='spanLink' onclick="showLeaveDetails(1,'p','x')">1</div></td><td>0</td><td>4</td></tr>
+<tr><td><input type='radio' name='rbleave' value='5'/></td><td>Medical Leave</td><td>5</td><td>0</td><td>0</td><td>0</td><td>0</td><td>5</td></tr>
+<tr><td colspan='8'><input type='button' value='Request Leave'/></td></tr></table>`;
+    expect(parseLeaveStatus(html)).toEqual([
       {
         type: "Eligible Casual Leave",
-        opening: "10.00",
-        used: "5.00",
-        available: "5.00",
+        eligible: "10",
+        applied: "6",
+        approved: "5",
+        pending: "1",
+        declined: "0",
+        available: "4",
       },
-    ]);
-    // A reply without that header is not the page: no leaves is not a zero.
-    expect(parseFacultyLeaves(LOGIN_PAGE)).toEqual([]);
-  });
-  test("a balance the Portal writes without its leading zero still reads as a number", () => {
-    // ECAP prints a zero balance as `.00` and half a day as `.50`, while the
-    // Available column of the very same row reads `0.00`. Sameness is the point:
-    // the reader should not have to tell a number from a stray dot.
-    const html = `<table><tr><td>Sl.No</td><td>Leave Type</td><td colspan='3'>Leaves History</td></tr>
-<tr><td colspan='2'>&nbsp;</td><td>Opening</td><td>Used</td><td>Available</td></tr>
-<tr><td>1</td><td>Medical Leave</td><td>.50</td><td>.00</td><td>.50</td></tr></table>`;
-    expect(parseFacultyLeaves(html)).toEqual([
       {
         type: "Medical Leave",
-        opening: "0.50",
-        used: "0.00",
-        available: "0.50",
+        eligible: "5",
+        applied: "0",
+        approved: "0",
+        pending: "0",
+        declined: "0",
+        available: "5",
       },
     ]);
+    // A reply without that header is not the grid: no status is not all zeros.
+    expect(parseLeaveStatus(LOGIN_PAGE)).toEqual([]);
   });
 });

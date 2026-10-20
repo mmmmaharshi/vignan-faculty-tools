@@ -1,10 +1,31 @@
-# 0023 - Read the faculty's leave balances with the profile
+# 0023 - Read the faculty's leave counts with the profile
 
 Date: 2026-10-20
 
 ## Status
 
-Accepted
+Amended — the per-stage grid replaced the balances (see Amendment below).
+
+## Amendment (2026-10-21)
+
+The balances answered the wrong question: the faculty member wanted the
+application breakdown, which lives one screen further in, on the ACADEMICS
+menu's **LEAVES → APPLY-SELF** page (`ACADEMICS/LeaveRequest.aspx?scrid=4039&
+type=s`). Its `showLeaves` proxy method (on the `Academics_LeaveRequest`
+generated proxy, `_session=r` as the proxy declares) states one row per leave
+type with `Leave Type | Eligible | Applied | Approved | Pending | Declined |
+Available` — measured live as Eligible Casual Leave `10/6/5/1/0/4`. The
+balance reader, its page URL and its seam tests were removed; nothing reads
+`rptstaffleaves.aspx` any more.
+
+Finding that page cost real work, recorded here so nobody repeats it: the main
+page is a shell whose menu arrives through `FillLinks` (`ModuleId=4` is
+ACADEMICS), whose headings open hover submenus (`LEAVES` is screen 4012), and
+whose `ShowPage('', token)` entries resolve through `CheckAuthentication`
+with an **empty** parent folder to a root-relative path (`/LeaveRequest.aspx`)
+that only loads under `/vignanit/ACADEMICS/`. And the grid's Approved cell is
+never closed (`5</div</td>`), so the parser takes the number at the front of
+each count cell rather than the cell as it stands.
 
 ## Context
 
