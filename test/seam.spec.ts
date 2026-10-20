@@ -395,7 +395,7 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
       {
         type: "Medical Leave",
         opening: "5.00",
-        used: ".00",
+        used: "0.00",
         available: "5.00",
       },
       {
@@ -407,5 +407,21 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     ]);
     // A reply without that header is not the page: no leaves is not a zero.
     expect(parseFacultyLeaves(LOGIN_PAGE)).toEqual([]);
+  });
+  test("a balance the Portal writes without its leading zero still reads as a number", () => {
+    // ECAP prints a zero balance as `.00` and half a day as `.50`, while the
+    // Available column of the very same row reads `0.00`. Sameness is the point:
+    // the reader should not have to tell a number from a stray dot.
+    const html = `<table><tr><td>Sl.No</td><td>Leave Type</td><td colspan='3'>Leaves History</td></tr>
+<tr><td colspan='2'>&nbsp;</td><td>Opening</td><td>Used</td><td>Available</td></tr>
+<tr><td>1</td><td>Medical Leave</td><td>.50</td><td>.00</td><td>.50</td></tr></table>`;
+    expect(parseFacultyLeaves(html)).toEqual([
+      {
+        type: "Medical Leave",
+        opening: "0.50",
+        used: "0.00",
+        available: "0.50",
+      },
+    ]);
   });
 });

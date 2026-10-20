@@ -394,6 +394,10 @@ export function parseFacultyName(html: string): string {
   );
   return m?.groups?.name?.trim() ?? "";
 }
+/** ECAP prints a zero balance as `.00` and half a day as `.50`, where the same
+ *  row's Available column reads `0.00`. The leading zero is added so a column of
+ *  balances reads as numbers rather than stray dots; the value is untouched. */
+const balance = (v: string) => (/^\.\d+$/.test(v) ? `0${v}` : v);
 /** The balances ECAP's Leaves History page states: one row per leave type,
  *  headed `Opening | Used | Available`, which is what tells that grid apart
  *  from the used-leaves table below it — four cells and no such header. */
@@ -411,9 +415,9 @@ export function parseFacultyLeaves(html: string): FacultyLeave[] {
     .filter((cells) => /^\d+$/.test(cells[0] ?? "") && cells.length >= 5)
     .map((cells) => ({
       type: cells[1] ?? "",
-      opening: cells[2] ?? "",
-      used: cells[3] ?? "",
-      available: cells[4] ?? "",
+      opening: balance(cells[2] ?? ""),
+      used: balance(cells[3] ?? ""),
+      available: balance(cells[4] ?? ""),
     }))
     .filter((row) => row.type);
 }
