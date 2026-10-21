@@ -50,5 +50,7 @@ export default async function handler(
     if (name.toLowerCase() === "content-length") continue;
     res.setHeader(name, value);
   }
-  res.send(new Uint8Array(await response.arrayBuffer()));
+  // As text, not bytes: res.send would JSON-serialise a Uint8Array into an
+  // indexed object instead of answering the body's own JSON.
+  res.send(new TextDecoder().decode(await response.arrayBuffer()));
 }
