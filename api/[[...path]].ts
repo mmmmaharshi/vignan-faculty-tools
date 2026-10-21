@@ -1,4 +1,4 @@
-import { createApi } from "../api.js";
+import { createApi } from "../server/api.js";
 
 type NodeHeaders = Record<string, string | string[] | undefined>;
 type FunctionRequest = {

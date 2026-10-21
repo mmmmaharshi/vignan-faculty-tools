@@ -1,3 +1,18 @@
+import type {
+  CascadeLevel,
+  ClientSession,
+  ErrorReply,
+  FacultyProfile,
+  LoginRequest,
+  OkReply,
+  Option,
+  OptionsRequest,
+  RegisterRequest,
+  SemAbsencesRequest,
+  SessionReply,
+  StudentRequest,
+} from "../shared/api.js";
+import { SESSION_HEADER } from "../shared/api.js";
 import {
   calendarPairs,
   classPairs,
@@ -40,21 +55,6 @@ import {
   handleStudentProfile,
 } from "./server-routes.js";
 import type { PortalReader } from "./server-routes.js";
-import type {
-  CascadeLevel,
-  ClientSession,
-  ErrorReply,
-  FacultyProfile,
-  LoginRequest,
-  OkReply,
-  Option,
-  OptionsRequest,
-  RegisterRequest,
-  SemAbsencesRequest,
-  SessionReply,
-  StudentRequest,
-} from "./shared/api.js";
-import { SESSION_HEADER } from "./shared/api.js";
 
 type Level = CascadeLevel;
 /** Thirty days of *not using it*, after ADR 0013. The browser carries `at`

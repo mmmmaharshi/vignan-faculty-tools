@@ -1,4 +1,3 @@
-import type { RegisterRow } from "./attendance-bands.js";
 import type {
   LeaveStatus,
   Option,
@@ -8,7 +7,8 @@ import type {
   StudentPhone,
   StudentProfile,
   StudentSgpa,
-} from "./shared/api.js";
+} from "../shared/api.js";
+import type { RegisterRow } from "./attendance-bands.js";
 
 export type { RegisterRow } from "./attendance-bands.js";
 export class HttpError extends Error {

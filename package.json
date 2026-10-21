@@ -6,7 +6,7 @@
   "scripts": {
     "build": "vp build",
     "dev": "vp dev",
-    "start": "bun server.ts",
+    "start": "bun server/server.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json && tsc -p tsconfig.test.json",
     "test": "playwright test",
     "lint": "vp check",

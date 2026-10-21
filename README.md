@@ -14,7 +14,7 @@ register each time.
 ```sh
 bun install        # once
 bun run build      # builds the front end into dist/
-bun server.ts      # then open http://127.0.0.1:8787
+bun server/server.ts  # then open http://127.0.0.1:8787
 bun run typecheck  # tsc over all three projects
 ```
 
@@ -188,12 +188,12 @@ url-encoded.
 ## Project layout
 
 ```
-server.ts             Bun HTTP server: static files, routing to api.ts, and Bun.serve
-api.ts                the API: the portal, the sessions, and createApi()
-server-routes.ts      the two route handlers, over a PortalReader; no HTTP in it
-portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar
-portal-replies.ts     pure string -> data functions, and the seam guards
-attendance-bands.ts   the Regular / Irregular / Critical rule, and the summary
+server/server.ts      Bun HTTP server: static files, routing to api.ts, and Bun.serve
+server/api.ts         the API: the portal, the sessions, and createApi()
+server/server-routes.ts the two route handlers, over a PortalReader; no HTTP in it
+server/portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar
+server/portal-replies.ts pure string -> data functions, and the seam guards
+server/attendance-bands.ts the Regular / Irregular / Critical rule, and the summary
 web/index.html        Vite entry point
 web/main.tsx          React root + MantineProvider
 web/App.tsx           state, the routes, and the refresh loop
@@ -205,11 +205,11 @@ shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build, lint and format config (Vite+; Ultracite presets)
 playwright.config.ts  test runner config
 test/*.spec.ts         the fast suite, no credentials; plus the live smoke tests
-tsconfig*.json        three projects, split so web/ has DOM and server.ts does not
-dist/                 build output, served by server.ts
+tsconfig*.json        three projects, split so web/ has DOM and server/ does not
+dist/                 build output, served by server/server.ts
 ```
 
-One rule explains that layout: **importing `server.ts` boots a server**, so
+One rule explains that layout: **importing `server/server.ts` boots a server**, so
 anything with a decision in it lives in a file that can be imported without one.
 `docs/adr/` records each of those extractions and why.
 

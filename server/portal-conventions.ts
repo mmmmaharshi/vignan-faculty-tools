@@ -1,6 +1,6 @@
 import { createCipheriv } from "node:crypto";
 
-import type { CascadeLevel, Option } from "./shared/api.js";
+import type { CascadeLevel, Option } from "../shared/api.js";
 
 export const AES_KEY = "8701661282118308";
 export function portalEncrypt(plaintext: string): string {

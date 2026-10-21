@@ -8,8 +8,8 @@ import {
   statedStartDate,
   summarise,
   withBands,
-} from "../attendance-bands";
-import type { RegisterRow } from "../attendance-bands";
+} from "../server/attendance-bands";
+import type { RegisterRow } from "../server/attendance-bands";
 
 const row = (pct: number | null, roll = "21CS001"): RegisterRow => ({
   sl: "1",

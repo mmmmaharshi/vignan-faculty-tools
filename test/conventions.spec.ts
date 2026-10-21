@@ -13,7 +13,7 @@ import {
   nextHop,
   portalEncrypt,
   webMethodBody,
-} from "../portal-conventions";
+} from "../server/portal-conventions";
 import type { CascadeLevel, Option } from "../shared/api";
 
 test.describe("the password cipher", () => {

@@ -1,9 +1,9 @@
+import type { ErrorReply } from "../shared/api.js";
 import { createApi, json } from "./api.js";
-import type { ErrorReply } from "./shared/api.js";
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
-const DIST = `${ROOT}/dist`;
+const DIST = `${ROOT}/../dist`;
 async function indexHtml(): Promise<Response> {
   const index = Bun.file(`${DIST}/index.html`);
   if (!(await index.exists())) {

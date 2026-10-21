@@ -9,7 +9,7 @@ import {
   Text,
 } from "@mantine/core";
 
-import { overallCellForDisplay } from "../../attendance-bands";
+import { overallCellForDisplay } from "../../server/attendance-bands";
 import type { RegisterReply, Student } from "../../shared/api";
 import type { ChosenFact } from "../cascade";
 import {

@@ -1,10 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-import { createApi } from "../api";
-import type { PortalPort } from "../api";
-import { CookieJar } from "../portal-conventions";
-import { HttpError } from "../portal-replies";
-import type { PortalReader } from "../server-routes";
+import { createApi } from "../server/api";
+import type { PortalPort } from "../server/api";
+import { CookieJar } from "../server/portal-conventions";
+import { HttpError } from "../server/portal-replies";
+import type { PortalReader } from "../server/server-routes";
 import type {
   ClientSession,
   OptionsReply,

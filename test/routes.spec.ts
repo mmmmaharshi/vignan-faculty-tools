@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { HttpError } from "../portal-replies";
+import { HttpError } from "../server/portal-replies";
 import {
   handleOptions,
   handleRegister,
@@ -8,8 +8,8 @@ import {
   handleSemStart,
   handleStudentProfile,
   requireLevels,
-} from "../server-routes";
-import type { PortalReader } from "../server-routes";
+} from "../server/server-routes";
+import type { PortalReader } from "../server/server-routes";
 import type {
   Option,
   RegisterRequest,

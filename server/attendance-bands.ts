@@ -1,4 +1,4 @@
-import type { RegisterReply, Student } from "./shared/api.js";
+import type { RegisterReply, Student } from "../shared/api.js";
 
 export const IRREGULAR_BELOW = 75;
 export const CRITICAL_BELOW = 65;

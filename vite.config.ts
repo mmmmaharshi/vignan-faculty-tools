@@ -7,7 +7,7 @@ import reactPreset from "ultracite/oxlint/react";
 import type { Plugin } from "vite-plus";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
-import { createApi } from "./api";
+import { createApi } from "./server/api";
 
 /** The dev server's API; `createApi`'s default reaches the real ECAP. */
 const api = createApi();
@@ -68,7 +68,7 @@ function apiPlugin(): Plugin {
   };
 }
 
-const SERVER_SIDE = ["server.ts", "portal-replies.ts", "shared/**"];
+const SERVER_SIDE = ["server/**", "shared/**"];
 const OFF: Record<string, "off"> = {
   curly: "off",
   "sort-keys": "off",

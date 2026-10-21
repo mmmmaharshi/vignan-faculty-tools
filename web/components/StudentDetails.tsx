@@ -14,7 +14,7 @@ import {
   Title,
 } from "@mantine/core";
 
-import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../attendance-bands";
+import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../server/attendance-bands";
 import type { Student, StudentProfile } from "../../shared/api";
 import type { Note } from "../types";
 import { badgeFor } from "../worklist";

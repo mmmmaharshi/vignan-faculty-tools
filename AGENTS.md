@@ -19,7 +19,7 @@ turns, and cut tangents. It lives in `~/.agents/skills/i-have-adhd`.
 ```sh
 bun install                # once
 bun run build              # front end -> dist/
-bun server.ts              # http://127.0.0.1:8787
+bun server/server.ts       # http://127.0.0.1:8787
 bun run dev                # front end AND /api, one Vite process on :5173
 bun run typecheck          # tsc over all three projects - see the trap below
 bun run lint               # vp check: oxfmt + oxlint, no writes
@@ -44,9 +44,10 @@ API in the same Vite server, through the `ecap-api` plugin in `vite.config.ts`
 `Request` and calls `handleApi`, so there is no second process, no port to
 forget, and no proxy. Two things are not obvious:
 
-- **The API core lives in `api.ts`, not `server.ts`.** Importing `server.ts`
-  boots a `Bun.serve`, so it cannot be, and is not, loaded by Vite. `api.ts`
-  holds the portal and `handleApi`; `bun server.ts` imports it for production,
+- **The API core lives in `server/api.ts`, not `server/server.ts`.** Importing
+  `server/server.ts` boots a `Bun.serve`, so it cannot be, and is not, loaded
+  by Vite. `server/api.ts` holds the portal and `handleApi`; `bun
+  server/server.ts` imports it for production,
   the dev plugin imports it for development, and `api/[[...path]].ts` imports
   it for Vercel — the same handler on all three, because the server keeps no
   sessions of its own.
@@ -58,7 +59,7 @@ forget, and no proxy. Two things are not obvious:
 
 ### Background servers
 
-**Do not start a server. The user starts it.** No `bun server.ts`, no
+**Do not start a server. The user starts it.** No `bun server/server.ts`, no
 `bun run dev`, no `vp dev`, no background launch on :8787 or :5173 — including "just
 to check something". Read the code, ask, or run a test that starts its own.
 
@@ -90,17 +91,17 @@ avoid the whole problem — one process, so there is no second one to forget.
 ## Layout
 
 ```
-server.ts            Bun HTTP server: static files, routing to api.ts, and Bun.serve
-api.ts               the API: the portal and createApi(); imported by server.ts
+server/server.ts     Bun HTTP server: static files, routing to api.ts, and Bun.serve
+server/api.ts        the API: the portal and createApi(); imported by server.ts
                      (prod), the dev plugin in vite.config.ts, and
                      api/[[...path]].ts (Vercel). createApi takes the way to
                      reach ECAP, so the retry rules are testable without one
-server-routes.ts     the two route handlers, over a PortalReader; no HTTP in it
+server/server-routes.ts the two route handlers, over a PortalReader; no HTTP in it
 api/[[...path]].ts   the Vercel function: rebuilds a fetch Request for handleApi
-portal-liveness.ts   alive | dead | unknown: is this ECAP session still working?
-portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
-portal-replies.ts    pure string -> data functions, and the seam guards
-attendance-bands.ts  the Regular / Irregular / Critical rule, and the summary
+server/portal-liveness.ts alive | dead | unknown: is this ECAP session still working?
+server/portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
+server/portal-replies.ts pure string -> data functions, and the seam guards
+server/attendance-bands.ts the Regular / Irregular / Critical rule, and the summary
 web/index.html       Vite entry point
 web/main.tsx         React root + MantineProvider; the only createTheme call
 web/App.tsx          state, the three modes, and the session's own facts
@@ -128,14 +129,14 @@ test/cascade.spec.ts the cascade's rules, and its option loop over a fake fetche
 test/client.spec.ts  the data layer, over a stub API in the browser
 test/smoke.spec.ts   one end-to-end pass against the live portal
 vercel.json          build to dist/, /api/* to the function, the rest to index.html
-tsconfig*.json       three projects, split so web/ has DOM and server.ts does not
-dist/                build output, served by server.ts (not source)
+tsconfig*.json       three projects, split so web/ has DOM and server/ does not
+dist/                build output, served by server/server.ts (not source)
 ```
 
-**One rule explains this layout: importing `server.ts` boots a server.** Anything
-with a decision in it therefore lives in a file importable without one, and
-`server.ts` is HTTP plumbing only. A network call in any of those files makes the
-credential-free suite unreachable.
+**One rule explains this layout: importing `server/server.ts` boots a server.**
+Anything with a decision in it therefore lives in a file importable without
+one, and `server/server.ts` is HTTP plumbing only. A network call in any of
+those files makes the credential-free suite unreachable.
 
 ## The rail
 
@@ -487,15 +488,16 @@ carries one also has its name in text.
   session has lapsed is simply signed out. Do not let any UI copy imply otherwise.
   ADR 0014.
 - **A server restart signs out nobody.** The session lives in the browser, not
-  the process, so `bun --watch server.ts`, a dev restart, and a Vercel cold
+  the process, so `bun --watch server/server.ts`, a dev restart, and a Vercel cold
   start all keep the user signed in — the next request rebuilds the portal from
   the stored session and revives it if ECAP dropped it.
 - **The dev API reloads with the dev server; the Playwright one does not.**
-  `api.ts` is an import of `vite.config.ts`, which Vite watches: a change to it
-  (or to `server-routes.ts` behind it) restarts the Vite dev server, so a band
-  threshold, an option list or a summary figure is live on the next request,
-  same as the front end. Two things follow, both learned the hard way.
-  `bun server.ts` on its own **does not** watch, and Playwright's `webServer`
+  `server/api.ts` is an import of `vite.config.ts`, which Vite watches: a change
+  to it (or to `server/server-routes.ts` behind it) restarts the Vite dev
+  server, so a band threshold, an option list or a summary figure is live on
+  the next request, same as the front end. Two things follow, both learned the
+  hard way. `bun server/server.ts` on its own **does not** watch, and
+  Playwright's `webServer`
   deliberately does not either, so anything started that way still needs a
   manual restart. And because a stale process answers correctly on every field
   except the one that changed, it reads as a broken edit rather than a stale
@@ -523,8 +525,9 @@ carries one also has its name in text.
 - **`toISOString()` is a UTC conversion, and a date a human means is local.**
   `defaultRange` used it on a local-midnight date and opened the range one day
   early for every reader east of Greenwich.
-- **Vite hashes asset filenames.** `server.ts` caches `/assets/*` immutably and
-  `index.html` not at all; changing that pair reintroduces "my fix did nothing".
+- **Vite hashes asset filenames.** `server/server.ts` caches `/assets/*`
+  immutably and `index.html` not at all; changing that pair reintroduces "my
+  fix did nothing".
 - **Every Playwright run lints, typechecks, then builds — in that order.** The
   bundler and Playwright both strip types without reading them, so a passing
   build says nothing about types, and nothing else in the toolchain type-checks.
@@ -549,14 +552,14 @@ carries one also has its name in text.
 - **The three tsconfigs are split on purpose.** `tsconfig.json` (web) pins
   `types` to React alone because `@types/node` is present transitively and would
   otherwise hand `web/` `process` and `Buffer`; `tsconfig.server.json` omits
-  `dom` so `server.ts` cannot call `document`. Both were verified by probe, not
+  `dom` so `server/` cannot call `document`. Both were verified by probe, not
   assumed. Do not merge them into one config.
 - **`lint.options.typeAware` and `typeCheck` are off, on purpose.** Vite+ enables
   both by default, and tsgolint then type-checks every file against **one**
   tsconfig. That cannot work here: the three-project split above is the whole
   point, and a single project either hands `web/` the server's globals or takes
-  the server's away — `Bun` and `import.meta.dir` vanish from `server.ts`, and
-  `toSorted` vanishes from the tests. It reported 213 errors on code `tsc`
+  the server's away — `Bun` and `import.meta.dir` vanish from `server/server.ts`,
+  and `toSorted` vanishes from the tests. It reported 213 errors on code `tsc`
   accepts. Type checking is `bun run typecheck`, which is still in the gate.
 - **`vp check` is the only lint and format command.** `oxlint.config.ts` and
   `oxfmt.config.ts` are gone: Vite+ disables nested lint and format configs, so

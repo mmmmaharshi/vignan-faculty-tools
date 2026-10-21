@@ -13,7 +13,7 @@ import {
   realOptions,
   registerDates,
   unquoteJs,
-} from "../portal-replies";
+} from "../server/portal-replies";
 
 const SELECT = `<select id="ddlcourse">
   <option value="-Select-">-Select-</option>
