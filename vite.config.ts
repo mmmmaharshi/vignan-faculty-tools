@@ -9,7 +9,7 @@ import { defineConfig, lazyPlugins } from "vite-plus";
 
 import { createApi } from "./api";
 
-/** The dev server's API; `createApi`'s defaults are the real vault and ECAP. */
+/** The dev server's API; `createApi`'s default reaches the real ECAP. */
 const api = createApi();
 async function readBody(req: IncomingMessage): Promise<Buffer | undefined> {
   if (req.method === "GET" || req.method === "HEAD") return undefined;
@@ -59,8 +59,7 @@ function apiPlugin(): Plugin {
   return {
     name: "ecap-api",
     apply: "serve",
-    async configureServer(server) {
-      await api.startSessions();
+    configureServer(server) {
       server.middlewares.use((req, res, next) => {
         if (!req.url?.startsWith("/api/")) return next();
         void handleApiRequest(req, res, server);

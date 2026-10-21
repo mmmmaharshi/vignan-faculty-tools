@@ -46,12 +46,15 @@ forget, and no proxy. Two things are not obvious:
 
 - **The API core lives in `api.ts`, not `server.ts`.** Importing `server.ts`
   boots a `Bun.serve`, so it cannot be, and is not, loaded by Vite. `api.ts`
-  holds the portal, the session map and `handleApi`; `bun server.ts` imports it
-  for production, the dev plugin imports it for development.
-- **`bunSecrets()` falls back to a plain file when `Bun` is absent**, because
-  dev runs the API in Vite's Node runtime. Dev sessions then persist in
-  `.dev-sessions.json` (gitignored, plaintext, dev only) so a dev restart does
-  not sign you out; the production server still uses the OS vault.
+  holds the portal and `handleApi`; `bun server.ts` imports it for production,
+  the dev plugin imports it for development, and `api/[[...path]].ts` imports
+  it for Vercel — the same handler on all three, because the server keeps no
+  sessions of its own.
+- **There is no server-side session store.** The browser keeps its session in
+  localStorage and sends it as the `x-ecap-session` header on every request;
+  every answer slides it back. `session-store.ts` and the OS vault are gone
+  (ADR 0024). Do not reintroduce server-side session state — it is what would
+  break Vercel, where any instance must answer any request.
 
 ### Background servers
 
@@ -88,12 +91,12 @@ avoid the whole problem — one process, so there is no second one to forget.
 
 ```
 server.ts            Bun HTTP server: static files, routing to api.ts, and Bun.serve
-api.ts               the API: the portal, the sessions, and createApi(); imported
-                     by server.ts (prod) and the dev plugin in vite.config.ts.
-                     createApi takes the vault and the way to reach ECAP, so the
-                     retry rules are testable without a credential vault
+api.ts               the API: the portal and createApi(); imported by server.ts
+                     (prod), the dev plugin in vite.config.ts, and
+                     api/[[...path]].ts (Vercel). createApi takes the way to
+                     reach ECAP, so the retry rules are testable without one
 server-routes.ts     the two route handlers, over a PortalReader; no HTTP in it
-session-store.ts     sessions in the OS credential vault, over an injected backend
+api/[[...path]].ts   the Vercel function: rebuilds a fetch Request for handleApi
 portal-liveness.ts   alive | dead | unknown: is this ECAP session still working?
 portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
 portal-replies.ts    pure string -> data functions, and the seam guards
@@ -119,12 +122,12 @@ test/seam.spec.ts    portal-replies over fixture markup
 test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
 test/bands.spec.ts   where the attendance lines sit
 test/routes.spec.ts  the options ladder and the register handler, over a fake portal
-test/api.spec.ts     handleApi over a fake vault and a fake portal: what a dead
-                     session does, and what a 502 must never do
+test/api.spec.ts     handleApi over a header-carried session and a fake portal:
+                     what a dead session does, and what a 502 must never do
 test/cascade.spec.ts the cascade's rules, and its option loop over a fake fetcher
 test/client.spec.ts  the data layer, over a stub API in the browser
-test/session-store.spec.ts  session persistence, over a fake vault
 test/smoke.spec.ts   one end-to-end pass against the live portal
+vercel.json          build to dist/, /api/* to the function, the rest to index.html
 tsconfig*.json       three projects, split so web/ has DOM and server.ts does not
 dist/                build output, served by server.ts (not source)
 ```
@@ -445,12 +448,24 @@ carries one also has its name in text.
   the previous session's answers are still readable, in the cache *and* in a
   mutation's own state. Signing back in then produced a table already narrowed by
   a choice made against a session that no longer existed.
-- **A session is 30 days of *not using it*, and the cookie's `Max-Age` is derived
-  from that** so the two cannot disagree. Longer than the ECAP session by
-  design, which is why `/api/session` asks the portal rather than trusting the
-  jar: `portal.signedIn` only means "an `frmAuth` cookie is in the jar". A **401**
-  evicts, and so does an **empty course list** — see the next rule. A 502 evicts
-  nothing, because that one really is ambiguous. ADR 0013.
+- **A session is 30 days of *not using it*, and the stored `at` is what slides.**
+  Every answer carries the session back with a fresh `at`, so a daily user is
+  never signed out on day 31. Longer than the ECAP session by design, which is
+  why `/api/session` asks the portal rather than trusting the jar:
+  `portal.signedIn` only means "an `frmAuth` cookie is in the jar". A **401**
+  drops the stored session, and so does an **empty course list** — see the next
+  rule. A 502 drops nothing, because that one really is ambiguous. ADR 0013.
+- **A refusal carries no session header, and the browser drops what it holds.**
+  `read()` in `web/client.ts` saves the session only when an answer carries
+  one; `signedOut` in `App.tsx` clears storage beside the cache sweep. There is
+  no server-side eviction because there is nothing server-side to evict — a 401
+  from signing in is about the password just typed, and any other 401 is about
+  the session the request carried.
+- **The ECAP password lives in localStorage in the clear.** Deliberate,
+  user-accepted: it is what lets the server keep nothing and still revive a
+  dead portal session without asking again. Anyone holding the browser's
+  storage holds the ECAP account with it. Do not log it, print it, or widen
+  where it travels — it already goes on every request, which is exactly enough.
 - **One module decides whether a session is alive: `portal-liveness.ts`.** It
   answers `alive | dead | unknown` and both callers ask it — `handleOptions` and
   the `/api/session` probe. It was written twice, in two layers, and the copy with
@@ -465,68 +480,16 @@ carries one also has its name in text.
   Reading `portal.courses()` first and passing the result to `liveness` lets a
   throw escape *before* the rule is reached, so the 502 refusal holds by accident
   rather than by decision. That was the first version; a mutation probe caught it.
-- **The store prunes on every write, not only at boot.** A long-running server does
-  not boot again, and every sign-in added an entry — seventeen after half an hour
-  of test runs, seven of them already dead at the portal. The cutoff is a day: far
-  more than ECAP's ~20 minutes, far less than the TTL, and deliberately generous
-  because deleting a session that would still work is the worse failure.
 - **The 30 days is a ceiling on *our* session, not a promise from ECAP.** A live
   spike proved both portal cookies are session cookies with no `Expires` and no
   `Max-Age`, and that **neither authenticates alone** — so the credential is
-  bound to ECAP's in-memory ASP.NET session, and a restored token whose session
-  has lapsed is simply signed out. Do not let any UI copy imply otherwise. ADR
-  0014.
-- **The browser cookie is re-issued on every authenticated response, and it has
-  to be.** The server's session slides on use; a cookie written once at sign-in
-  does not, so a daily user was signed out on day 31 anyway. `refreshedCookie` in
-  `server.ts` is what makes `Max-Age` mean *thirty days from your last use*. Do
-  not "simplify" it back to a single write at sign-in.
-- **Use `forgetSession(id)`, never `dropSession` followed by a flush.** The delete
-  and the write cannot be separated: sign-out shipped calling `sessions.delete`
-  without the dirty flag, then without the flush, and a restart inside sixty
-  seconds brought the session back. Every call site was free to get it half right
-  and one did — `requireSession`, which dropped a 401'd session and left it on
-  disk. `dropSession` is the map half alone, for `reapSessions` where the sweep
-  writes nothing by itself.
-- **`Bun.secrets` cannot be enumerated**, so `VAULT_INDEX` lists the ids and each
-  session is its own entry. **One entry for all of them does not work**: Windows
-  caps a generic credential at `CRED_MAX_CREDENTIAL_BLOB_SIZE` = 5 × 512 = 2560
-  bytes and a session is ~526, so the fifth is rejected with `code 1783` and
-  persistence silently stops. Measured, and pinned by a test.
-
-- **The index is a credential too, so it needs its own budget.** Going one entry
-  per session solves the cap *per session* and reintroduces it *per index*: the
-  index grows about 39 bytes a session, so it fills after roughly **65 sign-ins
-  inside the 24-hour staleness window**, and the next write fails with the same
-  `code 1783` — silently, because the caller only logs the message. This was
-  live: 65 sessions, a 2536-byte index, and a sign-in that would not persist.
-
-  `withinIndexBudget` in `session-store.ts` bounds the index to
-  `INDEX_BYTE_BUDGET` (2048), keeping the **most recently used** sessions and
-  dropping the oldest past that point, then deletes the dropped sessions' entries
-  so none is orphaned. The cap is on bytes actually measured, not on a count, so
-  it stays right if the id shape ever changes. Two tests pin it: 200 sessions
-  still produce an index under 2560 bytes with the newest surviving, and 20
-  still survive untouched. **The pre-existing test that claimed to cover this
-  used 20 sessions, where 780 bytes looks fine — a test named for a limit and
-  stopping an order of magnitude short of it.**
-
-- **Sessions are written before the index, and the index before the orphan
-  sweep.** A failure part-way must leave an index that only names entries which are
-  actually stored, or a load drops live sessions.
-- **Credential Manager is not a process boundary.** A separate process running as
-  the same user reads an entry straight back. The vault narrows *at-rest*
-  exposure — backups, cloud sync, disk imaging — and nothing else. Do not describe
-  it as protecting against a compromised machine; it does not.
-- **Restore must happen before `Bun.serve`**, and the top-level `await` in
-  `server.ts` is what makes that true. `Bun.serve` listens the moment it is
-  called, so a restore after it leaves a window where a request finds an empty
-  map and signs a signed-in user out. This is also what makes **`bun --watch
-  server.ts` safe**: the restart drops every in-memory session, the restore puts
-  them back, so saving a file does not sign anyone out. `bun run dev` does not go
-  through this path at all — it runs the API inside Vite, where there is no OS
-  vault, so it uses the dev file store instead (see the dev note above), and a
-  dev restart keeps you signed in.
+  bound to ECAP's in-memory ASP.NET session, and a rebuilt jar whose portal
+  session has lapsed is simply signed out. Do not let any UI copy imply otherwise.
+  ADR 0014.
+- **A server restart signs out nobody.** The session lives in the browser, not
+  the process, so `bun --watch server.ts`, a dev restart, and a Vercel cold
+  start all keep the user signed in — the next request rebuilds the portal from
+  the stored session and revives it if ECAP dropped it.
 - **The dev API reloads with the dev server; the Playwright one does not.**
   `api.ts` is an import of `vite.config.ts`, which Vite watches: a change to it
   (or to `server-routes.ts` behind it) restarts the Vite dev server, so a band
@@ -670,10 +633,10 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   counts the POSTs on the wire.
 - **A key is a promise about *whose* data it is, so nothing keyed on the server
   survives a session.** `forgetServerData()` sweeps every `/api/` key on the way
-  out. That sweep is not enough on its own: a mutation's failure is the *hook's*
-  own state rather than the cache's, so a 401 left in the options chain would sit
-  in the next session's class picker — hence `resetCascade()` beside it in
-  `signedOut`.
+  out, and `signedOut` clears the stored session beside it. That sweep is not
+  enough on its own: a mutation's failure is the *hook's* own state rather than
+  the cache's, so a 401 left in the options chain would sit in the next
+  session's class picker — hence `resetCascade()` beside it in `signedOut`.
 - **Automatic revalidation is off, except where it is the point.**
   `revalidateOnFocus: false` and `revalidateOnReconnect: false` everywhere,
   because a read must be something the user asked for; the two exceptions are
@@ -718,7 +681,7 @@ Only `test/smoke.spec.ts` touches the network, so everything else — the portal
 seam, its wire conventions, the attendance bands, the route handlers over a fake
 portal, the cascade's rules and its option loop over an injected fetcher, the
 app's own data layer over a stub API in a real browser, session liveness, and
-session persistence over a fake vault — runs with `bunx playwright test` and no
+the retry rules over a fake portal — runs with `bunx playwright test` and no
 environment at all, in seconds.
 
 **A stub API can vouch for the app's own data layer, but never for the Portal's.**
@@ -732,10 +695,9 @@ job, against the real thing.
 moment a test is added, and a stale count in a manual is worse than none: it
 reads as a fact. It was here twice and wrong twice. Read the count off the run.
 
-**Nothing may touch the real Windows Credential Manager**, which is why
-`session-store.ts` takes its backend as an argument; `bunSecrets()` is the only
-caller of the real thing. `api.ts` takes it the same way, so `test/api.spec.ts`
-drives the retry rules over a fake vault and needs no credential at all.
+**Nothing may touch the network except the smoke test**, which is why `api.ts`
+takes its way of reaching ECAP as an argument; `test/api.spec.ts` drives the
+retry rules over a fake portal and needs no credential at all.
 
 **Never add an assertion that mirrors the implementation.** Such a test passes
 when the code is wrong and proves nothing. Assert a property instead: for the

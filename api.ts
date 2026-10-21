@@ -40,10 +40,9 @@ import {
   handleStudentProfile,
 } from "./server-routes";
 import type { PortalReader } from "./server-routes";
-import { bunSecrets, loadSessions, saveSessions, sweep } from "./session-store";
-import type { Secrets, StoredSession } from "./session-store";
 import type {
   CascadeLevel,
+  ClientSession,
   ErrorReply,
   FacultyProfile,
   LoginRequest,
@@ -55,10 +54,12 @@ import type {
   SessionReply,
   StudentRequest,
 } from "./shared/api";
+import { SESSION_HEADER } from "./shared/api";
 
 type Level = CascadeLevel;
+/** Thirty days of *not using it*, after ADR 0013. The browser carries `at`
+ *  and the server slides it on every answer. */
 export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-export const FLUSH_INTERVAL_MS = 60_000;
 function messageOf(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
@@ -247,18 +248,6 @@ class Portal {
     );
   }
 }
-function refreshedCookie(id: string): Record<string, string> {
-  return {
-    "set-cookie": `ecap_sid=${id}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${SESSION_TTL_MS / 1000}`,
-  };
-}
-function readCookie(req: Request, name: string): string | null {
-  for (const part of (req.headers.get("cookie") || "").split(";")) {
-    const [k, ...v] = part.trim().split("=");
-    if (k === name) return decodeURIComponent(v.join("="));
-  }
-  return null;
-}
 export function json(
   body: unknown,
   status = 200,
@@ -277,8 +266,9 @@ async function readJson<T>(req: Request): Promise<Partial<T>> {
   }
 }
 /**
- * Everything a signed-in call needs from ECAP: the jar the session is persisted
- * from, the liveness question, and the reader the route handlers cross.
+ * Everything a signed-in call needs from ECAP: the jar the request's session
+ * is rebuilt into, the liveness question, and the reader the route handlers
+ * cross.
  */
 export type PortalPort = CourseReader & {
   readonly jar: CookieJar;
@@ -287,134 +277,93 @@ export type PortalPort = CourseReader & {
   signIn: (userId: string, password: string) => Promise<void>;
 };
 type Session = {
-  at: number;
   userId: string;
-  // Kept so a dead ECAP session can be re-established without asking again. It
-  // lives only in the OS vault. See ADR 0019.
+  // Kept so a dead ECAP session can be re-established without asking again.
+  // It arrives with the request and leaves with the answer — see ADR 0024.
   password: string;
   portal: PortalPort;
 };
 export type ApiOptions = {
-  /** Where sessions are kept. `bunSecrets()` is the real one; a test passes a fake. */
-  vault?: Secrets | null;
   /** How to reach ECAP. `Portal` is the real one; a test passes a fake. */
   connect?: () => PortalPort;
 };
 /**
- * One process's sessions, over one vault and one way of reaching ECAP. Both are
- * arguments rather than module state, which is what lets `test/api.spec.ts`
- * drive the retry rules through `handleApi` without a credential vault.
+ * The API over one way of reaching ECAP, kept as an argument rather than
+ * module state so `test/api.spec.ts` drives the retry rules through
+ * `handleApi` without touching ECAP.
+ *
+ * The server keeps no sessions of its own: the browser stores its session in
+ * localStorage and sends it on every request, and every answer carries the
+ * slid session back. Any instance — one long-running process or a fleet of
+ * serverless functions — answers any request from the request alone.
  */
-export function createApi({
-  vault = bunSecrets(),
-  connect = () => new Portal(),
-}: ApiOptions = {}) {
-  const sessions = new Map<string, Session>();
-  let storeDirty = false;
-  function markStoreDirty() {
-    storeDirty = true;
-  }
-  function dropSession(id: string | null): boolean {
-    if (!id) return false;
-    const removed = sessions.delete(id);
-    if (removed) markStoreDirty();
-    return removed;
-  }
-  function snapshotSessions(): StoredSession[] {
-    return [...sessions].map(([id, s]) => ({
-      id,
-      at: s.at,
+const encodeSession = (s: Session): string =>
+  Buffer.from(
+    JSON.stringify({
       userId: s.userId,
       password: s.password,
       cookies: [...s.portal.jar.entries],
-    }));
-  }
-  async function flushSessions(): Promise<void> {
-    if (!vault || !storeDirty) return;
-    const problem = await saveSessions(vault, snapshotSessions());
-    if (problem) {
-      console.error(`[sessions] ${problem}`);
-      return;
+      at: Date.now(),
+    } satisfies ClientSession),
+    "utf-8"
+  ).toString("base64url");
+/** The one signed-out reply, so the places that say it cannot drift apart. */
+function signedOutReply(): SessionReply {
+  return { signedIn: false, userId: "" };
+}
+/** The answer's slid session, or nothing on a request that refused. */
+const sessionHeader = (s: Session): Record<string, string> => ({
+  [SESSION_HEADER]: encodeSession(s),
+});
+export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
+  /** The request's session, rebuilt into a portal. Null when there is nothing
+   *  to rebuild from: no header, an unreadable one, or a shape that is not a
+   *  session at all. Never throws. */
+  function readSession(req: Request): Session | null {
+    const raw = req.headers.get(SESSION_HEADER);
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(
+        Buffer.from(raw, "base64url").toString("utf-8")
+      ) as Partial<ClientSession>;
+      if (!parsed || typeof parsed.userId !== "string" || !parsed.userId)
+        return null;
+      if (
+        typeof parsed.at !== "number" ||
+        Date.now() - parsed.at > SESSION_TTL_MS
+      )
+        return null;
+      if (
+        !Array.isArray(parsed.cookies) ||
+        parsed.cookies.some(
+          (pair) =>
+            !Array.isArray(pair) ||
+            pair.length !== 2 ||
+            typeof pair[0] !== "string" ||
+            typeof pair[1] !== "string"
+        )
+      )
+        return null;
+      const portal = connect();
+      for (const [name, value] of parsed.cookies as [string, string][])
+        portal.jar.entries.set(name, value);
+      // A session stored before the credential existed carries none: it can
+      // still be probed, it just cannot be revived.
+      const password =
+        typeof parsed.password === "string" ? parsed.password : "";
+      return { userId: parsed.userId, password, portal };
+    } catch {
+      return null;
     }
-    storeDirty = false;
   }
-  async function forgetSession(id: string | null): Promise<void> {
-    if (dropSession(id)) await flushSessions();
-  }
-  function restoreSession(stored: StoredSession): Session {
-    const portal = connect();
-    for (const [name, value] of stored.cookies)
-      portal.jar.entries.set(name, value);
-    return {
-      at: stored.at,
-      userId: stored.userId,
-      password: stored.password ?? "",
-      portal,
-    };
-  }
-  function reapSessions() {
-    const now = Date.now();
-    let dropped = false;
-    for (const [id, s] of sessions) {
-      if (now - s.at > SESSION_TTL_MS) {
-        sessions.delete(id);
-        dropped = true;
-      }
-    }
-    if (dropped) markStoreDirty();
-  }
-  /** Restores every session still inside the TTL, then answers whether a vault exists. */
-  async function restoreSessions(): Promise<boolean> {
-    if (!vault) return false;
-    const loaded = await loadSessions(vault);
-    const { kept, dropped } = sweep(loaded, Date.now(), SESSION_TTL_MS);
-    for (const stored of kept) {
-      if (sessions.has(stored.id)) continue;
-      sessions.set(stored.id, restoreSession(stored));
-    }
-    if (dropped) markStoreDirty();
-    return true;
-  }
-  /**
-   * The session lifecycle both servers need: restore before serving, then keep
-   * the slid `at` written back. `server.ts` does this inline so it can also
-   * flush on exit; the dev plugin calls this.
-   */
-  async function startSessions(): Promise<void> {
-    await restoreSessions();
-    setInterval(async () => {
-      await flushSessions();
-    }, FLUSH_INTERVAL_MS);
-  }
-  /** The one signed-out reply, so the places that say it cannot drift apart. */
-  function signedOutReply(): SessionReply {
-    return { signedIn: false, persisted: Boolean(vault), userId: "" };
-  }
-  function getSession(id: string | null): Session | null {
-    if (!id) return null;
-    reapSessions();
-    const s = sessions.get(id);
-    if (!s) return null;
-    s.at = Date.now();
-    markStoreDirty();
-    return s;
-  }
-  async function requireSession(req: Request): Promise<Session> {
-    const id = readCookie(req, "ecap_sid");
-    const s = getSession(id);
-    if (!s)
+  function requireSession(req: Request): Session {
+    const s = readSession(req);
+    if (!s || !s.portal.signedIn)
       throw new HttpError(401, "Your session expired. Please sign in again.");
-    if (!s.portal.signedIn) {
-      await forgetSession(id);
-      throw new HttpError(
-        401,
-        "Your ECAP session expired. Please sign in again."
-      );
-    }
     return s;
   }
   /**
-   * Re-establishes the portal session from the stored credential after ECAP
+   * Re-establishes the portal session from the request's credential after ECAP
    * drops it. Throws 401 when there is no credential or the password no longer
    * works.
    */
@@ -433,8 +382,6 @@ export function createApi({
         : new HttpError(502, messageOf(error));
     }
     s.portal = portal;
-    markStoreDirty();
-    await flushSessions();
   }
   /**
    * Runs a portal operation, and if it 401s because ECAP dropped the session,
@@ -460,7 +407,6 @@ export function createApi({
         const { userId, password } = await readJson<LoginRequest>(req);
         if (!userId || !password)
           throw new HttpError(400, "Enter your user name and password.");
-        reapSessions();
         const portal = connect();
         try {
           await portal.signIn(String(userId), String(password));
@@ -469,27 +415,19 @@ export function createApi({
             ? error
             : new HttpError(502, messageOf(error));
         }
-        const id = crypto.randomUUID();
-        sessions.set(id, {
-          at: Date.now(),
+        const s: Session = {
           userId: String(userId).trim(),
           password: String(password),
           portal,
-        });
-        markStoreDirty();
-        await flushSessions();
-        return json({ ok: true } satisfies OkReply, 200, refreshedCookie(id));
+        };
+        return json({ ok: true } satisfies OkReply, 200, sessionHeader(s));
       }
       if (req.method === "POST" && path === "/api/logout") {
-        const id = readCookie(req, "ecap_sid");
-        await forgetSession(id);
-        return json({ ok: true } satisfies OkReply, 200, {
-          "set-cookie": "ecap_sid=; Path=/; Max-Age=0",
-        });
+        // Nothing server-side to end: the browser drops its stored session.
+        return json({ ok: true } satisfies OkReply);
       }
       if (path === "/api/session") {
-        const id = readCookie(req, "ecap_sid");
-        const s = getSession(id);
+        const s = readSession(req);
         if (!s) return json(signedOutReply(), 200);
         if ((await liveness(s.portal)) === "dead") {
           const failure: unknown = await reauthenticate(s).catch(
@@ -497,30 +435,28 @@ export function createApi({
           );
           // Only a 401 says the credential is dead; a 502 is `unknown`, and
           // ADR 0019 forbids evicting on ambiguity. The next request asks again.
+          // Either way there is nothing server-side to evict: the browser
+          // drops a refused session itself.
           if (failure instanceof HttpError && failure.status === 401) {
-            await forgetSession(id);
             return json(signedOutReply(), 200);
           }
         }
         return json(
           {
             signedIn: s.portal.signedIn,
-            persisted: Boolean(vault),
             userId: s.userId,
           } satisfies SessionReply,
           200,
-          id ? refreshedCookie(id) : undefined
+          sessionHeader(s)
         );
       }
       const s = await requireSession(req);
-      const id = readCookie(req, "ecap_sid");
-      const cookie = id ? refreshedCookie(id) : undefined;
       if (req.method === "POST" && path === "/api/options") {
         const body = await readJson<OptionsRequest>(req);
         return json(
           await withPortal(s, (p) => handleOptions(p.reader, body)),
           200,
-          cookie
+          sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/register") {
@@ -528,7 +464,7 @@ export function createApi({
         return json(
           await withPortal(s, (p) => handleRegister(p.reader, body)),
           200,
-          cookie
+          sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/sem-start") {
@@ -536,7 +472,7 @@ export function createApi({
         return json(
           await withPortal(s, (p) => handleSemStart(p.reader, body)),
           200,
-          cookie
+          sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/student") {
@@ -544,14 +480,14 @@ export function createApi({
         return json(
           await withPortal(s, (p) => handleStudentProfile(p.reader, body)),
           200,
-          cookie
+          sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/faculty-profile") {
         return json(
           await withPortal(s, (p) => handleFacultyProfile(p.reader)),
           200,
-          cookie
+          sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/sem-absences") {
@@ -559,27 +495,22 @@ export function createApi({
         return json(
           await withPortal(s, (p) => handleSemAbsences(p.reader, body)),
           200,
-          cookie
+          sessionHeader(s)
         );
       }
       return json({ error: "Not found" } satisfies ErrorReply, 404);
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
       if (status === 500) console.error("[error]", messageOf(error));
-      // A 401 on the way out is a session ECAP has already rejected, so its
-      // credential goes with it (ADR 0019). One raised by signing in is about
-      // the password just typed, not the stored session, so it evicts nothing;
-      // and an id that is not in the map is left alone, so nothing is written
-      // back for a request that had none.
-      if (status === 401 && path !== "/api/login") {
-        const id = readCookie(req, "ecap_sid");
-        if (id && sessions.has(id)) await forgetSession(id);
-      }
+      // A refusal carries no session header, so the browser drops what it
+      // holds. There is nothing server-side to evict: a 401 from signing in
+      // is about the password just typed, and any other 401 is about the
+      // session the request carried.
       return json(
         { error: messageOf(error) || "Something went wrong." },
         status
       );
     }
   }
-  return { flushSessions, restoreSessions, startSessions, handleApi };
+  return { handleApi };
 }

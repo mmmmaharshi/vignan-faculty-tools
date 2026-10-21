@@ -18,9 +18,29 @@ export const isAllSubjects = (subject: Option | undefined): boolean =>
   subject?.value === ALL_SUBJECTS.value;
 export interface SessionReply {
   signedIn: boolean;
-  persisted: boolean;
   userId: string;
 }
+/**
+ * The session, as the browser keeps it in localStorage and sends it back on
+ * every request. The server holds nothing per user, so any instance — a
+ * long-running Bun process or a serverless function — answers any request
+ * from this alone: the credential re-establishes the portal session when ECAP
+ * drops it, and `at` bounds the session's own life.
+ */
+export interface ClientSession {
+  userId: string;
+  /** The ECAP password, in the clear: this site trades vault storage for a
+   *  server with no per-user state. Anyone holding the browser's storage
+   *  holds the ECAP account with it. */
+  password: string;
+  cookies: [string, string][];
+  /** When the server last saw this session. Requests older than thirty days
+   *  of not using it are refused. */
+  at: number;
+}
+/** Where the browser keeps its session, and the header that carries it. */
+export const SESSION_STORE_KEY = "ecap-session";
+export const SESSION_HEADER = "x-ecap-session";
 export interface OkReply {
   ok: true;
 }

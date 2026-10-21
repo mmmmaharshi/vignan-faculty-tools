@@ -1,4 +1,4 @@
-import { FLUSH_INTERVAL_MS, createApi, json } from "./api";
+import { createApi, json } from "./api";
 import type { ErrorReply } from "./shared/api";
 
 const PORT = Number(process.env.PORT || 8787);
@@ -20,16 +20,6 @@ async function indexHtml(): Promise<Response> {
   });
 }
 const api = createApi();
-const vaultBacked = await api.restoreSessions();
-setInterval(async () => {
-  await api.flushSessions();
-}, FLUSH_INTERVAL_MS);
-for (const signal of ["SIGINT", "SIGTERM"] as const) {
-  process.on(signal, async () => {
-    await api.flushSessions();
-    process.exit(0);
-  });
-}
 const server = Bun.serve({
   port: PORT,
   hostname: "127.0.0.1",
@@ -71,7 +61,3 @@ const server = Bun.serve({
 });
 console.log(`\n  Vignan Faculty Tools`);
 console.log(`  http://127.0.0.1:${server.port}\n`);
-if (!vaultBacked)
-  console.log(
-    `  No OS credential vault on this runtime, so a restart signs you out.\n`
-  );

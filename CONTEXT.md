@@ -177,16 +177,16 @@ _Avoid_: Arrears, supplementary exams, failed subjects
 
 **Sign-in**:
 Exchanging an ECAP user name and password for a portal session, held as the
-`frmAuth` cookie. The password is used to sign in to ECAP and is kept in the OS
-credential vault (or, where `Bun.secrets` is absent, the gitignored plaintext dev
-file), so
-the app can sign in again when the portal's own session expires; it never reaches
-the browser and is never logged. See ADR 0019.
+`frmAuth` cookie. The password is used to sign in to ECAP and is kept in the
+browser's localStorage with the session, so
+the server can sign in again when the portal's own session expires; it is never
+logged. See ADR 0024.
 _Avoid_: Login, authentication, auth
 
 **Session**:
-One signed-in user's portal cookie jar on the server. Separate per user, so two
-people can be signed in at once.
+One signed-in user's portal cookie jar, kept in the browser's localStorage and
+sent on every request — the server holds nothing per user, so two people can be
+signed in at once from anywhere. See ADR 0024.
 _Avoid_: Jar, cookie store
 
 **Leave counts**:

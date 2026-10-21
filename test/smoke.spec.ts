@@ -1,13 +1,9 @@
-import { spawnSync } from "node:child_process";
-import nodePath from "node:path";
-import { pathToFileURL } from "node:url";
-
 import { test, expect } from "@playwright/test";
 import type { Locator, Page } from "@playwright/test";
 
-const STORE_URL = pathToFileURL(
-  nodePath.resolve("session-store.ts")
-).toString();
+import { SESSION_HEADER, SESSION_STORE_KEY } from "../shared/api";
+import type { ClientSession } from "../shared/api";
+
 const USER = process.env.ECAP_USER ?? "";
 const PASS = process.env.ECAP_PASS ?? "";
 type SelectState = { index: number; value: string; disabled: boolean };
@@ -84,20 +80,19 @@ async function signInAndLoad(page: Page): Promise<string> {
   await submitSignIn(page);
   return loadFirstSubject(page);
 }
-function vaultSessions(): { id: string }[] | null {
-  const script = [
-    `const { bunSecrets, loadSessions } = await import(${JSON.stringify(STORE_URL)});`,
-    `const b = bunSecrets();`,
-    `if (!b) { console.log("NOVAULT"); process.exit(0); }`,
-    `const s = await loadSessions(b);`,
-    `console.log(JSON.stringify(s.map((x) => ({ id: x.id }))));`,
-  ].join("");
-  const out = spawnSync("bun", ["-e", script], { encoding: "utf-8" });
-  const text = (out.stdout || "").trim();
-  if (text === "NOVAULT") return null;
-  if (!text) return [];
-  const parsed: unknown = JSON.parse(text);
-  return Array.isArray(parsed) ? (parsed as { id: string }[]) : null;
+/** The browser's stored session, decoded. The server keeps no copy. */
+function storedSession(page: Page): Promise<ClientSession | null> {
+  return page.evaluate((key) => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const bin = atob(raw.replaceAll("-", "+").replaceAll("_", "/"));
+      const bytes = Uint8Array.from(bin, (c) => c.codePointAt(0) ?? 0);
+      return JSON.parse(new TextDecoder().decode(bytes)) as ClientSession;
+    } catch {
+      return null;
+    }
+  }, SESSION_STORE_KEY);
 }
 test.describe("Vignan Faculty Tools", () => {
   test.skip(
@@ -694,15 +689,13 @@ test.describe("Vignan Faculty Tools", () => {
     await signInAndLoad(page);
     const total = await page.locator("tbody tr").count();
     expect(total).toBeGreaterThan(0);
-    const cookies = await page.context().cookies();
-    const sid = cookies.find((c) => c.name === "ecap_sid");
-    expect(sid, "sign-in should set ecap_sid").toBeTruthy();
-    const days = ((sid?.expires ?? 0) - Date.now() / 1000) / 86_400;
+    const stored = await storedSession(page);
+    expect(stored, "sign-in should store a session locally").toBeTruthy();
+    expect(stored?.userId, "the stored session names its user").toBeTruthy();
     expect(
-      days,
-      `ecap_sid should last about 30 days, got ${days.toFixed(1)}`
-    ).toBeGreaterThan(29);
-    expect(days).toBeLessThan(31);
+      Date.now() - (stored?.at ?? 0),
+      "a session just made was just used"
+    ).toBeLessThan(5 * 60_000);
     await page.getByLabel("All irregular students").click();
     await expect
       .poll(() => page.locator("tbody tr").count())
@@ -718,78 +711,96 @@ test.describe("Vignan Faculty Tools", () => {
   });
   test("a session that dies while you are working says so, and why", async ({
     page,
-    request,
   }) => {
     await signInAndLoad(page);
-    const cookies = await page.context().cookies();
-    const sid = cookies.find((c) => c.name === "ecap_sid");
-    expect(sid, "signed in, so there is a session cookie").toBeTruthy();
-    await request.post("/api/logout", {
-      headers: { cookie: `ecap_sid=${sid?.value}` },
-    });
+    expect(
+      await storedSession(page),
+      "signed in, so there is a stored session"
+    ).toBeTruthy();
+    // The server keeps nothing to kill, so the death is the browser losing
+    // what it holds — the probe then answers signed out.
+    await page.evaluate(
+      (key) => localStorage.removeItem(key),
+      SESSION_STORE_KEY
+    );
     await page.evaluate(() =>
       document.dispatchEvent(new Event("visibilitychange"))
     );
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
     await expect(page.getByRole("alert")).toHaveText(/session expired/i);
   });
-  test("a sign-out reaches the vault, so a restart cannot undo it", async ({
+  test("signing out drops the stored session, so a reload stays signed out", async ({
     page,
-    request,
   }) => {
     await signInAndLoad(page);
-    const before = vaultSessions();
-    test.skip(before === null, "no OS vault on this runtime");
-    const cookies = await page.context().cookies();
-    const sid = cookies.find((c) => c.name === "ecap_sid");
-    expect(sid?.value, "signed in, so there is a session cookie").toBeTruthy();
     expect(
-      before?.map((s) => s.id),
-      "the session just created must be on disk before we end it"
-    ).toContain(sid?.value);
-    const res = await request.post("/api/logout", {
-      headers: { cookie: `ecap_sid=${sid?.value}` },
-    });
-    expect(res.ok()).toBe(true);
-    const after = vaultSessions();
+      await storedSession(page),
+      "signed in, so there is a stored session"
+    ).toBeTruthy();
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
     expect(
-      after?.map((s) => s.id),
-      "the ended session must be gone from the vault"
-    ).not.toContain(sid?.value);
+      await storedSession(page),
+      "the ended session must be gone from storage"
+    ).toBeNull();
+    await page.reload();
+    await expect(
+      page.getByLabel("ECAP user name"),
+      "a reload after sign-out stays signed out"
+    ).toBeVisible();
   });
-  test("the session cookie keeps rolling forward while the app is used", async ({
+  test("the stored session slides forward while the app is used", async ({
     page,
-    baseURL,
   }) => {
     await signInAndLoad(page);
-    const sid = () =>
-      page
-        .context()
-        .cookies()
-        .then((cs) => cs.find((c) => c.name === "ecap_sid"));
-    const first = await sid();
-    expect(
-      first?.expires ?? 0,
-      "signed in, so there is a cookie"
-    ).toBeGreaterThan(0);
-    const value = first?.value ?? "";
-    const aged = Math.floor(Date.now() / 1000) + 60;
-    await page.context().clearCookies();
-    await page
-      .context()
-      .addCookies([
-        { url: baseURL ?? "", name: "ecap_sid", value, expires: aged },
-      ]);
-    const reply = await page.evaluate(async () => {
-      const res = await fetch("/api/session");
-      return { status: res.status, body: await res.json() };
-    });
+    const first = await storedSession(page);
+    expect(first, "signed in, so there is a stored session").toBeTruthy();
+    // Age the stored session a day: still inside the thirty, so the next
+    // answer must carry a newer one.
+    const aged = Date.now() - 24 * 60 * 60_000;
+    await page.evaluate(
+      ([key, at]) => {
+        const raw = localStorage.getItem(key);
+        if (!raw) return;
+        const bin = atob(raw.replaceAll("-", "+").replaceAll("_", "/"));
+        const bytes = Uint8Array.from(bin, (c) => c.codePointAt(0) ?? 0);
+        const session = JSON.parse(new TextDecoder().decode(bytes)) as {
+          at: number;
+        };
+        session.at = at as number;
+        const fresh = new TextEncoder().encode(JSON.stringify(session));
+        let out = "";
+        for (const b of fresh) {
+          out += String.fromCodePoint(b);
+        }
+        localStorage.setItem(
+          key as string,
+          btoa(out).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")
+        );
+      },
+      [SESSION_STORE_KEY, aged] as const
+    );
+    const reply = await page.evaluate(
+      ([key, header]) => {
+        const run = async () => {
+          const stored = localStorage.getItem(key as string);
+          const res = await fetch("/api/session", {
+            headers: stored ? { [header as string]: stored } : {},
+          });
+          const slid = res.headers.get(header as string);
+          if (slid) localStorage.setItem(key as string, slid);
+          return { status: res.status, body: await res.json() };
+        };
+        return run();
+      },
+      [SESSION_STORE_KEY, SESSION_HEADER] as const
+    );
     expect(reply.status).toBe(200);
     expect(reply.body).toMatchObject({ signedIn: true });
-    const fresh = await sid();
+    const fresh = await storedSession(page);
     expect(
-      fresh?.expires ?? 0,
-      "an authenticated response must push the expiry back out"
+      fresh?.at ?? 0,
+      "an authenticated response must slide the session forward"
     ).toBeGreaterThan(aged);
   });
 });

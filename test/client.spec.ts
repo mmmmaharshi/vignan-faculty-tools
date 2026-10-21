@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import type { Page, Route } from "@playwright/test";
 
-import { ALL_SUBJECTS } from "../shared/api";
+import { ALL_SUBJECTS, SESSION_HEADER, SESSION_STORE_KEY } from "../shared/api";
 import type {
   Option,
   OptionsReply,
@@ -173,14 +173,29 @@ const stub = async (route: Route): Promise<void> => {
     sessionCalls += 1;
     await json({
       signedIn,
-      persisted: false,
       userId: signedIn ? "faculty" : "",
     });
     return;
   }
   if (path === "/api/login") {
     signedIn = true;
-    await json({ ok: true });
+    // What the real server answers: the session to store, as a header.
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: {
+        [SESSION_HEADER]: Buffer.from(
+          JSON.stringify({
+            userId: "faculty",
+            password: "secret",
+            cookies: [["frmAuth", "ok"]],
+            at: Date.now(),
+          }),
+          "utf-8"
+        ).toString("base64url"),
+      },
+      body: JSON.stringify({ ok: true }),
+    });
     return;
   }
   if (path === "/api/logout") {
@@ -744,6 +759,30 @@ test.describe("the app's own data layer", () => {
       page.locator("tbody tr"),
       "and the previous session's register did not come back with it"
     ).toHaveCount(0);
+  });
+
+  test("the session is kept locally, and sign-out drops it", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    expect(
+      await page.evaluate(
+        (key) => localStorage.getItem(key),
+        SESSION_STORE_KEY
+      ),
+      "sign-in stores the session the server answered"
+    ).toBeTruthy();
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+    expect(
+      await page.evaluate(
+        (key) => localStorage.getItem(key),
+        SESSION_STORE_KEY
+      ),
+      "sign-out drops it, and the server keeps no copy to leak"
+    ).toBeNull();
   });
 
   test("a fully chosen class is remembered when Load register is clicked", async ({

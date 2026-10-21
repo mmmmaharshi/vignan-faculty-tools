@@ -45,6 +45,7 @@ import {
 } from "./cascade";
 import type { Level, Range, Sel } from "./cascade";
 import {
+  clearStoredSession,
   forgetServerData,
   isExpired,
   messageOf,
@@ -328,6 +329,8 @@ const App = (): React.JSX.Element => {
       // so a 401 left there would sit in the next session's class picker.
       resetCascade();
       void forgetServerData();
+      // The session is the browser's to drop: the server keeps nothing.
+      clearStoredSession();
       setClick(null);
       setUserId("");
       setPassword("");

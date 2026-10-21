@@ -16,6 +16,7 @@ import type {
   StudentProfile,
   StudentRequest,
 } from "../shared/api";
+import { SESSION_HEADER, SESSION_STORE_KEY } from "../shared/api";
 import { runCascade } from "./cascade";
 import type { CascadeOutcome, CascadeSetup } from "./cascade";
 /**
@@ -29,9 +30,9 @@ import type { CascadeOutcome, CascadeSetup } from "./cascade";
  * session** — `forgetServerData` sweeps them all on the way out.
  */
 /** How often a session that is just sitting there is asked whether it still
- *  works. Not an expiry — the cookie's own `Max-Age` is thirty days of not using
- *  it — but the check that a session ECAP has dropped shows up while someone is
- *  working rather than at their next request. */
+ *  works. Not an expiry — the stored session's own `at` is thirty days of not
+ *  using it — but the check that a session ECAP has dropped shows up while
+ *  someone is working rather than at their next request. */
 export const SESSION_PROBE_MS = 5 * 60_000;
 const SESSION_PATH = "/api/session";
 const REGISTER_PATH = "/api/register";
@@ -64,9 +65,40 @@ export const isExpired = (error: unknown): boolean =>
   error instanceof ApiError && error.status === 401;
 export const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+/**
+ * The session lives in localStorage and travels on every request: the server
+ * keeps nothing per user, so the browser is the session's only home. The
+ * ECAP password sits in it in the clear — anyone holding this browser's
+ * storage holds the ECAP account with it.
+ */
+export const loadStoredSession = (): string | null => {
+  try {
+    return localStorage.getItem(SESSION_STORE_KEY);
+  } catch {
+    return null;
+  }
+};
+const saveStoredSession = (encoded: string): void => {
+  try {
+    localStorage.setItem(SESSION_STORE_KEY, encoded);
+  } catch {
+    // A storage that refuses writes leaves the session memory-only: this
+    // request still works, the next visit signs in again.
+  }
+};
+/** Drops the stored session. Signing out is this and the cache sweep. */
+export const clearStoredSession = (): void => {
+  try {
+    localStorage.removeItem(SESSION_STORE_KEY);
+  } catch {
+    // Already gone, or storage was never readable.
+  }
+};
 /** The server's own sentence for a request it refused, or the status when it
  *  sent no sentence with it. */
 async function read<T>(res: Response): Promise<T> {
+  const slid = res.headers.get(SESSION_HEADER);
+  if (slid) saveStoredSession(slid);
   const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
     throw new ApiError(
@@ -76,19 +108,29 @@ async function read<T>(res: Response): Promise<T> {
   }
   return body as T;
 }
+const withSession = (init: RequestInit): RequestInit => {
+  const stored = loadStoredSession();
+  if (!stored) return init;
+  return {
+    ...init,
+    headers: { ...init.headers, [SESSION_HEADER]: stored },
+  };
+};
 export const getJson = async <T>(path: string): Promise<T> =>
-  read<T>(await fetch(path));
+  read<T>(await fetch(path, withSession({})));
 export const postJson = async <T>(path: string, body?: unknown): Promise<T> =>
   read<T>(
     await fetch(
       path,
-      body === undefined
-        ? { method: "POST" }
-        : {
-            method: "POST",
-            headers: { "content-type": "application/json" },
-            body: JSON.stringify(body),
-          }
+      withSession(
+        body === undefined
+          ? { method: "POST" }
+          : {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify(body),
+            }
+      )
     )
   );
 /**

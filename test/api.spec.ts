@@ -5,13 +5,13 @@ import type { PortalPort } from "../api";
 import { CookieJar } from "../portal-conventions";
 import { HttpError } from "../portal-replies";
 import type { PortalReader } from "../server-routes";
-import { loadSessions, saveSessions } from "../session-store";
-import type { Secrets, StoredSession } from "../session-store";
 import type {
+  ClientSession,
   OptionsReply,
   RegisterRequest,
   SessionReply,
 } from "../shared/api";
+import { SESSION_HEADER } from "../shared/api";
 
 type Api = ReturnType<typeof createApi>;
 const opt = (value: string, label: string) => ({ value, label, title: "" });
@@ -26,16 +26,16 @@ const REGISTER: RegisterRequest = {
   from: "01/07/2026",
   to: "15/07/2026",
 };
-function fakeVault(): Secrets {
-  const store = new Map<string, string>();
-  return {
-    get: (name) => Promise.resolve(store.get(name) ?? null),
-    set: (name, value) => {
-      store.set(name, value);
-      return Promise.resolve();
-    },
-    delete: (name) => Promise.resolve(store.delete(name)),
+/** A browser-stored session, as `/api/login` answers it. */
+function stored(over: Partial<ClientSession> = {}): string {
+  const full: ClientSession = {
+    userId: "sirichandrasekhar",
+    password: "hunter2",
+    cookies: [["frmAuth", "ok"]],
+    at: Date.now(),
+    ...over,
   };
+  return Buffer.from(JSON.stringify(full), "utf-8").toString("base64url");
 }
 function readerWith(over: Partial<PortalReader> = {}): PortalReader {
   return {
@@ -58,16 +58,6 @@ function readerWith(over: Partial<PortalReader> = {}): PortalReader {
   };
 }
 const expiredCourses = () => Promise.reject(new HttpError(401, "expired"));
-/** A stored session, credential and all, as one signed in after ADR 0019. */
-function storedSession(id: string): StoredSession {
-  return {
-    id,
-    at: Date.now(),
-    userId: "sirichandrasekhar",
-    password: "hunter2",
-    cookies: [["frmAuth", "ok"]],
-  };
-}
 /**
  * A portal over one reader, counting the revivals it was asked to perform.
  * `signInError` makes that sign-in fail, which is the only way to see what a
@@ -102,13 +92,13 @@ function post(
   api: Api,
   path: string,
   body: unknown,
-  id?: string
+  session?: string
 ): Promise<Response> {
   return call(api, path, {
     method: "POST",
     headers: {
       "content-type": "application/json",
-      ...(id ? { cookie: `ecap_sid=${id}` } : {}),
+      ...(session ? { [SESSION_HEADER]: session } : {}),
     },
     body: JSON.stringify(body),
   });
@@ -118,8 +108,8 @@ async function signIn(api: Api): Promise<string> {
     userId: "sirichandrasekhar",
     password: "hunter2",
   });
-  const header = res.headers.get("set-cookie") ?? "";
-  return /ecap_sid=(?<id>[^;]+)/.exec(header)?.groups?.id ?? "";
+  expect(res.status).toBe(200);
+  return res.headers.get(SESSION_HEADER) ?? "";
 }
 test.describe("handleApi", () => {
   test("a 401 mid-request signs in again, and the original call is retried", async () => {
@@ -129,12 +119,15 @@ test.describe("handleApi", () => {
     });
     let built = 0;
     const api = createApi({
-      vault: fakeVault(),
-      connect: () => portalOf(built++ === 0 ? expired : readerWith(), revivals),
+      // The request rebuilds its portal from the stored session, so both the
+      // sign-in build and the request build see the expired reader; only the
+      // revival builds fresh.
+      connect: () => portalOf(built++ < 2 ? expired : readerWith(), revivals),
     });
-    const id = await signIn(api);
+    const session = await signIn(api);
+    expect(session, "sign-in answers a session to store").not.toBe("");
     revivals.count = 0;
-    const res = await post(api, "/api/options", { course: "1" }, id);
+    const res = await post(api, "/api/options", { course: "1" }, session);
     expect(res.status).toBe(200);
     expect(((await res.json()) as OptionsReply).course[0]?.label).toBe(
       "B.Tech"
@@ -147,19 +140,17 @@ test.describe("handleApi", () => {
       courses: () => Promise.reject(new HttpError(401, "expired")),
     });
     const api = createApi({
-      vault: fakeVault(),
       connect: () => portalOf(expired, revivals),
     });
-    const id = await signIn(api);
+    const session = await signIn(api);
     revivals.count = 0;
-    const res = await post(api, "/api/options", { course: "1" }, id);
+    const res = await post(api, "/api/options", { course: "1" }, session);
     expect(res.status).toBe(401);
     expect(revivals.count).toBe(1);
   });
   test("a 502 is not retried, and does not sign anyone out", async () => {
     const revivals = { count: 0 };
     const api = createApi({
-      vault: fakeVault(),
       connect: () =>
         portalOf(
           readerWith({
@@ -169,36 +160,28 @@ test.describe("handleApi", () => {
           revivals
         ),
     });
-    const id = await signIn(api);
+    const session = await signIn(api);
     revivals.count = 0;
-    const failed = await post(api, "/api/register", REGISTER, id);
+    const failed = await post(api, "/api/register", REGISTER, session);
     expect(failed.status).toBe(502);
     expect(revivals.count).toBe(0);
     const after = await call(api, "/api/session", {
-      headers: { cookie: `ecap_sid=${id}` },
+      headers: { [SESSION_HEADER]: session },
     });
     expect((await after.json()) as SessionReply).toMatchObject({
       signedIn: true,
     });
   });
   test("a session stored without a credential is signed out, not signed in again", async () => {
-    const vault = fakeVault();
-    const stored: StoredSession = {
-      id: "s1",
-      at: Date.now(),
-      userId: "sirichandrasekhar",
-      cookies: [["frmAuth", "ok"]],
-    };
-    expect(await saveSessions(vault, [stored])).toBeNull();
     const revivals = { count: 0 };
     const api = createApi({
-      vault,
       connect: () =>
         portalOf(readerWith({ courses: () => Promise.resolve([]) }), revivals),
     });
-    await api.restoreSessions();
     const res = await call(api, "/api/session", {
-      headers: { cookie: "ecap_sid=s1" },
+      headers: {
+        [SESSION_HEADER]: stored({ password: undefined }),
+      },
     });
     expect((await res.json()) as SessionReply).toMatchObject({
       signedIn: false,
@@ -206,11 +189,8 @@ test.describe("handleApi", () => {
     expect(revivals.count).toBe(0);
   });
   test("a 502 while signing in again keeps the credential, and signs nobody out", async () => {
-    const vault = fakeVault();
-    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
     const revivals = { count: 0 };
     const api = createApi({
-      vault,
       connect: () =>
         portalOf(
           readerWith({ courses: expiredCourses }),
@@ -218,43 +198,43 @@ test.describe("handleApi", () => {
           new Error("ECONNRESET")
         ),
     });
-    await api.restoreSessions();
     const res = await call(api, "/api/session", {
-      headers: { cookie: "ecap_sid=s1" },
+      headers: { [SESSION_HEADER]: stored() },
     });
     expect((await res.json()) as SessionReply).toMatchObject({
       signedIn: true,
     });
     expect(revivals.count).toBe(1);
-    const kept = await loadSessions(vault);
-    expect(kept[0]?.password).toBe("hunter2");
+    // The answer still carries the credential, so the browser keeps it.
+    const kept = res.headers.get(SESSION_HEADER) ?? "";
+    expect(kept).not.toBe("");
   });
   test("a 502 while signing in again mid-request is left alone, credential and all", async () => {
-    const vault = fakeVault();
-    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
     const revivals = { count: 0 };
     let built = 0;
     const api = createApi({
-      vault,
       connect: () =>
         built++ === 0
           ? portalOf(readerWith({ courses: expiredCourses }), revivals)
           : portalOf(readerWith(), revivals, new Error("ECONNRESET")),
     });
-    await api.restoreSessions();
-    const res = await post(api, "/api/options", { course: "1" }, "s1");
+    const session = stored();
+    const res = await post(api, "/api/options", { course: "1" }, session);
     expect(res.status).toBe(502);
     expect(revivals.count).toBe(1);
-    const kept = await loadSessions(vault);
-    expect(kept[0]?.password).toBe("hunter2");
+    // A refusal carries no session, but the browser still holds its copy, so
+    // the next probe answers signed in rather than signed out.
+    const after = await call(api, "/api/session", {
+      headers: { [SESSION_HEADER]: session },
+    });
+    expect((await after.json()) as SessionReply).toMatchObject({
+      signedIn: true,
+    });
   });
-  test("a 401 while signing in again evicts the session, and the credential with it", async () => {
-    const vault = fakeVault();
-    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
+  test("a 401 while signing in again ends the session, and answers nothing to store", async () => {
     const revivals = { count: 0 };
     let built = 0;
     const api = createApi({
-      vault,
       connect: () =>
         built++ === 0
           ? portalOf(readerWith({ courses: expiredCourses }), revivals)
@@ -264,19 +244,16 @@ test.describe("handleApi", () => {
               new HttpError(401, "wrong password")
             ),
     });
-    await api.restoreSessions();
-    const res = await post(api, "/api/options", { course: "1" }, "s1");
+    const res = await post(api, "/api/options", { course: "1" }, stored());
     expect(res.status).toBe(401);
     expect(revivals.count).toBe(1);
-    expect(await loadSessions(vault)).toEqual([]);
+    // No session comes back, so the browser drops what it holds.
+    expect(res.headers.get(SESSION_HEADER)).toBeNull();
   });
   test("the probe signs in again once, and keeps the portal it got", async () => {
-    const vault = fakeVault();
-    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
     const revivals = { count: 0 };
     let built = 0;
     const api = createApi({
-      vault,
       connect: () =>
         portalOf(
           built++ === 0
@@ -285,10 +262,9 @@ test.describe("handleApi", () => {
           revivals
         ),
     });
-    await api.restoreSessions();
     const probe = async () => {
       const res = await call(api, "/api/session", {
-        headers: { cookie: "ecap_sid=s1" },
+        headers: { [SESSION_HEADER]: stored() },
       });
       return (await res.json()) as SessionReply;
     };
@@ -296,30 +272,69 @@ test.describe("handleApi", () => {
     expect(await probe()).toMatchObject({ signedIn: true });
     expect(revivals.count).toBe(1);
   });
-  test("a sign-in that is refused does not evict the session you already have", async () => {
-    const vault = fakeVault();
-    expect(await saveSessions(vault, [storedSession("s1")])).toBeNull();
+  test("a sign-in that is refused does not break the session you already have", async () => {
     const revivals = { count: 0 };
     const api = createApi({
-      vault,
       connect: () =>
         portalOf(readerWith(), revivals, new HttpError(401, "wrong password")),
     });
-    await api.restoreSessions();
     const refused = await post(
       api,
       "/api/login",
       { userId: "someone", password: "nope" },
-      "s1"
+      stored()
     );
     expect(refused.status).toBe(401);
-    const kept = await loadSessions(vault);
-    expect(kept).toHaveLength(1);
     const res = await call(api, "/api/session", {
-      headers: { cookie: "ecap_sid=s1" },
+      headers: { [SESSION_HEADER]: stored() },
     });
     expect((await res.json()) as SessionReply).toMatchObject({
       signedIn: true,
     });
+  });
+  test("no session is a 401 on data, and signed out on the probe", async () => {
+    const api = createApi({
+      connect: () => portalOf(readerWith(), { count: 0 }),
+    });
+    const res = await post(api, "/api/options", { course: "1" });
+    expect(res.status).toBe(401);
+    const probe = await call(api, "/api/session");
+    expect((await probe.json()) as SessionReply).toMatchObject({
+      signedIn: false,
+    });
+  });
+  test("a session that is not a session is refused, never a crash", async () => {
+    const api = createApi({
+      connect: () => portalOf(readerWith(), { count: 0 }),
+    });
+    for (const bad of [
+      "not-base64!!!",
+      Buffer.from("[]", "utf-8").toString("base64url"),
+      Buffer.from(
+        JSON.stringify({ userId: "", cookies: [], at: Date.now() }),
+        "utf-8"
+      ).toString("base64url"),
+      Buffer.from(
+        JSON.stringify({ userId: "x", cookies: [["a"]], at: Date.now() }),
+        "utf-8"
+      ).toString("base64url"),
+    ]) {
+      const res = await post(api, "/api/options", { course: "1" }, bad);
+      expect(res.status).toBe(401);
+      const probe = await call(api, "/api/session", {
+        headers: { [SESSION_HEADER]: bad },
+      });
+      expect((await probe.json()) as SessionReply).toMatchObject({
+        signedIn: false,
+      });
+    }
+  });
+  test("a session older than thirty days of not using it is refused", async () => {
+    const api = createApi({
+      connect: () => portalOf(readerWith(), { count: 0 }),
+    });
+    const stale = stored({ at: Date.now() - 31 * 24 * 60 * 60 * 1000 });
+    const res = await post(api, "/api/options", { course: "1" }, stale);
+    expect(res.status).toBe(401);
   });
 });
