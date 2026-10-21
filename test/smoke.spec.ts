@@ -284,39 +284,39 @@ test.describe("Vignan Faculty Tools", () => {
       "reload should stay on the dashboard"
     ).toBe("/dashboard");
   });
-  test("the rail has a Dashboard button and a Profile button", async ({
+  test("the rail has an Attendance button and a Profile button", async ({
     page,
   }) => {
     await page.goto("/dashboard");
     await submitSignIn(page);
-    const dashboard = page.getByRole("button", { name: "Dashboard" });
+    const attendance = page.getByRole("button", { name: "Attendance" });
     const profile = page.getByRole("button", { name: "Profile" });
-    await expect(dashboard).toBeVisible();
+    await expect(attendance).toBeVisible();
     await expect(profile).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Course" })).toBeVisible();
-    for (const button of [dashboard, profile]) {
+    for (const button of [attendance, profile]) {
       const icon = button.locator("svg");
       await expect(icon).toHaveCount(1);
       await expect(icon).toHaveAttribute("aria-hidden", "true");
     }
-    await expect(dashboard).toHaveAttribute("aria-current", "page");
+    await expect(attendance).toHaveAttribute("aria-current", "page");
     await expect(profile).not.toHaveAttribute("aria-current", "page");
-    await expect(dashboard).toHaveAttribute("data-variant", "filled");
+    await expect(attendance).toHaveAttribute("data-variant", "filled");
     await expect(profile).toHaveAttribute("data-variant", "subtle");
     await profile.click();
     await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible();
     await expect(page.getByRole("combobox", { name: "Course" })).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe("/profile");
     await expect(profile).toHaveAttribute("aria-current", "page");
-    await expect(dashboard).not.toHaveAttribute("aria-current", "page");
+    await expect(attendance).not.toHaveAttribute("aria-current", "page");
     await expect(profile).toHaveAttribute("data-variant", "filled");
-    await expect(dashboard).toHaveAttribute("data-variant", "subtle");
-    await dashboard.click();
+    await expect(attendance).toHaveAttribute("data-variant", "subtle");
+    await attendance.click();
     await expect(page.getByRole("combobox", { name: "Course" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Profile" })).toHaveCount(0);
     expect(new URL(page.url()).pathname).toBe("/dashboard");
-    await expect(dashboard).toHaveAttribute("aria-current", "page");
-    await expect(dashboard).toHaveAttribute("data-variant", "filled");
+    await expect(attendance).toHaveAttribute("aria-current", "page");
+    await expect(attendance).toHaveAttribute("data-variant", "filled");
     await profile.click();
     await page.reload({ waitUntil: "domcontentloaded" });
     await expect(page.getByRole("heading", { name: "Profile" })).toBeVisible({

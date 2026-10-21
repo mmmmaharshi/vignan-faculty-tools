@@ -779,7 +779,7 @@ const App = (): React.JSX.Element => {
               fullWidth
               justify="flex-start"
             >
-              Dashboard
+              Attendance
             </Button>
             <Button
               onClick={() => {

@@ -335,6 +335,16 @@ test.describe("the app's own data layer", () => {
     expect(optionsCalls, "a pass per level, and no more").toBe(5);
     expect(registerCalls, "and no register until the click").toBe(0);
   });
+  test("the rail names the register screen Attendance", async ({ page }) => {
+    await signInAndSettle(page);
+    await expect(
+      page.getByRole("button", { name: "Attendance" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Dashboard" }),
+      "the old name is gone, not duplicated"
+    ).toHaveCount(0);
+  });
   test("the click is what fetches a register, every time it is clicked", async ({
     page,
   }) => {
