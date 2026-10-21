@@ -3,9 +3,9 @@ import {
   jqBody,
   nextHop,
   webMethodBody,
-} from "./portal-conventions";
-import type { CookieJar } from "./portal-conventions";
-import { HttpError, looksLikeHtml, unquoteJs } from "./portal-replies";
+} from "./portal-conventions.js";
+import type { CookieJar } from "./portal-conventions.js";
+import { HttpError, looksLikeHtml, unquoteJs } from "./portal-replies.js";
 
 export const BASE = "https://webprosindia.com";
 export const UA =

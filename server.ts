@@ -1,5 +1,5 @@
-import { createApi, json } from "./api";
-import type { ErrorReply } from "./shared/api";
+import { createApi, json } from "./api.js";
+import type { ErrorReply } from "./shared/api.js";
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;

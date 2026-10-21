@@ -1,5 +1,5 @@
-import { HttpError, realOptions } from "./portal-replies";
-import type { Option } from "./shared/api";
+import { HttpError, realOptions } from "./portal-replies.js";
+import type { Option } from "./shared/api.js";
 
 export type Liveness = "alive" | "dead" | "unknown";
 export type CourseReader = {

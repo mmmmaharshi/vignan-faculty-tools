@@ -31,3 +31,5 @@ dist/
 !.scratch/**/*.md
 /.opencode/
 /.commandcode/
+
+.vercel

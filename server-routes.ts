@@ -1,6 +1,6 @@
-import type { OverallLookup } from "./attendance-bands";
-import { statedStartDate, summarise } from "./attendance-bands";
-import { courseVerdict } from "./portal-liveness";
+import type { OverallLookup } from "./attendance-bands.js";
+import { statedStartDate, summarise } from "./attendance-bands.js";
+import { courseVerdict } from "./portal-liveness.js";
 import {
   HttpError,
   level,
@@ -10,9 +10,9 @@ import {
   parseStudentProfile,
   realOptions,
   registerDates,
-} from "./portal-replies";
-import type { OverallRow } from "./portal-replies";
-import { ALL_SUBJECTS, isAllSubjects } from "./shared/api";
+} from "./portal-replies.js";
+import type { OverallRow } from "./portal-replies.js";
+import { ALL_SUBJECTS, isAllSubjects } from "./shared/api.js";
 import type {
   CascadeLevel,
   FacultyProfile,
@@ -26,7 +26,7 @@ import type {
   SemStartReply,
   StudentProfile,
   StudentRequest,
-} from "./shared/api";
+} from "./shared/api.js";
 
 type Level = CascadeLevel;
 export type PortalReader = {

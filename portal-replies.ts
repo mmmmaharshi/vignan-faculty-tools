@@ -1,4 +1,4 @@
-import type { RegisterRow } from "./attendance-bands";
+import type { RegisterRow } from "./attendance-bands.js";
 import type {
   LeaveStatus,
   Option,
@@ -8,9 +8,9 @@ import type {
   StudentPhone,
   StudentProfile,
   StudentSgpa,
-} from "./shared/api";
+} from "./shared/api.js";
 
-export type { RegisterRow } from "./attendance-bands";
+export type { RegisterRow } from "./attendance-bands.js";
 export class HttpError extends Error {
   status: number;
   constructor(status: number, message: string) {

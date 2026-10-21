@@ -4,16 +4,16 @@ import {
   CookieJar,
   portalEncrypt,
   studentPairs,
-} from "./portal-conventions";
-import { liveness } from "./portal-liveness";
-import type { CourseReader } from "./portal-liveness";
+} from "./portal-conventions.js";
+import { liveness } from "./portal-liveness.js";
+import type { CourseReader } from "./portal-liveness.js";
 import {
   hiddenValue,
   HttpError,
   options,
   parseFacultyName,
   parseLeaveStatus,
-} from "./portal-replies";
+} from "./portal-replies.js";
 import {
   BASE,
   CLASS_REMOTE,
@@ -30,7 +30,7 @@ import {
   REGISTER_PAGE_URL,
   REGISTER_REMOTE,
   UA,
-} from "./portal-transport";
+} from "./portal-transport.js";
 import {
   handleFacultyProfile,
   handleOptions,
@@ -38,8 +38,8 @@ import {
   handleSemAbsences,
   handleSemStart,
   handleStudentProfile,
-} from "./server-routes";
-import type { PortalReader } from "./server-routes";
+} from "./server-routes.js";
+import type { PortalReader } from "./server-routes.js";
 import type {
   CascadeLevel,
   ClientSession,
@@ -53,8 +53,8 @@ import type {
   SemAbsencesRequest,
   SessionReply,
   StudentRequest,
-} from "./shared/api";
-import { SESSION_HEADER } from "./shared/api";
+} from "./shared/api.js";
+import { SESSION_HEADER } from "./shared/api.js";
 
 type Level = CascadeLevel;
 /** Thirty days of *not using it*, after ADR 0013. The browser carries `at`
