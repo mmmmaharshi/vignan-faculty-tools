@@ -1,4 +1,5 @@
 import useSWR, { mutate } from "swr";
+import useSWRImmutable from "swr/immutable";
 import useSWRMutation from "swr/mutation";
 
 import type {
@@ -153,7 +154,6 @@ export function useSession(paused: boolean) {
     focusThrottleInterval: 0,
     dedupingInterval: 0,
     /** The interval is the retry; a failed read starts no second one behind it. */
-    shouldRetryOnError: false,
   });
 }
 /** However the server has just described the session, this is what it said. Used
@@ -173,14 +173,11 @@ export type RegisterClick = { request: RegisterRequest; attempt: number };
  * a register is a decision every time (ADR 0015).
  */
 export function useRegisterLoad(click: RegisterClick | null) {
-  return useSWR<RegisterReply, ApiError>(
+  return useSWRImmutable<RegisterReply, ApiError>(
     click ? [REGISTER_PATH, click.request, click.attempt] : null,
     ([, request]: [string, RegisterRequest]) =>
       postJson<RegisterReply>(REGISTER_PATH, request),
     {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
       dedupingInterval: 0,
     }
   );
@@ -197,14 +194,14 @@ export function useRegisterLoad(click: RegisterClick | null) {
  * when the subject in it is the section-wide one.
  */
 export function useStudentProfile(asked: StudentRequest | null) {
+  // Plain useSWR, not immutable: reopening a panel refreshes its answer
+  // behind the cached one. The globals already silence focus, reconnect and
+  // retries, so only the dedupe window is local.
   return useSWR<StudentProfile, ApiError>(
     asked ? [STUDENT_PATH, asked] : null,
     ([, body]: [string, StudentRequest]) =>
       postJson<StudentProfile>(STUDENT_PATH, body),
     {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
       dedupingInterval: 0,
     }
   );
@@ -218,14 +215,11 @@ export function useStudentProfile(asked: StudentRequest | null) {
  * failure sweep.
  */
 export function useSemStart(request: RegisterRequest | null) {
-  return useSWR<SemStartReply, ApiError>(
+  return useSWRImmutable<SemStartReply, ApiError>(
     request ? [SEM_START_PATH, request] : null,
     ([, body]: [string, RegisterRequest]) =>
       postJson<SemStartReply>(SEM_START_PATH, body),
     {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
       dedupingInterval: 0,
     }
   );
@@ -239,14 +233,11 @@ export function useSemStart(request: RegisterRequest | null) {
  * except a 401, which still ends the session through the shared failure sweep.
  */
 export function useSemAbsences(asked: SemAbsencesRequest | null) {
-  return useSWR<SemAbsencesReply, ApiError>(
+  return useSWRImmutable<SemAbsencesReply, ApiError>(
     asked ? [SEM_ABSENCES_PATH, asked] : null,
     ([, body]: [string, SemAbsencesRequest]) =>
       postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body),
     {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
       dedupingInterval: 0,
     }
   );
@@ -254,13 +245,11 @@ export function useSemAbsences(asked: SemAbsencesRequest | null) {
 /** The faculty member's own details from ECAP's main.aspx: name, photo URL, and
  *  designation code. Read once when the profile page is opened. */
 export function useFacultyProfile(enabled: boolean) {
+  // Same remount-refresh contract as the student panel above.
   return useSWR<FacultyProfile, ApiError>(
     enabled ? FACULTY_PROFILE_PATH : null,
     () => postJson<FacultyProfile>(FACULTY_PROFILE_PATH, {}),
     {
-      revalidateOnFocus: false,
-      revalidateOnReconnect: false,
-      shouldRetryOnError: false,
       dedupingInterval: 0,
     }
   );

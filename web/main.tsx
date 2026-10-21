@@ -4,6 +4,7 @@ import { createTheme, MantineProvider } from "@mantine/core";
 import React from "react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
+import { SWRConfig } from "swr";
 
 import App from "./App";
 
@@ -18,9 +19,19 @@ createRoot(root).render(
   <React.StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="light">
       <BrowserRouter>
-        <Routes>
-          <Route path="*" element={<App />} />
-        </Routes>
+        {/* A read is something the user asked for: no focus or reconnect
+            revalidation, no retries. Hooks keep only what differs. */}
+        <SWRConfig
+          value={{
+            revalidateOnFocus: false,
+            revalidateOnReconnect: false,
+            shouldRetryOnError: false,
+          }}
+        >
+          <Routes>
+            <Route path="*" element={<App />} />
+          </Routes>
+        </SWRConfig>
       </BrowserRouter>
     </MantineProvider>
   </React.StrictMode>
