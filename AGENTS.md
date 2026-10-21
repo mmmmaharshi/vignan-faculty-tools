@@ -467,6 +467,11 @@ carries one also has its name in text.
   dead portal session without asking again. Anyone holding the browser's
   storage holds the ECAP account with it. Do not log it, print it, or widen
   where it travels — it already goes on every request, which is exactly enough.
+- **There is deliberately no login rate limiter.** A limiter that works needs a
+  shared store once more than one instance serves traffic, and an in-memory one
+  on a serverless function silently becomes per-instance — false confidence. The
+  attempts proxy straight to ECAP, whose own lockout policy is the real gate.
+  Do not add one without a store both runtimes share.
 - **One module decides whether a session is alive: `portal-liveness.ts`.** It
   answers `alive | dead | unknown` and both callers ask it — `handleOptions` and
   the `/api/session` probe. It was written twice, in two layers, and the copy with
@@ -572,6 +577,9 @@ carries one also has its name in text.
   Adding `vite@*` alongside it is not a fix: `vp migrate` re-adds `vite` on every
   run, so the two keys coexist and fight over the same spec. Re-key it in the
   same change that moves this to pnpm.
+- **Never `git push` without the user's explicit permission.** Commit freely when
+  asked, but the push — which publishes and, now that Vercel builds from git,
+  deploys — waits for a yes every time.
 - **The commit hook is `vp check --fix`, so it does not typecheck.** `staged` maps
   `**/*` to `vp check --fix` and nothing else, which means format and lint only.
   Type checking happens in `test/global-setup.ts` and nowhere in the commit path,
