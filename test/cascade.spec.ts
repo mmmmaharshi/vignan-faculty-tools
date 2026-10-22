@@ -803,6 +803,14 @@ test.describe("fixed thresholds", () => {
       "No students in this register."
     );
   });
+  test("an empty worklist names the search and the bar together", () => {
+    expect(emptyRegisterText({ ...below75, search: "xyz" }, 65)).toBe(
+      'No students matching "xyz" below 75%.'
+    );
+    expect(emptyRegisterText({ ...irregularOnly, search: "xyz" }, 65)).toBe(
+      'No irregular students matching "xyz".'
+    );
+  });
 });
 /** Node has no localStorage, and the range helpers are written to survive its
  *  absence, so without this the remembered-start tests pass for the wrong

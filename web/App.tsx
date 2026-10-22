@@ -398,6 +398,10 @@ const App = (): React.JSX.Element => {
     // it would otherwise show one student's numbers beside a table they need not
     // be in.
     setDetail(null);
+    // A name or roll typed for the last class does not belong to this one: it
+    // would hide every row of the new register behind a search nobody typed for
+    // it. The ticked bars stay — they are a standing intent about attendance.
+    setFilter((f) => (f.search === "" ? f : { ...f, search: "" }));
     setClick((previous) => ({
       request,
       attempt: (previous?.attempt ?? 0) + 1,

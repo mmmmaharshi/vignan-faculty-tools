@@ -746,6 +746,13 @@ is an absence of evidence, and putting such a student at the top of a triage lis
 sends someone after them for the wrong reason. `registerRows` in `web/worklist.ts`
 owns all three rules, which is where they can be pinned without booting a server.
 
+**A typed search is the one filter a new register clears.** A name or a roll was
+typed for the class in front of the reader, so carrying it into the next load hides
+every row of a register nobody searched — the failure looks like an empty class.
+The ticked bars stay, because "show me who is below 75%" is a standing intent that
+travels between classes. `loadRegister` in `App.tsx` clears the search and nothing
+else, and `test/client.spec.ts` pins it.
+
 The smoke test drives the real portal because a DOM stub is not sufficient: one
 was tried against the previous build and it passed code broken in a real
 browser, since it modelled neither `selectedIndex`/`value` coupling nor

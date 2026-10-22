@@ -397,6 +397,25 @@ test.describe("the app's own data layer", () => {
     await box.fill("");
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
   });
+  test("a search typed for one class goes when the next register loads", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    const box = page.getByLabel("Search students by name or roll number");
+    await box.fill("nobody");
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(0);
+    await page.getByRole("button", { name: "Load register" }).click();
+    // The next register is not the one that name was typed for: a search left
+    // behind would hide every row of it with nothing on screen to explain it.
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await expect(box).toHaveValue("");
+  });
   test("the search box sits right and fills the width on mobile", async ({
     page,
   }) => {

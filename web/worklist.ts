@@ -179,13 +179,17 @@ export function emptyRegisterText(
   filter: RowFilter,
   irregularBelow: number
 ): string {
-  // The search names what is on screen — the box the user is looking at — so
-  // its sentence wins over whichever bars are also ticked.
   const needle = filter.search.trim();
-  if (needle !== "") return `No students match "${needle}".`;
   const bar = FIXED_BARS.find(({ key }) => filter[key]);
-  if (bar) return `No students below ${bar.below}%.`;
+  // The search and the bars are one question between them, so a row that clears
+  // neither is explained by both: naming only the search would leave a ticked bar
+  // looking as if it had done nothing.
+  const matching = needle === "" ? "" : ` matching "${needle}"`;
+  if (bar) return `No students${matching} below ${bar.below}%.`;
   if (filter.irregular)
-    return `No irregular students. Everyone is at or above ${irregularBelow}%.`;
+    return needle === ""
+      ? `No irregular students. Everyone is at or above ${irregularBelow}%.`
+      : `No irregular students${matching}.`;
+  if (needle !== "") return `No students match "${needle}".`;
   return "No students in this register.";
 }
