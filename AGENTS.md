@@ -103,7 +103,8 @@ server/portal-conventions.ts the portal's wire conventions: bodies, cipher, cook
 server/portal-replies.ts pure string -> data functions, and the seam guards
 server/attendance-bands.ts the Regular / Irregular / Critical rule, and the summary
 web/index.html       Vite entry point
-web/main.tsx         React root + MantineProvider; the only createTheme call
+web/main.tsx         React root + MantineProvider + the one <SWRConfig> holding
+                     the read defaults; the only createTheme call
 web/App.tsx          state, the three modes, and the session's own facts
 web/client.ts        every fetch the app makes: one JSON wrapper, and the SWR
                      hooks and keys each screen reads through
@@ -648,25 +649,32 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   enough on its own: a mutation's failure is the *hook's* own state rather than
   the cache's, so a 401 left in the options chain would sit in the next
   session's class picker — hence `resetCascade()` beside it in `signedOut`.
-- **Automatic revalidation is off, except where it is the point.**
-  `revalidateOnFocus: false` and `revalidateOnReconnect: false` everywhere,
-  because a read must be something the user asked for; the two exceptions are
-  deliberate. The **session** probe is the exception by design: `refreshInterval`
-  of `SESSION_PROBE_MS` when idle and `0` when a request is in flight or the
-  login screen is up. And the **profile** hook keeps SWR's own "revalidate on
-  mount if stale", which is why reopening a student's panel shows the last answer
-  at once and refreshes it behind the panel — the panel's read is still one call
-  per open, per ADR 0018, joined by one more only on the **All subjects** path,
-  whose report states no dates at all (ADR 0021).
-- **`focusThrottleInterval: 0` and `dedupingInterval: 0` on the session hook.**
-  SWR throttles a focus revalidation to 5 seconds and dedupes within 2 by
-  default; the smoke test dispatches one `visibilitychange` and expects a probe,
-  so both defaults would have made the app look alive when it was not. The
-  throttle is the subtler of the two: SWR measures its window from when the *key*
-  last changed, and `/api/session` never changes, so the window is measured from
-  the mount — and a deep link to `/dashboard` mounts the hook with focus
-  revalidation already on, which is the case that would swallow the probe.
-  `test/client.spec.ts` enters that way on purpose.
+- **Automatic revalidation is off, except where it is the point, and it is off
+  *once*.** `revalidateOnFocus: false`, `revalidateOnReconnect: false`,
+  `shouldRetryOnError: false` and `dedupingInterval: 0` are the `<SWRConfig>`
+  defaults in `web/main.tsx`, because a read must be something the user asked
+  for; a hook adds only what differs. Those defaults used to be repeated on every
+  hook, five copies of one decision. The two exceptions are deliberate. The
+  **session** probe overrides them: `refreshInterval` of `SESSION_PROBE_MS` when
+  idle and `0` when a request is in flight or the login screen is up. And the
+  **profile** hook keeps SWR's own "revalidate on mount if stale", which is why
+  reopening a student's panel shows the last answer at once and refreshes it
+  behind the panel — the panel's read is still one call per open, per ADR 0018,
+  joined by one more only on the **All subjects** path, whose report states no
+  dates at all (ADR 0021).
+- **A one-shot read is `useSWRImmutable`, and that is the register, the semester
+  start and the full-semester absences.** Their keys already say when the answer
+  could differ — the click number, the request, the student — so a repeat of the
+  same key is the same answer, not a reason to ask again. The two panels keep
+  plain `useSWR`: reopening one is a fresh read by design.
+- **`focusThrottleInterval: 0` on the session hook.** SWR throttles a focus
+  revalidation to 5 seconds by default; the smoke test dispatches one
+  `visibilitychange` and expects a probe, so the default would have made the app
+  look alive when it was not. The throttle is the subtler of the two: SWR measures
+  its window from when the *key* last changed, and `/api/session` never changes,
+  so the window is measured from the mount — and a deep link to `/dashboard`
+  mounts the hook with focus revalidation already on, which is the case that would
+  swallow the probe. `test/client.spec.ts` enters that way on purpose.
 - **A mutation's callbacks are stable and its state is not, so they are taken
   apart at the call site.** `{ trigger, reset }` are `useCallback(..., [])`; the
   object holding them is rebuilt every render. A dependency on the object re-runs

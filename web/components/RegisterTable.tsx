@@ -21,7 +21,7 @@ import {
   emptyRegisterText,
   isFiltering,
 } from "../worklist";
-import type { FigureKind, FixedBarKey, RowFilter } from "../worklist";
+import type { FigureKind, RowFilter } from "../worklist";
 import { FactsTable } from "./FactsTable";
 
 type RegisterTableProps = {
@@ -29,10 +29,9 @@ type RegisterTableProps = {
   total: number;
   summary: RegisterReply["summary"];
   filter: RowFilter;
-  /** The three ticked boxes only: the search box carries text, not a boolean,
-   *  so it has its own setter and this key cannot name it. */
-  onToggleFilter: (key: "irregular" | FixedBarKey, value: boolean) => void;
-  onSearchChange: (value: string) => void;
+  /** One setter for every control on the filter row: a checkbox sends its
+   *  boolean, the search box its text, and neither has to know about the other. */
+  onFilterChange: (patch: Partial<RowFilter>) => void;
   onShowDetails: (student: Student) => void;
   chosen: ChosenFact[];
   /** The All subjects path: no subject was chosen, so there are no subject columns
@@ -76,8 +75,7 @@ export const RegisterTable = ({
   total,
   summary,
   filter,
-  onToggleFilter,
-  onSearchChange,
+  onFilterChange,
   onShowDetails,
   chosen,
   overallMode = false,
@@ -98,18 +96,22 @@ export const RegisterTable = ({
             label="All irregular students"
             checked={filter.irregular}
             onChange={(e) =>
-              onToggleFilter("irregular", e.currentTarget.checked)
+              onFilterChange({ irregular: e.currentTarget.checked })
             }
           />
           <Checkbox
             label="Below 75%"
             checked={filter.below75}
-            onChange={(e) => onToggleFilter("below75", e.currentTarget.checked)}
+            onChange={(e) =>
+              onFilterChange({ below75: e.currentTarget.checked })
+            }
           />
           <Checkbox
             label="Below 65%"
             checked={filter.below65}
-            onChange={(e) => onToggleFilter("below65", e.currentTarget.checked)}
+            onChange={(e) =>
+              onFilterChange({ below65: e.currentTarget.checked })
+            }
           />
         </Group>
         {/* Full width on a phone, a fixed box pulled to the right edge on wider
@@ -120,7 +122,7 @@ export const RegisterTable = ({
           placeholder="Name or roll no."
           leftSection={<MagnifyingGlass size={16} aria-hidden />}
           value={filter.search}
-          onChange={(e) => onSearchChange(e.currentTarget.value)}
+          onChange={(e) => onFilterChange({ search: e.currentTarget.value })}
           flex={{ base: "1 1 100%", sm: "0 1 280px" }}
           ms="auto"
         />

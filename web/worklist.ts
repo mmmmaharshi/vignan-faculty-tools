@@ -111,13 +111,12 @@ export function visibleStudents(
   filter: RowFilter,
   overallMode: boolean
 ): RegisterReply["students"][number][] {
-  if (!isFiltering(filter)) return [...students];
   // Rolls are typed as remembered and names show upper-cased, so both halves
-  // of the match read lower-cased: the match cannot care about case.
+  // of the match read lower-cased: the match cannot care about case. A blank
+  // needle matches every row, so a bare roster needs no early return here.
   const needle = filter.search.trim().toLowerCase();
   return students.filter((s) => {
     if (
-      needle !== "" &&
       !s.name.toLowerCase().includes(needle) &&
       !s.roll.toLowerCase().includes(needle)
     )

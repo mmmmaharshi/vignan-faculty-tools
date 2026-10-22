@@ -411,13 +411,14 @@ test.describe("the app's own data layer", () => {
     // resize has not settled when setViewportSize returns.
     const widthShare = () =>
       box.evaluate((el) => {
-        const root = el.parentElement?.parentElement as HTMLElement | null;
+        const root = el.closest(".mantine-TextInput-root");
         return (root?.getBoundingClientRect().width ?? 0) / window.innerWidth;
       });
     const offRightEdge = () =>
       box.evaluate((el) => {
-        const root = el.parentElement?.parentElement as HTMLElement | null;
-        const rect = root?.getBoundingClientRect();
+        const rect = el
+          .closest(".mantine-TextInput-root")
+          ?.getBoundingClientRect();
         return window.innerWidth - ((rect?.x ?? 0) + (rect?.width ?? 0));
       });
     await page.setViewportSize({ width: 390, height: 844 });
@@ -713,23 +714,21 @@ test.describe("the app's own data layer", () => {
       "the panel states this student's backlogs"
     ).toBeVisible({ timeout: 15_000 });
     // Section order in the drawer: figures, backlogs, then the GPA block —
-    // not backlogs trailing the profile at the bottom.
-    const order = await panel.evaluate((dialog) => {
-      const html = dialog.innerHTML;
-      return {
-        overall: html.indexOf("Overall attendance"),
-        backlogs: html.indexOf(">Backlogs<"),
-        gpa: html.indexOf(">GPA<"),
-      };
-    });
-    expect(order.overall).toBeGreaterThan(-1);
-    expect(
-      order.backlogs,
-      "backlogs follow the attendance figures"
-    ).toBeGreaterThan(order.overall);
-    expect(order.gpa, "and come ahead of the GPA block").toBeGreaterThan(
-      order.backlogs
+    // not backlogs trailing the profile at the bottom. Read off the rendered
+    // positions, so a change in how Mantine wraps a label cannot move it.
+    const top = async (text: string) => {
+      const box = await panel.getByText(text, { exact: true }).first();
+      const rect = await box.boundingBox();
+      return rect?.y ?? Number.NaN;
+    };
+    const figures = await top("Overall attendance");
+    const backlogs = await top("Backlogs");
+    const gpa = await top("GPA");
+    expect(figures, "the panel states the attendance figures").not.toBeNaN();
+    expect(backlogs, "backlogs follow the attendance figures").toBeGreaterThan(
+      figures
     );
+    expect(gpa, "and come ahead of the GPA block").toBeGreaterThan(backlogs);
   });
   test("a page that says nothing about backlogs gets no backlog section", async ({
     page,

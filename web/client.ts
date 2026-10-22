@@ -152,7 +152,6 @@ export function useSession(paused: boolean) {
        link to /dashboard mounts the hook signed out, with focus revalidation
        already on, and would then swallow the first five seconds of probes. */
     focusThrottleInterval: 0,
-    dedupingInterval: 0,
     /** The interval is the retry; a failed read starts no second one behind it. */
   });
 }
@@ -176,10 +175,7 @@ export function useRegisterLoad(click: RegisterClick | null) {
   return useSWRImmutable<RegisterReply, ApiError>(
     click ? [REGISTER_PATH, click.request, click.attempt] : null,
     ([, request]: [string, RegisterRequest]) =>
-      postJson<RegisterReply>(REGISTER_PATH, request),
-    {
-      dedupingInterval: 0,
-    }
+      postJson<RegisterReply>(REGISTER_PATH, request)
   );
 }
 /**
@@ -200,10 +196,7 @@ export function useStudentProfile(asked: StudentRequest | null) {
   return useSWR<StudentProfile, ApiError>(
     asked ? [STUDENT_PATH, asked] : null,
     ([, body]: [string, StudentRequest]) =>
-      postJson<StudentProfile>(STUDENT_PATH, body),
-    {
-      dedupingInterval: 0,
-    }
+      postJson<StudentProfile>(STUDENT_PATH, body)
   );
 }
 /**
@@ -218,10 +211,7 @@ export function useSemStart(request: RegisterRequest | null) {
   return useSWRImmutable<SemStartReply, ApiError>(
     request ? [SEM_START_PATH, request] : null,
     ([, body]: [string, RegisterRequest]) =>
-      postJson<SemStartReply>(SEM_START_PATH, body),
-    {
-      dedupingInterval: 0,
-    }
+      postJson<SemStartReply>(SEM_START_PATH, body)
   );
 }
 /**
@@ -236,10 +226,7 @@ export function useSemAbsences(asked: SemAbsencesRequest | null) {
   return useSWRImmutable<SemAbsencesReply, ApiError>(
     asked ? [SEM_ABSENCES_PATH, asked] : null,
     ([, body]: [string, SemAbsencesRequest]) =>
-      postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body),
-    {
-      dedupingInterval: 0,
-    }
+      postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body)
   );
 }
 /** The faculty member's own details from ECAP's main.aspx: name, photo URL, and
@@ -248,10 +235,7 @@ export function useFacultyProfile(enabled: boolean) {
   // Same remount-refresh contract as the student panel above.
   return useSWR<FacultyProfile, ApiError>(
     enabled ? FACULTY_PROFILE_PATH : null,
-    () => postJson<FacultyProfile>(FACULTY_PROFILE_PATH, {}),
-    {
-      dedupingInterval: 0,
-    }
+    () => postJson<FacultyProfile>(FACULTY_PROFILE_PATH, {})
   );
 }
 /**

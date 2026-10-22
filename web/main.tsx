@@ -20,12 +20,14 @@ createRoot(root).render(
     <MantineProvider theme={theme} defaultColorScheme="light">
       <BrowserRouter>
         {/* A read is something the user asked for: no focus or reconnect
-            revalidation, no retries. Hooks keep only what differs. */}
+            revalidation, no retries, and no dedupe window — a key that comes
+            back is a new ask. Hooks keep only what differs. */}
         <SWRConfig
           value={{
             revalidateOnFocus: false,
             revalidateOnReconnect: false,
             shouldRetryOnError: false,
+            dedupingInterval: 0,
           }}
         >
           <Routes>
