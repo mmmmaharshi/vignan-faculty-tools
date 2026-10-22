@@ -271,6 +271,27 @@ const stub = async (route: Route): Promise<void> => {
     });
     return;
   }
+  if (path === "/api/faculty-profile") {
+    // Long type names on purpose: the seven-column table must survive them
+    // on a phone screen.
+    await json({
+      name: "Test Faculty",
+      photo: "",
+      designation: "0",
+      leaveStatus: [
+        {
+          type: "Eligible Casual Leave",
+          eligible: "15",
+          applied: "3",
+          approved: "2",
+          pending: "1",
+          declined: "0",
+          available: "12",
+        },
+      ],
+    });
+    return;
+  }
   await json({ error: `no stub for ${path}` }, 500);
 };
 /** What a Select shows. Mantine puts the chosen option's *label* in the input,
@@ -534,6 +555,45 @@ test.describe("the app's own data layer", () => {
         timeout: 5000,
       })
       .toBeLessThan(60);
+  });
+  test("the leave table scrolls inside the page on mobile", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Profile" }).click();
+    await expect(page.getByText("Leaves")).toBeVisible({ timeout: 15_000 });
+    await page.setViewportSize({ width: 390, height: 844 });
+    // The seven-column table cannot fit a phone: it must scroll inside its
+    // own container rather than pushing the whole page sideways. Polled
+    // because a resize has not settled when setViewportSize returns.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth - window.innerWidth
+          ),
+        { message: "no page-level sideways scroll on a phone", timeout: 5000 }
+      )
+      .toBeLessThanOrEqual(1);
+    // The table itself is wider than the phone: some container between it
+    // and the page must scroll, which is what keeps the page itself still.
+    await expect
+      .poll(
+        () =>
+          page.getByRole("table").evaluate((table) => {
+            let node: HTMLElement | null = table.parentElement;
+            while (node && node !== document.body) {
+              if (node.scrollWidth > node.clientWidth + 1) return true;
+              node = node.parentElement;
+            }
+            return false;
+          }),
+        {
+          message: "the wide table scrolls inside its container",
+          timeout: 5000,
+        }
+      )
+      .toBe(true);
   });
   test("the from input snaps to where the register itself starts", async ({
     page,

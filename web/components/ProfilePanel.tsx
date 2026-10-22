@@ -79,34 +79,38 @@ export const ProfilePanel = ({
         Leaves
       </Title>
       {faculty?.leaveStatus?.some((leave) => Number(leave.applied) > 0) ? (
-        <Table striped withTableBorder tabularNums>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Leave</Table.Th>
-              <Table.Th ta="right">Eligible</Table.Th>
-              <Table.Th ta="right">Applied</Table.Th>
-              <Table.Th ta="right">Approved</Table.Th>
-              <Table.Th ta="right">Pending</Table.Th>
-              <Table.Th ta="right">Declined</Table.Th>
-              <Table.Th ta="right">Available</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {faculty.leaveStatus
-              .filter((leave) => Number(leave.applied) > 0)
-              .map((leave) => (
-                <Table.Tr key={leave.type}>
-                  <Table.Td>{leave.type}</Table.Td>
-                  <Table.Td ta="right">{leave.eligible}</Table.Td>
-                  <Table.Td ta="right">{leave.applied}</Table.Td>
-                  <Table.Td ta="right">{leave.approved}</Table.Td>
-                  <Table.Td ta="right">{leave.pending}</Table.Td>
-                  <Table.Td ta="right">{leave.declined}</Table.Td>
-                  <Table.Td ta="right">{leave.available}</Table.Td>
-                </Table.Tr>
-              ))}
-          </Table.Tbody>
-        </Table>
+        // Seven columns never fit a phone screen: the table scrolls inside
+        // its own container instead of pushing the whole page sideways.
+        <Table.ScrollContainer minWidth={600}>
+          <Table striped withTableBorder tabularNums>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Leave</Table.Th>
+                <Table.Th ta="right">Eligible</Table.Th>
+                <Table.Th ta="right">Applied</Table.Th>
+                <Table.Th ta="right">Approved</Table.Th>
+                <Table.Th ta="right">Pending</Table.Th>
+                <Table.Th ta="right">Declined</Table.Th>
+                <Table.Th ta="right">Available</Table.Th>
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {faculty.leaveStatus
+                .filter((leave) => Number(leave.applied) > 0)
+                .map((leave) => (
+                  <Table.Tr key={leave.type}>
+                    <Table.Td>{leave.type}</Table.Td>
+                    <Table.Td ta="right">{leave.eligible}</Table.Td>
+                    <Table.Td ta="right">{leave.applied}</Table.Td>
+                    <Table.Td ta="right">{leave.approved}</Table.Td>
+                    <Table.Td ta="right">{leave.pending}</Table.Td>
+                    <Table.Td ta="right">{leave.declined}</Table.Td>
+                    <Table.Td ta="right">{leave.available}</Table.Td>
+                  </Table.Tr>
+                ))}
+            </Table.Tbody>
+          </Table>
+        </Table.ScrollContainer>
       ) : (
         <Text size="sm">{busy ? "Reading from ECAP..." : "—"}</Text>
       )}
