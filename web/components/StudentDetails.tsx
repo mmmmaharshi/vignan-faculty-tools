@@ -189,7 +189,7 @@ export const StudentDetails = ({
     : (profile?.absent ?? []);
   const content = (
     <Stack
-      gap="sm"
+      gap="md"
       mt={inline ? "xl" : undefined}
       mb={inline ? "md" : undefined}
     >
