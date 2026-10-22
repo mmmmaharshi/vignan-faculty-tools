@@ -27,15 +27,21 @@ Rules:
   SGPAs the page states (the highest completed, plus one) and named in the
   panel's class line; with no SGPAs at all it is refused rather than guessed.
   A missing section loops every section of that class.
-- The window is what the client sends (the range the app opens at), and is named
-  in the panel.
+- The figure stays over the asked month, which the panel names. Beside it, the
+  full-semester absent list walks the section's Student Wise grid back one
+  month at a time — single-month windows are the only shape used, so no range
+  wider than a month is ever asked and no calendar month is assumed — unioned
+  oldest-first, stopping at the first month with no meeting days. A month ECAP
+  will not give ends the walk with a warning, never a silent partial list.
 - A register is read only by a deliberate ask: Load register, or Find student.
   Never by a refresh, never by a mount.
-- Absent dates are not read for a searched student (no Student Wise call); the
-  drawer shows only the figure the report states.
+- The absences come from the student's own Student Wise grid — the class report
+  states no dates, so the grid is the only place they exist: once over the
+  asked month, and once per month on the walk beside it.
 - A roll in no section keeps its profile and says so, rather than failing.
-- The drawer reuses `StudentDetails`: the register-only sections (figures) render
-  only when a row exists, the profile sections always render.
+- The panel reuses `StudentDetails`, rendered inline below the form: the
+  register-only sections (figures) render only when a row exists, the profile
+  sections always render.
 
 ## Consequences
 - One extra route and one client module; the server seam gains `handleFind`,
