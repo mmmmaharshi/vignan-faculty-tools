@@ -164,7 +164,9 @@ control that names the class you picked was the one you could not read.
 ## Routing
 
 Three screens, at three paths: `/dashboard` is the cascade and the register,
-`/profile` is the profile panel, `/login` is the sign-in form. `/` also renders
+`/profile` is the profile panel, `/search` is the Student Search screen (one roll
+number in, the class ECAP says that student is in, the class report's row for it,
+and the profile ECAP holds for it), `/login` is the sign-in form. `/` also renders
 the dashboard and the guard sends it on, so it is a second way in rather than a
 fourth screen; anything else redirects to `/`. **`App` owns all three** — the
 router is not asked to split it, because that would duplicate the cascade's

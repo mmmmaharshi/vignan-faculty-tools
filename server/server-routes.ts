@@ -2,6 +2,8 @@ import { ALL_SUBJECTS, isAllSubjects } from "../shared/api.js";
 import type {
   CascadeLevel,
   FacultyProfile,
+  FindReply,
+  FindRequest,
   Option,
   OptionsReply,
   OptionsRequest,
@@ -19,14 +21,16 @@ import { courseVerdict } from "./portal-liveness.js";
 import {
   HttpError,
   level,
+  matchOption,
   parseClassAttendance,
   parseRegister,
   parseStudentAbsences,
+  parseStudentClass,
   parseStudentProfile,
   realOptions,
   registerDates,
 } from "./portal-replies.js";
-import type { OverallRow } from "./portal-replies.js";
+import type { OverallRow, StatedClass } from "./portal-replies.js";
 
 type Level = CascadeLevel;
 export type PortalReader = {
@@ -264,6 +268,111 @@ export async function handleStudentProfile(
     );
   }
   return { ...profile, ...(await readAbsences(portal, roll, b)) };
+}
+/** The class a student's own page puts them in, matched to the Portal's own
+ *  option values, and the sections that class offers. A page that states a
+ *  section names one section; one that states none names all of them, and the
+ *  search reads each until the roll turns up. */
+type StudentClass = {
+  levels: Record<"course" | "semester" | "branch", Option>;
+  sections: Option[];
+  label: string;
+};
+const unstated = (what: string, stated: string): string =>
+  stated
+    ? `ECAP's profile page states the ${what} "${stated}", which the Portal's own list does not offer.`
+    : `ECAP's profile page does not state a ${what}, so no class register can be read for this student.`;
+async function resolveClass(
+  portal: PortalReader,
+  stated: StatedClass
+): Promise<StudentClass | string> {
+  const course = matchOption(stated.course, await portal.courses());
+  if (!course) return unstated("course", stated.course);
+  const [branches, semesters] = await portal.branchesAndSemesters(course.value);
+  const branch = matchOption(stated.branch, branches);
+  if (!branch) return unstated("branch", stated.branch);
+  const semester = matchOption(stated.semester, semesters);
+  if (!semester) return unstated("semester", stated.semester);
+  const listed = await portal.sections(
+    course.value,
+    branch.value,
+    semester.value,
+    semester.title
+  );
+  const section = matchOption(stated.section, listed);
+  const sections = section ? [section] : listed;
+  if (!sections.length) {
+    return `ECAP lists no sections for ${branch.label}, ${semester.label}, so there is no register to read.`;
+  }
+  return {
+    levels: { course, semester, branch },
+    sections,
+    label: `${course.label} · ${semester.label} · ${branch.label}`,
+  };
+}
+/**
+ * One roll number in, the student's class and attendance figure out.
+ *
+ * The class comes from the student's own profile page — the one ECAP answer a
+ * roll number is enough for — and the figure from the class attendance report
+ * that page's class is read over. No picker, so a class the page states and the
+ * Portal's lists do not agree on is a named answer rather than a guess.
+ *
+ * This is a deliberate ask from the Student Search tab, which is why it reads a
+ * register at all; the refresh loop still never fetches one.
+ */
+export async function handleFind(
+  portal: PortalReader,
+  b: Partial<FindRequest>
+): Promise<FindReply> {
+  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
+  const roll = b.roll?.trim();
+  if (!roll) throw new HttpError(400, "Enter a roll number.");
+  const window = { from: b.from, to: b.to };
+  const html = await portal.studentProfile(roll);
+  const profile = parseStudentProfile(html);
+  if (!profile) {
+    throw new HttpError(
+      502,
+      "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
+    );
+  }
+  const found = await resolveClass(portal, parseStudentClass(html));
+  if (typeof found === "string") {
+    return { profile, class: null, window, student: null, note: found };
+  }
+  for (const section of found.sections) {
+    const reply = await handleRegister(portal, {
+      ...found.levels,
+      section,
+      subject: ALL_SUBJECTS,
+      ...window,
+    }).catch((error: unknown) => {
+      // A dead session must still sign out. Anything else is one section this
+      // search can do without: the next one may hold the roll.
+      if (error instanceof HttpError && error.status === 401) throw error;
+      return null;
+    });
+    const student = reply?.students.find(
+      (row) => row.roll.trim().toLowerCase() === roll.toLowerCase()
+    );
+    if (reply && student) {
+      return {
+        profile,
+        class: { ...found.levels, section },
+        window: reply.summary.range,
+        student,
+        note: "",
+      };
+    }
+  }
+  return {
+    profile,
+    class: { ...found.levels, section: null },
+    window,
+    student: null,
+    note: `No row for ${roll} in ${found.label} over ${window.from} to ${window.to}.`,
+  };
 }
 /**
  * One subject's earliest held day inside the asked window, for the All subjects

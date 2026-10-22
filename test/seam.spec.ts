@@ -3,12 +3,14 @@ import { test, expect } from "@playwright/test";
 import {
   level,
   looksLikeHtml,
+  matchOption,
   options,
   parseClassAttendance,
   parseLeaveStatus,
   parseRegister,
   parseStudentAbsences,
   parseStudentBacklogs,
+  parseStudentClass,
   parseStudentProfile,
   realOptions,
   registerDates,
@@ -410,5 +412,54 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     ]);
     // A reply without that header is not the grid: no status is not all zeros.
     expect(parseLeaveStatus(LOGIN_PAGE)).toEqual([]);
+  });
+});
+
+const QUOTED_OPTION = (value: string, label: string) => ({
+  value,
+  label,
+  title: "",
+});
+test.describe("the class a profile page states", () => {
+  const PAGE = `<div id='divProfile_BioData'><table>
+<tr><td>Course</td><td>:</td><td>B.Tech</td></tr>
+<tr><td>Branch</td><td>:</td><td>IT</td></tr>
+<tr><td>Semester</td><td>:</td><td>III</td></tr>
+<tr><td>Section</td><td>:</td><td>Section-1</td></tr>
+<tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table></div>`;
+  test("reads the four levels the page names, and leaves the phone row alone", () => {
+    expect(parseStudentClass(PAGE)).toEqual({
+      course: "B.Tech",
+      branch: "IT",
+      semester: "III",
+      section: "Section-1",
+    });
+  });
+  test("a level the page omits stays empty rather than becoming a guess", () => {
+    expect(
+      parseStudentClass(
+        `<table><tr><td>Course</td><td>:</td><td>B.Tech</td></tr></table>`
+      )
+    ).toEqual({ course: "B.Tech", branch: "", semester: "", section: "" });
+  });
+});
+test.describe("matching a page's words to the Portal's options", () => {
+  const semesters = [
+    QUOTED_OPTION("1", "I Semester"),
+    QUOTED_OPTION("2", "II Semester"),
+    QUOTED_OPTION("3", "III Semester"),
+  ];
+  test("a value wins, then the label, then the label without its kind word", () => {
+    expect(matchOption("3", semesters)?.label).toBe("III Semester");
+    expect(matchOption("III Semester", semesters)?.label).toBe("III Semester");
+    expect(matchOption("III", semesters)?.label).toBe("III Semester");
+  });
+  test("a word that names two options names neither of them", () => {
+    const twins = [QUOTED_OPTION("1", "Section-1"), QUOTED_OPTION("2", "1")];
+    expect(matchOption("Section-1", twins)).toBeNull();
+  });
+  test("a word the options do not offer names nothing", () => {
+    expect(matchOption("IV", semesters)).toBeNull();
+    expect(matchOption("", semesters)).toBeNull();
   });
 });

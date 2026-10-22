@@ -7,11 +7,13 @@ import {
   Loader,
   Stack,
   Text,
+  TextInput,
   Title,
 } from "@mantine/core";
 import { useDisclosure } from "@mantine/hooks";
 import {
   FloppyDisk,
+  MagnifyingGlass,
   SignOut,
   SquaresFour,
   UserCircle,
@@ -56,11 +58,12 @@ import {
   useSignIn,
   useSignOut,
   useStudentProfile,
+  useStudentSearch,
   useFacultyProfile,
   useSemAbsences,
   useSemStart,
 } from "./client";
-import type { RegisterClick } from "./client";
+import type { RegisterClick, FindClick } from "./client";
 import { ClassPicker } from "./components/ClassPicker";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
@@ -89,11 +92,15 @@ import type { RowFilter } from "./worklist";
 const LOGIN_PATH = "/login";
 const DASHBOARD_PATH = "/dashboard";
 const PROFILE_PATH = "/profile";
+const SEARCH_PATH = "/search";
 const App = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const onLogin = pathname === LOGIN_PATH;
   const onProfile = pathname === PROFILE_PATH;
+  const onSearch = pathname === SEARCH_PATH;
+  /** The screen the Attendance button stands for: not the two beside it. */
+  const onDashboard = !onLogin && !onProfile && !onSearch;
   const [booted, setBooted] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [userId, setUserId] = useState("");
@@ -182,9 +189,21 @@ const App = (): React.JSX.Element => {
       : null
   );
   const facultyProfile = useFacultyProfile(Boolean(onProfile));
+  /** Student Search: the roll being typed, the ask the drawer is showing, and
+   *  whether that drawer is open. The ask carries a click number for the
+   *  register's reason — a search is deliberate, so asking again reads again. */
+  const [searchRoll, setSearchRoll] = useState("");
+  const [searchClick, setSearchClick] = useState<FindClick | null>(null);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const search = useStudentSearch(searchClick);
+  const found = search.data ?? null;
   /** A request the user is waiting on is already proving the session works, and
    *  the read that would probe it is one more thing competing with it. */
-  const busy = register.isLoading || optionsLoading || login.isMutating;
+  const busy =
+    register.isLoading ||
+    optionsLoading ||
+    login.isMutating ||
+    search.isLoading;
   const session = useSession(busy || onLogin);
   const result = register.data ?? null;
   /* Only a load that actually succeeded re-scopes the screen: `overallMode` is
@@ -289,6 +308,7 @@ const App = (): React.JSX.Element => {
     optionsError ??
     register.error ??
     profile.error ??
+    search.error ??
     facultyProfile.error ??
     semStart.error ??
     semAbsences.error;
@@ -311,8 +331,28 @@ const App = (): React.JSX.Element => {
           text: "ECAP would not give this student's full-semester absences.",
         }
       : null;
+  /** Student Search's own sentence: what the server refused, or why there is no
+   *  class or no row for that roll. A 401 has already ended the session through
+   *  the sweep above, so it says nothing here. */
+  let searchNote: Note | null = null;
+  if (search.error && !isExpired(search.error)) {
+    searchNote = { kind: "error", text: messageOf(search.error) };
+  } else if (found?.note) {
+    searchNote = { kind: "warning", text: found.note };
+  }
   const savedList = saved?.userId === userId && userId ? saved.list : null;
-  /** The name arriving is also the moment the saved classes become readable, so
+  /** The class and window a searched figure belongs to, named on the panel: a
+   *  percentage with no period under it invites being read as a semester's. */
+  const searchScope = found?.class
+    ? `${[
+        found.class.course.label,
+        found.class.semester.label,
+        found.class.branch.label,
+        found.class.section?.label ?? "",
+      ]
+        .filter(Boolean)
+        .join(" · ")} · ${found.window.from} to ${found.window.to}`
+    : undefined; /** The name arriving is also the moment the saved classes become readable, so
    *  both are set together: a restore never went through the sign-in form. The
    *  stored values are not applied to the cascade here — filling the form is the
    *  saved class being opened, and nothing else. */
@@ -409,6 +449,24 @@ const App = (): React.JSX.Element => {
     // The range someone asked for is the one worth opening at again.
     rememberRangeStart(range.from);
   };
+  /** A roll number is the whole ask: the class comes from the student's own ECAP
+   *  page, and the window from where the app opens at. Nothing is fetched per
+   *  keystroke — the form submits, and one search is one read. */
+  const findStudent = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const roll = searchRoll.trim();
+    if (!roll) return;
+    const window = startingRange();
+    setSearchClick((previous) => ({
+      request: {
+        roll,
+        from: toPortalDate(window.from),
+        to: toPortalDate(window.to),
+      },
+      attempt: (previous?.attempt ?? 0) + 1,
+    }));
+    setSearchOpen(true);
+  };
   const signIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoginNote(null);
@@ -485,7 +543,7 @@ const App = (): React.JSX.Element => {
     // only place the name can arrive. Without it the rail and the profile panel
     // show a dash for a session that is working.
     if (session.data?.userId) noteUserId(session.data.userId);
-    if (!onLogin && !onProfile) {
+    if (!onLogin && !onProfile && !onSearch) {
       navigate(DASHBOARD_PATH, { replace: true });
     }
     if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
@@ -495,6 +553,7 @@ const App = (): React.JSX.Element => {
     session.data,
     onLogin,
     onProfile,
+    onSearch,
     navigate,
     runRefresh,
     noteUserId,
@@ -677,68 +736,103 @@ const App = (): React.JSX.Element => {
       break;
     }
     case "app": {
-      body = onProfile ? (
-        <ProfilePanel
-          userId={userId}
-          faculty={facultyProfile.data ?? null}
-          busy={facultyProfile.isLoading}
-        />
-      ) : (
-        <>
-          {savedClassCards.length ? (
-            <SavedClasses
-              classes={savedClassCards}
-              onOpen={applySavedClass}
-              onForget={clearSavedClass}
-            />
-          ) : null}
-          {picker}
-          {summary ? (
-            <RegisterSummary
-              summary={summary}
-              scope={overallMode ? "overall" : "subject"}
-            />
-          ) : null}
-          {summary ? (
-            <RegisterTable
-              rows={rows}
-              total={result?.students.length ?? 0}
-              summary={summary}
-              filter={filter}
-              onFilterChange={applyFilter}
-              onShowDetails={showDetails}
-              chosen={registerFacts}
-              overallMode={overallMode}
-            />
-          ) : null}
-          <StudentDetails
-            student={detail}
-            opened={detailOpen}
-            onClose={() => setDetailOpen(false)}
-            onExitTransitionEnd={() => setDetail(null)}
-            overallMode={overallMode}
-            profile={profile.data ?? null}
-            busy={profile.isLoading}
-            note={profileNote ?? semAbsencesNote}
-            absenceRange={
-              summary?.range
-                ? `${summary.statedFrom || summary.range.from} to ${summary.range.to}`
-                : null
-            }
-            fullAbsent={semAbsences.data?.absent ?? null}
-            fullTitle={
-              overallMode
-                ? "Absent — full semester"
-                : "Absent — full semester, this subject"
-            }
-            fullRange={
-              semStartShown && summary
-                ? `${semStartShown} to ${summary.range.to}`
-                : null
-            }
+      if (onProfile) {
+        body = (
+          <ProfilePanel
+            userId={userId}
+            faculty={facultyProfile.data ?? null}
+            busy={facultyProfile.isLoading}
           />
-        </>
-      );
+        );
+      } else if (onSearch) {
+        body = (
+          <>
+            <form onSubmit={findStudent}>
+              <Group align="flex-end" gap="sm">
+                <TextInput
+                  label="Roll number"
+                  description="The class comes from the student's own ECAP page."
+                  placeholder="21CS001"
+                  value={searchRoll}
+                  onChange={(e) => setSearchRoll(e.currentTarget.value)}
+                  flex={1}
+                />
+                <Button type="submit" loading={search.isLoading}>
+                  Search
+                </Button>
+              </Group>
+            </form>
+            <StudentDetails
+              student={found?.student ?? null}
+              opened={searchOpen}
+              onClose={() => setSearchOpen(false)}
+              onExitTransitionEnd={() => undefined}
+              overallMode
+              profile={found?.profile ?? null}
+              busy={search.isLoading}
+              note={searchNote}
+              scope={searchScope}
+            />
+          </>
+        );
+      } else {
+        body = (
+          <>
+            {savedClassCards.length ? (
+              <SavedClasses
+                classes={savedClassCards}
+                onOpen={applySavedClass}
+                onForget={clearSavedClass}
+              />
+            ) : null}
+            {picker}
+            {summary ? (
+              <RegisterSummary
+                summary={summary}
+                scope={overallMode ? "overall" : "subject"}
+              />
+            ) : null}
+            {summary ? (
+              <RegisterTable
+                rows={rows}
+                total={result?.students.length ?? 0}
+                summary={summary}
+                filter={filter}
+                onFilterChange={applyFilter}
+                onShowDetails={showDetails}
+                chosen={registerFacts}
+                overallMode={overallMode}
+              />
+            ) : null}
+            <StudentDetails
+              student={detail}
+              opened={detailOpen}
+              onClose={() => setDetailOpen(false)}
+              onExitTransitionEnd={() => setDetail(null)}
+              overallMode={overallMode}
+              profile={profile.data ?? null}
+              busy={profile.isLoading}
+              note={profileNote ?? semAbsencesNote}
+              absenceRange={
+                summary?.range
+                  ? `${summary.statedFrom || summary.range.from} to ${summary.range.to}`
+                  : null
+              }
+              fullAbsent={semAbsences.data?.absent ?? null}
+              fullTitle={
+                overallMode
+                  ? "Absent — full semester"
+                  : "Absent — full semester, this subject"
+              }
+              fullRange={
+                semStartShown && summary
+                  ? `${semStartShown} to ${summary.range.to}`
+                  : null
+              }
+            />
+          </>
+        );
+      }
       break;
     }
     default: {
@@ -777,13 +871,26 @@ const App = (): React.JSX.Element => {
                 nav.close();
                 navigate(DASHBOARD_PATH);
               }}
-              variant={!onLogin && !onProfile ? "filled" : "subtle"}
-              aria-current={!onLogin && !onProfile ? "page" : undefined}
+              variant={onDashboard ? "filled" : "subtle"}
+              aria-current={onDashboard ? "page" : undefined}
               leftSection={<SquaresFour size={18} aria-hidden />}
               fullWidth
               justify="flex-start"
             >
               Attendance
+            </Button>
+            <Button
+              onClick={() => {
+                nav.close();
+                navigate(SEARCH_PATH);
+              }}
+              variant={onSearch ? "filled" : "subtle"}
+              aria-current={onSearch ? "page" : undefined}
+              leftSection={<MagnifyingGlass size={18} aria-hidden />}
+              fullWidth
+              justify="flex-start"
+            >
+              Student Search
             </Button>
             <Button
               onClick={() => {

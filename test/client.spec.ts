@@ -3,6 +3,7 @@ import type { Page, Route } from "@playwright/test";
 
 import { ALL_SUBJECTS, SESSION_HEADER, SESSION_STORE_KEY } from "../shared/api";
 import type {
+  FindRequest,
   Option,
   OptionsReply,
   OptionsRequest,
@@ -246,6 +247,24 @@ const stub = async (route: Route): Promise<void> => {
     });
     return;
   }
+  if (path === "/api/find") {
+    const { roll } = request.postDataJSON() as FindRequest;
+    const reply = registerReply(null, true);
+    const student = reply.students.find((row) => row.roll === roll) ?? null;
+    await json({
+      profile: profileFor(roll),
+      class: {
+        course: opt("1", "B.Tech"),
+        semester: opt("1", "I Semester", "2025"),
+        branch: opt("1", "IT"),
+        section: student ? opt("1", "Section-1") : null,
+      },
+      window: reply.summary.range,
+      student,
+      note: student ? "" : `No row for ${roll} in B.Tech · I Semester · IT.`,
+    });
+    return;
+  }
   await json({ error: `no stub for ${path}` }, 500);
 };
 /** What a Select shows. Mantine puts the chosen option's *label* in the input,
@@ -415,6 +434,39 @@ test.describe("the app's own data layer", () => {
       timeout: 15_000,
     });
     await expect(box).toHaveValue("");
+  });
+  test("Student Search shows one roll's attendance and the profile behind it", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Student Search" }).click();
+    await page.getByLabel("Roll number").fill("21B");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    const panel = page.getByRole("dialog");
+    await expect(
+      panel.getByText("Overall attendance"),
+      "the row ECAP's report states for that roll"
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(panel.getByText("Roll No 21B")).toBeVisible();
+    // The class and the window the figure belongs to are named with it, so a
+    // month's figure cannot be read as a semester's.
+    await expect(panel.getByText(/Section-1/)).toBeVisible();
+    await expect(panel.getByText("CGPA 5.61")).toBeVisible();
+  });
+  test("a roll in no section of that class still shows its profile", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Student Search" }).click();
+    await page.getByLabel("Roll number").fill("99Z");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    const panel = page.getByRole("dialog");
+    await expect(
+      panel.getByText(/No row for 99Z/),
+      "why there is no attendance figure, in words"
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(panel.getByText("CGPA 5.61")).toBeVisible();
+    await expect(panel.getByText("Overall attendance")).toHaveCount(0);
   });
   test("the search box sits right and fills the width on mobile", async ({
     page,

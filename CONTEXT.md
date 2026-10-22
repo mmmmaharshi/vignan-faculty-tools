@@ -173,6 +173,18 @@ words are shown, because a stated absence is an answer, and a page that says
 nothing about them gets no section at all.
 _Avoid_: Arrears, supplementary exams, failed subjects
 
+**Student Search**:
+The rail's third screen: one roll number in, the class ECAP's profile page puts
+that student in, the row that class's own report holds for them (attendance and
+band), and the GPA, semesters, phone numbers and backlogs ECAP states for them.
+The class is read from the student's own page rather than picked, so a student
+not in the class still gets their profile, and a class the page names but the
+Portal's lists do not offer is a named answer rather than a guess. The attendance
+figure covers the window the app opens at, which the panel names. It reads a
+register through a deliberate ask, never through the cascade's refresh loop. See
+ADR 0025.
+_Avoid_: Find student, lookup, search student
+
 ## Identity
 
 **Sign-in**:

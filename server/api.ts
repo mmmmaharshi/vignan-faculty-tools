@@ -3,6 +3,7 @@ import type {
   ClientSession,
   ErrorReply,
   FacultyProfile,
+  FindRequest,
   LoginRequest,
   OkReply,
   Option,
@@ -48,6 +49,7 @@ import {
 } from "./portal-transport.js";
 import {
   handleFacultyProfile,
+  handleFind,
   handleOptions,
   handleRegister,
   handleSemAbsences,
@@ -479,6 +481,14 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         const body = await readJson<StudentRequest>(req);
         return json(
           await withPortal(s, (p) => handleStudentProfile(p.reader, body)),
+          200,
+          sessionHeader(s)
+        );
+      }
+      if (req.method === "POST" && path === "/api/find") {
+        const body = await readJson<FindRequest>(req);
+        return json(
+          await withPortal(s, (p) => handleFind(p.reader, body)),
           200,
           sessionHeader(s)
         );

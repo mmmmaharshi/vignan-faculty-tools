@@ -223,6 +223,39 @@ export interface StudentRequest {
    *  such call: its register rows already state the dates. */
   register?: RegisterRequest;
 }
+/**
+ * One student looked up by roll number alone, from the Student Search tab. The
+ * profile page is the only ECAP answer a roll number is enough for, so the class
+ * comes from what that page states about the student — not from a picker.
+ */
+export interface FindRequest {
+  roll: string;
+  /** dd/mm/yyyy, the window the attendance figure covers. */
+  from: string;
+  to: string;
+}
+/** The class ECAP's profile page put this student in, matched to the Portal's own
+ *  option values (the reports are asked for by value, not by name). */
+export interface FindClass {
+  course: Option;
+  semester: Option;
+  branch: Option;
+  /** The section the student's row was found in. Null when the roll was in none
+   *  of the branch and semester's sections — which is an answer, not a failure. */
+  section: Option | null;
+}
+export interface FindReply {
+  profile: StudentProfile;
+  /** Null when the profile page states no class, or states one the Portal's own
+   *  lists do not offer; `note` then says which. */
+  class: FindClass | null;
+  window: { from: string; to: string };
+  /** The register row for the held window, or null when the roll is in no
+   *  section of that class — the profile above is still an answer. */
+  student: Student | null;
+  /** Why there is no class or no row, in words; empty when both are there. */
+  note: string;
+}
 export interface OptionsRequest {
   course?: string;
   semester?: string;

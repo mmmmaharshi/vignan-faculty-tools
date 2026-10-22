@@ -40,6 +40,9 @@ type StudentDetailsProps = {
    *  the attendance figures are on screen while this is still arriving. */
   profile: StudentProfile | null;
   busy: boolean;
+  /** The class and period a searched figure belongs to. Only Student Search
+   *  passes it — a register on screen already names both of its own. */
+  scope?: string;
   note: Note | null;
   /** The date window the absent dates came from, so the block names its own
    *  period rather than borrowing the register's Date Range fact above. Null
@@ -157,6 +160,7 @@ export const StudentDetails = ({
   overallMode = false,
   profile,
   busy,
+  scope,
   note,
   absenceRange,
   fullAbsent,
@@ -189,234 +193,241 @@ export const StudentDetails = ({
       closeButtonProps={{ "aria-label": "Close student details" }}
       onExitTransitionEnd={onExitTransitionEnd}
     >
-      {student ? (
-        <Stack gap="sm">
-          <Box>
-            <Title order={4} tt="uppercase">
-              {student.name}
-            </Title>
-            <Text ff="monospace" size="sm">
-              Roll No {student.roll}
-            </Text>
-          </Box>
-          <Divider />
-          {/* A figure the Portal did not give is an absence, not a zero, so its
+      <Stack gap="sm">
+        {student ? (
+          <>
+            <Box>
+              <Title order={4} tt="uppercase">
+                {student.name}
+              </Title>
+              <Text ff="monospace" size="sm">
+                Roll No {student.roll}
+              </Text>
+              {scope ? (
+                <Text c="dimmed" size="xs">
+                  {scope}
+                </Text>
+              ) : null}
+            </Box>
+            <Divider />
+            {/* A figure the Portal did not give is an absence, not a zero, so its
               row is left out rather than printed as a dash — and a subject
               register shows its own figure alone, so the overall row belongs
               to the all-subjects view. */}
-          {student.pct != null ||
-          student.attendedOfHeld !== "" ||
-          (overallMode && student.overallPct != null) ? (
-            <Table striped withTableBorder tabularNums>
-              <Table.Tbody>
-                {student.pct != null || student.attendedOfHeld !== "" ? (
-                  <FigureRow
-                    label="Subject attendance"
-                    cell={student.attendedOfHeld}
-                    pct={student.pct}
-                    {...badgeFor(
-                      student.critical,
-                      student.irregular,
-                      "subject"
-                    )}
-                  />
-                ) : null}
-                {/* The count lives in the table's Attended / Total column; the
+            {student.pct != null ||
+            student.attendedOfHeld !== "" ||
+            (overallMode && student.overallPct != null) ? (
+              <Table striped withTableBorder tabularNums>
+                <Table.Tbody>
+                  {student.pct != null || student.attendedOfHeld !== "" ? (
+                    <FigureRow
+                      label="Subject attendance"
+                      cell={student.attendedOfHeld}
+                      pct={student.pct}
+                      {...badgeFor(
+                        student.critical,
+                        student.irregular,
+                        "subject"
+                      )}
+                    />
+                  ) : null}
+                  {/* The count lives in the table's Attended / Total column; the
                     panel repeats only the figure and its band. */}
-                {overallMode && student.overallPct != null ? (
-                  <FigureRow
-                    label="Overall attendance"
-                    cell=""
-                    pct={student.overallPct}
-                    {...badgeFor(
-                      student.overallCritical,
-                      student.overallIrregular,
-                      "overall"
-                    )}
-                  />
-                ) : null}
-              </Table.Tbody>
-            </Table>
-          ) : null}
-          {/* The backlogs the page's own section states, by semester, right
+                  {overallMode && student.overallPct != null ? (
+                    <FigureRow
+                      label="Overall attendance"
+                      cell=""
+                      pct={student.overallPct}
+                      {...badgeFor(
+                        student.overallCritical,
+                        student.overallIrregular,
+                        "overall"
+                      )}
+                    />
+                  ) : null}
+                </Table.Tbody>
+              </Table>
+            ) : null}
+          </>
+        ) : null}
+        {/* The backlogs the page's own section states, by semester, right
               after the figures they qualify: a backlog is a second attendance
               fact, not profile trivia. A page that says there are none says so
               in words, and that is shown too; a page that says nothing about
               them shows no section at all. */}
-          {backlogs.length || backlogNote ? (
-            <>
-              <Text c="dimmed" size="xs" tt="uppercase">
-                Backlogs
-              </Text>
-              {backlogs.length ? (
-                <Table striped withTableBorder tabularNums>
-                  <Table.Tbody>
-                    {backlogs.map((row) => (
-                      <Table.Tr key={row.semester}>
-                        <Table.Td c="dimmed">
-                          <Text size="sm">{row.semester}</Text>
-                        </Table.Td>
-                        <Table.Td ta="right">
-                          <Group gap={4} justify="flex-end">
-                            {row.subjects.map((subject) => (
-                              <Text key={subject.code} size="sm">
-                                {/* The page marks some subjects in red with an
+        {backlogs.length || backlogNote ? (
+          <>
+            <Text c="dimmed" size="xs" tt="uppercase">
+              Backlogs
+            </Text>
+            {backlogs.length ? (
+              <Table striped withTableBorder tabularNums>
+                <Table.Tbody>
+                  {backlogs.map((row) => (
+                    <Table.Tr key={row.semester}>
+                      <Table.Td c="dimmed">
+                        <Text size="sm">{row.semester}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Group gap={4} justify="flex-end">
+                          {row.subjects.map((subject) => (
+                            <Text key={subject.code} size="sm">
+                              {/* The page marks some subjects in red with an
                                     asterisk and does not say what it means, so
                                     the mark is shown as written. */}
-                                {subject.marked ? (
-                                  <Text span c="red" size="xs">
-                                    *
-                                  </Text>
-                                ) : null}
-                                {subject.code}
-                              </Text>
-                            ))}
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                    {backlogTotal == null ? null : (
-                      <Table.Tr>
-                        <Table.Td c="dimmed">
-                          <Text size="sm">Total backlogs</Text>
-                        </Table.Td>
-                        <Table.Td ta="right">
-                          <Text size="sm">{backlogTotal}</Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    )}
-                  </Table.Tbody>
-                </Table>
-              ) : (
-                <Text size="sm">{backlogNote}</Text>
-              )}
-            </>
-          ) : null}
-          {/* The dates the register's own columns say "A" for this student, in
+                              {subject.marked ? (
+                                <Text span c="red" size="xs">
+                                  *
+                                </Text>
+                              ) : null}
+                              {subject.code}
+                            </Text>
+                          ))}
+                        </Group>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                  {backlogTotal == null ? null : (
+                    <Table.Tr>
+                      <Table.Td c="dimmed">
+                        <Text size="sm">Total backlogs</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Text size="sm">{backlogTotal}</Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  )}
+                </Table.Tbody>
+              </Table>
+            ) : (
+              <Text size="sm">{backlogNote}</Text>
+            )}
+          </>
+        ) : null}
+        {/* The dates the register's own columns say "A" for this student, in
               the order the register lists them — or, on the All subjects path,
               the ones that student's own grid states, unioned over subjects. No
               list when there are none, because a grid that states no dates must
               not be read as a clean sheet. */}
-          {absences.length ? (
-            <AbsenceBlock
-              title="Absent"
-              dates={absences}
-              range={absenceRange}
-            />
-          ) : null}
-          {/* The same student's absences over the whole semester, read over the
+        {absences.length ? (
+          <AbsenceBlock title="Absent" dates={absences} range={absenceRange} />
+        ) : null}
+        {/* The same student's absences over the whole semester, read over the
               remembered start when the window above starts after it. */}
-          {fullAbsent?.length ? (
-            <AbsenceBlock
-              title={fullTitle}
-              dates={fullAbsent}
-              range={fullRange}
-            />
-          ) : null}
-          {/* Both figures are badged here where the table badges the subject
+        {fullAbsent?.length ? (
+          <AbsenceBlock
+            title={fullTitle}
+            dates={fullAbsent}
+            range={fullRange}
+          />
+        ) : null}
+        {/* Both figures are badged here where the table badges the subject
               alone: two badges on one table row is noise, but two labelled lines
               are how the reader sees which band each figure sits in. */}
-          <Text c="dimmed" size="xs">
-            {`Regular at or above ${IRREGULAR_BELOW}%; critical below ${CRITICAL_BELOW}%.`}
-          </Text>
-          <Divider />
-          {busy ? (
-            <Group gap="xs">
-              <Loader size="xs" />
-              <Text c="dimmed" size="sm">
-                Reading this student&apos;s profile from ECAP...
-              </Text>
-            </Group>
-          ) : null}
-          {note ? (
-            <Alert color={note.kind === "error" ? "red" : "yellow"}>
-              {note.text}
-            </Alert>
-          ) : null}
-          {!busy && !note && profile && !hasGpa && !phones.length ? (
-            <Text c="dimmed" size="sm">
-              ECAP states no GPA or phone number for this student.
+        {student ? (
+          <>
+            <Text c="dimmed" size="xs">
+              {`Regular at or above ${IRREGULAR_BELOW}%; critical below ${CRITICAL_BELOW}%.`}
             </Text>
-          ) : null}
-          {/* The GPA is ECAP's own line, printed as it stands: a student with no
+            <Divider />
+          </>
+        ) : null}
+        {busy ? (
+          <Group gap="xs">
+            <Loader size="xs" />
+            <Text c="dimmed" size="sm">
+              Reading this student&apos;s profile from ECAP...
+            </Text>
+          </Group>
+        ) : null}
+        {note ? (
+          <Alert color={note.kind === "error" ? "red" : "yellow"}>
+            {note.text}
+          </Alert>
+        ) : null}
+        {!busy && !note && profile && !hasGpa && !phones.length ? (
+          <Text c="dimmed" size="sm">
+            ECAP states no GPA or phone number for this student.
+          </Text>
+        ) : null}
+        {/* The GPA is ECAP's own line, printed as it stands: a student with no
               past semesters has the page's "NA", which is not a zero. The
               semesters under it are the page's own SGPAs, one line each, in the
               order the page states them — cumulative figures, so they share the
               heading and are never added up. */}
-          {hasGpa ? (
-            <>
-              <Text c="dimmed" size="xs" tt="uppercase">
-                GPA
-              </Text>
-              <Table striped withTableBorder tabularNums>
-                <Table.Tbody>
-                  {cgpaShown ? (
-                    <Table.Tr>
-                      <Table.Td colSpan={2}>
-                        <Group gap="sm" justify="space-between">
-                          <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
-                          <Group gap="sm">
-                            {credits ? (
-                              <Text size="sm">{`Credits ${credits}`}</Text>
-                            ) : null}
-                            {cgpaPercent ? (
-                              <Text size="sm">{`${cgpaPercent}%`}</Text>
-                            ) : null}
-                          </Group>
+        {hasGpa ? (
+          <>
+            <Text c="dimmed" size="xs" tt="uppercase">
+              GPA
+            </Text>
+            <Table striped withTableBorder tabularNums>
+              <Table.Tbody>
+                {cgpaShown ? (
+                  <Table.Tr>
+                    <Table.Td colSpan={2}>
+                      <Group gap="sm" justify="space-between">
+                        <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
+                        <Group gap="sm">
+                          {credits ? (
+                            <Text size="sm">{`Credits ${credits}`}</Text>
+                          ) : null}
+                          {cgpaPercent ? (
+                            <Text size="sm">{`${cgpaPercent}%`}</Text>
+                          ) : null}
                         </Group>
-                      </Table.Td>
-                    </Table.Tr>
-                  ) : null}
-                  {sgpa.map((semester) => (
-                    <Table.Tr key={semester.semester}>
-                      <Table.Td c="dimmed">
-                        <Text size="sm">{semester.semester}</Text>
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text size="sm" fw={600}>
-                          {semester.value}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </>
-          ) : null}
-          {hasGpa && phones.length ? <Divider /> : null}
-          {phones.length ? (
-            <>
-              <Text c="dimmed" size="xs" tt="uppercase">
-                Phone numbers
-              </Text>
-              <Table striped withTableBorder tabularNums>
-                <Table.Tbody>
-                  {phones.map((phone) => (
-                    <Table.Tr key={phone.number}>
-                      <Table.Td c="dimmed">
-                        {/* The page's own word for the student's line is
+                      </Group>
+                    </Table.Td>
+                  </Table.Tr>
+                ) : null}
+                {sgpa.map((semester) => (
+                  <Table.Tr key={semester.semester}>
+                    <Table.Td c="dimmed">
+                      <Text size="sm">{semester.semester}</Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <Text size="sm" fw={600}>
+                        {semester.value}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </>
+        ) : null}
+        {hasGpa && phones.length ? <Divider /> : null}
+        {phones.length ? (
+          <>
+            <Text c="dimmed" size="xs" tt="uppercase">
+              Phone numbers
+            </Text>
+            <Table striped withTableBorder tabularNums>
+              <Table.Tbody>
+                {phones.map((phone) => (
+                  <Table.Tr key={phone.number}>
+                    <Table.Td c="dimmed">
+                      {/* The page's own word for the student's line is
                             "Mobile.No"; it is renamed here for the reader, and
                             any other line's label (a parent's, say) is kept. */}
-                        <Text size="sm">
-                          {/mobile|phone/i.test(phone.label) &&
-                          !/parent|father|mother|guardian/i.test(phone.label)
-                            ? "Student Mobile No"
-                            : phone.label}
-                        </Text>
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text ff="monospace" size="sm">
-                          {phone.number}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </>
-          ) : null}
-        </Stack>
-      ) : null}
+                      <Text size="sm">
+                        {/mobile|phone/i.test(phone.label) &&
+                        !/parent|father|mother|guardian/i.test(phone.label)
+                          ? "Student Mobile No"
+                          : phone.label}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <Text ff="monospace" size="sm">
+                        {phone.number}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </>
+        ) : null}
+      </Stack>
     </Drawer>
   );
 };

@@ -385,8 +385,75 @@ export function parseStudentProfile(html: string): StudentProfile | null {
     backlogs: parseStudentBacklogs(html),
   };
 }
-/** ECAP states the faculty member's name inside the `lblUser` span on
- *  main.aspx, prefixed with "Welcome ". Returns the name, or empty when the
+/** The class a StudentProfile page states, in the page's own words. Empty where
+ *  the page states nothing: a field it omits is not a field to guess. */
+export interface StatedClass {
+  course: string;
+  branch: string;
+  semester: string;
+  section: string;
+}
+/** Which `Label : Value` row is which level. The bio-data block writes the class
+ *  in the same shape as the phone numbers, so the label is the only thing that
+ *  says what a value means. */
+const CLASS_LABELS: [keyof StatedClass, RegExp][] = [
+  ["course", /\bcourse\b/i],
+  ["branch", /\bbranch\b|\bdepartment\b/i],
+  ["semester", /\bsemester\b|\bsem\b/i],
+  ["section", /\bsection\b|\bsec\b/i],
+];
+export function parseStudentClass(html: string): StatedClass {
+  const out: StatedClass = {
+    course: "",
+    branch: "",
+    semester: "",
+    section: "",
+  };
+  for (const tr of html.match(ROW) ?? []) {
+    const cells = cellsOf(tr);
+    if (cells[1] !== SEPARATOR) continue;
+    const value = (cells[2] ?? "").trim();
+    if (!value) continue;
+    const key = CLASS_LABELS.find(([, pattern]) =>
+      pattern.test(cells[0] ?? "")
+    )?.[0];
+    if (key && !out[key]) out[key] = value;
+  }
+  return out;
+}
+/** A label without the word that merely names its kind: "III Semester" and "III"
+ *  are the same semester, and "Section-1" and "1" are not forced together —
+ *  everything else about the comparison stays exact. */
+const bareLabel = (label: string): string =>
+  label
+    .replaceAll(
+      /\b(?:semester|section|branch|course|year|degree|programme|program)\b/gi,
+      ""
+    )
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/g, "");
+/** The option a page's own words name, or null. Value first, because the Portal's
+ *  reports are asked by value rather than by label; then the label. A text that
+ *  names more than one option names none of them: guessing a class reads the
+ *  wrong section's register, and the figure's own label is the only sign of it. */
+export function matchOption(
+  text: string,
+  list: readonly Option[]
+): Option | null {
+  const t = text.trim();
+  if (!t) return null;
+  const byValue = list.find(
+    (o) => o.value.trim().toLowerCase() === t.toLowerCase()
+  );
+  if (byValue) return byValue;
+  const bare = bareLabel(t);
+  if (!bare) return null;
+  const exact = list.filter((o) => bareLabel(o.label) === bare);
+  if (exact.length === 1) return exact[0] ?? null;
+  const partial = list.filter((o) => bareLabel(o.label).includes(bare));
+  return partial.length === 1 ? (partial[0] ?? null) : null;
+}
+/** ECAP states the faculty member's name inside the `lblUser` span on *  main.aspx, prefixed with "Welcome ". Returns the name, or empty when the
  *  page did not state one (not logged in, or the span is empty). */
 export function parseFacultyName(html: string): string {
   const m = html.match(

@@ -10,6 +10,8 @@ import type {
   RegisterReply,
   RegisterRequest,
   FacultyProfile,
+  FindReply,
+  FindRequest,
   SemAbsencesReply,
   SemAbsencesRequest,
   SemStartReply,
@@ -38,6 +40,7 @@ export const SESSION_PROBE_MS = 5 * 60_000;
 const SESSION_PATH = "/api/session";
 const REGISTER_PATH = "/api/register";
 const STUDENT_PATH = "/api/student";
+const FIND_PATH = "/api/find";
 const SEM_START_PATH = "/api/sem-start";
 const SEM_ABSENCES_PATH = "/api/sem-absences";
 const FACULTY_PROFILE_PATH = "/api/faculty-profile";
@@ -197,6 +200,24 @@ export function useStudentProfile(asked: StudentRequest | null) {
     asked ? [STUDENT_PATH, asked] : null,
     ([, body]: [string, StudentRequest]) =>
       postJson<StudentProfile>(STUDENT_PATH, body)
+  );
+}
+/**
+ * One roll number looked up from the Student Search tab: the class ECAP says the
+ * student is in, their profile, and their row out of that class's own report.
+ *
+ * The click number is part of the key, for the register's reason: a search is a
+ * deliberate ask, so asking again is a new read rather than a cache hit — and a
+ * failed search is not cached under the key the next attempt will use.
+ */
+export interface FindClick {
+  request: FindRequest;
+  attempt: number;
+}
+export function useStudentSearch(click: FindClick | null) {
+  return useSWRImmutable<FindReply, ApiError>(
+    click ? [FIND_PATH, click.request, click.attempt] : null,
+    ([, body]: [string, FindRequest]) => postJson<FindReply>(FIND_PATH, body)
   );
 }
 /**

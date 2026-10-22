@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 
 import { HttpError } from "../server/portal-replies";
 import {
+  handleFind,
   handleOptions,
   handleRegister,
   handleSemAbsences,
@@ -799,5 +800,54 @@ test.describe("the levels a register needs", () => {
     expect(() =>
       requireLevels({ course: opt("1", "B.Tech"), semester: opt("3", "III") })
     ).toThrow("Choose a branch.");
+  });
+});
+
+/** A profile page that states the class, which the real one is expected to: the
+ *  search has nothing to resolve without it. */
+const CLASS_PAGE = `<div id='divProfile_BioData'><table>
+<tr><td>Course</td><td>:</td><td>B.Tech</td></tr>
+<tr><td>Branch</td><td>:</td><td>IT</td></tr>
+<tr><td>Semester</td><td>:</td><td>III</td></tr>
+<tr><td>Section</td><td>:</td><td>Section-1</td></tr>
+<tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
+<center><span>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
+const ask = { from: "01/10/2025", to: "22/10/2025" };
+test.describe("a roll number searched on its own", () => {
+  test("is read through the class the student's own page states", async () => {
+    const { reader, calls } = fake({ studentProfile: CLASS_PAGE });
+    const reply = await handleFind(reader, { roll: "21CS001", ...ask });
+    expect(reply.class?.branch.label).toBe("IT");
+    expect(reply.class?.section?.label).toBe("Section-1");
+    // The figure is the class report's own row, read over the asked window.
+    expect(reply.student?.overallPct).toBe(79.21);
+    expect(reply.profile.phones).toHaveLength(1);
+    const report = nth(calls.classAttendance, 0);
+    expect(report.subject).toEqual(ALL_SUBJECTS);
+    expect(report.from).toBe(ask.from);
+  });
+  test("a page that does not state a branch is a named answer, not a guess", async () => {
+    const { reader, calls } = fake({
+      studentProfile: CLASS_PAGE.replace(
+        "<tr><td>Branch</td><td>:</td><td>IT</td></tr>",
+        ""
+      ),
+    });
+    const reply = await handleFind(reader, { roll: "21CS001", ...ask });
+    expect(reply.class).toBeNull();
+    expect(reply.student).toBeNull();
+    expect(reply.note).toContain("branch");
+    // Nothing is read for a class that could not be named.
+    expect(calls.classAttendance).toEqual([]);
+    // The profile is still the answer the page gives.
+    expect(reply.profile.cgpa).toBe("5.61");
+  });
+  test("a roll in none of the sections keeps its profile and says so", async () => {
+    const { reader } = fake({ studentProfile: CLASS_PAGE });
+    const reply = await handleFind(reader, { roll: "99ZZ999", ...ask });
+    expect(reply.student).toBeNull();
+    expect(reply.class?.section).toBeNull();
+    expect(reply.note).toContain("99ZZ999");
+    expect(reply.profile.cgpa).toBe("5.61");
   });
 });
