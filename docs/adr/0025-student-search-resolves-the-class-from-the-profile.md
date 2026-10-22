@@ -22,8 +22,11 @@ class, the window and the register row.
 
 Rules:
 - The class comes from the page, never from a guess. A stated value that names
-  more than one option names none of them; a missing course/branch/semester is a
-  named answer, not a picked default.
+  more than one option names none of them; a missing course or branch is a
+  named answer, not a picked default. A missing semester is inferred from the
+  SGPAs the page states (the highest completed, plus one) and named in the
+  panel's class line; with no SGPAs at all it is refused rather than guessed.
+  A missing section loops every section of that class.
 - The window is what the client sends (the range the app opens at), and is named
   in the panel.
 - A register is read only by a deliberate ask: Load register, or Find student.

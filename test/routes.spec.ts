@@ -851,3 +851,47 @@ test.describe("a roll number searched on its own", () => {
     expect(reply.profile.cgpa).toBe("5.61");
   });
 });
+
+const CLASS_PAGE_NO_SEM = `<div id='divProfile_BioData'><table>
+<tr><td>Course</td><td>:</td><td>B.Tech</td></tr>
+<tr><td>Branch</td><td>:</td><td>IT</td></tr>
+<tr><td>Section</td><td>:</td><td>Section-1</td></tr>
+<tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
+<center><span>CGPA:&nbsp;8.05&nbsp;&nbsp;&nbsp;Credits:40/40&nbsp;&nbsp;&nbsp;&nbsp;73.00&nbsp;%</span></center>
+<span>II Semester</span><table><tr><th>X</th><th>SGPA</th></tr><tr><td>Grade</td><td>7.66</td></tr></table></div>`;
+const CLASS_PAGE_NO_SGPA = `<div id='divProfile_BioData'><table>
+<tr><td>Course</td><td>:</td><td>B.Tech</td></tr>
+<tr><td>Branch</td><td>:</td><td>IT</td></tr>
+<tr><td>Section</td><td>:</td><td>Section-1</td></tr>
+<tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
+<center><span>CGPA:&nbsp;8.05&nbsp;&nbsp;&nbsp;Credits:40/40&nbsp;&nbsp;&nbsp;&nbsp;73.00&nbsp;%</span></center></div>`;
+test.describe("a roll whose page names no semester", () => {
+  test("is read through the semester inferred from its SGPAs", async () => {
+    const { reader, calls } = fake({
+      studentProfile: CLASS_PAGE_NO_SEM,
+      semester: [opt("2", "II Semester"), opt("3", "III Semester")],
+    });
+    const reply = await handleFind(reader, {
+      roll: "21CS001",
+      from: "01/10/2025",
+      to: "22/10/2025",
+    });
+    expect(reply.class?.semester.label).toBe("III Semester");
+    expect(reply.class?.section?.label).toBe("Section-1");
+    expect(reply.student?.overallPct).toBe(79.21);
+    expect(nth(calls.classAttendance, 0).semester).toMatchObject({
+      label: "III Semester",
+    });
+  });
+  test("a page with no SGPAs at all is refused rather than guessed", async () => {
+    const { reader } = fake({ studentProfile: CLASS_PAGE_NO_SGPA });
+    const reply = await handleFind(reader, {
+      roll: "21CS001",
+      from: "01/10/2025",
+      to: "22/10/2025",
+    });
+    expect(reply.class).toBeNull();
+    expect(reply.student).toBeNull();
+    expect(reply.note).toContain("semester");
+  });
+});

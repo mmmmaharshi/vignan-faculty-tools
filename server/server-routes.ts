@@ -273,6 +273,37 @@ export async function handleStudentProfile(
  *  option values, and the sections that class offers. A page that states a
  *  section names one section; one that states none names all of them, and the
  *  search reads each until the roll turns up. */
+/** Roman/Arabic numeral for a semester label: "III Semester" -> 3. */
+const ROMAN: Record<string, number> = {
+  I: 1,
+  II: 2,
+  III: 3,
+  IV: 4,
+  V: 5,
+  VI: 6,
+  VII: 7,
+  VIII: 8,
+};
+function semesterNumber(text: string): number | null {
+  const t = text.trim().toUpperCase();
+  const roman = t.match(/^(?<r>[IVX]+)\b/);
+  if (roman?.groups?.r) {
+    const { r } = roman.groups;
+    if (ROMAN[r] !== undefined) return ROMAN[r];
+  }
+  const arabic = t.match(/(?<n>\d+)/);
+  if (arabic?.groups?.n) return Number(arabic.groups.n);
+  return null;
+}
+/** The semester the student is in now, guessed from the SGPAs the page
+ *  states: the highest completed, plus one. Zero completed means the first
+ *  semester. A guess, and it can be wrong for a repeater — see ADR 0025. */
+function inferSemester(profile: StudentProfile): number {
+  const done = profile.sgpa
+    .map((s) => semesterNumber(s.semester))
+    .filter((n): n is number => n !== null);
+  return (done.length ? Math.max(...done) : 0) + 1;
+}
 type StudentClass = {
   levels: Record<"course" | "semester" | "branch", Option>;
   sections: Option[];
@@ -284,15 +315,29 @@ const unstated = (what: string, stated: string): string =>
     : `ECAP's profile page does not state a ${what}, so no class register can be read for this student.`;
 async function resolveClass(
   portal: PortalReader,
-  stated: StatedClass
+  stated: StatedClass,
+  profile: StudentProfile
 ): Promise<StudentClass | string> {
   const course = matchOption(stated.course, await portal.courses());
   if (!course) return unstated("course", stated.course);
   const [branches, semesters] = await portal.branchesAndSemesters(course.value);
   const branch = matchOption(stated.branch, branches);
   if (!branch) return unstated("branch", stated.branch);
-  const semester = matchOption(stated.semester, semesters);
-  if (!semester) return unstated("semester", stated.semester);
+  let semester: Option | null;
+  if (stated.semester) {
+    semester = matchOption(stated.semester, semesters);
+    if (!semester) return unstated("semester", stated.semester);
+  } else {
+    // The page states no semester; infer the current one from the SGPAs it
+    // does state — the highest completed, plus one. A guess, and it can be
+    // wrong for a repeater; the only way to be sure is to ask (option 3).
+    const inferred = inferSemester(profile);
+    semester =
+      semesters.find((o) => semesterNumber(o.label) === inferred) ?? null;
+    if (!semester) {
+      return `ECAP's profile page does not state a semester, and the one inferred from its SGPA list (${inferred}) is not one the Portal offers.`;
+    }
+  }
   const listed = await portal.sections(
     course.value,
     branch.value,
@@ -337,7 +382,7 @@ export async function handleFind(
       "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
     );
   }
-  const found = await resolveClass(portal, parseStudentClass(html));
+  const found = await resolveClass(portal, parseStudentClass(html), profile);
   if (typeof found === "string") {
     return { profile, class: null, window, student: null, note: found };
   }
