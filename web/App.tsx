@@ -749,7 +749,6 @@ const App = (): React.JSX.Element => {
               <Group align="flex-end" gap="sm">
                 <TextInput
                   label="Roll number"
-                  description="The class comes from the student's own ECAP page."
                   placeholder="21CS001"
                   value={searchRoll}
                   onChange={(e) => setSearchRoll(e.currentTarget.value)}
