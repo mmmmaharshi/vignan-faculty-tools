@@ -188,7 +188,7 @@ export const StudentDetails = ({
     ? student.absent
     : (profile?.absent ?? []);
   const content = (
-    <Stack gap="sm">
+    <Stack gap="sm" mt={inline ? "md" : undefined}>
       {student ? (
         <>
           <Box>
