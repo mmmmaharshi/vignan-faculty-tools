@@ -770,9 +770,7 @@ test.describe("the app's own data layer", () => {
       "and the page's own total, as it states it"
     ).toBeVisible();
   });
-  test("the backlogs sit right after the attendance figures", async ({
-    page,
-  }) => {
+  test("the backlogs sit right after the GPA block", async ({ page }) => {
     await signInAndSettle(page);
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
@@ -786,7 +784,7 @@ test.describe("the app's own data layer", () => {
       panel.getByText("Backlogs", { exact: true }),
       "the panel states this student's backlogs"
     ).toBeVisible({ timeout: 15_000 });
-    // Section order in the drawer: figures, backlogs, then the GPA block —
+    // Section order in the drawer: figures, the GPA block, then backlogs —
     // not backlogs trailing the profile at the bottom. Read off the rendered
     // positions, so a change in how Mantine wraps a label cannot move it.
     const top = async (text: string) => {
@@ -798,10 +796,8 @@ test.describe("the app's own data layer", () => {
     const backlogs = await top("Backlogs");
     const gpa = await top("GPA");
     expect(figures, "the panel states the attendance figures").not.toBeNaN();
-    expect(backlogs, "backlogs follow the attendance figures").toBeGreaterThan(
-      figures
-    );
-    expect(gpa, "and come ahead of the GPA block").toBeGreaterThan(backlogs);
+    expect(gpa, "the GPA block follows the figures").toBeGreaterThan(figures);
+    expect(backlogs, "and backlogs follow the GPA block").toBeGreaterThan(gpa);
   });
   test("a page that says nothing about backlogs gets no backlog section", async ({
     page,

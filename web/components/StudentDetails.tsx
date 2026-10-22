@@ -296,10 +296,49 @@ export const StudentDetails = ({
               semesters under it are the page's own SGPAs, one line each, in the
               order the page states them — cumulative figures, so they share the
               heading and are never added up. */}
-      {/* The backlogs the page's own section states, by semester, right
-              after the figures they qualify: a backlog is a second attendance
-              fact, not profile trivia. A page that says there are none says so
-              in words, and that is shown too; a page that says nothing about
+      {hasGpa ? (
+        <>
+          <Text c="dimmed" size="xs" tt="uppercase">
+            GPA
+          </Text>
+          <Table striped withTableBorder tabularNums>
+            <Table.Tbody>
+              {cgpaShown ? (
+                <Table.Tr>
+                  <Table.Td colSpan={2}>
+                    <Group gap="sm" justify="space-between">
+                      <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
+                      <Group gap="sm">
+                        {credits ? (
+                          <Text size="sm">{`Credits ${credits}`}</Text>
+                        ) : null}
+                        {cgpaPercent ? (
+                          <Text size="sm">{`${cgpaPercent}%`}</Text>
+                        ) : null}
+                      </Group>
+                    </Group>
+                  </Table.Td>
+                </Table.Tr>
+              ) : null}
+              {sgpa.map((semester) => (
+                <Table.Tr key={semester.semester}>
+                  <Table.Td c="dimmed">
+                    <Text size="sm">{semester.semester}</Text>
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <Text size="sm" fw={600}>
+                      {semester.value}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </>
+      ) : null}
+      {/* The backlogs the page's own section states, by semester, after the
+              GPA they qualify. A page that says there are none says so in
+              words, and that is shown too; a page that says nothing about
               them shows no section at all. */}
       {backlogs.length || backlogNote ? (
         <>
@@ -348,47 +387,6 @@ export const StudentDetails = ({
           ) : (
             <Text size="sm">{backlogNote}</Text>
           )}
-        </>
-      ) : null}
-
-      {hasGpa ? (
-        <>
-          <Text c="dimmed" size="xs" tt="uppercase">
-            GPA
-          </Text>
-          <Table striped withTableBorder tabularNums>
-            <Table.Tbody>
-              {cgpaShown ? (
-                <Table.Tr>
-                  <Table.Td colSpan={2}>
-                    <Group gap="sm" justify="space-between">
-                      <Text fw={600}>{`CGPA ${cgpa || "—"}`}</Text>
-                      <Group gap="sm">
-                        {credits ? (
-                          <Text size="sm">{`Credits ${credits}`}</Text>
-                        ) : null}
-                        {cgpaPercent ? (
-                          <Text size="sm">{`${cgpaPercent}%`}</Text>
-                        ) : null}
-                      </Group>
-                    </Group>
-                  </Table.Td>
-                </Table.Tr>
-              ) : null}
-              {sgpa.map((semester) => (
-                <Table.Tr key={semester.semester}>
-                  <Table.Td c="dimmed">
-                    <Text size="sm">{semester.semester}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="sm" fw={600}>
-                      {semester.value}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
         </>
       ) : null}
       {hasGpa && phones.length ? <Divider /> : null}
