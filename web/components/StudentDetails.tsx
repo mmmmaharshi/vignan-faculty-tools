@@ -238,6 +238,60 @@ export const StudentDetails = ({
               </Table.Tbody>
             </Table>
           ) : null}
+          {/* The backlogs the page's own section states, by semester, right
+              after the figures they qualify: a backlog is a second attendance
+              fact, not profile trivia. A page that says there are none says so
+              in words, and that is shown too; a page that says nothing about
+              them shows no section at all. */}
+          {backlogs.length || backlogNote ? (
+            <>
+              <Text c="dimmed" size="xs" tt="uppercase">
+                Backlogs
+              </Text>
+              {backlogs.length ? (
+                <Table striped withTableBorder tabularNums>
+                  <Table.Tbody>
+                    {backlogs.map((row) => (
+                      <Table.Tr key={row.semester}>
+                        <Table.Td c="dimmed">
+                          <Text size="sm">{row.semester}</Text>
+                        </Table.Td>
+                        <Table.Td ta="right">
+                          <Group gap={4} justify="flex-end">
+                            {row.subjects.map((subject) => (
+                              <Text key={subject.code} size="sm">
+                                {/* The page marks some subjects in red with an
+                                    asterisk and does not say what it means, so
+                                    the mark is shown as written. */}
+                                {subject.marked ? (
+                                  <Text span c="red" size="xs">
+                                    *
+                                  </Text>
+                                ) : null}
+                                {subject.code}
+                              </Text>
+                            ))}
+                          </Group>
+                        </Table.Td>
+                      </Table.Tr>
+                    ))}
+                    {backlogTotal == null ? null : (
+                      <Table.Tr>
+                        <Table.Td c="dimmed">
+                          <Text size="sm">Total backlogs</Text>
+                        </Table.Td>
+                        <Table.Td ta="right">
+                          <Text size="sm">{backlogTotal}</Text>
+                        </Table.Td>
+                      </Table.Tr>
+                    )}
+                  </Table.Tbody>
+                </Table>
+              ) : (
+                <Text size="sm">{backlogNote}</Text>
+              )}
+            </>
+          ) : null}
           {/* The dates the register's own columns say "A" for this student, in
               the order the register lists them — or, on the All subjects path,
               the ones that student's own grid states, unioned over subjects. No
@@ -359,59 +413,6 @@ export const StudentDetails = ({
                   ))}
                 </Table.Tbody>
               </Table>
-            </>
-          ) : null}
-          {/* The backlogs the page's own section states, by semester. A page
-              that says there are none says so in words, and that is shown too;
-              a page that says nothing about them shows no section at all. */}
-          {backlogs.length || backlogNote ? (
-            <>
-              {hasGpa || phones.length ? <Divider /> : null}
-              <Text c="dimmed" size="xs" tt="uppercase">
-                Backlogs
-              </Text>
-              {backlogs.length ? (
-                <Table striped withTableBorder tabularNums>
-                  <Table.Tbody>
-                    {backlogs.map((row) => (
-                      <Table.Tr key={row.semester}>
-                        <Table.Td c="dimmed">
-                          <Text size="sm">{row.semester}</Text>
-                        </Table.Td>
-                        <Table.Td ta="right">
-                          <Group gap={4} justify="flex-end">
-                            {row.subjects.map((subject) => (
-                              <Text key={subject.code} size="sm">
-                                {/* The page marks some subjects in red with an
-                                    asterisk and does not say what it means, so
-                                    the mark is shown as written. */}
-                                {subject.marked ? (
-                                  <Text span c="red" size="xs">
-                                    *
-                                  </Text>
-                                ) : null}
-                                {subject.code}
-                              </Text>
-                            ))}
-                          </Group>
-                        </Table.Td>
-                      </Table.Tr>
-                    ))}
-                    {backlogTotal == null ? null : (
-                      <Table.Tr>
-                        <Table.Td c="dimmed">
-                          <Text size="sm">Total backlogs</Text>
-                        </Table.Td>
-                        <Table.Td ta="right">
-                          <Text size="sm">{backlogTotal}</Text>
-                        </Table.Td>
-                      </Table.Tr>
-                    )}
-                  </Table.Tbody>
-                </Table>
-              ) : (
-                <Text size="sm">{backlogNote}</Text>
-              )}
             </>
           ) : null}
         </Stack>

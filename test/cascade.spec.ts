@@ -606,6 +606,52 @@ test.describe("the rows as shown", () => {
   });
 });
 
+test.describe("searching the roster", () => {
+  const named = [
+    { ...student(90), sl: "1", roll: "21CS001", name: "Anitha Reddy" },
+    { ...student(70), sl: "2", roll: "21CS002", name: "Bharath Kumar" },
+    { ...student(40), sl: "3", roll: "21CS003", name: "Anitha Rao" },
+  ];
+  test("a name fragment keeps every student carrying it, worst first", () => {
+    // A search filters, so the table is a worklist and reads worst first —
+    // the same rule as every other ticked box, not a second ordering.
+    const filter: RowFilter = { ...NO_FILTER, search: "anitha" };
+    expect(registerRows(named, filter, false).map((s) => s.roll)).toEqual([
+      "21CS003",
+      "21CS001",
+    ]);
+  });
+  test("a roll fragment matches too, whatever its case", () => {
+    // Rolls are typed as remembered — upper, lower, or mixed — so the match
+    // cannot care about case. Names are shown upper-cased on screen, which is
+    // why the name side is read lower-cased on both halves as well.
+    const roll: RowFilter = { ...NO_FILTER, search: "21cs002" };
+    expect(registerRows(named, roll, false).map((s) => s.roll)).toEqual([
+      "21CS002",
+    ]);
+    const upper: RowFilter = { ...NO_FILTER, search: "ANITHA" };
+    expect(registerRows(named, upper, false).map((s) => s.roll)).toEqual([
+      "21CS003",
+      "21CS001",
+    ]);
+  });
+  test("a blank search filters nothing", () => {
+    // Spaces are not a search: clearing the box back to blank must hand back
+    // the whole roster in the Portal's own order, not an empty table.
+    const blank: RowFilter = { ...NO_FILTER, search: "   " };
+    expect(registerRows(named, blank, false).map((s) => s.roll)).toEqual([
+      "21CS001",
+      "21CS002",
+      "21CS003",
+    ]);
+  });
+  test("no match says what was asked for", () => {
+    const miss: RowFilter = { ...NO_FILTER, search: "xyz" };
+    expect(registerRows(named, miss, false)).toEqual([]);
+    expect(emptyRegisterText(miss, 65)).toBe('No students match "xyz".');
+  });
+});
+
 test.describe("show only irregular", () => {
   /** A student the two paths judge differently: healthy in the Subject, Critical
    *  across the Section. */

@@ -378,6 +378,78 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
     expect(optionsCalls, "and the click asked for no options").toBe(5);
   });
+  test("typing in the search box narrows the register to matches", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    const box = page.getByLabel("Search students by name or roll number");
+    await box.fill("21b");
+    // The stub's rolls are 21A, 21B, 21C: one row carries that fragment, and
+    // the match cannot care that it was typed lower-case.
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(1);
+    expect(registerCalls, "filtering reads no portal, it reads the rows").toBe(
+      1
+    );
+    await box.fill("");
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
+  });
+  test("the search box sits right and fills the width on mobile", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    const box = page.getByLabel("Search students by name or roll number");
+    // Viewport-relative on purpose: the row it sits in shrinks to fit, so a
+    // ratio against the row is 1 whatever the input does. Polled because a
+    // resize has not settled when setViewportSize returns.
+    const widthShare = () =>
+      box.evaluate((el) => {
+        const root = el.parentElement?.parentElement as HTMLElement | null;
+        return (root?.getBoundingClientRect().width ?? 0) / window.innerWidth;
+      });
+    const offRightEdge = () =>
+      box.evaluate((el) => {
+        const root = el.parentElement?.parentElement as HTMLElement | null;
+        const rect = root?.getBoundingClientRect();
+        return window.innerWidth - ((rect?.x ?? 0) + (rect?.width ?? 0));
+      });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect
+      .poll(widthShare, {
+        message: "the box spans a phone screen",
+        timeout: 5000,
+      })
+      .toBeGreaterThan(0.6);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await expect
+      .poll(widthShare, {
+        message: "compact on a wide screen",
+        timeout: 5000,
+      })
+      .toBeLessThan(0.3);
+    await expect
+      .poll(offRightEdge, {
+        message: "against the right edge on a wide screen",
+        timeout: 5000,
+      })
+      .toBeLessThan(60);
+    // Narrow enough that the box drops onto its own line: it must still be
+    // held against the right edge there, not left on the line.
+    await page.setViewportSize({ width: 900, height: 800 });
+    await expect
+      .poll(offRightEdge, {
+        message: "still against the right edge on a narrow laptop",
+        timeout: 5000,
+      })
+      .toBeLessThan(60);
+  });
   test("the from input snaps to where the register itself starts", async ({
     page,
   }) => {
@@ -623,6 +695,41 @@ test.describe("the app's own data layer", () => {
       panel.getByRole("row", { name: "Total backlogs 2" }),
       "and the page's own total, as it states it"
     ).toBeVisible();
+  });
+  test("the backlogs sit right after the attendance figures", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page
+      .getByRole("button", { name: "Show details for B student" })
+      .click();
+    const panel = page.getByRole("dialog");
+    await expect(
+      panel.getByText("Backlogs", { exact: true }),
+      "the panel states this student's backlogs"
+    ).toBeVisible({ timeout: 15_000 });
+    // Section order in the drawer: figures, backlogs, then the GPA block —
+    // not backlogs trailing the profile at the bottom.
+    const order = await panel.evaluate((dialog) => {
+      const html = dialog.innerHTML;
+      return {
+        overall: html.indexOf("Overall attendance"),
+        backlogs: html.indexOf(">Backlogs<"),
+        gpa: html.indexOf(">GPA<"),
+      };
+    });
+    expect(order.overall).toBeGreaterThan(-1);
+    expect(
+      order.backlogs,
+      "backlogs follow the attendance figures"
+    ).toBeGreaterThan(order.overall);
+    expect(order.gpa, "and come ahead of the GPA block").toBeGreaterThan(
+      order.backlogs
+    );
   });
   test("a page that says nothing about backlogs gets no backlog section", async ({
     page,

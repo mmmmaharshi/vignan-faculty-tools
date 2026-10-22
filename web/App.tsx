@@ -84,7 +84,7 @@ import {
 import type { SemStarts } from "./sem-starts";
 import type { Note } from "./types";
 import { NO_FILTER, registerRows } from "./worklist";
-import type { RowFilter } from "./worklist";
+import type { FixedBarKey, RowFilter } from "./worklist";
 
 const LOGIN_PATH = "/login";
 const DASHBOARD_PATH = "/dashboard";
@@ -113,8 +113,11 @@ const App = (): React.JSX.Element => {
    *  shows the students under every bar set. Held here for the same reason as
    *  the cascade's own state: the table is presentational and keeps none. */
   const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
-  const toggleFilter = (key: keyof RowFilter, value: boolean): void => {
+  const toggleFilter = (key: "irregular" | FixedBarKey, value: boolean) => {
     setFilter((f) => ({ ...f, [key]: value }));
+  };
+  const searchFilter = (value: string): void => {
+    setFilter((f) => ({ ...f, search: value }));
   };
   /** The row whose panel is open. Held here, not in the table, because the table
    *  is a presentational module with no state of its own. */
@@ -702,6 +705,7 @@ const App = (): React.JSX.Element => {
               summary={summary}
               filter={filter}
               onToggleFilter={toggleFilter}
+              onSearchChange={searchFilter}
               onShowDetails={showDetails}
               chosen={registerFacts}
               overallMode={overallMode}

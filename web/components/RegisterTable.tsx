@@ -7,7 +7,9 @@ import {
   Paper,
   Table,
   Text,
+  TextInput,
 } from "@mantine/core";
+import { MagnifyingGlass } from "@phosphor-icons/react";
 
 import { overallCellForDisplay } from "../../server/attendance-bands";
 import type { RegisterReply, Student } from "../../shared/api";
@@ -19,7 +21,7 @@ import {
   emptyRegisterText,
   isFiltering,
 } from "../worklist";
-import type { FigureKind, RowFilter } from "../worklist";
+import type { FigureKind, FixedBarKey, RowFilter } from "../worklist";
 import { FactsTable } from "./FactsTable";
 
 type RegisterTableProps = {
@@ -27,7 +29,10 @@ type RegisterTableProps = {
   total: number;
   summary: RegisterReply["summary"];
   filter: RowFilter;
-  onToggleFilter: (key: keyof RowFilter, value: boolean) => void;
+  /** The three ticked boxes only: the search box carries text, not a boolean,
+   *  so it has its own setter and this key cannot name it. */
+  onToggleFilter: (key: "irregular" | FixedBarKey, value: boolean) => void;
+  onSearchChange: (value: string) => void;
   onShowDetails: (student: Student) => void;
   chosen: ChosenFact[];
   /** The All subjects path: no subject was chosen, so there are no subject columns
@@ -72,6 +77,7 @@ export const RegisterTable = ({
   summary,
   filter,
   onToggleFilter,
+  onSearchChange,
   onShowDetails,
   chosen,
   overallMode = false,
@@ -87,20 +93,36 @@ export const RegisterTable = ({
   return (
     <Paper withBorder p="lg">
       <Group gap="md" mb="sm">
-        <Checkbox
-          label="All irregular students"
-          checked={filter.irregular}
-          onChange={(e) => onToggleFilter("irregular", e.currentTarget.checked)}
-        />
-        <Checkbox
-          label="Below 75%"
-          checked={filter.below75}
-          onChange={(e) => onToggleFilter("below75", e.currentTarget.checked)}
-        />
-        <Checkbox
-          label="Below 65%"
-          checked={filter.below65}
-          onChange={(e) => onToggleFilter("below65", e.currentTarget.checked)}
+        <Group gap="md">
+          <Checkbox
+            label="All irregular students"
+            checked={filter.irregular}
+            onChange={(e) =>
+              onToggleFilter("irregular", e.currentTarget.checked)
+            }
+          />
+          <Checkbox
+            label="Below 75%"
+            checked={filter.below75}
+            onChange={(e) => onToggleFilter("below75", e.currentTarget.checked)}
+          />
+          <Checkbox
+            label="Below 65%"
+            checked={filter.below65}
+            onChange={(e) => onToggleFilter("below65", e.currentTarget.checked)}
+          />
+        </Group>
+        {/* Full width on a phone, a fixed box pulled to the right edge on wider
+            screens: the flex basis drops it onto its own line below the boxes,
+            and the auto margin is what still holds it right when it does. */}
+        <TextInput
+          aria-label="Search students by name or roll number"
+          placeholder="Name or roll no."
+          leftSection={<MagnifyingGlass size={16} aria-hidden />}
+          value={filter.search}
+          onChange={(e) => onSearchChange(e.currentTarget.value)}
+          flex={{ base: "1 1 100%", sm: "0 1 280px" }}
+          ms="auto"
         />
       </Group>
       {chosen.length ? (

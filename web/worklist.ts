@@ -61,15 +61,24 @@ export type FixedBarKey = (typeof FIXED_BARS)[number]["key"];
  */
 export type RowFilter = {
   irregular: boolean;
+  /** Free text matched against name and roll number. Blank means no search. */
+  search: string;
 } & Record<FixedBarKey, boolean>;
 export const NO_FILTER: RowFilter = {
   irregular: false,
   below75: false,
   below65: false,
+  search: "",
 };
-/** Whether any bar is ticked: the table is a worklist then, sorted worst-first. */
+/** Whether any bar is ticked or any search is typed: the table is a worklist
+ *  then, sorted worst-first. */
 export function isFiltering(filter: RowFilter): boolean {
-  return filter.irregular || filter.below75 || filter.below65;
+  return (
+    filter.irregular ||
+    filter.below75 ||
+    filter.below65 ||
+    filter.search.trim() !== ""
+  );
 }
 /**
  * The figure a row is judged on, and the one the worklist is ordered by: the one
@@ -103,7 +112,16 @@ export function visibleStudents(
   overallMode: boolean
 ): RegisterReply["students"][number][] {
   if (!isFiltering(filter)) return [...students];
+  // Rolls are typed as remembered and names show upper-cased, so both halves
+  // of the match read lower-cased: the match cannot care about case.
+  const needle = filter.search.trim().toLowerCase();
   return students.filter((s) => {
+    if (
+      needle !== "" &&
+      !s.name.toLowerCase().includes(needle) &&
+      !s.roll.toLowerCase().includes(needle)
+    )
+      return false;
     if (filter.irregular && !(overallMode ? s.overallIrregular : s.irregular))
       return false;
     const figure = figureFor(s, overallMode);
@@ -162,6 +180,10 @@ export function emptyRegisterText(
   filter: RowFilter,
   irregularBelow: number
 ): string {
+  // The search names what is on screen — the box the user is looking at — so
+  // its sentence wins over whichever bars are also ticked.
+  const needle = filter.search.trim();
+  if (needle !== "") return `No students match "${needle}".`;
   const bar = FIXED_BARS.find(({ key }) => filter[key]);
   if (bar) return `No students below ${bar.below}%.`;
   if (filter.irregular)
