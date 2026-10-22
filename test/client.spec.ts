@@ -442,7 +442,7 @@ test.describe("the app's own data layer", () => {
     await page.getByRole("button", { name: "Student Search" }).click();
     await page.getByLabel("Roll number").fill("21B");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    const panel = page.getByRole("dialog");
+    const panel = page;
     await expect(
       panel.getByText("Overall attendance"),
       "the row ECAP's report states for that roll"
@@ -460,7 +460,7 @@ test.describe("the app's own data layer", () => {
     await page.getByRole("button", { name: "Student Search" }).click();
     await page.getByLabel("Roll number").fill("99Z");
     await page.getByRole("button", { name: "Search", exact: true }).click();
-    const panel = page.getByRole("dialog");
+    const panel = page;
     await expect(
       panel.getByText(/No row for 99Z/),
       "why there is no attendance figure, in words"

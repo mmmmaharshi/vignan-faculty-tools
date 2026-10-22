@@ -194,7 +194,6 @@ const App = (): React.JSX.Element => {
    *  register's reason — a search is deliberate, so asking again reads again. */
   const [searchRoll, setSearchRoll] = useState("");
   const [searchClick, setSearchClick] = useState<FindClick | null>(null);
-  const [searchOpen, setSearchOpen] = useState(false);
   const search = useStudentSearch(searchClick);
   const found = search.data ?? null;
   /** A request the user is waiting on is already proving the session works, and
@@ -465,7 +464,6 @@ const App = (): React.JSX.Element => {
       },
       attempt: (previous?.attempt ?? 0) + 1,
     }));
-    setSearchOpen(true);
   };
   const signIn = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -764,9 +762,7 @@ const App = (): React.JSX.Element => {
             </form>
             <StudentDetails
               student={found?.student ?? null}
-              opened={searchOpen}
-              onClose={() => setSearchOpen(false)}
-              onExitTransitionEnd={() => undefined}
+              inline
               overallMode
               profile={found?.profile ?? null}
               busy={search.isLoading}
