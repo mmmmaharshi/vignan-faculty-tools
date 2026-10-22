@@ -249,6 +249,53 @@ export const StudentDetails = ({
           ) : null}
         </>
       ) : null}
+      {/* The dates the register's own columns say "A" for this student, in
+              the order the register lists them — or, on the All subjects path,
+              the ones that student's own grid states, unioned over subjects. No
+              list when there are none, because a grid that states no dates must
+              not be read as a clean sheet. */}
+      {absences.length ? (
+        <AbsenceBlock title="Absent" dates={absences} range={absenceRange} />
+      ) : null}
+      {/* The same student's absences over the whole semester, read over the
+              remembered start when the window above starts after it. */}
+      {fullAbsent?.length ? (
+        <AbsenceBlock title={fullTitle} dates={fullAbsent} range={fullRange} />
+      ) : null}
+      {/* Both figures are badged here where the table badges the subject
+              alone: two badges on one table row is noise, but two labelled lines
+              are how the reader sees which band each figure sits in. */}
+      {student ? (
+        <>
+          <Text c="dimmed" size="xs">
+            {`Regular at or above ${IRREGULAR_BELOW}%; critical below ${CRITICAL_BELOW}%.`}
+          </Text>
+          <Divider />
+        </>
+      ) : null}
+      {busy ? (
+        <Group gap="xs">
+          <Loader size="xs" />
+          <Text c="dimmed" size="sm">
+            Reading this student&apos;s profile from ECAP...
+          </Text>
+        </Group>
+      ) : null}
+      {note ? (
+        <Alert color={note.kind === "error" ? "red" : "yellow"}>
+          {note.text}
+        </Alert>
+      ) : null}
+      {!busy && !note && profile && !hasGpa && !phones.length ? (
+        <Text c="dimmed" size="sm">
+          ECAP states no GPA or phone number for this student.
+        </Text>
+      ) : null}
+      {/* The GPA is ECAP's own line, printed as it stands: a student with no
+              past semesters has the page's "NA", which is not a zero. The
+              semesters under it are the page's own SGPAs, one line each, in the
+              order the page states them — cumulative figures, so they share the
+              heading and are never added up. */}
       {/* The backlogs the page's own section states, by semester, right
               after the figures they qualify: a backlog is a second attendance
               fact, not profile trivia. A page that says there are none says so
@@ -303,53 +350,7 @@ export const StudentDetails = ({
           )}
         </>
       ) : null}
-      {/* The dates the register's own columns say "A" for this student, in
-              the order the register lists them — or, on the All subjects path,
-              the ones that student's own grid states, unioned over subjects. No
-              list when there are none, because a grid that states no dates must
-              not be read as a clean sheet. */}
-      {absences.length ? (
-        <AbsenceBlock title="Absent" dates={absences} range={absenceRange} />
-      ) : null}
-      {/* The same student's absences over the whole semester, read over the
-              remembered start when the window above starts after it. */}
-      {fullAbsent?.length ? (
-        <AbsenceBlock title={fullTitle} dates={fullAbsent} range={fullRange} />
-      ) : null}
-      {/* Both figures are badged here where the table badges the subject
-              alone: two badges on one table row is noise, but two labelled lines
-              are how the reader sees which band each figure sits in. */}
-      {student ? (
-        <>
-          <Text c="dimmed" size="xs">
-            {`Regular at or above ${IRREGULAR_BELOW}%; critical below ${CRITICAL_BELOW}%.`}
-          </Text>
-          <Divider />
-        </>
-      ) : null}
-      {busy ? (
-        <Group gap="xs">
-          <Loader size="xs" />
-          <Text c="dimmed" size="sm">
-            Reading this student&apos;s profile from ECAP...
-          </Text>
-        </Group>
-      ) : null}
-      {note ? (
-        <Alert color={note.kind === "error" ? "red" : "yellow"}>
-          {note.text}
-        </Alert>
-      ) : null}
-      {!busy && !note && profile && !hasGpa && !phones.length ? (
-        <Text c="dimmed" size="sm">
-          ECAP states no GPA or phone number for this student.
-        </Text>
-      ) : null}
-      {/* The GPA is ECAP's own line, printed as it stands: a student with no
-              past semesters has the page's "NA", which is not a zero. The
-              semesters under it are the page's own SGPAs, one line each, in the
-              order the page states them — cumulative figures, so they share the
-              heading and are never added up. */}
+
       {hasGpa ? (
         <>
           <Text c="dimmed" size="xs" tt="uppercase">
