@@ -243,6 +243,9 @@ export interface FindClass {
   /** The section the student's row was found in. Null when the roll was in none
    *  of the branch and semester's sections — which is an answer, not a failure. */
   section: Option | null;
+  /** True when the semester came from the SGPA guess rather than the page, so
+   *  the panel can say so instead of printing the guess as a fact. */
+  semesterInferred: boolean;
 }
 export interface FindReply {
   profile: StudentProfile;
@@ -253,6 +256,12 @@ export interface FindReply {
   /** The register row for the held window, or null when the roll is in no
    *  section of that class — the profile above is still an answer. */
   student: Student | null;
+  /** The same student's absent days over the whole semester, walked back
+   *  month by month so no range wider than a month is ever asked. Null when
+   *  ECAP would give none of it. */
+  fullAbsent: string[] | null;
+  /** The period fullAbsent covers. Null with it. */
+  fullRange: { from: string; to: string } | null;
   /** Why there is no class or no row, in words; empty when both are there. */
   note: string;
 }

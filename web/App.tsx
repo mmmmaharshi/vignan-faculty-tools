@@ -189,9 +189,9 @@ const App = (): React.JSX.Element => {
       : null
   );
   const facultyProfile = useFacultyProfile(Boolean(onProfile));
-  /** Student Search: the roll being typed, the ask the drawer is showing, and
-   *  whether that drawer is open. The ask carries a click number for the
-   *  register's reason — a search is deliberate, so asking again reads again. */
+  /** Student Search: the roll being typed and the ask the panel below the form
+   *  is showing. The ask carries a click number for the register's reason — a
+   *  search is deliberate, so asking again reads again. */
   const [searchRoll, setSearchRoll] = useState("");
   const [searchClick, setSearchClick] = useState<FindClick | null>(null);
   const search = useStudentSearch(searchClick);
@@ -341,11 +341,14 @@ const App = (): React.JSX.Element => {
   }
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The class and window a searched figure belongs to, named on the panel: a
-   *  percentage with no period under it invites being read as a semester's. */
+   *  percentage with no period under it invites being read as a semester's. An
+   *  inferred semester is marked as one, so a guess never prints as a fact. */
   const searchScope = found?.class
     ? `${[
         found.class.course.label,
-        found.class.semester.label,
+        found.class.semesterInferred
+          ? `${found.class.semester.label} (inferred)`
+          : found.class.semester.label,
         found.class.branch.label,
         found.class.section?.label ?? "",
       ]
@@ -772,6 +775,13 @@ const App = (): React.JSX.Element => {
                   ? `${found.window.from} to ${found.window.to}`
                   : null
               }
+              fullAbsent={found?.fullAbsent ?? null}
+              fullRange={
+                found?.fullRange
+                  ? `${found.fullRange.from} to ${found.fullRange.to}`
+                  : null
+              }
+              fullTitle="Absent — full semester"
             />
           </>
         );

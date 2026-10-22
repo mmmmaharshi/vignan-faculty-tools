@@ -222,11 +222,23 @@ export function parseRegister(html: string): RegisterRow[] {
  * `null` when the reply is not that report — which is not a clean sheet, so the
  * caller states nothing rather than claiming no absences.
  */
-export function parseStudentAbsences(html: string): string[] | null {
+/** The Student Wise grid's own header row and body rows, or null when the reply
+ *  is not that report at all. The one place that grid is told apart from the
+ *  others, so a Portal layout shift is fixed once rather than once per reader. */
+function studentWiseParts(html: string): {
+  header: string[];
+  body: string[][];
+} | null {
   const grid = subjectHeaded(gridTables(html));
   const header = grid?.[0];
   if (!grid || !header) return null;
-  const body = grid.slice(1).filter((cells) => /^\d+$/.test(cells[0] ?? ""));
+  return { header, body: grid.slice(1) };
+}
+export function parseStudentAbsences(html: string): string[] | null {
+  const parts = studentWiseParts(html);
+  if (!parts) return null;
+  const { header } = parts;
+  const body = parts.body.filter((cells) => /^\d+$/.test(cells[0] ?? ""));
   const absent: string[] = [];
   for (const date of header.filter((c) => DATE_CELL.test(c))) {
     const column = header.indexOf(date);
@@ -235,6 +247,16 @@ export function parseStudentAbsences(html: string): string[] | null {
     }
   }
   return absent;
+}
+/** The meeting days a Student Wise grid states across its own header, in the
+ *  grid's order — the section's days, not one student's absences. The month
+ *  walk reads the start off these, so a clean month still counts as met. */
+export function studentWiseDates(html: string): string[] {
+  const parts = studentWiseParts(html);
+  if (!parts) return [];
+  return parts.header
+    .filter((c) => DATE_CELL.test(c))
+    .map((c) => c.split("/").slice(0, 2).join("/"));
 }
 export interface OverallRow {
   sl: string;
@@ -453,7 +475,8 @@ export function matchOption(
   const partial = list.filter((o) => bareLabel(o.label).includes(bare));
   return partial.length === 1 ? (partial[0] ?? null) : null;
 }
-/** ECAP states the faculty member's name inside the `lblUser` span on *  main.aspx, prefixed with "Welcome ". Returns the name, or empty when the
+/** ECAP states the faculty member's name inside the `lblUser` span on
+ *  main.aspx, prefixed with "Welcome ". Returns the name, or empty when the
  *  page did not state one (not logged in, or the span is empty). */
 export function parseFacultyName(html: string): string {
   const m = html.match(

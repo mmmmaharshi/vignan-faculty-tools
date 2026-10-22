@@ -259,9 +259,14 @@ const stub = async (route: Route): Promise<void> => {
         semester: opt("1", "I Semester", "2025"),
         branch: opt("1", "IT"),
         section: student ? opt("1", "Section-1") : null,
+        semesterInferred: true,
       },
       window: reply.summary.range,
       student,
+      fullAbsent: student ? ["15/07"] : null,
+      fullRange: student
+        ? { from: "15/07/2026", to: reply.summary.range.to }
+        : null,
       note: student ? "" : `No row for ${roll} in B.Tech · I Semester · IT.`,
     });
     return;
@@ -450,10 +455,16 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(panel.getByText("Roll No 21B")).toBeVisible();
     // The class and the window the figure belongs to are named with it, so a
-    // month's figure cannot be read as a semester's.
+    // month's figure cannot be read as a semester's — including that the
+    // semester itself was inferred rather than stated.
     await expect(panel.getByText(/Section-1/)).toBeVisible();
+    await expect(panel.getByText(/I Semester \(inferred\)/)).toBeVisible();
     await expect(panel.getByText("CGPA 5.61")).toBeVisible();
     await expect(panel.getByText("Absent (1)")).toBeVisible();
+    // The full-semester list walks beside the month's, with its own window —
+    // the start the walk found, not the asked month.
+    await expect(panel.getByText("Absent — full semester (1)")).toBeVisible();
+    await expect(panel.getByText(/15\/07\/2026/)).toBeVisible();
   });
   test("a roll in no section of that class still shows its profile", async ({
     page,

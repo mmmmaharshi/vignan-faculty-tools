@@ -40,6 +40,8 @@ type Calls = {
   classAttendance: (RegisterRequest & Record<string, unknown>)[];
   studentProfile: string[];
   studentWise: [string, string][];
+  /** The window each Student Wise read was asked over. */
+  studentWiseWindows: { from: string; to: string }[];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
@@ -84,6 +86,10 @@ const fake = (
     classFails?: boolean;
     studentProfile?: string;
     studentWise?: string;
+    /** A Student Wise grid per month-step start, so the walk can be driven
+     *  month by month. A month missing from the map answers empty, which is
+     *  what stops the walk. */
+    studentWiseMonths?: Record<string, string>;
     studentFails?: boolean;
   } = {}
 ): { reader: PortalReader; calls: Calls } => {
@@ -96,6 +102,7 @@ const fake = (
     classAttendance: [],
     studentProfile: [],
     studentWise: [],
+    studentWiseWindows: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -134,12 +141,17 @@ const fake = (
       calls.studentProfile.push(roll);
       return resolved(answers.studentProfile ?? PROFILE_PAGE);
     },
-    studentWise: (roll, name) => {
+    studentWise: (roll, name, p) => {
       calls.studentWise.push([roll, name]);
+      calls.studentWiseWindows.push({ from: p.from, to: p.to });
       if (answers.studentFails) {
         return Promise.reject(new HttpError(502, "student report unavailable"));
       }
-      return resolved(answers.studentWise ?? STUDENT_GRID);
+      return resolved(
+        answers.studentWiseMonths?.[p.from] ??
+          answers.studentWise ??
+          STUDENT_GRID
+      );
     },
     facultyProfile: () =>
       resolved({
@@ -813,12 +825,119 @@ const CLASS_PAGE = `<div id='divProfile_BioData'><table>
 <tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
 <center><span>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
 const ask = { from: "01/10/2025", to: "22/10/2025" };
+/** A Student Wise month: one meeting day, missed, so the walk keeps going. */
+const monthGrid = (date: string): string => `<table>
+<tr><th>Sl.No</th><th>Subject</th><th>${date}</th><th>Atted/Held</th><th>%</th></tr>
+<tr><td>1</td><td>MFCS</td><td>A</td><td>0/1</td><td>0</td></tr></table>`;
 test.describe("a roll number searched on its own", () => {
+  test("find reads no subject register, only the class report", async () => {
+    const { reader, calls } = fake({ studentProfile: CLASS_PAGE });
+    await handleFind(reader, { roll: "21CS001", ...ask });
+    // The semester start comes off the section's own grid, month by month —
+    // never a subject register over a wide range, which ECAP answers empty.
+    expect(calls.register).toEqual([]);
+  });
+  test("the full-semester list walks back month by month to the first held day", async () => {
+    const { reader, calls } = fake({
+      studentProfile: CLASS_PAGE,
+      studentWise: "",
+      studentWiseMonths: {
+        "01/10/2025": monthGrid("01/10"),
+        "01/09/2025": monthGrid("15/09"),
+      },
+    });
+    const reply = await handleFind(reader, { roll: "21CS001", ...ask });
+    // August answers empty, so the walk stops: the start is September's day.
+    expect(reply.fullRange).toEqual({
+      from: "15/09/2025",
+      to: "22/10/2025",
+    });
+    expect(reply.fullAbsent).toEqual(["15/09", "01/10"]);
+    // One read per month stepped, newest first, stopping at dateless August —
+    // plus the asked month's own read that the window list came from.
+    expect(calls.studentWiseWindows.map((w) => w.from)).toEqual([
+      "01/10/2025",
+      "01/10/2025",
+      "01/09/2025",
+      "01/08/2025",
+    ]);
+    // The asked month's own list is exactly that month, beside the walk.
+    expect(reply.student?.absent).toEqual(["01/10"]);
+    expect(reply.window.from).toBe(ask.from);
+  });
+  test("a month the portal will not give ends the walk with a warning", async () => {
+    const { reader: base } = fake({
+      studentProfile: CLASS_PAGE,
+      studentWiseMonths: { "01/10/2025": monthGrid("01/10") },
+    });
+    const reader: PortalReader = {
+      ...base,
+      studentWise: (roll, name, p) =>
+        p.from === "01/09/2025"
+          ? Promise.reject(new HttpError(502, "month unavailable"))
+          : base.studentWise(roll, name, p),
+    };
+    const reply = await handleFind(reader, { roll: "21CS001", ...ask });
+    // October's day is kept, but the list must never pass for complete.
+    expect(reply.fullAbsent).toEqual(["01/10"]);
+    expect(reply.fullRange).toEqual({
+      from: "01/10/2025",
+      to: "22/10/2025",
+    });
+    expect(reply.note).toContain("incomplete");
+    // The profile, figure and month list still answer.
+    expect(reply.student?.overallPct).toBe(79.21);
+  });
+  test("a dead session during the walk still signs out", async () => {
+    const { reader: base } = fake({ studentProfile: CLASS_PAGE });
+    const reader: PortalReader = {
+      ...base,
+      studentWise: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleFind(reader, {
+      roll: "21CS001",
+      ...ask,
+    }).catch((error: unknown) => error);
+    expect((failure as HttpError).status).toBe(401);
+  });
+  test("a walk that never finds a dateless month says the start may be earlier", async () => {
+    // Twelve months of meeting days: the cap, not a found start, ends it.
+    const months: Record<string, string> = {};
+    for (let back = 0; back < 12; back++) {
+      const at = new Date(2025, 9 - back, 1);
+      const key = `01/${String(at.getMonth() + 1).padStart(2, "0")}/${at.getFullYear()}`;
+      months[key] = monthGrid(
+        `15/${String(at.getMonth() + 1).padStart(2, "0")}`
+      );
+    }
+    const { reader } = fake({
+      studentProfile: CLASS_PAGE,
+      studentWise: "",
+      studentWiseMonths: months,
+    });
+    const reply = await handleFind(reader, { roll: "21CS001", ...ask });
+    expect(reply.fullRange?.from).toBe("15/11/2024");
+    expect(reply.note).toContain("earlier than shown");
+  });
+  test("a class report no section could give fails instead of reading absent", async () => {
+    const { reader } = fake({
+      studentProfile: CLASS_PAGE,
+      classFails: true,
+    });
+    const failure = await handleFind(reader, {
+      roll: "21CS001",
+      ...ask,
+    }).catch((error: unknown) => error);
+    expect((failure as HttpError).status).toBe(502);
+    expect((failure as HttpError).message).toMatch(/class attendance report/);
+  });
   test("is read through the class the student's own page states", async () => {
     const { reader, calls } = fake({ studentProfile: CLASS_PAGE });
     const reply = await handleFind(reader, { roll: "21CS001", ...ask });
     expect(reply.class?.branch.label).toBe("IT");
     expect(reply.class?.section?.label).toBe("Section-1");
+    // The page stated this semester, so the panel prints it as a fact.
+    expect(reply.class?.semesterInferred).toBe(false);
     // The figure is the class report's own row, read over the asked window.
     expect(reply.student?.overallPct).toBe(79.21);
     expect(reply.student?.absent).toEqual(["05/08", "06/08"]);
@@ -878,6 +997,7 @@ test.describe("a roll whose page names no semester", () => {
       to: "22/10/2025",
     });
     expect(reply.class?.semester.label).toBe("III Semester");
+    expect(reply.class?.semesterInferred).toBe(true);
     expect(reply.class?.section?.label).toBe("Section-1");
     expect(reply.student?.overallPct).toBe(79.21);
     expect(nth(calls.classAttendance, 0).semester).toMatchObject({
@@ -894,5 +1014,22 @@ test.describe("a roll whose page names no semester", () => {
     expect(reply.class).toBeNull();
     expect(reply.student).toBeNull();
     expect(reply.note).toContain("semester");
+  });
+  test("no SGPAs refuses even where the first semester is offered", async () => {
+    // The old guess read "no completed semesters" as "headed for the first",
+    // so offering it would have produced a class. Refusal names the gap.
+    const { reader, calls } = fake({
+      studentProfile: CLASS_PAGE_NO_SGPA,
+      semester: [opt("1", "I Semester")],
+    });
+    const reply = await handleFind(reader, {
+      roll: "21CS001",
+      from: "01/10/2025",
+      to: "22/10/2025",
+    });
+    expect(reply.class).toBeNull();
+    expect(reply.student).toBeNull();
+    expect(reply.note).toContain("semester");
+    expect(calls.classAttendance).toEqual([]);
   });
 });

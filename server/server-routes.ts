@@ -29,6 +29,7 @@ import {
   parseStudentProfile,
   realOptions,
   registerDates,
+  studentWiseDates,
 } from "./portal-replies.js";
 import type { OverallRow, StatedClass } from "./portal-replies.js";
 
@@ -217,6 +218,12 @@ export async function handleRegister(
  * A report ECAP will not give changes nothing else: the panel's GPA and numbers
  * are the main read, and a 401 still ends the session.
  */
+/** A dead ECAP session must stay a 401 so the client signs out; every other
+ *  portal failure is the caller's to interpret. The one place that rule lives,
+ *  so the three readers below cannot drift apart on it. */
+function rethrowExpired(error: unknown): void {
+  if (error instanceof HttpError && error.status === 401) throw error;
+}
 /** One student's absent days from their own day-wise grid, over the window
  *  given. Absent where the grid states none — which is not a clean sheet. A
  *  failure throws; the callers decide what a failure means for them. */
@@ -243,9 +250,86 @@ async function readAbsences(
       to: register.to,
     });
   } catch (error) {
-    if (error instanceof HttpError && error.status === 401) throw error;
+    rethrowExpired(error);
     return {};
   }
+}
+/**
+ * One student's absent days over the whole semester: the section's Student
+ * Wise grid walked back one month at a time from the asked window, unioned
+ * oldest-first. Single-month windows are the only shape used — live runs show
+ * wide subject registers come back empty while month shapes answer, so no
+ * range wider than a month is ever asked — and the walk stops at the first
+ * month whose grid states no meeting days (cap twelve). A month the Portal
+ * will not give, or a walk that never finds a dateless month, ends with a
+ * warning rather than a silent partial list; a 401 still ends the session.
+ * (A whole break month with no meetings would stop the walk early; accepted
+ * because a section meets continuously.)
+ */
+async function readFullSemesterAbsences(
+  portal: PortalReader,
+  roll: string,
+  name: string,
+  p: Record<Level, Option> & { from: string; to: string }
+): Promise<{
+  absent: string[] | null;
+  range: { from: string; to: string } | null;
+  note: string;
+}> {
+  const [fd, fm, fy] = p.from.split("/").map(Number);
+  const [td, tm, ty] = p.to.split("/").map(Number);
+  if (!fd || !fm || !fy || !td || !tm || !ty) {
+    return { absent: null, range: null, note: "" };
+  }
+  const perMonth: string[][] = [];
+  let start: string | null = null;
+  let stoppedEarly = false;
+  let year = ty;
+  let month = tm;
+  for (let step = 0; step < 12; step++) {
+    const mm = String(month).padStart(2, "0");
+    let grid: string;
+    try {
+      grid = await portal.studentWise(roll, name, {
+        ...p,
+        from: `01/${mm}/${year}`,
+        to: `${new Date(year, month, 0).getDate()}/${mm}/${year}`,
+      });
+    } catch (error) {
+      rethrowExpired(error);
+      return {
+        absent: perMonth.length ? perMonth.flat() : null,
+        range: start ? { from: start, to: p.to } : null,
+        note: "ECAP would not give every month's absent days, so the full-semester list below may be incomplete.",
+      };
+    }
+    // Only this month's own columns may name the start: the year attached
+    // below is this step's, and anything else is not this month to name. The
+    // comparison is numeric because the Portal is not trusted to zero-pad.
+    const dates = studentWiseDates(grid).filter(
+      (c) => Number(c.split("/")[1]) === month
+    );
+    if (!dates.length) {
+      stoppedEarly = true;
+      break;
+    }
+    const [day] = (dates[0] ?? "").split("/");
+    start = `${day?.padStart(2, "0")}/${mm}/${year}`;
+    perMonth.unshift(parseStudentAbsences(grid) ?? []);
+    month -= 1;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    }
+  }
+  if (!start) return { absent: null, range: null, note: "" };
+  return {
+    absent: perMonth.flat(),
+    range: { from: start, to: p.to },
+    note: stoppedEarly
+      ? ""
+      : "ECAP kept stating meeting days twelve months back, so the semester may have started earlier than shown.",
+  };
 }
 /**
  * One student's GPA and phone numbers, read on demand when their row is opened.
@@ -269,10 +353,6 @@ export async function handleStudentProfile(
   }
   return { ...profile, ...(await readAbsences(portal, roll, b)) };
 }
-/** The class a student's own page puts them in, matched to the Portal's own
- *  option values, and the sections that class offers. A page that states a
- *  section names one section; one that states none names all of them, and the
- *  search reads each until the roll turns up. */
 /** Roman/Arabic numeral for a semester label: "III Semester" -> 3. */
 const ROMAN: Record<string, number> = {
   I: 1,
@@ -296,18 +376,27 @@ function semesterNumber(text: string): number | null {
   return null;
 }
 /** The semester the student is in now, guessed from the SGPAs the page
- *  states: the highest completed, plus one. Zero completed means the first
- *  semester. A guess, and it can be wrong for a repeater — see ADR 0025. */
-function inferSemester(profile: StudentProfile): number {
+ *  states: the highest completed, plus one. Null when the page states no
+ *  usable SGPA list — with nothing completed to count from, even the first
+ *  semester would be a guess, so the caller refuses instead. A guess, and it
+ *  can be wrong for a repeater — see ADR 0025. */
+function inferSemester(profile: StudentProfile): number | null {
   const done = profile.sgpa
     .map((s) => semesterNumber(s.semester))
     .filter((n): n is number => n !== null);
-  return (done.length ? Math.max(...done) : 0) + 1;
+  if (!done.length) return null;
+  return Math.max(...done) + 1;
 }
+/** The class a student's own page puts them in, matched to the Portal's own
+ *  option values, and the sections that class offers. A page that states a
+ *  section names one section; one that states none names all of them, and the
+ *  search reads each until the roll turns up. */
 type StudentClass = {
   levels: Record<"course" | "semester" | "branch", Option>;
   sections: Option[];
   label: string;
+  /** True when the semester came from the SGPA guess rather than the page. */
+  semesterInferred: boolean;
 };
 const unstated = (what: string, stated: string): string =>
   stated
@@ -324,6 +413,7 @@ async function resolveClass(
   const branch = matchOption(stated.branch, branches);
   if (!branch) return unstated("branch", stated.branch);
   let semester: Option | null;
+  let semesterInferred = false;
   if (stated.semester) {
     semester = matchOption(stated.semester, semesters);
     if (!semester) return unstated("semester", stated.semester);
@@ -332,11 +422,15 @@ async function resolveClass(
     // does state — the highest completed, plus one. A guess, and it can be
     // wrong for a repeater; the only way to be sure is to ask (option 3).
     const inferred = inferSemester(profile);
+    if (inferred === null) {
+      return "ECAP's profile page does not state a semester, and its SGPA list states no completed semester to infer one from.";
+    }
     semester =
       semesters.find((o) => semesterNumber(o.label) === inferred) ?? null;
     if (!semester) {
       return `ECAP's profile page does not state a semester, and the one inferred from its SGPA list (${inferred}) is not one the Portal offers.`;
     }
+    semesterInferred = true;
   }
   const listed = await portal.sections(
     course.value,
@@ -353,6 +447,7 @@ async function resolveClass(
     levels: { course, semester, branch },
     sections,
     label: `${course.label} · ${semester.label} · ${branch.label}`,
+    semesterInferred,
   };
 }
 /**
@@ -388,83 +483,86 @@ export async function handleFind(
       class: null,
       window: { from: b.from, to: b.to },
       student: null,
+      fullAbsent: null,
+      fullRange: null,
       note: found,
     };
   }
   // The class report states no dates, so its window is whatever we ask for.
-  // Probe the semester's first held day the way the All subjects view does, so
-  // the absences below cover the whole semester rather than one month of it.
-  let { from } = b;
-  try {
-    const subjects = await portal.subjects(
-      found.levels.course.value,
-      found.levels.branch.value,
-      found.levels.semester.value
-    );
-    const [firstSection] = found.sections;
-    const [firstSubject] = subjects;
-    if (subjects.length && firstSection && firstSubject) {
-      const first = await portal.register({
-        ...found.levels,
-        section: firstSection,
-        subject: firstSubject,
-        from: "01/01/2024",
-        to: b.to,
-      });
-      const stated = statedStartDate(registerDates(first), {
-        from: "01/01/2024",
-        to: b.to,
-      });
-      if (stated) from = stated;
-    }
-  } catch (error) {
-    if (error instanceof HttpError && error.status === 401) throw error;
-  }
-  const window = { from, to: b.to };
+  const window = { from: b.from, to: b.to };
+  // A report no section could give is a portal failure, not an absent student:
+  // only a report that answered without the roll earns the "No row" note.
+  let reportFailed: unknown = null;
+  let reportAnswered = false;
   for (const section of found.sections) {
-    const reply = await handleRegister(portal, {
+    const gridRequest = {
       ...found.levels,
       section,
       subject: ALL_SUBJECTS,
-      ...window,
-    }).catch((error: unknown) => {
-      // A dead session must still sign out. Anything else is one section this
-      // search can do without: the next one may hold the roll.
-      if (error instanceof HttpError && error.status === 401) throw error;
-      return null;
-    });
+      from: window.from,
+      to: window.to,
+    };
+    const reply = await handleRegister(portal, gridRequest).catch(
+      (error: unknown) => {
+        // A dead session must still sign out. Anything else is one section this
+        // search can do without: the next one may hold the roll.
+        rethrowExpired(error);
+        reportFailed ??= error;
+        return null;
+      }
+    );
+    if (reply) reportAnswered = true;
     const student = reply?.students.find(
       (row) => row.roll.trim().toLowerCase() === roll.toLowerCase()
     );
     if (reply && student) {
       // The class report states no dates, so the student's own grid is the only
       // place they exist — read them now, over the same window, the way the
-      // panel does for a register row.
+      // panel does for a register row, and walk the semester beside them.
       const absences = await readAbsences(portal, roll, {
         name: student.name,
-        register: {
-          ...found.levels,
-          section,
-          subject: ALL_SUBJECTS,
-          from: window.from,
-          to: window.to,
-        },
+        register: gridRequest,
       });
       if (absences.absent) student.absent = absences.absent;
+      const full = await readFullSemesterAbsences(
+        portal,
+        roll,
+        student.name,
+        gridRequest
+      );
       return {
         profile,
-        class: { ...found.levels, section },
+        class: {
+          ...found.levels,
+          section,
+          semesterInferred: found.semesterInferred,
+        },
         window: reply.summary.range,
         student,
-        note: "",
+        fullAbsent: full.absent,
+        fullRange: full.range,
+        note: full.note,
       };
     }
   }
+  if (!reportAnswered && reportFailed) {
+    if (reportFailed instanceof HttpError) throw reportFailed;
+    throw new HttpError(
+      502,
+      "ECAP's class attendance report came back in an unexpected shape, so no figure could be read for this student."
+    );
+  }
   return {
     profile,
-    class: { ...found.levels, section: null },
+    class: {
+      ...found.levels,
+      section: null,
+      semesterInferred: found.semesterInferred,
+    },
     window,
     student: null,
+    fullAbsent: null,
+    fullRange: null,
     note: `No row for ${roll} in ${found.label} over ${window.from} to ${window.to}.`,
   };
 }

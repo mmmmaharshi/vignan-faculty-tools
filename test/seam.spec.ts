@@ -14,6 +14,7 @@ import {
   parseStudentProfile,
   realOptions,
   registerDates,
+  studentWiseDates,
   unquoteJs,
 } from "../server/portal-replies";
 
@@ -204,6 +205,23 @@ test.describe("portal replies", () => {
         <tr><td>1</td><td>21CS001</td><td>Asha Rao</td><td>38/45</td><td>84.44</td></tr></table>`
       )
     ).toBeNull();
+  });
+  test("a student's own grid states the section's meeting days in order", () => {
+    // Every date column, whether anyone missed it or not: a clean month still
+    // counts as met, which is what keeps the semester walk going past it.
+    expect(studentWiseDates(STUDENT_WISE_GRID)).toEqual([
+      "05/08",
+      "06/08",
+      "07/08",
+    ]);
+    // No date columns is no meeting days, which is what stops the walk.
+    expect(
+      studentWiseDates(
+        `<table><tr><th>Sl.No</th><th>Subject</th><th>Atted/Held</th><th>%</th></tr>
+        <tr><td>1</td><td>MFCS</td><td>14/14</td><td>100.00</td></tr></table>`
+      )
+    ).toEqual([]);
+    expect(studentWiseDates(LOGIN_PAGE)).toEqual([]);
   });
 });
 /** The per-semester grid, copied from the same response, **unclosed `Grade` row
