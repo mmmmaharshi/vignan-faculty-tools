@@ -821,6 +821,7 @@ test.describe("a roll number searched on its own", () => {
     expect(reply.class?.section?.label).toBe("Section-1");
     // The figure is the class report's own row, read over the asked window.
     expect(reply.student?.overallPct).toBe(79.21);
+    expect(reply.student?.absent).toEqual(["05/08", "06/08"]);
     expect(reply.profile.phones).toHaveLength(1);
     const report = nth(calls.classAttendance, 0);
     expect(report.subject).toEqual(ALL_SUBJECTS);

@@ -251,6 +251,7 @@ const stub = async (route: Route): Promise<void> => {
     const { roll } = request.postDataJSON() as FindRequest;
     const reply = registerReply(null, true);
     const student = reply.students.find((row) => row.roll === roll) ?? null;
+    if (student) student.absent = ["02/09"];
     await json({
       profile: profileFor(roll),
       class: {
@@ -452,6 +453,7 @@ test.describe("the app's own data layer", () => {
     // month's figure cannot be read as a semester's.
     await expect(panel.getByText(/Section-1/)).toBeVisible();
     await expect(panel.getByText("CGPA 5.61")).toBeVisible();
+    await expect(panel.getByText("Absent (1)")).toBeVisible();
   });
   test("a roll in no section of that class still shows its profile", async ({
     page,

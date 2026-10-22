@@ -402,6 +402,20 @@ export async function handleFind(
       (row) => row.roll.trim().toLowerCase() === roll.toLowerCase()
     );
     if (reply && student) {
+      // The class report states no dates, so the student's own grid is the only
+      // place they exist — read them now, over the same window, the way the
+      // panel does for a register row.
+      const absences = await readAbsences(portal, roll, {
+        name: student.name,
+        register: {
+          ...found.levels,
+          section,
+          subject: ALL_SUBJECTS,
+          from: window.from,
+          to: window.to,
+        },
+      });
+      if (absences.absent) student.absent = absences.absent;
       return {
         profile,
         class: { ...found.levels, section },

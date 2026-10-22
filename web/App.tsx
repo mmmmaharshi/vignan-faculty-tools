@@ -767,6 +767,11 @@ const App = (): React.JSX.Element => {
               busy={search.isLoading}
               note={searchNote}
               scope={searchScope}
+              absenceRange={
+                found?.window
+                  ? `${found.window.from} to ${found.window.to}`
+                  : null
+              }
             />
           </>
         );
