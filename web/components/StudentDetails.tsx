@@ -1,7 +1,6 @@
 import {
   Alert,
   Badge,
-  Box,
   Button,
   CopyButton,
   Divider,
@@ -195,7 +194,7 @@ export const StudentDetails = ({
     >
       {student ? (
         <>
-          <Box>
+          <Stack gap="xs">
             <Title order={4} tt="uppercase">
               {student.name}
             </Title>
@@ -207,7 +206,7 @@ export const StudentDetails = ({
                 {scope}
               </Text>
             ) : null}
-          </Box>
+          </Stack>
           <Divider />
           {/* A figure the Portal did not give is an absence, not a zero, so its
               row is left out rather than printed as a dash — and a subject
