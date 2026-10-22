@@ -762,6 +762,14 @@ whatever the code does.
 
 ## Agent skills
 
+### Code review
+`/code-review` keeps its Spec axis, but its **Standards axis is
+`$thermo-nuclear-code-quality-review` on the same diff**, not the skill's own
+standards pass. Run one or the other, never both: two maintainability reads of
+one diff produce two lists to reconcile, and the stricter one is the one that
+finds the restructuring. The repo standards in `CODING_STANDARDS.md` still win
+where the two disagree.
+
 ### Issue tracker
 Issues live as markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
 
