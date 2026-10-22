@@ -373,7 +373,6 @@ export async function handleFind(
   if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
   const roll = b.roll?.trim();
   if (!roll) throw new HttpError(400, "Enter a roll number.");
-  const window = { from: b.from, to: b.to };
   const html = await portal.studentProfile(roll);
   const profile = parseStudentProfile(html);
   if (!profile) {
@@ -384,8 +383,44 @@ export async function handleFind(
   }
   const found = await resolveClass(portal, parseStudentClass(html), profile);
   if (typeof found === "string") {
-    return { profile, class: null, window, student: null, note: found };
+    return {
+      profile,
+      class: null,
+      window: { from: b.from, to: b.to },
+      student: null,
+      note: found,
+    };
   }
+  // The class report states no dates, so its window is whatever we ask for.
+  // Probe the semester's first held day the way the All subjects view does, so
+  // the absences below cover the whole semester rather than one month of it.
+  let { from } = b;
+  try {
+    const subjects = await portal.subjects(
+      found.levels.course.value,
+      found.levels.branch.value,
+      found.levels.semester.value
+    );
+    const [firstSection] = found.sections;
+    const [firstSubject] = subjects;
+    if (subjects.length && firstSection && firstSubject) {
+      const first = await portal.register({
+        ...found.levels,
+        section: firstSection,
+        subject: firstSubject,
+        from: "01/01/2024",
+        to: b.to,
+      });
+      const stated = statedStartDate(registerDates(first), {
+        from: "01/01/2024",
+        to: b.to,
+      });
+      if (stated) from = stated;
+    }
+  } catch (error) {
+    if (error instanceof HttpError && error.status === 401) throw error;
+  }
+  const window = { from, to: b.to };
   for (const section of found.sections) {
     const reply = await handleRegister(portal, {
       ...found.levels,
