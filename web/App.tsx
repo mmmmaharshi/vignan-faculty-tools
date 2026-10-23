@@ -1,6 +1,5 @@
 import {
   AppShell,
-  Burger,
   Button,
   Container,
   Group,
@@ -9,8 +8,8 @@ import {
   Text,
   TextInput,
   Title,
+  UnstyledButton,
 } from "@mantine/core";
-import { useDisclosure } from "@mantine/hooks";
 import {
   FloppyDisk,
   MagnifyingGlass,
@@ -109,7 +108,6 @@ const App = (): React.JSX.Element => {
   /** The warning the form is owed for what the user has not chosen yet. A request
    *  that failed says so on its own, from the hook that failed. */
   const [formNote, setFormNote] = useState<Note | null>(null);
-  const [navOpen, nav] = useDisclosure();
   const [sel, setSel] = useState<Sel>(EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
   const [range, setRange] = useState<Range>(startingRange);
@@ -485,7 +483,6 @@ const App = (): React.JSX.Element => {
       setSignedIn(true);
       noteUserId(started.userId || name);
       navigate(DASHBOARD_PATH, { replace: true });
-      nav.close();
       await runRefresh(EMPTY_SEL, EMPTY_OPTS);
     } catch (error) {
       setLoginNote({ kind: "error", text: messageOf(error) });
@@ -493,7 +490,6 @@ const App = (): React.JSX.Element => {
   };
   const signOut = async () => {
     await logout.trigger(undefined).catch(() => null);
-    nav.close();
     signedOut("");
   };
   /*
@@ -739,11 +735,24 @@ const App = (): React.JSX.Element => {
     case "app": {
       if (onProfile) {
         body = (
-          <ProfilePanel
-            userId={userId}
-            faculty={facultyProfile.data ?? null}
-            busy={facultyProfile.isLoading}
-          />
+          <>
+            <ProfilePanel
+              userId={userId}
+              faculty={facultyProfile.data ?? null}
+              busy={facultyProfile.isLoading}
+            />
+            {/* The rail holds Sign out on desktop. There is no drawer on a
+                phone, so the screen about the signed-in user carries it. */}
+            <Group hiddenFrom="sm" justify="flex-end" mt="lg">
+              <Button
+                onClick={signOut}
+                variant="default"
+                leftSection={<SignOut size={18} aria-hidden />}
+              >
+                Sign out
+              </Button>
+            </Group>
+          </>
         );
       } else if (onSearch) {
         body = (
@@ -856,32 +865,20 @@ const App = (): React.JSX.Element => {
       navbar={{
         width: 300,
         breakpoint: "sm",
-        collapsed: { mobile: !navOpen, desktop: screen !== "app" },
+        collapsed: { mobile: true, desktop: screen !== "app" },
       }}
-      footer={{ height: 64 }}
+      footer={{ height: "calc(64px + env(safe-area-inset-bottom))" }}
     >
       <AppShell.Header>
         <Group h="100%" px="md" align="center" gap="sm">
-          {screen === "app" ? (
-            <Burger
-              opened={navOpen}
-              onClick={() => nav.toggle()}
-              hiddenFrom="sm"
-              size="sm"
-              aria-label="Show the navigation"
-            />
-          ) : null}
           <Title order={3}>Vignan Faculty Tools</Title>
         </Group>
       </AppShell.Header>
-      <AppShell.Navbar p="md">
+      <AppShell.Navbar p="md" visibleFrom="sm">
         <AppShell.Section grow>
           <Stack gap="xs">
             <Button
-              onClick={() => {
-                nav.close();
-                navigate(DASHBOARD_PATH);
-              }}
+              onClick={() => navigate(DASHBOARD_PATH)}
               variant={onDashboard ? "filled" : "subtle"}
               aria-current={onDashboard ? "page" : undefined}
               leftSection={<SquaresFour size={18} aria-hidden />}
@@ -891,10 +888,7 @@ const App = (): React.JSX.Element => {
               Attendance
             </Button>
             <Button
-              onClick={() => {
-                nav.close();
-                navigate(SEARCH_PATH);
-              }}
+              onClick={() => navigate(SEARCH_PATH)}
               variant={onSearch ? "filled" : "subtle"}
               aria-current={onSearch ? "page" : undefined}
               leftSection={<MagnifyingGlass size={18} aria-hidden />}
@@ -904,10 +898,7 @@ const App = (): React.JSX.Element => {
               Student Search
             </Button>
             <Button
-              onClick={() => {
-                nav.close();
-                navigate(PROFILE_PATH);
-              }}
+              onClick={() => navigate(PROFILE_PATH)}
               variant={onProfile ? "filled" : "subtle"}
               aria-current={onProfile ? "page" : undefined}
               leftSection={<UserCircle size={18} aria-hidden />}
@@ -950,39 +941,67 @@ const App = (): React.JSX.Element => {
           </Container>
         )}
       </AppShell.Main>
-      <AppShell.Footer p="xs" hiddenFrom="sm">
+      {/* Tabs, not buttons: icon over label, no fill, colour says which screen.
+          An UnstyledButton is the one Mantine component that carries no button
+          chrome. The footer grows by the safe-area inset and pads it away, so
+          the home indicator sits below the tabs rather than over them. */}
+      <AppShell.Footer hiddenFrom="sm" pb="env(safe-area-inset-bottom)">
         {screen === "app" ? (
-          <Group justify="space-around" gap={0}>
-            <Button
+          <Group gap={0} wrap="nowrap" h="100%">
+            <UnstyledButton
               onClick={() => navigate(DASHBOARD_PATH)}
-              variant={onDashboard ? "filled" : "subtle"}
               aria-current={onDashboard ? "page" : undefined}
-              leftSection={<SquaresFour size={18} aria-hidden />}
-              fullWidth
-              justify="center"
+              c={onDashboard ? "blue" : "dimmed"}
+              flex={1}
+              h="100%"
             >
-              Attendance
-            </Button>
-            <Button
+              <Stack align="center" justify="center" gap={2} h="100%">
+                <SquaresFour
+                  size={22}
+                  weight={onDashboard ? "fill" : "regular"}
+                  aria-hidden
+                />
+                <Text size="xs" fw={onDashboard ? 600 : 400}>
+                  Attendance
+                </Text>
+              </Stack>
+            </UnstyledButton>
+            <UnstyledButton
               onClick={() => navigate(SEARCH_PATH)}
-              variant={onSearch ? "filled" : "subtle"}
               aria-current={onSearch ? "page" : undefined}
-              leftSection={<MagnifyingGlass size={18} aria-hidden />}
-              fullWidth
-              justify="center"
+              c={onSearch ? "blue" : "dimmed"}
+              flex={1}
+              h="100%"
             >
-              Student Search
-            </Button>
-            <Button
+              <Stack align="center" justify="center" gap={2} h="100%">
+                <MagnifyingGlass
+                  size={22}
+                  weight={onSearch ? "fill" : "regular"}
+                  aria-hidden
+                />
+                <Text size="xs" fw={onSearch ? 600 : 400}>
+                  Student Search
+                </Text>
+              </Stack>
+            </UnstyledButton>
+            <UnstyledButton
               onClick={() => navigate(PROFILE_PATH)}
-              variant={onProfile ? "filled" : "subtle"}
               aria-current={onProfile ? "page" : undefined}
-              leftSection={<UserCircle size={18} aria-hidden />}
-              fullWidth
-              justify="center"
+              c={onProfile ? "blue" : "dimmed"}
+              flex={1}
+              h="100%"
             >
-              Profile
-            </Button>
+              <Stack align="center" justify="center" gap={2} h="100%">
+                <UserCircle
+                  size={22}
+                  weight={onProfile ? "fill" : "regular"}
+                  aria-hidden
+                />
+                <Text size="xs" fw={onProfile ? 600 : 400}>
+                  Profile
+                </Text>
+              </Stack>
+            </UnstyledButton>
           </Group>
         ) : null}
       </AppShell.Footer>

@@ -391,6 +391,32 @@ test.describe("the app's own data layer", () => {
       "the old name is gone, not duplicated"
     ).toHaveCount(0);
   });
+  test("on a phone the tabs are a bottom bar with no drawer beside them", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    // One navigation, not two: the rail is out of the tree, so the bar's
+    // Profile is the only one, and the burger that opened a drawer is gone.
+    await expect(
+      page.getByRole("button", { name: "Profile" }),
+      "the rail's copy is hidden on a phone, and the bar's is the whole bar"
+    ).toHaveCount(1);
+    await expect(
+      page.getByRole("button", { name: "Show the navigation" })
+    ).toHaveCount(0);
+    const bar = page.locator(".mantine-AppShell-footer");
+    await bar.getByRole("button", { name: "Profile" }).click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
+      .toBe("/profile");
+    // Sign out lives in the rail, which a phone does not show: the screen
+    // about the signed-in user is where it has to be reachable instead.
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
+      .toBe("/login");
+  });
   test("the click is what fetches a register, every time it is clicked", async ({
     page,
   }) => {
