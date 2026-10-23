@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#1971c2" />
+    <title>Offline — Vignan Faculty Tools</title>
+    <!-- No scripts and no outside assets: this page must render with no
+         connection at all, so everything it needs is inline. The retry is a
+         plain link for the same reason — the CSP blocks inline scripts. -->
+    <style>
+      body {
+        font-family: system-ui, sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        margin: 0;
+        background: #ffffff;
+        color: #333333;
+      }
+      .offline-content {
+        text-align: center;
+        padding: 2rem;
+      }
+      a.retry {
+        display: inline-block;
+        background: #1971c2;
+        color: #ffffff;
+        text-decoration: none;
+        padding: 0.75rem 1.5rem;
+        border-radius: 4px;
+        font-size: 1rem;
+        margin-top: 1rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="offline-content">
+      <h1>You're offline</h1>
+      <p>Attendance lives on ECAP, so there is nothing cached to show.</p>
+      <a class="retry" href="/">Try again</a>
+    </div>
+  </body>
+</html>

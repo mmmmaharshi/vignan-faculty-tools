@@ -76,4 +76,36 @@ test.describe("the installable shell", () => {
       "no API answer sits in any cache"
     ).toEqual([]);
   });
+
+  test("an offline navigation falls back to the offline page", async ({
+    page,
+    context,
+  }) => {
+    await page.goto("/");
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => navigator.serviceWorker.controller?.scriptURL ?? ""
+          ),
+        { message: "the service worker controls the page", timeout: 15_000 }
+      )
+      .toContain("/sw.js");
+    await page.reload();
+    await expect
+      .poll(() => page.url(), {
+        message: "the boot read settled and the guard sent on the login form",
+        timeout: 15_000,
+      })
+      .toContain("/login");
+    // Installed and warm: the shell, the login document and the offline page
+    // are all cached before the connection drops.
+    await context.setOffline(true);
+    await page.goto("/dashboard");
+    await expect(page.getByText("You're offline")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByRole("link", { name: "Try again" })).toBeVisible();
+    await context.setOffline(false);
+  });
 });

@@ -10,8 +10,16 @@
  */
 const SHELL = "vignan-shell-v1";
 
+// The one page allowed to work with no connection: cached up front so it is
+// there before it is ever needed. If even the install was offline, the worker
+// is discarded and tries again on the next load.
+const precacheOffline = async () => {
+  const cache = await caches.open(SHELL);
+  await cache.add("/offline.html");
+  await self.skipWaiting();
+};
 self.addEventListener("install", (event) => {
-  event.waitUntil(self.skipWaiting());
+  event.waitUntil(precacheOffline());
 });
 
 const clearOldCaches = async () => {
@@ -43,7 +51,13 @@ const serveDocument = async (request) => {
     return res;
   } catch {
     const hit = await caches.match(request);
-    return hit ?? Response.error();
+    if (hit) return hit;
+    // Nothing cached for this address and no connection to fetch it: the
+    // offline page, which install cached up front for exactly this moment.
+    const offline = await caches.match(
+      new URL("/offline.html", self.location.origin)
+    );
+    return offline ?? Response.error();
   }
 };
 
