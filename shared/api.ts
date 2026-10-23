@@ -214,6 +214,21 @@ export interface FacultyProfile {
    *  not state any, which is not the same as all zeros. */
   leaveStatus: LeaveStatus[];
 }
+/** One period ECAP's GetToDayClasses states for the signed-in faculty member:
+ *  today's own timetable, read off the faculty dashboard's schedule grid. */
+export interface TodayClass {
+  /** The period's time ("10:00 - 11:00"), as the grid writes it. */
+  time: string;
+  subject: string;
+  section: string;
+  /** The room, where the grid states one. Empty where it states none. */
+  room: string;
+}
+export interface TodayClassesReply {
+  /** Today's periods in the grid's own order. Empty when ECAP states none —
+   *  a cleared evening or a day with no periods, never a failed read. */
+  classes: TodayClass[];
+}
 export interface StudentRequest {
   roll: string;
   /** The student's name, which the Student Wise report is asked for by. */

@@ -33,6 +33,7 @@ import {
 import {
   BASE,
   CLASS_REMOTE,
+  DASHBOARD_REMOTE,
   HTTP_TIMEOUT_MS,
   LEAVE_STATUS_REMOTE,
   LOGIN_PAGE,
@@ -55,6 +56,7 @@ import {
   handleSemAbsences,
   handleSemStart,
   handleStudentProfile,
+  handleTodayClasses,
 } from "./server-routes.js";
 import type { PortalReader } from "./server-routes.js";
 
@@ -233,6 +235,12 @@ class Portal {
       designation: designation.trim(),
       leaveStatus,
     };
+  }
+  /** Today's timetable: the dashboard's own schedule grid, through the page's
+   *  own GetToDayClasses call. The page passes no parameters, so neither does
+   *  this. */
+  todayClasses(): Promise<string> {
+    return portalWebMethod(this.jar, DASHBOARD_REMOTE, "GetToDayClasses", []);
   }
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. It lives on the register's own proxy and wants the
@@ -496,6 +504,13 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       if (req.method === "POST" && path === "/api/faculty-profile") {
         return json(
           await withPortal(s, (p) => handleFacultyProfile(p.reader)),
+          200,
+          sessionHeader(s)
+        );
+      }
+      if (req.method === "POST" && path === "/api/today") {
+        return json(
+          await withPortal(s, (p) => handleTodayClasses(p.reader)),
           200,
           sessionHeader(s)
         );

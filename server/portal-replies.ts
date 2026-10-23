@@ -7,6 +7,7 @@ import type {
   StudentPhone,
   StudentProfile,
   StudentSgpa,
+  TodayClass,
 } from "../shared/api.js";
 import type { RegisterRow } from "./attendance-bands.js";
 
@@ -136,6 +137,10 @@ function cellText(html: string): string {
 }
 const cellsOf = (row: string): string[] =>
   [...row.matchAll(CELL)].map((m) => cellText(m.groups?.cell ?? ""));
+/** The cell a header-named column points at, or nothing when the grid never
+ *  named that column. A missing column is empty text, not a skipped row. */
+const atColumn = (cells: string[], index: number): string =>
+  index < 0 ? "" : (cells[index] ?? "");
 /**
  * Every table in a Portal reply, head first, as cell arrays. The one place
  * the reply's table shape is understood, so a Portal layout shift is fixed
@@ -162,6 +167,14 @@ function anyHeaded(grids: string[][][]): string[][] | null {
     ) ?? null
   );
 }
+/** The schedule grid on the faculty dashboard: `tblschedule`, filled by the
+ *  page's own GetToDayClasses call. Its absence means the reply states no
+ *  periods — a cleared evening or a day with none — which is an empty list,
+ *  never a failure. A failed call throws before this is ever reached. */
+const SCHEDULE_TABLE = /tblschedule/i;
+const TIME_HEAD = /time|period|timing/i;
+const SECTION_HEAD = /section|class|branch|semester/i;
+const ROOM_HEAD = /room|hall|venue/i;
 /** Grids headed by a Subject column: the Student Wise report. */
 function subjectHeaded(grids: string[][][]): string[][] | null {
   return (
@@ -518,6 +531,41 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
       declined: headNumber(cells[6] ?? ""),
       available: headNumber(cells[7] ?? ""),
     }));
+}
+/**
+ * Today's periods out of the faculty dashboard's schedule grid, in the grid's
+ * own order. Columns are read by what the grid's own header names — the live
+ * reply's shape on a teaching day is still unpinned, so positions are never
+ * assumed. A reply with no schedule grid at all (the cleared-evening
+ * `</table>` ECAP answers after ~4pm) is an empty day, never a failure.
+ */
+export function parseTodayClasses(html: string): TodayClass[] {
+  if (!SCHEDULE_TABLE.test(html)) return [];
+  const grid = gridTables(html).find((rows) =>
+    (rows[0] ?? []).some((c) => TIME_HEAD.test(c) || SUBJECT_HEADER.test(c))
+  );
+  const header = grid?.[0];
+  if (!grid || !header) return [];
+  const column = (pattern: RegExp): number =>
+    header.findIndex((c) => pattern.test(c));
+  const time = column(TIME_HEAD);
+  const subject = column(SUBJECT_HEADER);
+  const section = column(SECTION_HEAD);
+  const room = column(ROOM_HEAD);
+  const out: TodayClass[] = [];
+  for (const cells of grid.slice(1)) {
+    const entry = {
+      time: atColumn(cells, time),
+      subject: atColumn(cells, subject),
+      section: atColumn(cells, section),
+      room: atColumn(cells, room),
+    };
+    // A zebra-striped or spacer row with nothing in it is layout, not a period.
+    if (entry.time || entry.subject || entry.section || entry.room) {
+      out.push(entry);
+    }
+  }
+  return out;
 }
 export function hiddenValue(html: string, name: string): string {
   for (const tag of html.match(INPUT) ?? []) {

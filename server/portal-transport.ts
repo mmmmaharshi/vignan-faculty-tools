@@ -54,6 +54,15 @@ export const PROFILE_REMOTE: Remote = {
   referer: REGISTER_PAGE_URL,
   session: "rw",
 };
+/** The faculty dashboard's own proxy: GetToDayClasses (today's timetable) and
+ *  GetStudentsAttendance share it. The proxy declares the `r` marker — `no`
+ *  answers a session-state HttpException instead — and the page calls the
+ *  method with no parameters. Proved live 2026-10-23. */
+export const DASHBOARD_REMOTE: Remote = {
+  proxy: `${BASE}/vignanit/ajax/Academics_facultydashboard,App_Web_facultydashboard.aspx.a2a1b31c.ashx`,
+  referer: `${BASE}/vignanit/academics/facultydashboard.aspx`,
+  session: "r",
+};
 /** The faculty's photo and designation come from the main.aspx proxy, not the
  *  register proxy. Different session markers per method (see the proxy def). */
 export const MAIN_PHOTO_REMOTE: Remote = {

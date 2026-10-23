@@ -44,6 +44,8 @@ let semAbsencesCalls = 0;
  *  sent only on that path, where the report on screen states no dates. */
 let semStartCalls = 0;
 const profileRolls: string[] = [];
+/** How often Home asked for today's timetable — once per opening. */
+let todayCalls = 0;
 /** Whether the panel asked for a student's own day-wise grid — sent only when
  *  the register on screen states no dates of its own (the All subjects view). */
 let absentAsked = false;
@@ -271,6 +273,15 @@ const stub = async (route: Route): Promise<void> => {
     });
     return;
   }
+  if (path === "/api/today") {
+    todayCalls += 1;
+    await json({
+      classes: [
+        { time: "10:00 - 11:00", subject: "AI", section: "3 IT-C", room: "" },
+      ],
+    });
+    return;
+  }
   if (path === "/api/faculty-profile") {
     // Long type names on purpose: the seven-column table must survive them
     // on a phone screen.
@@ -322,12 +333,14 @@ async function signIn(page: Page): Promise<void> {
   await page.getByRole("button", { name: "Sign in" }).click();
   await expect
     .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })
-    .toBe("/dashboard");
+    .toBe("/home");
 }
-/** Signed in, with the cascade settled on the stub's first class. */
+/** Signed in, with the cascade settled on the stub's first class. Sign-in lands
+ *  on Home now, so settling is observed over on the Attendance screen. */
 async function signInAndSettle(page: Page): Promise<void> {
   await page.goto("/login");
   await signIn(page);
+  await page.getByRole("button", { name: "Attendance" }).click();
   await expect
     .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
     .toBe("ALL SUBJECTS");
@@ -345,6 +358,7 @@ test.describe("the app's own data layer", () => {
     semAbsencesCalls = 0;
     profileRolls.length = 0;
     absentAsked = false;
+    todayCalls = 0;
     await page.route("**/api/**", stub);
   });
   test("the boot read decides which screen a stranger gets", async ({
@@ -390,6 +404,31 @@ test.describe("the app's own data layer", () => {
       page.getByRole("button", { name: "Dashboard" }),
       "the old name is gone, not duplicated"
     ).toHaveCount(0);
+  });
+  test("Home is the landing screen and reads today's timetable", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await signIn(page);
+    expect(
+      new URL(page.url()).pathname,
+      "sign-in lands on Home, not the register"
+    ).toBe("/home");
+    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(page.getByText("AI", { exact: true })).toBeVisible();
+    expect(todayCalls, "one read per opening").toBe(1);
+    expect(registerCalls, "and the register waits for its click").toBe(0);
+    // Attendance keeps its own screen one tab over.
+    await page.getByRole("button", { name: "Home" }).click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
+      .toBe("/home");
+    await page.getByRole("button", { name: "Attendance" }).click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
+      .toBe("/dashboard");
   });
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({
     page,
@@ -1002,6 +1041,8 @@ test.describe("the app's own data layer", () => {
     // is the case a throttle would swallow.
     await page.goto("/dashboard");
     await signIn(page);
+    // Sign-in lands on Home now; the cascade's selects live one tab over.
+    await page.getByRole("button", { name: "Attendance" }).click();
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
@@ -1030,6 +1071,7 @@ test.describe("the app's own data layer", () => {
     registerFails = false;
     optionsCalls = 0;
     await signIn(page);
+    await page.getByRole("button", { name: "Attendance" }).click();
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
@@ -1073,6 +1115,7 @@ test.describe("the app's own data layer", () => {
     await page.goto("/login");
     await page.evaluate(() => localStorage.removeItem("section-faculty"));
     await signIn(page);
+    await page.getByRole("button", { name: "Attendance" }).click();
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");

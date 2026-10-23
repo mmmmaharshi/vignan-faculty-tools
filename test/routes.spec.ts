@@ -8,6 +8,7 @@ import {
   handleSemAbsences,
   handleSemStart,
   handleStudentProfile,
+  handleTodayClasses,
   requireLevels,
 } from "../server/server-routes";
 import type { PortalReader } from "../server/server-routes";
@@ -86,9 +87,10 @@ const fake = (
     classFails?: boolean;
     studentProfile?: string;
     studentWise?: string;
-    /** A Student Wise grid per month-step start, so the walk can be driven
+    /** The dashboard's schedule fragment for today. */
+    today?: string /** A Student Wise grid per month-step start, so the walk can be driven
      *  month by month. A month missing from the map answers empty, which is
-     *  what stops the walk. */
+     *  what stops the walk. */;
     studentWiseMonths?: Record<string, string>;
     studentFails?: boolean;
   } = {}
@@ -160,6 +162,7 @@ const fake = (
         designation: "0",
         leaveStatus: [],
       }),
+    todayClasses: () => resolved(answers.today ?? ""),
   };
   return { reader, calls };
 };
@@ -1030,6 +1033,21 @@ test.describe("a roll whose page names no semester", () => {
     expect(reply.class).toBeNull();
     expect(reply.student).toBeNull();
     expect(reply.note).toContain("semester");
-    expect(calls.classAttendance).toEqual([]);
+    expect(calls.register).toEqual([]);
+  });
+});
+test.describe("the today handler", () => {
+  test("a cleared evening answers an empty day, not a failure", async () => {
+    // ECAP's own answer after ~4pm, read live 2026-10-23.
+    const { reader } = fake({ today: "</table>" });
+    await expect(handleTodayClasses(reader)).resolves.toEqual({ classes: [] });
+  });
+  test("a portal refusal stays a refusal, never an empty day", async () => {
+    const { reader: base } = fake();
+    const reader: PortalReader = {
+      ...base,
+      todayClasses: () => Promise.reject(new HttpError(502, "down")),
+    };
+    await expect(handleTodayClasses(reader)).rejects.toThrow("down");
   });
 });

@@ -12,6 +12,7 @@ import {
   parseStudentBacklogs,
   parseStudentClass,
   parseStudentProfile,
+  parseTodayClasses,
   realOptions,
   registerDates,
   studentWiseDates,
@@ -36,6 +37,12 @@ const STUDENT_WISE_GRID = `<table>
   <tr><td>2</td><td>SE</td><td>A</td><td>P</td><td>P</td><td>10/14</td><td>71.43</td></tr>
   <tr><td>3</td><td>UHV</td><td>P</td><td>P</td><td>A</td><td>12/14</td><td>85.71</td></tr>
 </table>`;
+/** One period of a schedule grid under a caller-given header: the reader must
+ *  follow the header's names, so the same period under another column order
+ *  reads the same. */
+const scheduleGrid = (header: string): string =>
+  `<table id="tblschedule"><tr>${header}</tr>
+<tr><td>10:00 - 11:00</td><td>AI</td><td>3 IT-C</td><td>R-204</td></tr></table>`;
 test.describe("portal replies", () => {
   test("a dead session's markup is told apart from real data", () => {
     expect(looksLikeHtml(LOGIN_PAGE)).toBe(true);
@@ -396,6 +403,34 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
       total: null,
       note: "",
     });
+  });
+  test("today's cleared evening is an empty day, not a failure", () => {
+    // ECAP's own answer after ~4pm, read live 2026-10-23: the fragment is a
+    // bare closing tag, with no grid in it at all.
+    expect(parseTodayClasses("</table>")).toEqual([]);
+    expect(parseTodayClasses("")).toEqual([]);
+  });
+  test("today's periods are read by header name, never by position", () => {
+    // The teaching-day shape is still unpinned — only the cleared evening has
+    // been seen live — so what is pinned is the property, not ECAP's markup:
+    // the same periods in a different column order read the same.
+    const byTime = scheduleGrid(
+      "<th>Time</th><th>Subject</th><th>Section</th><th>Room</th>"
+    );
+    const expected = [
+      {
+        time: "10:00 - 11:00",
+        subject: "AI",
+        section: "3 IT-C",
+        room: "R-204",
+      },
+    ];
+    // The reordered row's own cells move with its header, or the read is wrong.
+    const reordered = `<table id="tblschedule">
+<tr><th>Subject</th><th>Room</th><th>Time</th><th>Section</th></tr>
+<tr><td>AI</td><td>R-204</td><td>10:00 - 11:00</td><td>3 IT-C</td></tr></table>`;
+    expect(parseTodayClasses(byTime)).toEqual(expected);
+    expect(parseTodayClasses(reordered)).toEqual(expected);
   });
   test("leave status comes from the application grid, per stage", () => {
     // Copied from the APPLY-SELF page's `showLeaves` reply: the counts sit

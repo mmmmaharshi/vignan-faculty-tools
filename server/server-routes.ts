@@ -14,6 +14,7 @@ import type {
   SemStartReply,
   StudentProfile,
   StudentRequest,
+  TodayClassesReply,
 } from "../shared/api.js";
 import type { OverallLookup } from "./attendance-bands.js";
 import { statedStartDate, summarise } from "./attendance-bands.js";
@@ -27,6 +28,7 @@ import {
   parseStudentAbsences,
   parseStudentClass,
   parseStudentProfile,
+  parseTodayClasses,
   realOptions,
   registerDates,
   studentWiseDates,
@@ -64,6 +66,8 @@ export type PortalReader = {
     name: string,
     p: Record<Level, Option> & { from: string; to: string }
   ) => Promise<string>;
+  /** The faculty dashboard's schedule fragment for today. */
+  todayClasses: () => Promise<string>;
 };
 export async function handleOptions(
   portal: PortalReader,
@@ -634,4 +638,12 @@ export async function handleFacultyProfile(
     );
   }
   return profile;
+}
+/** Today's timetable: the dashboard's schedule grid, read as written. A grid
+ *  stating no periods is an empty day — which ECAP also answers after ~4pm,
+ *  when it clears the day — never a failed read. */
+export async function handleTodayClasses(
+  portal: PortalReader
+): Promise<TodayClassesReply> {
+  return { classes: parseTodayClasses(await portal.todayClasses()) };
 }

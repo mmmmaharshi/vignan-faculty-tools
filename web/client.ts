@@ -18,6 +18,7 @@ import type {
   SessionReply,
   StudentProfile,
   StudentRequest,
+  TodayClassesReply,
 } from "../shared/api";
 import { SESSION_HEADER, SESSION_STORE_KEY } from "../shared/api";
 import { runCascade } from "./cascade";
@@ -44,6 +45,7 @@ const FIND_PATH = "/api/find";
 const SEM_START_PATH = "/api/sem-start";
 const SEM_ABSENCES_PATH = "/api/sem-absences";
 const FACULTY_PROFILE_PATH = "/api/faculty-profile";
+const TODAY_PATH = "/api/today";
 const OPTIONS_PATH = "/api/options";
 /** The option chain is one key, not five: its requests depend on each other, so
  *  the thing worth caching is a run, and a run is named by its seed. */
@@ -257,6 +259,18 @@ export function useFacultyProfile(enabled: boolean) {
   return useSWR<FacultyProfile, ApiError>(
     enabled ? FACULTY_PROFILE_PATH : null,
     () => postJson<FacultyProfile>(FACULTY_PROFILE_PATH, {})
+  );
+}
+/**
+ * Today's timetable, from the faculty dashboard's own schedule grid. Read when
+ * Home is opened and refreshed behind the cached answer on return — a period
+ * read yesterday is not today's, and ECAP clears the day after ~4pm, so a
+ * stale read is the wrong kind of right. Keyed on `/api/`, so sign-out sweeps
+ * it with everything else the Portal said.
+ */
+export function useTodayClasses(enabled: boolean) {
+  return useSWR<TodayClassesReply, ApiError>(enabled ? TODAY_PATH : null, () =>
+    postJson<TodayClassesReply>(TODAY_PATH, {})
   );
 }
 /**

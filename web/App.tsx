@@ -15,6 +15,7 @@ import {
   MagnifyingGlass,
   SignOut,
   CalendarCheck,
+  House,
   UserCircle,
 } from "@phosphor-icons/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -61,9 +62,11 @@ import {
   useFacultyProfile,
   useSemAbsences,
   useSemStart,
+  useTodayClasses,
 } from "./client";
 import type { RegisterClick, FindClick } from "./client";
 import { ClassPicker } from "./components/ClassPicker";
+import { HomePanel } from "./components/HomePanel";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
@@ -89,6 +92,7 @@ import { NO_FILTER, registerRows } from "./worklist";
 import type { RowFilter } from "./worklist";
 
 const LOGIN_PATH = "/login";
+const HOME_PATH = "/home";
 const DASHBOARD_PATH = "/dashboard";
 const PROFILE_PATH = "/profile";
 const SEARCH_PATH = "/search";
@@ -96,10 +100,11 @@ const App = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const onLogin = pathname === LOGIN_PATH;
+  const onHome = pathname === HOME_PATH;
   const onProfile = pathname === PROFILE_PATH;
   const onSearch = pathname === SEARCH_PATH;
-  /** The screen the Attendance button stands for: not the two beside it. */
-  const onDashboard = !onLogin && !onProfile && !onSearch;
+  /** The screen the Attendance button stands for: not the three beside it. */
+  const onDashboard = !onLogin && !onHome && !onProfile && !onSearch;
   const [booted, setBooted] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [userId, setUserId] = useState("");
@@ -187,6 +192,10 @@ const App = (): React.JSX.Element => {
       : null
   );
   const facultyProfile = useFacultyProfile(Boolean(onProfile));
+  /** Home's timetable: read when Home is opened, refreshed behind the cached
+   *  answer on return. ECAP clears the day after ~4pm, so the read is never
+   *  older than the visit. */
+  const today = useTodayClasses(Boolean(onHome));
   /** Student Search: the roll being typed and the ask the panel below the form
    *  is showing. The ask carries a click number for the register's reason — a
    *  search is deliberate, so asking again reads again. */
@@ -307,6 +316,7 @@ const App = (): React.JSX.Element => {
     profile.error ??
     search.error ??
     facultyProfile.error ??
+    today.error ??
     semStart.error ??
     semAbsences.error;
   const filterNote: Note | null =
@@ -337,6 +347,13 @@ const App = (): React.JSX.Element => {
   } else if (found?.note) {
     searchNote = { kind: "warning", text: found.note };
   }
+  /** Home's own sentence: what the server refused. An empty day is not this —
+   *  it is the panel's own "No periods today". A 401 has already ended the
+   *  session through the sweep above, so it says nothing here. */
+  const todayNote: Note | null =
+    today.error && !isExpired(today.error)
+      ? { kind: "error", text: messageOf(today.error) }
+      : null;
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The class and window a searched figure belongs to, named on the panel: a
    *  percentage with no period under it invites being read as a semester's. An
@@ -482,7 +499,7 @@ const App = (): React.JSX.Element => {
       setBooted(true);
       setSignedIn(true);
       noteUserId(started.userId || name);
-      navigate(DASHBOARD_PATH, { replace: true });
+      navigate(HOME_PATH, { replace: true });
       await runRefresh(EMPTY_SEL, EMPTY_OPTS);
     } catch (error) {
       setLoginNote({ kind: "error", text: messageOf(error) });
@@ -540,8 +557,8 @@ const App = (): React.JSX.Element => {
     // only place the name can arrive. Without it the rail and the profile panel
     // show a dash for a session that is working.
     if (session.data?.userId) noteUserId(session.data.userId);
-    if (!onLogin && !onProfile && !onSearch) {
-      navigate(DASHBOARD_PATH, { replace: true });
+    if (!onLogin && !onHome && !onProfile && !onSearch) {
+      navigate(HOME_PATH, { replace: true });
     }
     if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
   }, [
@@ -549,6 +566,7 @@ const App = (): React.JSX.Element => {
     session.isLoading,
     session.data,
     onLogin,
+    onHome,
     onProfile,
     onSearch,
     navigate,
@@ -608,7 +626,7 @@ const App = (): React.JSX.Element => {
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {
-      navigate(DASHBOARD_PATH, { replace: true });
+      navigate(HOME_PATH, { replace: true });
     }
   }, [booted, signedIn, onLogin, navigate]);
   const disabled = disabledLevels(sel);
@@ -733,7 +751,15 @@ const App = (): React.JSX.Element => {
       break;
     }
     case "app": {
-      if (onProfile) {
+      if (onHome) {
+        body = (
+          <HomePanel
+            classes={today.data?.classes ?? null}
+            busy={today.isLoading}
+            note={todayNote}
+          />
+        );
+      } else if (onProfile) {
         body = (
           <>
             <ProfilePanel
@@ -878,6 +904,16 @@ const App = (): React.JSX.Element => {
         <AppShell.Section grow>
           <Stack gap="xs">
             <Button
+              onClick={() => navigate(HOME_PATH)}
+              variant={onHome ? "filled" : "subtle"}
+              aria-current={onHome ? "page" : undefined}
+              leftSection={<House size={18} aria-hidden />}
+              fullWidth
+              justify="flex-start"
+            >
+              Home
+            </Button>
+            <Button
               onClick={() => navigate(DASHBOARD_PATH)}
               variant={onDashboard ? "filled" : "subtle"}
               aria-current={onDashboard ? "page" : undefined}
@@ -948,6 +984,20 @@ const App = (): React.JSX.Element => {
       <AppShell.Footer hiddenFrom="sm" pb="env(safe-area-inset-bottom)">
         {screen === "app" ? (
           <Group gap={0} wrap="nowrap" h="100%">
+            <UnstyledButton
+              onClick={() => navigate(HOME_PATH)}
+              aria-current={onHome ? "page" : undefined}
+              c={onHome ? "blue" : "dimmed"}
+              flex={1}
+              h="100%"
+            >
+              <Stack align="center" justify="center" gap={2} h="100%">
+                <House size={24} aria-hidden />
+                <Text size="xs" fw={onHome ? 600 : 400}>
+                  Home
+                </Text>
+              </Stack>
+            </UnstyledButton>
             <UnstyledButton
               onClick={() => navigate(DASHBOARD_PATH)}
               aria-current={onDashboard ? "page" : undefined}
