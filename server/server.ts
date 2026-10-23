@@ -52,9 +52,14 @@ const server = Bun.serve({
       if (req.method === "GET" && !path.startsWith("/api/")) {
         const asset = Bun.file(DIST + path);
         if (await asset.exists()) {
+          // Bun's MIME table cannot be trusted for this one: Chrome wants the
+          // manifest served as JSON, whatever the runtime guesses.
+          const contentType = path.endsWith(".webmanifest")
+            ? "application/manifest+json"
+            : asset.type || "application/octet-stream";
           return new Response(asset, {
             headers: {
-              "content-type": asset.type || "application/octet-stream",
+              "content-type": contentType,
               "cache-control": path.startsWith("/assets/")
                 ? "public, max-age=31536000, immutable"
                 : "no-store, must-revalidate",
