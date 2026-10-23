@@ -105,6 +105,13 @@ server/attendance-bands.ts the Regular / Irregular / Critical rule, and the summ
 web/index.html       Vite entry point
 web/main.tsx         React root + MantineProvider + the one <SWRConfig> holding
                      the read defaults; the only createTheme call
+web/public/manifest.webmanifest  the install prompt's facts: names, start URL,
+                     display mode, and the three icons below
+web/public/sw.js     the service worker: shell-only cache, /api/* never
+                     intercepted; plain JS, so tsc skips it and node --check
+                     is the syntax gate
+web/public/icons/    the three install icons, rasterized from one SVG tile by
+                     a throwaway Playwright script (kept out of the repo)
 web/App.tsx          state, the three modes, and the session's own facts
 web/client.ts        every fetch the app makes: one JSON wrapper, and the SWR
                      hooks and keys each screen reads through
