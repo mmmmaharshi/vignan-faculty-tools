@@ -160,11 +160,15 @@ control that names the class you picked was the one you could not read.
 - **Layout is `AppShell.Section` plus `Stack`, never margin.** The first section
   takes `grow` so the second sits on the bottom of the rail; `Stack gap="xs"` is
   the gap between the buttons. Mantine already provides both mechanisms.
-- **The buttons are `Button` with `variant` and `aria-current` swapped from
-  `pathname` on every render.** `Button` has no `active` prop, so the current
-  screen is a variant, and it cannot drift from the URL. `fullWidth` and
-  `justify="flex-start"` are the only other props — the rail looks the way it
-  looks because it is stock components with stock props.
+- **The tabs live once, in `web/components/NavTabs.tsx`, and both surfaces map
+  over them.** `TABS` names every screen's path, label and icon in tab order;
+  `RailNav` maps them to stock `Button`s, `BarNav` to `UnstyledButton`s. An icon
+  or label change that lands on the rail and misses the bar is a diff that
+  ignored the array — the CalendarCheck swap needed two spots before this, and
+  that is what the array removes. `activeTab(pathname)` names the highlight,
+  defaulting to the register screen: unknown paths render its body before the
+  guard sends them on, so the highlight agrees with the screen rather than
+  going dark.
 - **The header carries the title, and nothing else.** The user name and Sign out
   moved out of it when the rail got wide enough to hold them, and the burger went
   with the drawer it opened (see below).

@@ -617,20 +617,27 @@ test.describe("Vignan Faculty Tools", () => {
     expect(
       new URL(page.url()).pathname,
       "signed in, so the loop below can actually happen"
-    ).toBe("/dashboard");
+    ).toBe("/home");
     for (const path of ["/", "/dashboard", "/nonsense", "/profile"]) {
       let calls = 0;
       const countApi = (req: { url: () => string }) => {
         if (new URL(req.url()).pathname.startsWith("/api/")) calls += 1;
       };
       await page.goto(path, { waitUntil: "domcontentloaded" });
-      await (path === "/profile"
-        ? expect(page.getByRole("heading", { name: "Profile" })).toBeVisible({
-            timeout: 90_000,
-          })
-        : expect(page.getByRole("combobox", { name: "Subject" })).toBeEnabled({
-            timeout: 90_000,
-          }));
+      // "/" and "/nonsense" land on Home; the register keeps its own screen.
+      if (path === "/profile") {
+        await expect(
+          page.getByRole("heading", { name: "Profile" })
+        ).toBeVisible({ timeout: 90_000 });
+      } else if (path === "/dashboard") {
+        await expect(
+          page.getByRole("combobox", { name: "Subject" })
+        ).toBeEnabled({ timeout: 90_000 });
+      } else {
+        await expect(page.getByRole("heading", { name: "Today" })).toBeVisible({
+          timeout: 90_000,
+        });
+      }
       page.on("request", countApi);
       await page.waitForTimeout(3000);
       const afterSettle = calls;

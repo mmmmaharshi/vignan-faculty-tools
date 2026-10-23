@@ -1,6 +1,7 @@
 import { Alert, Loader, Paper, Stack, Text, Title } from "@mantine/core";
 
 import type { TodayClass } from "../../shared/api";
+import type { Note } from "../types";
 
 export type HomePanelProps = {
   /** Today's periods in the grid's own order. Null while unread. */
@@ -8,7 +9,7 @@ export type HomePanelProps = {
   busy?: boolean;
   /** A read that failed says so here. An empty day is not this — it is the
    *  sentence below, because ECAP clears the day after ~4pm. */
-  note?: { kind: "error" | "warning"; text: string } | null;
+  note?: Note | null;
 };
 const lineOf = (entry: TodayClass): string =>
   [entry.section, entry.room].filter(Boolean).join(" · ");

@@ -42,7 +42,7 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
 - No manual timetable entry and no new storage: one more portal read through
   the same handler shape as every other.
 - The row parser's non-empty path is pinned by property (column order does
-  not matter), not by a live teaching-day reply. The first live reply on a
-  teaching day should confirm the header words the patterns match; if ECAP
-  names a column none of them covers, that field reads empty rather than
-  misreading its neighbour.
+  not matter), not by a live teaching-day reply. The header patterns are
+  deliberately unanchored until that shape is pinned — a column ECAP names
+  with none of these words reads empty rather than misreading its neighbour.
+  The first live reply on a teaching day should confirm the header words.

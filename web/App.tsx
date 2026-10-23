@@ -8,16 +8,8 @@ import {
   Text,
   TextInput,
   Title,
-  UnstyledButton,
 } from "@mantine/core";
-import {
-  FloppyDisk,
-  MagnifyingGlass,
-  SignOut,
-  CalendarCheck,
-  House,
-  UserCircle,
-} from "@phosphor-icons/react";
+import { FloppyDisk, SignOut } from "@phosphor-icons/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -64,9 +56,18 @@ import {
   useSemStart,
   useTodayClasses,
 } from "./client";
-import type { RegisterClick, FindClick } from "./client";
+import type { RegisterClick, FindClick, ApiError } from "./client";
 import { ClassPicker } from "./components/ClassPicker";
 import { HomePanel } from "./components/HomePanel";
+import {
+  BarNav,
+  HOME_PATH,
+  LOGIN_PATH,
+  PROFILE_PATH,
+  RailNav,
+  SEARCH_PATH,
+  activeTab,
+} from "./components/NavTabs";
 import { ProfilePanel } from "./components/ProfilePanel";
 import { RegisterSummary } from "./components/RegisterSummary";
 import { RegisterTable } from "./components/RegisterTable";
@@ -91,11 +92,14 @@ import type { Note } from "./types";
 import { NO_FILTER, registerRows } from "./worklist";
 import type { RowFilter } from "./worklist";
 
-const LOGIN_PATH = "/login";
-const HOME_PATH = "/home";
-const DASHBOARD_PATH = "/dashboard";
-const PROFILE_PATH = "/profile";
-const SEARCH_PATH = "/search";
+/** A request the server refused, in words — unless it refused the session,
+ *  which the shared failure sweep already ended. One helper, so the fifth
+ *  screen does not bring a fifth copy of the same three lines. */
+const refusalNote = (
+  error: ApiError | undefined,
+  kind: Note["kind"]
+): Note | null =>
+  error && !isExpired(error) ? { kind, text: messageOf(error) } : null;
 const App = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -103,8 +107,6 @@ const App = (): React.JSX.Element => {
   const onHome = pathname === HOME_PATH;
   const onProfile = pathname === PROFILE_PATH;
   const onSearch = pathname === SEARCH_PATH;
-  /** The screen the Attendance button stands for: not the three beside it. */
-  const onDashboard = !onLogin && !onHome && !onProfile && !onSearch;
   const [booted, setBooted] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [userId, setUserId] = useState("");
@@ -320,13 +322,8 @@ const App = (): React.JSX.Element => {
     semStart.error ??
     semAbsences.error;
   const filterNote: Note | null =
-    formNote ??
-    (optionsError || register.error
-      ? { kind: "error", text: messageOf(optionsError ?? register.error) }
-      : null);
-  const profileNote: Note | null = profile.error
-    ? { kind: "error", text: messageOf(profile.error) }
-    : null;
+    formNote ?? refusalNote(optionsError ?? register.error, "error");
+  const profileNote: Note | null = refusalNote(profile.error, "error");
   /** A wider read ECAP would not give is said so, not left silent: no second
    *  list with no reason reads as "no absences in the semester". A 401 has
    *  already ended the session through the sweep above, so it says nothing
@@ -341,19 +338,12 @@ const App = (): React.JSX.Element => {
   /** Student Search's own sentence: what the server refused, or why there is no
    *  class or no row for that roll. A 401 has already ended the session through
    *  the sweep above, so it says nothing here. */
-  let searchNote: Note | null = null;
-  if (search.error && !isExpired(search.error)) {
-    searchNote = { kind: "error", text: messageOf(search.error) };
-  } else if (found?.note) {
-    searchNote = { kind: "warning", text: found.note };
-  }
+  const searchNote: Note | null =
+    refusalNote(search.error, "error") ??
+    (found?.note ? { kind: "warning", text: found.note } : null);
   /** Home's own sentence: what the server refused. An empty day is not this —
-   *  it is the panel's own "No periods today". A 401 has already ended the
-   *  session through the sweep above, so it says nothing here. */
-  const todayNote: Note | null =
-    today.error && !isExpired(today.error)
-      ? { kind: "error", text: messageOf(today.error) }
-      : null;
+   *  it is the panel's own "No periods today". */
+  const todayNote: Note | null = refusalNote(today.error, "error");
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The class and window a searched figure belongs to, named on the panel: a
    *  percentage with no period under it invites being read as a semester's. An
@@ -902,48 +892,7 @@ const App = (): React.JSX.Element => {
       </AppShell.Header>
       <AppShell.Navbar p="md" visibleFrom="sm">
         <AppShell.Section grow>
-          <Stack gap="xs">
-            <Button
-              onClick={() => navigate(HOME_PATH)}
-              variant={onHome ? "filled" : "subtle"}
-              aria-current={onHome ? "page" : undefined}
-              leftSection={<House size={18} aria-hidden />}
-              fullWidth
-              justify="flex-start"
-            >
-              Home
-            </Button>
-            <Button
-              onClick={() => navigate(DASHBOARD_PATH)}
-              variant={onDashboard ? "filled" : "subtle"}
-              aria-current={onDashboard ? "page" : undefined}
-              leftSection={<CalendarCheck size={18} aria-hidden />}
-              fullWidth
-              justify="flex-start"
-            >
-              Attendance
-            </Button>
-            <Button
-              onClick={() => navigate(SEARCH_PATH)}
-              variant={onSearch ? "filled" : "subtle"}
-              aria-current={onSearch ? "page" : undefined}
-              leftSection={<MagnifyingGlass size={18} aria-hidden />}
-              fullWidth
-              justify="flex-start"
-            >
-              Student Search
-            </Button>
-            <Button
-              onClick={() => navigate(PROFILE_PATH)}
-              variant={onProfile ? "filled" : "subtle"}
-              aria-current={onProfile ? "page" : undefined}
-              leftSection={<UserCircle size={18} aria-hidden />}
-              fullWidth
-              justify="flex-start"
-            >
-              Profile
-            </Button>
-          </Stack>
+          <RailNav active={activeTab(pathname)} onNavigate={navigate} />
         </AppShell.Section>
         <AppShell.Section>
           <Stack gap="xs">
@@ -983,64 +932,7 @@ const App = (): React.JSX.Element => {
           the home indicator sits below the tabs rather than over them. */}
       <AppShell.Footer hiddenFrom="sm" pb="env(safe-area-inset-bottom)">
         {screen === "app" ? (
-          <Group gap={0} wrap="nowrap" h="100%">
-            <UnstyledButton
-              onClick={() => navigate(HOME_PATH)}
-              aria-current={onHome ? "page" : undefined}
-              c={onHome ? "blue" : "dimmed"}
-              flex={1}
-              h="100%"
-            >
-              <Stack align="center" justify="center" gap={2} h="100%">
-                <House size={24} aria-hidden />
-                <Text size="xs" fw={onHome ? 600 : 400}>
-                  Home
-                </Text>
-              </Stack>
-            </UnstyledButton>
-            <UnstyledButton
-              onClick={() => navigate(DASHBOARD_PATH)}
-              aria-current={onDashboard ? "page" : undefined}
-              c={onDashboard ? "blue" : "dimmed"}
-              flex={1}
-              h="100%"
-            >
-              <Stack align="center" justify="center" gap={2} h="100%">
-                <CalendarCheck size={24} aria-hidden />
-                <Text size="xs" fw={onDashboard ? 600 : 400}>
-                  Attendance
-                </Text>
-              </Stack>
-            </UnstyledButton>
-            <UnstyledButton
-              onClick={() => navigate(SEARCH_PATH)}
-              aria-current={onSearch ? "page" : undefined}
-              c={onSearch ? "blue" : "dimmed"}
-              flex={1}
-              h="100%"
-            >
-              <Stack align="center" justify="center" gap={2} h="100%">
-                <MagnifyingGlass size={24} aria-hidden />
-                <Text size="xs" fw={onSearch ? 600 : 400}>
-                  Student Search
-                </Text>
-              </Stack>
-            </UnstyledButton>
-            <UnstyledButton
-              onClick={() => navigate(PROFILE_PATH)}
-              aria-current={onProfile ? "page" : undefined}
-              c={onProfile ? "blue" : "dimmed"}
-              flex={1}
-              h="100%"
-            >
-              <Stack align="center" justify="center" gap={2} h="100%">
-                <UserCircle size={24} aria-hidden />
-                <Text size="xs" fw={onProfile ? 600 : 400}>
-                  Profile
-                </Text>
-              </Stack>
-            </UnstyledButton>
-          </Group>
+          <BarNav active={activeTab(pathname)} onNavigate={navigate} />
         ) : null}
       </AppShell.Footer>
     </AppShell>
