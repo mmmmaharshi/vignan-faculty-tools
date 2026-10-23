@@ -170,10 +170,10 @@ control that names the class you picked was the one you could not read.
   with the drawer it opened (see below).
 - **Below `sm` the rail is replaced by a bottom bar, and there is no drawer.**
   `AppShell.Footer` (`hiddenFrom="sm"`) holds the same three screens as one
-  `UnstyledButton` each — icon over its label, no fill, the colour and a filled
-  icon saying which screen. The rail itself is `visibleFrom="sm"`, so exactly one
-  navigation is in the accessible tree at any width: a rail translated
-  off-canvas is still announced, and two of them also made
+  `UnstyledButton` each — icon over its label, no fill, a blue icon and a
+  semibold label saying which screen. The rail itself is `visibleFrom="sm"`, so
+  exactly one navigation is in the accessible tree at any width: a rail
+  translated off-canvas is still announced, and two of them also made
   `getByRole("button", { name: "Profile" })` ambiguous. `UnstyledButton` is the
   one Mantine component with no button chrome; the rail's `variant` swap has no
   meaning there, which is why the two surfaces are written differently.

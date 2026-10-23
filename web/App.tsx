@@ -14,7 +14,7 @@ import {
   FloppyDisk,
   MagnifyingGlass,
   SignOut,
-  SquaresFour,
+  CalendarCheck,
   UserCircle,
 } from "@phosphor-icons/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
@@ -881,7 +881,7 @@ const App = (): React.JSX.Element => {
               onClick={() => navigate(DASHBOARD_PATH)}
               variant={onDashboard ? "filled" : "subtle"}
               aria-current={onDashboard ? "page" : undefined}
-              leftSection={<SquaresFour size={18} aria-hidden />}
+              leftSection={<CalendarCheck size={18} aria-hidden />}
               fullWidth
               justify="flex-start"
             >
@@ -956,11 +956,7 @@ const App = (): React.JSX.Element => {
               h="100%"
             >
               <Stack align="center" justify="center" gap={2} h="100%">
-                <SquaresFour
-                  size={22}
-                  weight={onDashboard ? "fill" : "regular"}
-                  aria-hidden
-                />
+                <CalendarCheck size={24} aria-hidden />
                 <Text size="xs" fw={onDashboard ? 600 : 400}>
                   Attendance
                 </Text>
@@ -974,11 +970,7 @@ const App = (): React.JSX.Element => {
               h="100%"
             >
               <Stack align="center" justify="center" gap={2} h="100%">
-                <MagnifyingGlass
-                  size={22}
-                  weight={onSearch ? "fill" : "regular"}
-                  aria-hidden
-                />
+                <MagnifyingGlass size={24} aria-hidden />
                 <Text size="xs" fw={onSearch ? 600 : 400}>
                   Student Search
                 </Text>
@@ -992,11 +984,7 @@ const App = (): React.JSX.Element => {
               h="100%"
             >
               <Stack align="center" justify="center" gap={2} h="100%">
-                <UserCircle
-                  size={22}
-                  weight={onProfile ? "fill" : "regular"}
-                  aria-hidden
-                />
+                <UserCircle size={24} aria-hidden />
                 <Text size="xs" fw={onProfile ? 600 : 400}>
                   Profile
                 </Text>
