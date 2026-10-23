@@ -169,7 +169,7 @@ control that names the class you picked was the one you could not read.
   moved out of it when the rail got wide enough to hold them, and the burger went
   with the drawer it opened (see below).
 - **Below `sm` the rail is replaced by a bottom bar, and there is no drawer.**
-  `AppShell.Footer` (`hiddenFrom="sm"`) holds the same three screens as one
+  `AppShell.Footer` (`hiddenFrom="sm"`) holds the same four screens as one
   `UnstyledButton` each — icon over its label, no fill, a blue icon and a
   semibold label saying which screen. The rail itself is `visibleFrom="sm"`, so
   exactly one navigation is in the accessible tree at any width: a rail
@@ -188,12 +188,13 @@ control that names the class you picked was the one you could not read.
 
 ## Routing
 
-Three screens, at three paths: `/dashboard` is the cascade and the register,
-`/profile` is the profile panel, `/search` is the Student Search screen (one roll
+Four screens, at four paths: `/home` is today's timetable and the landing
+screen, `/dashboard` is the cascade and the register, `/profile` is the
+profile panel, `/search` is the Student Search screen (one roll
 number in, the class ECAP says that student is in, the class report's row for it,
 and the profile ECAP holds for it), `/login` is the sign-in form. `/` also renders
 the dashboard and the guard sends it on, so it is a second way in rather than a
-fourth screen; anything else redirects to `/`. **`App` owns all three** — the
+fifth screen; anything else redirects to `/`. **`App` owns all four** — the
 router is not asked to split it, because that would duplicate the cascade's
 state or move it into a context, and ADR 0005 rejected a context for that
 reason.

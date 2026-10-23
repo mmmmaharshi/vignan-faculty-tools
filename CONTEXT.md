@@ -185,6 +185,25 @@ register through a deliberate ask, never through the cascade's refresh loop. See
 ADR 0025.
 _Avoid_: Find student, lookup, search student
 
+**Home**:
+The navigation's first screen and the landing screen: today's own timetable
+for the signed-in faculty member — time, subject, section, and room where
+ECAP states one — read off the faculty dashboard's schedule grid when Home is
+opened, never cached across visits. An empty day says "No periods today",
+which is also what ECAP answers after ~4pm, when it clears the day. See ADR
+0027.
+_Avoid_: Dashboard, landing page, homepage
+
+**Today's classes**:
+ECAP's own answer to what the signed-in faculty member teaches today:
+`GetToDayClasses` on the faculty dashboard's proxy, no parameters, taking the
+`r` session marker the proxy declares. It answers an HTML fragment for the
+`tblschedule` grid; the cleared-evening fragment is a bare `</table>`, which
+is an empty day rather than a failure. Columns are read by what the grid's
+own header names, because the teaching-day shape is still unpinned. See ADR
+0027.
+_Avoid_: Schedule, periods, routine
+
 ## Identity
 
 **Sign-in**:
