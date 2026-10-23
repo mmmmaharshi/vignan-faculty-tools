@@ -951,38 +951,40 @@ const App = (): React.JSX.Element => {
         )}
       </AppShell.Main>
       <AppShell.Footer p="xs" hiddenFrom="sm">
-        <Group justify="space-around" gap={0}>
-          <Button
-            onClick={() => navigate(DASHBOARD_PATH)}
-            variant={onDashboard ? "filled" : "subtle"}
-            aria-current={onDashboard ? "page" : undefined}
-            leftSection={<SquaresFour size={18} aria-hidden />}
-            fullWidth
-            justify="center"
-          >
-            Attendance
-          </Button>
-          <Button
-            onClick={() => navigate(SEARCH_PATH)}
-            variant={onSearch ? "filled" : "subtle"}
-            aria-current={onSearch ? "page" : undefined}
-            leftSection={<MagnifyingGlass size={18} aria-hidden />}
-            fullWidth
-            justify="center"
-          >
-            Student Search
-          </Button>
-          <Button
-            onClick={() => navigate(PROFILE_PATH)}
-            variant={onProfile ? "filled" : "subtle"}
-            aria-current={onProfile ? "page" : undefined}
-            leftSection={<UserCircle size={18} aria-hidden />}
-            fullWidth
-            justify="center"
-          >
-            Profile
-          </Button>
-        </Group>
+        {screen === "app" ? (
+          <Group justify="space-around" gap={0}>
+            <Button
+              onClick={() => navigate(DASHBOARD_PATH)}
+              variant={onDashboard ? "filled" : "subtle"}
+              aria-current={onDashboard ? "page" : undefined}
+              leftSection={<SquaresFour size={18} aria-hidden />}
+              fullWidth
+              justify="center"
+            >
+              Attendance
+            </Button>
+            <Button
+              onClick={() => navigate(SEARCH_PATH)}
+              variant={onSearch ? "filled" : "subtle"}
+              aria-current={onSearch ? "page" : undefined}
+              leftSection={<MagnifyingGlass size={18} aria-hidden />}
+              fullWidth
+              justify="center"
+            >
+              Student Search
+            </Button>
+            <Button
+              onClick={() => navigate(PROFILE_PATH)}
+              variant={onProfile ? "filled" : "subtle"}
+              aria-current={onProfile ? "page" : undefined}
+              leftSection={<UserCircle size={18} aria-hidden />}
+              fullWidth
+              justify="center"
+            >
+              Profile
+            </Button>
+          </Group>
+        ) : null}
       </AppShell.Footer>
     </AppShell>
   );
