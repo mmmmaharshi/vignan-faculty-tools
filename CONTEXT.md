@@ -119,7 +119,7 @@ subject and states no dates at all, that one call is joined by a second — the
 **Student Wise report** for the same roll number over the same range — because
 there the dates exist nowhere else. The wider read is a third call, over the
 remembered start, and only when the window starts after it. Not the same thing
-as **Profile**, which is the rail's screen about the signed-in user's own
+as **Profile**, which is the navigation's screen about the signed-in user's own
 session. See `docs/adr/0018-read-a-students-profile-when-the-panel-opens.md`,
 `docs/adr/0021-the-all-subjects-panel-asks-for-one-students-grid.md` and
 `docs/adr/0022-the-all-subjects-view-probes-one-subject-for-its-start.md`.
@@ -174,7 +174,7 @@ nothing about them gets no section at all.
 _Avoid_: Arrears, supplementary exams, failed subjects
 
 **Student Search**:
-The rail's third screen: one roll number in, the class ECAP's profile page puts
+The navigation's third screen: one roll number in, the class ECAP's profile page puts
 that student in, the row that class's own report holds for them (attendance and
 band), and the GPA, semesters, phone numbers and backlogs ECAP states for them.
 The class is read from the student's own page rather than picked, so a student

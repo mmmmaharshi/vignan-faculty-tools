@@ -165,8 +165,26 @@ control that names the class you picked was the one you could not read.
   screen is a variant, and it cannot drift from the URL. `fullWidth` and
   `justify="flex-start"` are the only other props — the rail looks the way it
   looks because it is stock components with stock props.
-- **The header carries the burger and the title, and nothing else.** The user
-  name and Sign out moved out of it when the rail got wide enough to hold them.
+- **The header carries the title, and nothing else.** The user name and Sign out
+  moved out of it when the rail got wide enough to hold them, and the burger went
+  with the drawer it opened (see below).
+- **Below `sm` the rail is replaced by a bottom bar, and there is no drawer.**
+  `AppShell.Footer` (`hiddenFrom="sm"`) holds the same three screens as one
+  `UnstyledButton` each — icon over its label, no fill, the colour and a filled
+  icon saying which screen. The rail itself is `visibleFrom="sm"`, so exactly one
+  navigation is in the accessible tree at any width: a rail translated
+  off-canvas is still announced, and two of them also made
+  `getByRole("button", { name: "Profile" })` ambiguous. `UnstyledButton` is the
+  one Mantine component with no button chrome; the rail's `variant` swap has no
+  meaning there, which is why the two surfaces are written differently.
+  `test/client.spec.ts` pins the single-navigation property.
+- **The footer grows by the safe-area inset and pads it away**, and the main
+  area pads by the same amount, so the home indicator sits under the tabs rather
+  than over them. Both numbers are `env(safe-area-inset-bottom)`, not a guess.
+- **Sign out is on the rail above `sm` and on the Profile screen below it.** A
+  phone has no drawer, so the screen about the signed-in user is where the way
+  out has to be reachable; the Profile copy is `hiddenFrom="sm"` so the two never
+  appear together.
 
 ## Routing
 
