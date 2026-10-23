@@ -30,5 +30,6 @@ type explicitly rather than trusting the runtime's table.
 - `test/pwa.spec.ts` pins the contract without credentials: the manifest
   states every install field with served icons, the worker takes the page,
   and no `/api/*` entry sits in any cache after the boot read.
-- No offline page and no push: deliberately skipped (see above). Say so here
-  if that ever changes, rather than discovering it from a blank screen.
+- An offline page exists (`web/public/offline.html`, precached at install):
+  with no connection there is nothing true to show, so it says exactly that
+  instead of a blank error. No push: deliberately skipped (see above).
