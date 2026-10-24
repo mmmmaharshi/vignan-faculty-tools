@@ -38,9 +38,10 @@ type StudentDetailsProps = {
    *  the attendance figures are on screen while this is still arriving. */
   profile: StudentProfile | null;
   busy: boolean;
-  /** The class and period a searched figure belongs to. Only Student Search
-   *  passes it — a register on screen already names both of its own. */
-  scope?: string;
+  /** The class and window a searched figure belongs to, one labeled row each.
+   *  Only Student Search passes it — a register on screen already names both
+   *  of its own. */
+  scope?: readonly { label: string; value: string }[];
   /** Render the panel in the page flow rather than in a drawer. Used by the
    *  Student Search screen, which shows one result below its form. */
   inline?: boolean;
@@ -205,23 +206,20 @@ export const StudentDetails = ({
                   </Text>
                 </Table.Td>
               </Table.Tr>
-              {/* The class the figure belongs to, one piece per row: the
-                  scope string joins course, semester, branch, section and
-                  window with middots, which wraps badly as one line. */}
-              {scope
-                ? scope.split("\u00B7").map((piece, index) => (
-                    <Table.Tr key={`${piece.trim()}-${index}`}>
-                      <Table.Td c="dimmed">
-                        <Text size="sm">{index === 0 ? "Class" : ""}</Text>
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text c="dimmed" size="xs">
-                          {piece.trim()}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))
-                : null}
+              {/* The class the figure belongs to, one labeled row each:
+                  the caller names every piece, so no row goes anonymous. */}
+              {scope?.map(({ label, value }) => (
+                <Table.Tr key={label}>
+                  <Table.Td c="dimmed">
+                    <Text size="sm">{label}</Text>
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <Text c="dimmed" size="xs">
+                      {value}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              )) ?? null}
             </Table.Tbody>
           </Table>
           {/* A figure the Portal did not give is an absence, not a zero, so its

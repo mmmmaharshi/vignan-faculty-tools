@@ -362,16 +362,23 @@ const App = (): React.JSX.Element => {
    *  percentage with no period under it invites being read as a semester's. An
    *  inferred semester is marked as one, so a guess never prints as a fact. */
   const searchScope = found?.class
-    ? `${[
-        found.class.course.label,
-        found.class.semesterInferred
-          ? `${found.class.semester.label} (inferred)`
-          : found.class.semester.label,
-        found.class.branch.label,
-        found.class.section?.label ?? "",
+    ? [
+        { label: "Course", value: found.class.course.label },
+        {
+          label: "Semester",
+          value: found.class.semesterInferred
+            ? `${found.class.semester.label} (inferred)`
+            : found.class.semester.label,
+        },
+        { label: "Branch", value: found.class.branch.label },
+        ...(found.class.section
+          ? [{ label: "Section", value: found.class.section.label }]
+          : []),
+        {
+          label: "Window",
+          value: `${found.window.from} to ${found.window.to}`,
+        },
       ]
-        .filter(Boolean)
-        .join(" · ")} · ${found.window.from} to ${found.window.to}`
     : undefined; /** The name arriving is also the moment the saved classes become readable, so
    *  both are set together: a restore never went through the sign-in form. The
    *  stored values are not applied to the cascade here — filling the form is the
