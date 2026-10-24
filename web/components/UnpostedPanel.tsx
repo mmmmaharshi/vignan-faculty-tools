@@ -38,9 +38,17 @@ const BranchPending = ({
     <Stack gap="xs">
       <Text fw={600}>{short}</Text>
       {pending.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          all posted ✅
-        </Text>
+        <Table striped withTableBorder tabularNums>
+          <Table.Tbody>
+            <Table.Tr>
+              <Table.Td>
+                <Text c="dimmed" size="sm">
+                  all posted ✅
+                </Text>
+              </Table.Td>
+            </Table.Tr>
+          </Table.Tbody>
+        </Table>
       ) : (
         <Table striped highlightOnHover withTableBorder withColumnBorders>
           <Table.Thead>
