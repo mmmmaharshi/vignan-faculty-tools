@@ -61,7 +61,7 @@ export const HomePanel = ({
               <Table.Td>
                 <Text fw={700}>{entry.period || "—"}</Text>
                 {entry.time ? (
-                  <Text c="dimmed" size="sm">
+                  <Text c="dimmed" size="xs">
                     {entry.time}
                   </Text>
                 ) : null}
