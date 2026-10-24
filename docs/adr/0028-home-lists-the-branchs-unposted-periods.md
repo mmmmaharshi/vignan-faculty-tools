@@ -1,10 +1,11 @@
-# ADR 0028: Home ticks the day's posted periods in a branch matrix
+# ADR 0028: Home lists pending postings per branch
 
 ## Status
 
 Accepted. Supersedes two earlier shapes: the section first shipped listing
-only blank-count periods, then all tables with tinted rows. Faculty asked for
-the compact matrix instead — no details — so this records what replaced both.
+only blank-count periods, then a ticked branch-by-section matrix. Faculty
+asked for the exceptions only — no details — so this records what replaced
+both.
 
 ## Context
 
@@ -27,10 +28,9 @@ Home reads the report through `POST /api/unposted`, below the timetable:
   never travel. A refusal throws before the parser is reached, so it says
   the read failed rather than passing for all posted — and it stays in its
   own section, never failing the timetable above it.
-- The panel shows branch tabs, section tabs under them, one row per
-  semester and one column per period: ticked where posted, crossed where
-  not, empty where the report never listed the period. No subjects, no
-  staff, no counts — the matrix is the whole answer.
+- The panel shows one branch after another: each pending period with its
+  section and the staff it waits on; a fully posted branch reads as one
+  line. No subjects, no counts — the exceptions are the whole answer.
 - A report with no section blocks is no classes that day, which is a
   different answer from all posted.
 

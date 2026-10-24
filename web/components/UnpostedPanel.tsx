@@ -1,16 +1,6 @@
-import {
-  Alert,
-  Loader,
-  Paper,
-  Stack,
-  Table,
-  Tabs,
-  Text,
-  Title,
-} from "@mantine/core";
+import { Alert, Loader, Paper, Stack, Table, Text, Title } from "@mantine/core";
 
 import type { DayWorkSection } from "../../shared/api";
-import { PERIOD_COUNT } from "../period-times";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
@@ -23,76 +13,62 @@ export type UnpostedPanelProps = {
   sections?: DayWorkSection[] | null;
   busy?: boolean;
   /** A read that failed says so here. A fully posted day is not this — it is
-   *  the matrix below with every cell ticked. */
+   *  an "all posted" line below. */
   note?: Note | null;
 };
-/** One matrix cell: ticked when posted, crossed when not, empty when the
- *  report never listed the period. */
-const markOf = (cell: { posted: boolean } | undefined): string => {
-  if (!cell) return "—";
-  return cell.posted ? "✅" : "❌";
-};
-/** One branch's matrix: section tabs across the top, one row per semester,
- *  one column per period. A ticked period is posted; a cross is not yet;
- *  empty is a period the report never listed. */
-const BranchMatrix = ({
+/** One branch's pending postings: each entry names its period, section, and
+ *  the staff it waits on. A branch with none reads as one all-posted line. */
+const BranchPending = ({
+  short,
   sections,
 }: {
+  short: string;
   sections: DayWorkSection[];
 }): React.JSX.Element => {
-  const names = [...new Set(sections.map((s) => s.section))];
-  const semesters = [...new Set(sections.map((s) => s.semester))];
-  const at = (semester: string, section: string, period: string) =>
-    sections
-      .find((s) => s.semester === semester && s.section === section)
-      ?.cells.find((c) => c.period === period);
+  const pending = sections.flatMap((section) =>
+    section.cells
+      .filter((cell) => !cell.posted)
+      .map((cell) => ({
+        period: cell.period,
+        where: `${section.semester.replace(/\s*Semester\s*/i, "")}-${section.section}`,
+        staff: cell.staff,
+      }))
+  );
   return (
-    <Tabs defaultValue={names[0] ?? ""}>
-      <Tabs.List>
-        {names.map((name) => (
-          <Tabs.Tab key={name} value={name}>
-            Sec {name}
-          </Tabs.Tab>
-        ))}
-      </Tabs.List>
-      {names.map((name) => (
-        <Tabs.Panel key={name} value={name} pt="sm">
-          <Table.ScrollContainer minWidth={480}>
-            <Table striped highlightOnHover withTableBorder withColumnBorders>
-              <Table.Thead>
-                <Table.Tr>
-                  <Table.Th>Semester</Table.Th>
-                  {Array.from({ length: PERIOD_COUNT }, (_, index) => (
-                    <Table.Th key={index + 1} ta="center">
-                      {index + 1}
-                    </Table.Th>
-                  ))}
-                </Table.Tr>
-              </Table.Thead>
-              <Table.Tbody>
-                {semesters.map((semester) => (
-                  <Table.Tr key={semester}>
-                    <Table.Td c="dimmed">
-                      <Text size="sm">
-                        {semester.replace(/\s*Semester\s*/i, "")}
-                      </Text>
-                    </Table.Td>
-                    {Array.from({ length: PERIOD_COUNT }, (_, index) => {
-                      const cell = at(semester, name, String(index + 1));
-                      return (
-                        <Table.Td key={index + 1} ta="center">
-                          <Text size="lg">{markOf(cell)}</Text>
-                        </Table.Td>
-                      );
-                    })}
-                  </Table.Tr>
-                ))}
-              </Table.Tbody>
-            </Table>
-          </Table.ScrollContainer>
-        </Tabs.Panel>
-      ))}
-    </Tabs>
+    <Stack gap="xs">
+      <Text fw={600}>{short}</Text>
+      {pending.length === 0 ? (
+        <Text c="dimmed" size="sm">
+          all posted ✅
+        </Text>
+      ) : (
+        <Table striped highlightOnHover withTableBorder withColumnBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Period</Table.Th>
+              <Table.Th>Section</Table.Th>
+              <Table.Th>Staff</Table.Th>
+            </Table.Tr>
+          </Table.Thead>
+          <Table.Tbody>
+            {pending.map((entry) => (
+              // The report states no identifiers; period plus section is key.
+              <Table.Tr key={`${entry.period}-${entry.where}`}>
+                <Table.Td>
+                  <Text fw={700}>{entry.period || "—"}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{entry.where}</Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text size="sm">{entry.staff || "—"}</Text>
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      )}
+    </Stack>
   );
 };
 export const UnpostedPanel = ({
@@ -113,7 +89,7 @@ export const UnpostedPanel = ({
   const inBranch = (short: string): DayWorkSection[] =>
     sections ? sections.filter((s) => s.branchShort === short) : [];
   return (
-    <Stack gap="md" mt="xl" pb="md">
+    <Stack gap="md" mt="xl">
       <Title order={4}>Day Class Work{date ? ` · ${date}` : ""}</Title>
       {note ? (
         <Alert color={note.kind === "error" ? "red" : "yellow"}>
@@ -133,22 +109,15 @@ export const UnpostedPanel = ({
           <Text c="dimmed">No classes{date ? ` on ${date}` : ""}.</Text>
         </Paper>
       ) : null}
-      {sections && reported ? (
-        <Tabs defaultValue={branches[0] ?? ""}>
-          <Tabs.List>
-            {branches.map((branch) => (
-              <Tabs.Tab key={branch} value={branch}>
-                {branch}
-              </Tabs.Tab>
-            ))}
-          </Tabs.List>
-          {branches.map((branch) => (
-            <Tabs.Panel key={branch} value={branch} pt="sm">
-              <BranchMatrix sections={inBranch(branch)} />
-            </Tabs.Panel>
-          ))}
-        </Tabs>
-      ) : null}
+      {sections && reported
+        ? branches.map((branch) => (
+            <BranchPending
+              key={branch}
+              short={branch}
+              sections={inBranch(branch)}
+            />
+          ))
+        : null}
     </Stack>
   );
 };

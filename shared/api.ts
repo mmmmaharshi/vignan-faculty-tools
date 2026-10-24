@@ -233,11 +233,12 @@ export interface TodayClassesReply {
    *  a cleared evening or a day with no periods, never a failed read. */
   classes: TodayClass[];
 }
-/** One held period out of ECAP's day-class-work report: posted or not, which
- *  is all the matrix shows. */
+/** One held period out of ECAP's day-class-work report: posted or not, with
+ *  who was to take it for the pending list. */
 export interface DayWorkCell {
   period: string;
   posted: boolean;
+  staff: string;
 }
 /** One section's block of the day-class-work report. */
 export interface DayWorkSection {

@@ -320,8 +320,8 @@ const stub = async (route: Route): Promise<void> => {
           semester: "III Semester",
           section: "B",
           cells: [
-            { period: "1", posted: true },
-            { period: "2", posted: false },
+            { period: "1", posted: true, staff: "Some One" },
+            { period: "2", posted: false, staff: "Other Two" },
           ],
         },
         {
@@ -329,7 +329,7 @@ const stub = async (route: Route): Promise<void> => {
           branchShort: "CSE (AI)",
           semester: "III Semester",
           section: "B",
-          cells: [{ period: "1", posted: true }],
+          cells: [{ period: "1", posted: true, staff: "Third Person" }],
         },
       ],
     });
@@ -513,7 +513,7 @@ test.describe("the app's own data layer", () => {
     ).toHaveCount(7);
     expect(todayCalls, "the skeleton is drawn from one empty read").toBe(1);
   });
-  test("Home tabs the branches with a ticked period matrix", async ({
+  test("Home lists pending postings per branch, all-posted as one line", async ({
     page,
   }) => {
     await page.goto("/login");
@@ -521,29 +521,16 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("heading", { name: "Day Class Work" })
     ).toBeVisible({ timeout: 15_000 });
-    // Inactive branch tabs stay mounted but hidden, so the counts scope to
-    // the visible panel: IT opens with one tick and one cross.
-    const shown = () => page.locator('[role="tabpanel"]:visible');
-    await expect(shown().getByText("✅", { exact: true })).toHaveCount(1);
-    await expect(shown().getByText("❌", { exact: true })).toHaveCount(1);
-    // Branch tabs name the short form ECAP itself uses on its dropdowns.
-    await page.getByRole("tab", { name: "CSE (AI)" }).click();
-    await expect(page.getByRole("tab", { name: "Sec B" })).toBeVisible();
-    await expect(shown().getByText("✅", { exact: true })).toHaveCount(1);
-    await expect(shown().getByText("❌", { exact: true })).toHaveCount(0);
+    // IT has one pending period: its number, its section, and the staff it
+    // waits on — nothing else.
+    await expect(page.getByText("Other Two", { exact: true })).toBeVisible();
+    await expect(page.getByText("III-B", { exact: true })).toBeVisible();
+    await expect(page.getByText("Some One", { exact: true })).toHaveCount(0);
+    // CSE (AI) posted everything: one line, no table.
+    await expect(
+      page.getByText("all posted \u2705", { exact: true })
+    ).toBeVisible();
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
-    // Eight columns cannot fit a phone: the matrix must scroll inside its
-    // own container rather than pushing the whole page sideways.
-    await page.setViewportSize({ width: 390, height: 844 });
-    await expect
-      .poll(
-        () =>
-          page.evaluate(
-            () => document.documentElement.scrollWidth - window.innerWidth
-          ),
-        { message: "no page-level sideways scroll on a phone", timeout: 5000 }
-      )
-      .toBeLessThanOrEqual(1);
   });
   test("a cleared day keeps the slots' remembered hours", async ({ page }) => {
     await page.goto("/login");

@@ -1096,8 +1096,8 @@ test.describe("the unposted handler", () => {
       reply.sections[0]?.cells,
       "posted rows tick, blank rows do not"
     ).toEqual([
-      { period: "1", posted: true },
-      { period: "2", posted: false },
+      { period: "1", posted: true, staff: "Some One" },
+      { period: "2", posted: false, staff: "Other Two" },
     ]);
     // The ask carries every offered branch plus every titled semester: one
     // call covers the whole day.

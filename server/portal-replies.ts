@@ -571,6 +571,7 @@ export function parseDayClassWork(
       cells.push({
         period: rowCells[0] ?? "",
         posted: (rowCells[5] ?? "") !== "" || (rowCells[6] ?? "") !== "",
+        staff: rowCells[2] ?? "",
       });
     }
     sections.push({

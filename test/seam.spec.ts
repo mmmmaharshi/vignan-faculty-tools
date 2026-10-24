@@ -469,8 +469,8 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     expect(blanked.sections[0]?.branchShort).toBe("Information Technology");
     expect(
       blanked.sections[0]?.cells.filter((cell) => !cell.posted),
-      "only the blanked period reads unposted"
-    ).toEqual([{ period: "1", posted: false }]);
+      "only the blanked period reads unposted, keeping who was to take it"
+    ).toEqual([{ period: "1", posted: false, staff: "MRS.G.MANI" }]);
     // No section blocks at all is no classes that day, not all posted.
     expect(parseDayClassWork("<div>holiday</div>")).toEqual({
       reported: false,
