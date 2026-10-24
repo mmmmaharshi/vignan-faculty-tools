@@ -56,6 +56,8 @@ let semStartCalls = 0;
 const profileRolls: string[] = [];
 /** How often Home asked for today's timetable — once per opening. */
 let todayCalls = 0;
+/** How often Home asked for the branch's unposted periods. */
+let unpostedCalls = 0;
 /** When true, the stub answers a cleared day: no periods at all. */
 let todayEmpty = false;
 /** Whether the panel asked for a student's own day-wise grid — sent only when
@@ -306,6 +308,23 @@ const stub = async (route: Route): Promise<void> => {
     );
     return;
   }
+  if (path === "/api/unposted") {
+    unpostedCalls += 1;
+    await json({
+      date: "24/10/2026",
+      reported: true,
+      periods: [
+        {
+          period: "2",
+          subject: "MFCS",
+          semester: "III Semester",
+          section: "B",
+          staff: "Some One",
+        },
+      ],
+    });
+    return;
+  }
   if (path === "/api/faculty-profile") {
     // Long type names on purpose: the seven-column table must survive them
     // on a phone screen.
@@ -384,6 +403,7 @@ test.describe("the app's own data layer", () => {
     absentAsked = false;
     todayCalls = 0;
     todayEmpty = false;
+    unpostedCalls = 0;
     await page.route("**/api/**", stub);
   });
   test("the boot read decides which screen a stranger gets", async ({
@@ -445,7 +465,8 @@ test.describe("the app's own data layer", () => {
       timeout: 15_000,
     });
     await expect(
-      page.getByRole("columnheader", { name: "Period" })
+      page.getByRole("columnheader", { name: "Period" }).first(),
+      "the timetable's own header, not the unposted table's"
     ).toBeVisible();
     await expect(page.getByRole("cell", { name: "AI 3 IT-C" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Period 1" })).toBeVisible();
@@ -481,6 +502,18 @@ test.describe("the app's own data layer", () => {
       page.getByText("no classes today", { exact: true })
     ).toHaveCount(7);
     expect(todayCalls, "the skeleton is drawn from one empty read").toBe(1);
+  });
+  test("Home lists the branch's unposted periods below the timetable", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await signIn(page);
+    await expect(
+      page.getByRole("heading", { name: "Attendance Not Posted" })
+    ).toBeVisible({ timeout: 15_000 });
+    // The staff the posting waits on, as ECAP writes the name.
+    await expect(page.getByText("Some One", { exact: true })).toBeVisible();
+    expect(unpostedCalls, "one branch read per Home opening").toBe(1);
   });
   test("a cleared day keeps the slots' remembered hours", async ({ page }) => {
     await page.goto("/login");

@@ -9,9 +9,10 @@ import {
   handleSemStart,
   handleStudentProfile,
   handleTodayClasses,
+  handleUnposted,
   requireLevels,
 } from "../server/server-routes";
-import type { PortalReader } from "../server/server-routes";
+import type { PortalReader, DayWorkRequest } from "../server/server-routes";
 import type {
   Option,
   RegisterRequest,
@@ -43,6 +44,8 @@ type Calls = {
   studentWise: [string, string][];
   /** The window each Student Wise read was asked over. */
   studentWiseWindows: { from: string; to: string }[];
+  /** What each day-class-work read was asked for. */
+  dayWork: DayWorkRequest[];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
@@ -88,9 +91,12 @@ const fake = (
     studentProfile?: string;
     studentWise?: string;
     /** The dashboard's schedule fragment for today. */
-    today?: string /** A Student Wise grid per month-step start, so the walk can be driven
+    today?: string;
+    /** The day-class-work report's fragment for the branch and date. */
+    dayWork?: string;
+    /** A Student Wise grid per month-step start, so the walk can be driven
      *  month by month. A month missing from the map answers empty, which is
-     *  what stops the walk. */;
+     *  what stops the walk. */
     studentWiseMonths?: Record<string, string>;
     studentFails?: boolean;
   } = {}
@@ -105,6 +111,7 @@ const fake = (
     studentProfile: [],
     studentWise: [],
     studentWiseWindows: [],
+    dayWork: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -163,6 +170,10 @@ const fake = (
         leaveStatus: [],
       }),
     todayClasses: () => resolved(answers.today ?? ""),
+    dayClassWork: (p) => {
+      calls.dayWork.push(p);
+      return resolved(answers.dayWork ?? "");
+    },
   };
   return { reader, calls };
 };
@@ -1049,5 +1060,74 @@ test.describe("the today handler", () => {
       todayClasses: () => Promise.reject(new HttpError(502, "down")),
     };
     await expect(handleTodayClasses(reader)).rejects.toThrow("down");
+  });
+});
+/** One section block with the report's own geometry: a posted period with
+ *  both counts, and a held period with neither. */
+const DAYWORK = `<b>Course:</b>&nbsp;B.Tech<div><b>Semester:</b>&nbsp;III Semester</div><div><b>Section:</b>&nbsp;B</div>
+<table><tr><td>Period</td><td>Subject</td><td>Name of the staff</td><td>Unit.No</td><td>Topics Covered</td><td>Present</td><td>Absent</td><td>Rolls</td></tr>
+<tr><td>1</td><td>MFCS</td><td>Some One</td><td>-</td><td>-</td><td>30</td><td>5</td><td>21B</td></tr>
+<tr><td>2</td><td>SE</td><td>Other Two</td><td>-</td><td>-</td><td></td><td></td><td></td></tr></table>`;
+const itBranch = [
+  opt("0", "-Branch-"),
+  opt("6", "Information Technology", "IT"),
+];
+const titledSemesters = [
+  opt("2", "III Semester", "2025"),
+  opt("4", "V Semester", "2024"),
+];
+test.describe("the unposted handler", () => {
+  test("names periods with blank counts across the branch", async () => {
+    const { reader, calls } = fake({
+      branch: itBranch,
+      semester: titledSemesters,
+      dayWork: DAYWORK,
+    });
+    const reply = await handleUnposted(reader);
+    expect(reply.date, "the campus day, not the server's").toMatch(
+      /^\d\d\/\d\d\/\d\d\d\d$/
+    );
+    expect(reply.reported).toBe(true);
+    expect(reply.periods).toEqual([
+      {
+        period: "2",
+        subject: "SE",
+        semester: "III Semester",
+        section: "B",
+        staff: "Other Two",
+      },
+    ]);
+    // The ask carries the matched course and branch plus every titled
+    // semester: one call covers the whole branch.
+    expect(nth(calls.dayWork, 0)).toMatchObject({
+      course: { value: "1", label: "B.Tech" },
+      branch: { value: "6", label: "Information Technology" },
+      date: reply.date,
+    });
+    expect(
+      nth(calls.dayWork, 0).semesters.map((s) => s.value),
+      "only semesters the Portal counts into the year travel"
+    ).toEqual(["2", "4"]);
+  });
+  test("a branch ECAP does not offer fails named", async () => {
+    const { reader } = fake({ branch: [opt("9", "CSE")] });
+    await expect(handleUnposted(reader)).rejects.toThrow(
+      /Information Technology/
+    );
+  });
+  test("a dead session during the read still signs out", async () => {
+    const { reader } = fake({ course: [] });
+    await expect(handleUnposted(reader)).rejects.toThrow(/session expired/i);
+  });
+  test("a portal refusal stays a refusal, never all posted", async () => {
+    const { reader: base } = fake({
+      branch: itBranch,
+      semester: titledSemesters,
+    });
+    const reader: PortalReader = {
+      ...base,
+      dayClassWork: () => Promise.reject(new HttpError(502, "down")),
+    };
+    await expect(handleUnposted(reader)).rejects.toThrow("down");
   });
 });

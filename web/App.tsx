@@ -55,6 +55,7 @@ import {
   useSemAbsences,
   useSemStart,
   useTodayClasses,
+  useUnposted,
 } from "./client";
 import type { RegisterClick, FindClick, ApiError } from "./client";
 import { ClassPicker } from "./components/ClassPicker";
@@ -74,6 +75,7 @@ import { RegisterTable } from "./components/RegisterTable";
 import { SavedClasses } from "./components/SavedClasses";
 import { SignInPanel } from "./components/SignInPanel";
 import { StudentDetails } from "./components/StudentDetails";
+import { UnpostedPanel } from "./components/UnpostedPanel";
 import {
   notePeriodTimes,
   readPeriodTimes,
@@ -210,6 +212,9 @@ const App = (): React.JSX.Element => {
   const [slotTimes, setSlotTimes] = useState<PeriodTimes>(() =>
     readPeriodTimes()
   );
+  /** Periods across the branch with no posted attendance today: read with the
+   *  timetable when Home opens, and a refusal stays in its own section. */
+  const unposted = useUnposted(Boolean(onHome));
   /** Student Search: the roll being typed and the ask the panel below the form
    *  is showing. The ask carries a click number for the register's reason — a
    *  search is deliberate, so asking again reads again. */
@@ -344,6 +349,7 @@ const App = (): React.JSX.Element => {
     search.error ??
     facultyProfile.error ??
     today.error ??
+    unposted.error ??
     semStart.error ??
     semAbsences.error;
   const filterNote: Note | null =
@@ -369,6 +375,9 @@ const App = (): React.JSX.Element => {
   /** Home's own sentence: what the server refused. An empty day is not this —
    *  it is the skeleton table with blank classes. */
   const todayNote: Note | null = refusalNote(today.error, "error");
+  /** The unposted section's own sentence. A 401 has already ended the session
+   *  through the sweep above, so it says nothing here. */
+  const unpostedNote: Note | null = refusalNote(unposted.error, "error");
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The class and window a searched figure belongs to, named on the panel: a
    *  percentage with no period under it invites being read as a semester's. An
@@ -783,12 +792,21 @@ const App = (): React.JSX.Element => {
     case "app": {
       if (onHome) {
         body = (
-          <HomePanel
-            classes={today.data?.classes ?? null}
-            busy={today.isLoading}
-            note={todayNote}
-            slotTimes={slotTimes}
-          />
+          <>
+            <HomePanel
+              classes={today.data?.classes ?? null}
+              busy={today.isLoading}
+              note={todayNote}
+              slotTimes={slotTimes}
+            />
+            <UnpostedPanel
+              date={unposted.data?.date ?? null}
+              reported={unposted.data?.reported}
+              periods={unposted.data?.periods ?? null}
+              busy={unposted.isLoading}
+              note={unpostedNote}
+            />
+          </>
         );
       } else if (onProfile) {
         body = (

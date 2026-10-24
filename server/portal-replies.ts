@@ -8,6 +8,7 @@ import type {
   StudentProfile,
   StudentSgpa,
   TodayClass,
+  UnpostedPeriod,
 } from "../shared/api.js";
 import type { RegisterRow } from "./attendance-bands.js";
 
@@ -535,6 +536,44 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
       declined: headNumber(cells[6] ?? ""),
       available: headNumber(cells[7] ?? ""),
     }));
+}
+/**
+ * The periods ECAP's day-class-work report states with no posted attendance,
+ * in the report's own order. The report lays one block per section — course,
+ * branch, semester, section and headcount, then one row per period with the
+ * subject, the staff, and the present/absent counts. A held period whose
+ * counts are blank is not yet posted: every posted period in every live reply
+ * states both counts, so blank is the absence of a posting rather than of a
+ * class. A reply with no section blocks states no classes at all, which is
+ * not the same as all posted.
+ */
+const SECTION_BLOCK = /<b>Course:<\/b>/i;
+const BLOCK_SEMESTER = /<b>Semester:<\/b>&nbsp;(?<semester>[^<]*)/i;
+const BLOCK_SECTION = /<b>Section:<\/b>&nbsp;(?<section>[^<]*)/i;
+export function parseDayClassWork(html: string): {
+  reported: boolean;
+  periods: UnpostedPeriod[];
+} {
+  const blocks = html.split(SECTION_BLOCK).slice(1);
+  const periods: UnpostedPeriod[] = [];
+  for (const block of blocks) {
+    const semester =
+      block.match(BLOCK_SEMESTER)?.groups?.semester?.trim() ?? "";
+    const section = block.match(BLOCK_SECTION)?.groups?.section?.trim() ?? "";
+    for (const row of block.match(ROW) ?? []) {
+      const cells = cellsOf(row);
+      if (cells.length < 8 || !/^\d+$/.test(cells[0] ?? "")) continue;
+      if ((cells[5] ?? "") !== "" || (cells[6] ?? "") !== "") continue;
+      periods.push({
+        period: cells[0] ?? "",
+        subject: cells[1] ?? "",
+        semester,
+        section,
+        staff: cells[2] ?? "",
+      });
+    }
+  }
+  return { reported: blocks.length > 0, periods };
 }
 /**
  * Today's periods out of the faculty dashboard's schedule grid, in the grid's

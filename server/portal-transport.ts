@@ -63,6 +63,15 @@ export const DASHBOARD_REMOTE: Remote = {
   referer: `${BASE}/vignanit/academics/facultydashboard.aspx`,
   session: "r",
 };
+/** The day-class-work report's own proxy: branch-wide periods with their
+ *  posted counts for one date. The proxy declares the `no` marker, and the
+ *  page calls it with course, branch, semester and section values plus their
+ *  labels. Proved live 2026-10-24. */
+export const DAYWORK_REMOTE: Remote = {
+  proxy: `${BASE}/vignanit/ajax/Academics_rptdayclasswork,App_Web_rptdayclasswork.aspx.a2a1b31c.ashx`,
+  referer: `${BASE}/vignanit/ACADEMICS/rptdayclasswork.aspx?scrid=4027`,
+  session: "no",
+};
 /** The faculty's photo and designation come from the main.aspx proxy, not the
  *  register proxy. Different session markers per method (see the proxy def). */
 export const MAIN_PHOTO_REMOTE: Remote = {

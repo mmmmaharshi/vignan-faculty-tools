@@ -15,6 +15,7 @@ import type {
   StudentProfile,
   StudentRequest,
   TodayClassesReply,
+  UnpostedReply,
 } from "../shared/api.js";
 import type { OverallLookup } from "./attendance-bands.js";
 import { statedStartDate, summarise } from "./attendance-bands.js";
@@ -29,6 +30,7 @@ import {
   parseStudentClass,
   parseStudentProfile,
   parseTodayClasses,
+  parseDayClassWork,
   realOptions,
   registerDates,
   studentWiseDates,
@@ -68,7 +70,31 @@ export type PortalReader = {
   ) => Promise<string>;
   /** The faculty dashboard's schedule fragment for today. */
   todayClasses: () => Promise<string>;
+  /** The day-class-work report's fragment for one branch and date. */
+  dayClassWork: (p: DayWorkRequest) => Promise<string>;
 };
+/** What the day-class-work report is asked for: the faculty's own course and
+ *  branch, every semester the Portal counts into the academic year, and the
+ *  day on the campus clock. The section is always all of them. */
+export interface DayWorkRequest {
+  course: Option;
+  branch: Option;
+  semesters: Option[];
+  date: string;
+}
+/** Today on the campus clock, dd/mm/yyyy: ECAP's dates are IST, and a server
+ *  on UTC would ask for yesterday after 18:30 UTC. */
+export function todayIST(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(now);
+  const get = (type: string): string =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("day")}/${get("month")}/${get("year")}`;
+}
 export async function handleOptions(
   portal: PortalReader,
   b: OptionsRequest
@@ -646,4 +672,45 @@ export async function handleTodayClasses(
   portal: PortalReader
 ): Promise<TodayClassesReply> {
   return { classes: parseTodayClasses(await portal.todayClasses()) };
+}
+/** Periods across the faculty's own branch with no posted attendance today.
+ *  The course and branch are matched from the Portal's own lists by name, and
+ *  only semesters the Portal counts into the academic year travel — the day
+ *  report's own page skips title-less ones the same way. A refusal throws
+ *  before the parser is reached, so it says the read failed rather than
+ *  passing for all posted. */
+export async function handleUnposted(
+  portal: PortalReader
+): Promise<UnpostedReply> {
+  const date = todayIST();
+  const { verdict, courses: courseOptions } = await courseVerdict(portal);
+  if (verdict === "dead") {
+    throw new HttpError(
+      401,
+      "Your ECAP session expired. Please sign in again."
+    );
+  }
+  const course = matchOption("B.Tech", courseOptions);
+  if (!course) {
+    throw new HttpError(502, "ECAP did not offer a B.Tech course.");
+  }
+  const [branches, semesters] = await portal.branchesAndSemesters(course.value);
+  const branch = matchOption("Information Technology", branches);
+  if (!branch) {
+    throw new HttpError(
+      502,
+      "ECAP did not offer the Information Technology branch."
+    );
+  }
+  const titled = semesters.filter((s) => s.title);
+  if (!titled.length) {
+    throw new HttpError(
+      502,
+      "ECAP counted no semesters into this academic year."
+    );
+  }
+  const { reported, periods } = parseDayClassWork(
+    await portal.dayClassWork({ course, branch, semesters: titled, date })
+  );
+  return { date, reported, periods };
 }

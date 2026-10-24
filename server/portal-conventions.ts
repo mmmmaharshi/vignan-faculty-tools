@@ -77,6 +77,31 @@ export function studentPairs(
   ];
 }
 /**
+ * The day-class-work report's nine values, in the order its generated proxy
+ * declares them. Branch, semester and batch travel as comma-joined arrays —
+ * the page builds them from every offered dropdown entry, so one call covers
+ * the whole branch — and the two name arrays travel as JSON, exactly as the
+ * page's `json_from_object` sends them. Section is always all of them.
+ */
+export function dayWorkPairs(p: {
+  course: Option;
+  branch: Option;
+  semesters: Option[];
+  date: string;
+}): [string, string | number][] {
+  return [
+    ["courseid", p.course.value],
+    ["arrbranchid", p.branch.value],
+    ["arrsemid", p.semesters.map((s) => s.value).join(",")],
+    ["arrbatch", p.semesters.map((s) => s.title).join(",")],
+    ["arrbranchname", JSON.stringify([p.branch.label])],
+    ["arrsemstername", JSON.stringify(p.semesters.map((s) => s.label))],
+    ["sectionid", "0"],
+    ["searchdate", p.date],
+    ["coursename", p.course.label],
+  ];
+}
+/**
  * The Class attendance report's thirteen values, in the order its generated
  * proxy declares them. All thirteen go on every call. The report honours any
  * date range and the Portal has no semester start date to send, so the range

@@ -233,6 +233,24 @@ export interface TodayClassesReply {
    *  a cleared evening or a day with no periods, never a failed read. */
   classes: TodayClass[];
 }
+/** One period ECAP's day-class-work report states with no posted attendance:
+ *  a held period whose present/absent counts are blank. */
+export interface UnpostedPeriod {
+  period: string;
+  subject: string;
+  semester: string;
+  section: string;
+  staff: string;
+}
+export interface UnpostedReply {
+  /** The day asked, dd/mm/yyyy on the campus clock. */
+  date: string;
+  /** False when the report stated no sections at all — no classes that day,
+   *  which is not the same as all posted. */
+  reported: boolean;
+  /** Periods with blank attendance counts, in the report's order. */
+  periods: UnpostedPeriod[];
+}
 export interface StudentRequest {
   roll: string;
   /** The student's name, which the Student Wise report is asked for by. */

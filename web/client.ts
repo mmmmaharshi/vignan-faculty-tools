@@ -19,6 +19,7 @@ import type {
   StudentProfile,
   StudentRequest,
   TodayClassesReply,
+  UnpostedReply,
 } from "../shared/api";
 import { SESSION_HEADER, SESSION_STORE_KEY } from "../shared/api";
 import { runCascade } from "./cascade";
@@ -46,6 +47,7 @@ const SEM_START_PATH = "/api/sem-start";
 const SEM_ABSENCES_PATH = "/api/sem-absences";
 const FACULTY_PROFILE_PATH = "/api/faculty-profile";
 const TODAY_PATH = "/api/today";
+const UNPOSTED_PATH = "/api/unposted";
 const OPTIONS_PATH = "/api/options";
 /** The option chain is one key, not five: its requests depend on each other, so
  *  the thing worth caching is a run, and a run is named by its seed. */
@@ -271,6 +273,18 @@ export function useFacultyProfile(enabled: boolean) {
 export function useTodayClasses(enabled: boolean) {
   return useSWR<TodayClassesReply, ApiError>(enabled ? TODAY_PATH : null, () =>
     postJson<TodayClassesReply>(TODAY_PATH, {})
+  );
+}
+/**
+ * Periods across the faculty's own branch with no posted attendance today,
+ * from the day-class-work report. Same read contract as the timetable above:
+ * read when Home opens, refreshed behind the cached answer on return, swept
+ * on sign-out. A refusal stays in this section — it never fails the table
+ * above it.
+ */
+export function useUnposted(enabled: boolean) {
+  return useSWR<UnpostedReply, ApiError>(enabled ? UNPOSTED_PATH : null, () =>
+    postJson<UnpostedReply>(UNPOSTED_PATH, {})
   );
 }
 /**

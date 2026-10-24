@@ -18,6 +18,7 @@ import {
   calendarPairs,
   classPairs,
   CookieJar,
+  dayWorkPairs,
   portalEncrypt,
   studentPairs,
 } from "./portal-conventions.js";
@@ -34,6 +35,7 @@ import {
   BASE,
   CLASS_REMOTE,
   DASHBOARD_REMOTE,
+  DAYWORK_REMOTE,
   HTTP_TIMEOUT_MS,
   LEAVE_STATUS_REMOTE,
   LOGIN_PAGE,
@@ -57,8 +59,9 @@ import {
   handleSemStart,
   handleStudentProfile,
   handleTodayClasses,
+  handleUnposted,
 } from "./server-routes.js";
-import type { PortalReader } from "./server-routes.js";
+import type { PortalReader, DayWorkRequest } from "./server-routes.js";
 
 type Level = CascadeLevel;
 /** Thirty days of *not using it*, after ADR 0013. The browser carries `at`
@@ -241,6 +244,17 @@ class Portal {
    *  this. */
   todayClasses(): Promise<string> {
     return portalWebMethod(this.jar, DASHBOARD_REMOTE, "GetToDayClasses", []);
+  }
+  /** The day-class-work report for one branch and date: every held period
+   *  with its posted counts, through the report's own ShowDayClassWork call
+   *  with the page's own array shapes. */
+  dayClassWork(p: DayWorkRequest): Promise<string> {
+    return portalWebMethod(
+      this.jar,
+      DAYWORK_REMOTE,
+      "ShowDayClassWork",
+      dayWorkPairs(p)
+    );
   }
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. It lives on the register's own proxy and wants the
@@ -511,6 +525,13 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       if (req.method === "POST" && path === "/api/today") {
         return json(
           await withPortal(s, (p) => handleTodayClasses(p.reader)),
+          200,
+          sessionHeader(s)
+        );
+      }
+      if (req.method === "POST" && path === "/api/unposted") {
+        return json(
+          await withPortal(s, (p) => handleUnposted(p.reader)),
           200,
           sessionHeader(s)
         );

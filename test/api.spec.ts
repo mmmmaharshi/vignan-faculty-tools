@@ -48,6 +48,7 @@ function readerWith(over: Partial<PortalReader> = {}): PortalReader {
     studentProfile: () => Promise.resolve(""),
     studentWise: () => Promise.resolve(""),
     todayClasses: () => Promise.resolve(""),
+    dayClassWork: () => Promise.resolve(""),
     facultyProfile: () =>
       Promise.resolve({
         name: "Test Faculty",

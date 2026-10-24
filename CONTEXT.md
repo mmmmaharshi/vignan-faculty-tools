@@ -209,6 +209,16 @@ grid states no room. The cleared-evening fragment is a bare `</table>`, which
 is an empty day rather than a failure. See ADR 0027.
 _Avoid_: Schedule, periods, routine
 
+**Attendance Not Posted**:
+Periods across the faculty's own branch with no posted attendance today, from
+the day-class-work report (`ShowDayClassWork`, `_session=no`): one block per
+section with the period, the subject, the staff, and the posted counts, so a
+held period with blank counts is not yet posted. Read when Home opens, beside
+the timetable; a refusal stays in its own section and never fails the table
+above it. No classes that day is a different answer from all posted. See ADR
+0028.
+_Avoid_: Pending attendance, unmarked periods
+
 ## Identity
 
 **Sign-in**:
