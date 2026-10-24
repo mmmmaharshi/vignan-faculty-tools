@@ -10,7 +10,6 @@ import {
   Stack,
   Table,
   Text,
-  Title,
 } from "@mantine/core";
 
 import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../server/attendance-bands";
@@ -184,20 +183,42 @@ export const StudentDetails = ({
     >
       {student ? (
         <>
-          <Stack gap="xs">
-            <Title order={4} tt="uppercase">
-              {student.name}
-            </Title>
-            <Text ff="monospace" size="sm">
-              Roll No {student.roll}
-            </Text>
-            {scope ? (
-              <Text c="dimmed" size="xs">
-                {scope}
-              </Text>
-            ) : null}
-          </Stack>
-          <Divider />
+          <Table striped withTableBorder tabularNums>
+            <Table.Tbody>
+              <Table.Tr>
+                <Table.Td c="dimmed">
+                  <Text size="sm">Name</Text>
+                </Table.Td>
+                <Table.Td ta="right">
+                  <Text size="sm" fw={600} tt="uppercase">
+                    {student.name}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+              <Table.Tr>
+                <Table.Td c="dimmed">
+                  <Text size="sm">Roll No</Text>
+                </Table.Td>
+                <Table.Td ta="right">
+                  <Text ff="monospace" size="sm">
+                    {student.roll}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+              {scope ? (
+                <Table.Tr>
+                  <Table.Td c="dimmed">
+                    <Text size="sm">Class</Text>
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <Text c="dimmed" size="xs">
+                      {scope}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ) : null}
+            </Table.Tbody>
+          </Table>
           {/* A figure the Portal did not give is an absence, not a zero, so its
               row is left out rather than printed as a dash — and a subject
               register shows its own figure alone, so the overall row belongs

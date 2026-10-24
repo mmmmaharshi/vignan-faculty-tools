@@ -568,7 +568,7 @@ test.describe("the app's own data layer", () => {
       panel.getByText("Overall attendance"),
       "the row ECAP's report states for that roll"
     ).toBeVisible({ timeout: 15_000 });
-    await expect(panel.getByText("Roll No 21B")).toBeVisible();
+    await expect(panel.getByRole("row", { name: "Roll No 21B" })).toBeVisible();
     // The class and the window the figure belongs to are named with it, so a
     // month's figure cannot be read as a semester's — including that the
     // semester itself was inferred rather than stated.
