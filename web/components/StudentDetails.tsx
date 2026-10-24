@@ -12,7 +12,6 @@ import {
   Text,
 } from "@mantine/core";
 
-import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../server/attendance-bands";
 import type { Student, StudentProfile } from "../../shared/api";
 import type { Note } from "../types";
 import { badgeFor } from "../worklist";
@@ -262,14 +261,7 @@ export const StudentDetails = ({
       {/* Both figures are badged here where the table badges the subject
               alone: two badges on one table row is noise, but two labelled lines
               are how the reader sees which band each figure sits in. */}
-      {student ? (
-        <>
-          <Text c="dimmed" size="xs">
-            {`Regular at or above ${IRREGULAR_BELOW}%; critical below ${CRITICAL_BELOW}%.`}
-          </Text>
-          <Divider />
-        </>
-      ) : null}
+      {student ? <Divider /> : null}
       {busy ? (
         <Group gap="xs">
           <Loader size="xs" />
