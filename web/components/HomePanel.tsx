@@ -48,12 +48,24 @@ const pillsOf = (section: string): string[] =>
         : [piece.trim()];
     })
     .filter(Boolean);
+/** "FLUTER LAB" reads "Fluter Lab": ECAP shouts its subject names, and the
+ *  Class column should not. Words of two letters or fewer stay as written, so
+ *  an acronym like "AI" does not come out "Ai". */
+const capitalCase = (text: string): string =>
+  text
+    .split(" ")
+    .map((word) =>
+      word.length <= 2
+        ? word
+        : word.toLowerCase().replace(/^\S/, (first) => first.toUpperCase())
+    )
+    .join(" ");
 const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
   const { name, branch } = splitSubject(entry.subject);
   const pills = [...(branch ? [branch] : []), ...pillsOf(entry.section)];
   return (
     <>
-      <Text fw={600}>{name || "—"}</Text>
+      <Text fw={600}>{capitalCase(name) || "—"}</Text>
       {/* The branch and the section's own pieces ride pills rather than one
           long line. */}
       {pills.length ? (
