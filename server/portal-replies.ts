@@ -555,12 +555,25 @@ export function parseTodayClasses(html: string): TodayClass[] {
   for (const row of grid.match(ROW) ?? []) {
     const [timeCell, stackCell] = rawCells(row);
     if (timeCell === undefined || stackCell === undefined) continue;
-    const time = cellText(timeCell);
+    // "Period-1" over its hours: the name leads bold, the hours dimmed under
+    // it, so the hyphen reads better as a space. Split before the tags are
+    // stripped — afterwards the break is just another space.
+    const [period, ...hours] = timeCell.split(NEXT_LINE).map(cellText);
+    const when = {
+      period: (period ?? "").replace("-", " "),
+      time: hours.join(" "),
+    };
     for (const entry of stackCell.split(NEXT_SUBJECT)) {
       const [subject, ...rest] = entry.split(NEXT_LINE).map(cellText);
       const section = rest.join(" ");
       if (subject || section) {
-        out.push({ time, subject: subject ?? "", section, room: "" });
+        out.push({
+          period: when.period,
+          time: when.time,
+          subject: subject ?? "",
+          section,
+          room: "",
+        });
       }
     }
   }

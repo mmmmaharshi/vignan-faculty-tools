@@ -1,4 +1,14 @@
-import { Alert, Loader, Paper, Stack, Table, Text, Title } from "@mantine/core";
+import {
+  Alert,
+  Group,
+  Loader,
+  Paper,
+  Pill,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from "@mantine/core";
 
 import type { TodayClass } from "../../shared/api";
 import type { Note } from "../types";
@@ -11,8 +21,6 @@ export type HomePanelProps = {
    *  sentence below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
 };
-const classOf = (entry: TodayClass): string =>
-  [entry.subject, entry.section].filter(Boolean).join(" · ");
 export const HomePanel = ({
   classes,
   busy,
@@ -49,9 +57,29 @@ export const HomePanel = ({
         <Table.Tbody>
           {classes.map((entry, index) => (
             // The grid states no identifiers, so the order it gave is the key.
-            <Table.Tr key={`${entry.time}-${entry.subject}-${index}`}>
-              <Table.Td>{entry.time || "—"}</Table.Td>
-              <Table.Td>{classOf(entry) || "—"}</Table.Td>
+            <Table.Tr key={`${entry.period}-${entry.subject}-${index}`}>
+              <Table.Td>
+                <Text fw={700}>{entry.period || "—"}</Text>
+                {entry.time ? (
+                  <Text c="dimmed" size="sm">
+                    {entry.time}
+                  </Text>
+                ) : null}
+              </Table.Td>
+              <Table.Td>
+                <Text fw={600}>{entry.subject || "—"}</Text>
+                {/* The section's own comma separates its pieces, so each
+                    rides its own pill rather than one long line. */}
+                {entry.section ? (
+                  <Group gap={4} mt={4}>
+                    {entry.section.split(",").map((piece) => (
+                      <Pill key={piece.trim()} size="xs">
+                        {piece.trim()}
+                      </Pill>
+                    ))}
+                  </Group>
+                ) : null}
+              </Table.Td>
             </Table.Tr>
           ))}
         </Table.Tbody>

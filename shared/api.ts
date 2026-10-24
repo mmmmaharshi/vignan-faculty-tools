@@ -217,7 +217,10 @@ export interface FacultyProfile {
 /** One period ECAP's GetToDayClasses states for the signed-in faculty member:
  *  today's own timetable, read off the faculty dashboard's schedule grid. */
 export interface TodayClass {
-  /** The period's time ("10:00 - 11:00"), as the grid writes it. */
+  /** The period as the grid names it ("Period 1"; the grid's hyphen reads
+   *  better as a space). */
+  period: string;
+  /** The period's time ("08:45 AM- 09:35 AM"), as the grid writes it. */
   time: string;
   subject: string;
   section: string;

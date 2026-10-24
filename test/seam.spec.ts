@@ -413,22 +413,23 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     // answer, which would red on any timetable change without saying why.
     const classes = parseTodayClasses(TODAY_GRID);
     expect(
-      classes.some(({ time }) => time.includes("Period-5")),
+      classes.some(({ period }) => period === "Period 5"),
       "the free period is left out, not shown empty"
     ).toBe(false);
     expect(
-      classes.filter(({ time }) => time.includes("Period-7")),
+      classes.filter(({ time }) => time === "03:10 PM- 04:00 PM"),
       "the <hr/> stacks a second period onto the same time"
     ).toMatchObject([
-      { subject: "LIB/SPORTS (CSE (AI))" },
-      { subject: "ADDON (CSE (AI))" },
+      { period: "Period 7", subject: "LIB/SPORTS (CSE (AI))" },
+      { period: "Period 7", subject: "ADDON (CSE (AI))" },
     ]);
     expect(
       classes.every(({ room }) => room === ""),
       "the grid states no room anywhere"
     ).toBe(true);
     expect(classes[0]).toMatchObject({
-      time: "Period-1 08:45 AM- 09:35 AM",
+      period: "Period 1",
+      time: "08:45 AM- 09:35 AM",
       subject: "FLUTER LAB (CSE (AI))",
       section: "B.Tech V Semester, Sec-B",
     });
