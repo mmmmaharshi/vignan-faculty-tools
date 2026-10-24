@@ -158,7 +158,13 @@ export const HomePanel = ({
         </Stack>
       ) : null}
       {classes && !busy ? (
-        <Table striped highlightOnHover withTableBorder withColumnBorders>
+        <Table
+          striped
+          highlightOnHover
+          withTableBorder
+          withColumnBorders
+          opacity={classes.length ? 1 : 0.6}
+        >
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Period</Table.Th>
