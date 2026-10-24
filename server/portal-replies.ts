@@ -135,8 +135,12 @@ function cellText(html: string): string {
     .replaceAll(WHITESPACE, " ")
     .trim();
 }
-const cellsOf = (row: string): string[] =>
-  [...row.matchAll(CELL)].map((m) => cellText(m.groups?.cell ?? ""));
+/** A row's cells with their markup intact, beside `cellsOf`: the schedule
+ *  grid's stacked lines split on their `<br/>`/`<hr/>` before the tags are
+ *  stripped, so both readers share the one walk. */
+const rawCells = (row: string): string[] =>
+  [...row.matchAll(CELL)].map((m) => m.groups?.cell ?? "");
+const cellsOf = (row: string): string[] => rawCells(row).map(cellText);
 /**
  * Every table in a Portal reply, head first, as cell arrays. The one place
  * the reply's table shape is understood, so a Portal layout shift is fixed
@@ -169,10 +173,12 @@ function anyHeaded(grids: string[][][]): string[][] | null {
  *  empty day, never a failure. */
 const SCHEDULE_GRID =
   /<table[^>]*\bid\s*=\s*['"]?tblschedule['"]?[^>]*>(?<grid>[\s\S]*?)<\/table>/i;
-/** What separates a period's stacked lines: `<br/>` between subject and
- *  section, `<hr/>` before a second subject sharing the period. */
-const STACK_BREAK = /<(?:br|hr)[^>]*>/gi;
-const PERIOD_CELL = /period/i;
+/** What separates a period's stacked lines: `<hr/>` starts a second subject
+ *  sharing the period, `<br/>` separates a subject from its section. Split on
+ *  the first, then the second — never one flat split paired two-by-two, which
+ *  misaligns every later row the moment one entry carries an odd line count. */
+const NEXT_SUBJECT = /<hr[^>]*>/gi;
+const NEXT_LINE = /<br[^>]*>/gi;
 /** Grids headed by a Subject column: the Student Wise report. */
 function subjectHeaded(grids: string[][][]): string[][] | null {
   return (
@@ -532,30 +538,30 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
 }
 /**
  * Today's periods out of the faculty dashboard's schedule grid, in the grid's
- * own order. The grid has no header row: each row is `Period-N` and time in
+ * own order. The grid has no header row: each row is the period and time in
  * the first cell, subject over section in the second, read as written. An
  * `<hr/>` stacks a second subject under the first, which reads as two periods
  * at the same time; an empty second cell is a free period, left out rather
  * than shown with an invented subject. The grid states no room, so room is
- * always empty. A reply with no schedule grid at all (the cleared-evening
- * `</table>` ECAP answers after ~4pm) is an empty day, never a failure.
+ * always empty — the field stays so the panel's row shape survives the day
+ * ECAP adds one. A reply with no schedule grid at all (the cleared-evening
+ * `</table>` ECAP answers after ~4pm) is an empty day, never a failure:
+ * transport-level failures throw before this is ever reached.
  */
 export function parseTodayClasses(html: string): TodayClass[] {
   const grid = html.match(SCHEDULE_GRID)?.groups?.grid ?? "";
   if (!grid) return [];
   const out: TodayClass[] = [];
   for (const row of grid.match(ROW) ?? []) {
-    const raw = [...row.matchAll(CELL)].map((m) => m.groups?.cell ?? "");
-    if (raw.length < 2 || !PERIOD_CELL.test(cellText(raw[0] ?? ""))) continue;
-    const time = cellText(raw[0] ?? "");
-    const chunks = (raw[1] ?? "")
-      .split(STACK_BREAK)
-      .map(cellText)
-      .filter(Boolean);
-    for (let index = 0; index < chunks.length; index += 2) {
-      const subject = chunks[index] ?? "";
-      const section = chunks[index + 1] ?? "";
-      if (subject || section) out.push({ time, subject, section, room: "" });
+    const [timeCell, stackCell] = rawCells(row);
+    if (timeCell === undefined || stackCell === undefined) continue;
+    const time = cellText(timeCell);
+    for (const entry of stackCell.split(NEXT_SUBJECT)) {
+      const [subject, ...rest] = entry.split(NEXT_LINE).map(cellText);
+      const section = rest.join(" ");
+      if (subject || section) {
+        out.push({ time, subject: subject ?? "", section, room: "" });
+      }
     }
   }
   return out;

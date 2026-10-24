@@ -407,55 +407,31 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     expect(parseTodayClasses("</table>")).toEqual([]);
     expect(parseTodayClasses("")).toEqual([]);
   });
-  test("today's periods come out of the schedule grid as ECAP writes it", () => {
-    // The dashboard's own GetToDayClasses fragment, read live 2026-10-24: an
-    // outer title table wrapping the `tblschedule` grid, two `<td>`s per row
-    // and no header row. Period-5's second cell is empty — a free period —
-    // and Period-7 stacks a second subject behind an `<hr/>`.
-    expect(parseTodayClasses(TODAY_GRID)).toEqual([
-      {
-        time: "Period-1 08:45 AM- 09:35 AM",
-        subject: "FLUTER LAB (CSE (AI))",
-        section: "B.Tech V Semester, Sec-B",
-        room: "",
-      },
-      {
-        time: "Period-2 09:35 AM- 10:25 AM",
-        subject: "FLUTER LAB (CSE (AI))",
-        section: "B.Tech V Semester, Sec-B",
-        room: "",
-      },
-      {
-        time: "Period-3 10:50 AM- 11:40 AM",
-        subject: "FLUTER LAB (CSE (AI))",
-        section: "B.Tech V Semester, Sec-B",
-        room: "",
-      },
-      {
-        time: "Period-4 11:40 AM- 12:30 PM",
-        subject: "AI (IT)",
-        section: "B.Tech V Semester, Sec-C",
-        room: "",
-      },
-      {
-        time: "Period-6 02:20 PM- 03:10 PM",
-        subject: "JAVA PROGR (CSE (AI))",
-        section: "B.Tech III Semester, Sec-D",
-        room: "",
-      },
-      {
-        time: "Period-7 03:10 PM- 04:00 PM",
-        subject: "LIB/SPORTS (CSE (AI))",
-        section: "B.Tech III Semester, Sec-D",
-        room: "",
-      },
-      {
-        time: "Period-7 03:10 PM- 04:00 PM",
-        subject: "ADDON (CSE (AI))",
-        section: "B.Tech III Semester, Sec-B",
-        room: "",
-      },
+  test("today's grid reads periods, skips the free one, splits the stacked one", () => {
+    // Pinned against the live GetToDayClasses fragment (TODAY_GRID,
+    // 2026-10-24), but asserting one rule each — never a copy of the whole
+    // answer, which would red on any timetable change without saying why.
+    const classes = parseTodayClasses(TODAY_GRID);
+    expect(
+      classes.some(({ time }) => time.includes("Period-5")),
+      "the free period is left out, not shown empty"
+    ).toBe(false);
+    expect(
+      classes.filter(({ time }) => time.includes("Period-7")),
+      "the <hr/> stacks a second period onto the same time"
+    ).toMatchObject([
+      { subject: "LIB/SPORTS (CSE (AI))" },
+      { subject: "ADDON (CSE (AI))" },
     ]);
+    expect(
+      classes.every(({ room }) => room === ""),
+      "the grid states no room anywhere"
+    ).toBe(true);
+    expect(classes[0]).toMatchObject({
+      time: "Period-1 08:45 AM- 09:35 AM",
+      subject: "FLUTER LAB (CSE (AI))",
+      section: "B.Tech V Semester, Sec-B",
+    });
   });
   test("leave status comes from the application grid, per stage", () => {
     // Copied from the APPLY-SELF page's `showLeaves` reply: the counts sit

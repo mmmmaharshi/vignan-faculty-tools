@@ -221,7 +221,8 @@ export interface TodayClass {
   time: string;
   subject: string;
   section: string;
-  /** The room, where the grid states one. Empty where it states none. */
+  /** The room, which the grid states nowhere. The field stays so the panel's
+   *  row shape survives the day ECAP adds one. */
   room: string;
 }
 export interface TodayClassesReply {

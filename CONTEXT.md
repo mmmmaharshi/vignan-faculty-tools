@@ -187,11 +187,11 @@ _Avoid_: Find student, lookup, search student
 
 **Home**:
 The navigation's first screen and the landing screen: today's own timetable
-for the signed-in faculty member — time, subject, section, and room where
-ECAP states one — read off the faculty dashboard's schedule grid when Home is
-opened, never cached across visits. An empty day says "No periods today",
-which is also what ECAP answers after ~4pm, when it clears the day. See ADR
-0027.
+for the signed-in faculty member — time, subject, and section as the grid
+writes them (it states no room) — read off the faculty dashboard's schedule
+grid when Home is opened, and refreshed behind the cached answer on return.
+An empty day says "No periods today", which is also what ECAP answers after
+~4pm, when it clears the day. See ADR 0027.
 _Avoid_: Dashboard, landing page, homepage
 
 **Today's classes**:
