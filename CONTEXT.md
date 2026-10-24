@@ -198,10 +198,11 @@ _Avoid_: Dashboard, landing page, homepage
 ECAP's own answer to what the signed-in faculty member teaches today:
 `GetToDayClasses` on the faculty dashboard's proxy, no parameters, taking the
 `r` session marker the proxy declares. It answers an HTML fragment for the
-`tblschedule` grid; the cleared-evening fragment is a bare `</table>`, which
-is an empty day rather than a failure. Columns are read by what the grid's
-own header names, because the teaching-day shape is still unpinned. See ADR
-0027.
+`tblschedule` grid, which has no header row: period and time in the first
+cell, subject over section in the second. An `<hr/>` stacks a second subject
+under the first; an empty second cell is a free period and is left out. The
+grid states no room. The cleared-evening fragment is a bare `</table>`, which
+is an empty day rather than a failure. See ADR 0027.
 _Avoid_: Schedule, periods, routine
 
 ## Identity

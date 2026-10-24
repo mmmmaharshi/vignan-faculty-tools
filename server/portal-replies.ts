@@ -137,10 +137,6 @@ function cellText(html: string): string {
 }
 const cellsOf = (row: string): string[] =>
   [...row.matchAll(CELL)].map((m) => cellText(m.groups?.cell ?? ""));
-/** The cell a header-named column points at, or nothing when the grid never
- *  named that column. A missing column is empty text, not a skipped row. */
-const atColumn = (cells: string[], index: number): string =>
-  index < 0 ? "" : (cells[index] ?? "");
 /**
  * Every table in a Portal reply, head first, as cell arrays. The one place
  * the reply's table shape is understood, so a Portal layout shift is fixed
@@ -167,14 +163,16 @@ function anyHeaded(grids: string[][][]): string[][] | null {
     ) ?? null
   );
 }
-/** The schedule grid on the faculty dashboard: `tblschedule`, filled by the
- *  page's own GetToDayClasses call. Its absence means the reply states no
- *  periods — a cleared evening or a day with none — which is an empty list,
- *  never a failure. A failed call throws before this is ever reached. */
-const SCHEDULE_TABLE = /tblschedule/i;
-const TIME_HEAD = /time|period|timing/i;
-const SECTION_HEAD = /section|class|branch|semester/i;
-const ROOM_HEAD = /room|hall|venue/i;
+/** The dashboard's schedule grid: the inner table the page's own GetToDayClasses
+ *  call fills. Extracted by id first, so the outer title table's rows never
+ *  mix with the periods. Its absence — the cleared-evening `</table>` — is an
+ *  empty day, never a failure. */
+const SCHEDULE_GRID =
+  /<table[^>]*\bid\s*=\s*['"]?tblschedule['"]?[^>]*>(?<grid>[\s\S]*?)<\/table>/i;
+/** What separates a period's stacked lines: `<br/>` between subject and
+ *  section, `<hr/>` before a second subject sharing the period. */
+const STACK_BREAK = /<(?:br|hr)[^>]*>/gi;
+const PERIOD_CELL = /period/i;
 /** Grids headed by a Subject column: the Student Wise report. */
 function subjectHeaded(grids: string[][][]): string[][] | null {
   return (
@@ -534,35 +532,30 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
 }
 /**
  * Today's periods out of the faculty dashboard's schedule grid, in the grid's
- * own order. Columns are read by what the grid's own header names — the live
- * reply's shape on a teaching day is still unpinned, so positions are never
- * assumed. A reply with no schedule grid at all (the cleared-evening
+ * own order. The grid has no header row: each row is `Period-N` and time in
+ * the first cell, subject over section in the second, read as written. An
+ * `<hr/>` stacks a second subject under the first, which reads as two periods
+ * at the same time; an empty second cell is a free period, left out rather
+ * than shown with an invented subject. The grid states no room, so room is
+ * always empty. A reply with no schedule grid at all (the cleared-evening
  * `</table>` ECAP answers after ~4pm) is an empty day, never a failure.
  */
 export function parseTodayClasses(html: string): TodayClass[] {
-  if (!SCHEDULE_TABLE.test(html)) return [];
-  const grid = gridTables(html).find((rows) =>
-    (rows[0] ?? []).some((c) => TIME_HEAD.test(c) || SUBJECT_HEADER.test(c))
-  );
-  const header = grid?.[0];
-  if (!grid || !header) return [];
-  const column = (pattern: RegExp): number =>
-    header.findIndex((c) => pattern.test(c));
-  const time = column(TIME_HEAD);
-  const subject = column(SUBJECT_HEADER);
-  const section = column(SECTION_HEAD);
-  const room = column(ROOM_HEAD);
+  const grid = html.match(SCHEDULE_GRID)?.groups?.grid ?? "";
+  if (!grid) return [];
   const out: TodayClass[] = [];
-  for (const cells of grid.slice(1)) {
-    const entry = {
-      time: atColumn(cells, time),
-      subject: atColumn(cells, subject),
-      section: atColumn(cells, section),
-      room: atColumn(cells, room),
-    };
-    // A zebra-striped or spacer row with nothing in it is layout, not a period.
-    if (entry.time || entry.subject || entry.section || entry.room) {
-      out.push(entry);
+  for (const row of grid.match(ROW) ?? []) {
+    const raw = [...row.matchAll(CELL)].map((m) => m.groups?.cell ?? "");
+    if (raw.length < 2 || !PERIOD_CELL.test(cellText(raw[0] ?? ""))) continue;
+    const time = cellText(raw[0] ?? "");
+    const chunks = (raw[1] ?? "")
+      .split(STACK_BREAK)
+      .map(cellText)
+      .filter(Boolean);
+    for (let index = 0; index < chunks.length; index += 2) {
+      const subject = chunks[index] ?? "";
+      const section = chunks[index + 1] ?? "";
+      if (subject || section) out.push({ time, subject, section, room: "" });
     }
   }
   return out;

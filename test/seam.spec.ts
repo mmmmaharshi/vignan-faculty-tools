@@ -37,12 +37,9 @@ const STUDENT_WISE_GRID = `<table>
   <tr><td>2</td><td>SE</td><td>A</td><td>P</td><td>P</td><td>10/14</td><td>71.43</td></tr>
   <tr><td>3</td><td>UHV</td><td>P</td><td>P</td><td>A</td><td>12/14</td><td>85.71</td></tr>
 </table>`;
-/** One period of a schedule grid under a caller-given header: the reader must
- *  follow the header's names, so the same period under another column order
- *  reads the same. */
-const scheduleGrid = (header: string): string =>
-  `<table id="tblschedule"><tr>${header}</tr>
-<tr><td>10:00 - 11:00</td><td>AI</td><td>3 IT-C</td><td>R-204</td></tr></table>`;
+/** The dashboard's GetToDayClasses fragment, read live 2026-10-24: the shape
+ *  every teaching-day assertion is pinned against. */
+const TODAY_GRID = `<table width='100%' cellspacing='0' cellpadding='2' class='table'><tr class='card-header bg-info text-white'><td align='left' colspan='2'>TODAY CLASS WORK</td></tr><tr><td valign='top'><table width='100%' cellpadding='2' cellspacing='0' id='tblschedule'><tr><td align='left' >Period-1<br/>08:45 AM- 09:35 AM</td><td align='center' >FLUTER LAB (CSE (AI))<br/>B.Tech V Semester, Sec-B</td></tr><tr><td align='left' >Period-2<br/>09:35 AM- 10:25 AM</td><td align='center' >FLUTER LAB (CSE (AI))<br/>B.Tech V Semester, Sec-B</td></tr><tr><td align='left' >Period-3<br/>10:50 AM- 11:40 AM</td><td align='center' >FLUTER LAB (CSE (AI))<br/>B.Tech V Semester, Sec-B</td></tr><tr><td align='left' >Period-4<br/>11:40 AM- 12:30 PM</td><td align='center' >AI (IT)<br/>B.Tech V Semester, Sec-C</td></tr><tr><td align='left' >Period-5<br/>12:30 PM- 01:20 PM</td><td align='center' ></td></tr><tr><td align='left' >Period-6<br/>02:20 PM- 03:10 PM</td><td align='center' >JAVA PROGR (CSE (AI))<br/>B.Tech III Semester, Sec-D</td></tr><tr><td align='left' >Period-7<br/>03:10 PM- 04:00 PM</td><td align='center' >LIB/SPORTS (CSE (AI))<br/>B.Tech III Semester, Sec-D<hr/>ADDON (CSE (AI))<br/>B.Tech III Semester, Sec-B</td></tr></table></td></tr><tr><td>&nbsp;</td></tr></table>`;
 test.describe("portal replies", () => {
   test("a dead session's markup is told apart from real data", () => {
     expect(looksLikeHtml(LOGIN_PAGE)).toBe(true);
@@ -410,27 +407,55 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     expect(parseTodayClasses("</table>")).toEqual([]);
     expect(parseTodayClasses("")).toEqual([]);
   });
-  test("today's periods are read by header name, never by position", () => {
-    // The teaching-day shape is still unpinned — only the cleared evening has
-    // been seen live — so what is pinned is the property, not ECAP's markup:
-    // the same periods in a different column order read the same.
-    const byTime = scheduleGrid(
-      "<th>Time</th><th>Subject</th><th>Section</th><th>Room</th>"
-    );
-    const expected = [
+  test("today's periods come out of the schedule grid as ECAP writes it", () => {
+    // The dashboard's own GetToDayClasses fragment, read live 2026-10-24: an
+    // outer title table wrapping the `tblschedule` grid, two `<td>`s per row
+    // and no header row. Period-5's second cell is empty — a free period —
+    // and Period-7 stacks a second subject behind an `<hr/>`.
+    expect(parseTodayClasses(TODAY_GRID)).toEqual([
       {
-        time: "10:00 - 11:00",
-        subject: "AI",
-        section: "3 IT-C",
-        room: "R-204",
+        time: "Period-1 08:45 AM- 09:35 AM",
+        subject: "FLUTER LAB (CSE (AI))",
+        section: "B.Tech V Semester, Sec-B",
+        room: "",
       },
-    ];
-    // The reordered row's own cells move with its header, or the read is wrong.
-    const reordered = `<table id="tblschedule">
-<tr><th>Subject</th><th>Room</th><th>Time</th><th>Section</th></tr>
-<tr><td>AI</td><td>R-204</td><td>10:00 - 11:00</td><td>3 IT-C</td></tr></table>`;
-    expect(parseTodayClasses(byTime)).toEqual(expected);
-    expect(parseTodayClasses(reordered)).toEqual(expected);
+      {
+        time: "Period-2 09:35 AM- 10:25 AM",
+        subject: "FLUTER LAB (CSE (AI))",
+        section: "B.Tech V Semester, Sec-B",
+        room: "",
+      },
+      {
+        time: "Period-3 10:50 AM- 11:40 AM",
+        subject: "FLUTER LAB (CSE (AI))",
+        section: "B.Tech V Semester, Sec-B",
+        room: "",
+      },
+      {
+        time: "Period-4 11:40 AM- 12:30 PM",
+        subject: "AI (IT)",
+        section: "B.Tech V Semester, Sec-C",
+        room: "",
+      },
+      {
+        time: "Period-6 02:20 PM- 03:10 PM",
+        subject: "JAVA PROGR (CSE (AI))",
+        section: "B.Tech III Semester, Sec-D",
+        room: "",
+      },
+      {
+        time: "Period-7 03:10 PM- 04:00 PM",
+        subject: "LIB/SPORTS (CSE (AI))",
+        section: "B.Tech III Semester, Sec-D",
+        room: "",
+      },
+      {
+        time: "Period-7 03:10 PM- 04:00 PM",
+        subject: "ADDON (CSE (AI))",
+        section: "B.Tech III Semester, Sec-B",
+        room: "",
+      },
+    ]);
   });
   test("leave status comes from the application grid, per stage", () => {
     // Copied from the APPLY-SELF page's `showLeaves` reply: the counts sit

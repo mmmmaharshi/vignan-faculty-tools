@@ -23,10 +23,13 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
   page calls it with none — so neither does the server. Asking with `no`
   answers a session-state `HttpException` instead of a timetable.
 - The answer is an HTML fragment for the `tblschedule` grid, parsed by
-  `parseTodayClasses` in `portal-replies.ts`. Columns are read by what the
-  grid's own header names, never by position: only the cleared evening has
-  been seen live, so the teaching-day shape is still unpinned and positions
-  cannot be trusted.
+  `parseTodayClasses` in `portal-replies.ts`. The grid has no header row —
+  each row is the period and time in the first cell, subject over section in
+  the second — so positions are fixed by the shape ECAP itself pinned live
+  (2026-10-24), not guessed. An `<hr/>` stacks a second subject under the
+  first and reads as two periods at the same time; an empty second cell is a
+  free period and is left out rather than shown with an invented subject. The
+  grid states no room, so room always reads empty.
 - A fragment with no schedule grid — the bare `</table>` ECAP answers after
   ~4pm, when it clears the day — is an empty day ("No periods today"), never
   a failure. A refused call throws before the parser is reached, so a 502
@@ -41,8 +44,7 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
 
 - No manual timetable entry and no new storage: one more portal read through
   the same handler shape as every other.
-- The row parser's non-empty path is pinned by property (column order does
-  not matter), not by a live teaching-day reply. The header patterns are
-  deliberately unanchored until that shape is pinned — a column ECAP names
-  with none of these words reads empty rather than misreading its neighbour.
-  The first live reply on a teaching day should confirm the header words.
+- The row parser's shape is pinned by the live teaching-day reply
+  (2026-10-24), not by a guess: the header patterns are gone with the header
+  they assumed, and the free-period skip plus the `<hr/>` stacking are the
+  grid's own semantics, covered by the same live fixture.
