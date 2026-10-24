@@ -11,11 +11,7 @@ import {
 import React, { useEffect, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
-import {
-  notePeriodTimes,
-  readPeriodTimes,
-  writePeriodTimes,
-} from "../period-times";
+import { PERIOD_COUNT } from "../period-times";
 import type { PeriodTimes } from "../period-times";
 import type { Note } from "../types";
 
@@ -24,8 +20,11 @@ export type HomePanelProps = {
   classes?: TodayClass[] | null;
   busy?: boolean;
   /** A read that failed says so here. An empty day is not this — it is the
-   *  sentence below, because ECAP clears the day after ~4pm. */
+   *  skeleton below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
+  /** The slots' latest hours, folded by the caller from every answered
+   *  timetable: a cleared day borrows them for its skeleton. */
+  slotTimes: PeriodTimes;
 };
 /** "08:45 AM- 09:35 PM" as minutes since midnight, or null when the grid
  *  wrote something else. Twelve-hour clock, as ECAP writes it. */
@@ -113,12 +112,12 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
     </>
   );
 };
-/** The skeleton an empty day shows: the usual seven periods with blank
- *  classes. A cleared day states no times either, so each slot borrows the
- *  latest hours ECAP stated for it — the slots' hours, which change far less
- *  often than the days' subjects. */
+/** The skeleton an empty day shows: the usual periods with blank classes.
+ *  A cleared day states no times either, so each slot borrows the latest
+ *  hours ECAP stated for it — the slots' hours, which change far less often
+ *  than the days' subjects. */
 const emptyDay = (times: PeriodTimes): TodayClass[] =>
-  Array.from({ length: 7 }, (_, index) => {
+  Array.from({ length: PERIOD_COUNT }, (_, index) => {
     const period = `Period ${index + 1}`;
     return {
       period,
@@ -132,6 +131,7 @@ export const HomePanel = ({
   classes,
   busy,
   note,
+  slotTimes,
 }: HomePanelProps): React.JSX.Element => {
   // The highlight must flip when a period starts or ends mid-visit, so the
   // clock ticks rather than being read once on mount.
@@ -140,22 +140,7 @@ export const HomePanel = ({
     const tick = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(tick);
   }, []);
-  /* oxlint-disable react/set-state-in-effect -- folding the answered hours
-     into memory on arrival, like the semester-start memory in App. */
-  // The slots' latest hours, so a cleared day still shows its usual table.
-  // Folded from every answered timetable and persisted only when changed.
-  const [slotTimes, setSlotTimes] = useState<PeriodTimes>(() =>
-    readPeriodTimes()
-  );
-  useEffect(() => {
-    if (!classes?.length) return;
-    setSlotTimes((prev) => {
-      const next = notePeriodTimes(prev, classes);
-      if (next !== prev) writePeriodTimes(next);
-      return next;
-    });
-  }, [classes]);
-  /* oxlint-enable react/set-state-in-effect */
+
   return (
     <Stack gap="md">
       <Title order={4}>Today&apos;s Classes</Title>

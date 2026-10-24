@@ -1,32 +1,22 @@
+import type { TodayClass } from "../shared/api";
+import { readStringMap, writeStringMap } from "./string-map-store";
+
+/** How many periods an ECAP day holds: the skeleton's row count, stated once
+ *  rather than wherever a loop needs it. */
+export const PERIOD_COUNT = 7;
 /** The last hours ECAP stated per period slot ("Period 1" → its time). A
  *  cleared day states no times at all, so the skeleton borrows these — the
  *  slots' hours, not today's classes, which stay blank. Portal data, not
  *  personal data: like the semester-start memory, it is not scoped by user
- *  id. */
+ *  id and it survives sign-out with the next user. */
 export type PeriodTimes = Record<string, string>;
 const TIMES_KEY = "period-times";
+const nonBlank = (value: string): boolean => value.trim() !== "";
 export function readPeriodTimes(): PeriodTimes {
-  try {
-    const raw = localStorage.getItem(TIMES_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, string] =>
-          typeof entry[1] === "string" && entry[1].trim() !== ""
-      )
-    );
-  } catch {
-    return {};
-  }
+  return readStringMap(TIMES_KEY, nonBlank);
 }
 export function writePeriodTimes(times: PeriodTimes): void {
-  try {
-    localStorage.setItem(TIMES_KEY, JSON.stringify(times));
-  } catch {
-    /* a refused write must not break the screen */
-  }
+  writeStringMap(TIMES_KEY, times);
 }
 /**
  * Fold one timetable's hours into the memory: a slot keeps the latest hours
@@ -35,16 +25,16 @@ export function writePeriodTimes(times: PeriodTimes): void {
  */
 export function notePeriodTimes(
   prev: PeriodTimes,
-  classes: readonly { period: string; time: string }[]
+  classes: readonly Pick<TodayClass, "period" | "time">[]
 ): PeriodTimes {
   const stated: PeriodTimes = {};
-  let fresh = 0;
+  let hasFresh = false;
   for (const { period, time } of classes) {
     if (!period || !time.trim()) continue;
     if (prev[period] !== time && stated[period] !== time) {
       stated[period] = time;
-      fresh += 1;
+      hasFresh = true;
     }
   }
-  return fresh ? { ...prev, ...stated } : prev;
+  return hasFresh ? { ...prev, ...stated } : prev;
 }

@@ -192,8 +192,10 @@ The navigation's first screen and the landing screen: today's own timetable
 for the signed-in faculty member — time, subject, and section as the grid
 writes them (it states no room) — read off the faculty dashboard's schedule
 grid when Home is opened, and refreshed behind the cached answer on return.
-An empty day says "No periods today", which is also what ECAP answers after
-~4pm, when it clears the day. See ADR 0027.
+An empty day shows the usual table with blank classes — which is also what
+ECAP answers after ~4pm, when it clears the day — and each slot borrows the
+latest hours ECAP stated for it, so the skeleton keeps its times. See ADR
+0027.
 _Avoid_: Dashboard, landing page, homepage
 
 **Today's classes**:

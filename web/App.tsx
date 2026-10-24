@@ -75,6 +75,12 @@ import { SavedClasses } from "./components/SavedClasses";
 import { SignInPanel } from "./components/SignInPanel";
 import { StudentDetails } from "./components/StudentDetails";
 import {
+  notePeriodTimes,
+  readPeriodTimes,
+  writePeriodTimes,
+} from "./period-times";
+import type { PeriodTimes } from "./period-times";
+import {
   abbreviate,
   rememberClass,
   savedClasses,
@@ -198,6 +204,12 @@ const App = (): React.JSX.Element => {
    *  answer on return. ECAP clears the day after ~4pm, so the read is never
    *  older than the visit. */
   const today = useTodayClasses(Boolean(onHome));
+  /** The slots' latest hours, so a cleared day still shows its usual table.
+   *  Folded from every answered timetable and persisted only when changed —
+   *  the same memory shape as the semester start above. */
+  const [slotTimes, setSlotTimes] = useState<PeriodTimes>(() =>
+    readPeriodTimes()
+  );
   /** Student Search: the roll being typed and the ask the panel below the form
    *  is showing. The ask carries a click number for the register's reason — a
    *  search is deliberate, so asking again reads again. */
@@ -355,7 +367,7 @@ const App = (): React.JSX.Element => {
     refusalNote(search.error, "error") ??
     (found?.note ? { kind: "warning", text: found.note } : null);
   /** Home's own sentence: what the server refused. An empty day is not this —
-   *  it is the panel's own "No periods today". */
+   *  it is the skeleton table with blank classes. */
   const todayNote: Note | null = refusalNote(today.error, "error");
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The class and window a searched figure belongs to, named on the panel: a
@@ -633,6 +645,14 @@ const App = (): React.JSX.Element => {
       return next;
     });
   }, [semKey, semSeen]);
+  /** Fold the answered timetable's hours into the slot memory beside it. */
+  useEffect(() => {
+    if (!today.data?.classes?.length) return;
+    const next = notePeriodTimes(slotTimes, today.data.classes);
+    if (next === slotTimes) return;
+    writePeriodTimes(next);
+    setSlotTimes(next);
+  }, [today.data, slotTimes]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {
@@ -767,6 +787,7 @@ const App = (): React.JSX.Element => {
             classes={today.data?.classes ?? null}
             busy={today.isLoading}
             note={todayNote}
+            slotTimes={slotTimes}
           />
         );
       } else if (onProfile) {

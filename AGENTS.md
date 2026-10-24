@@ -121,7 +121,8 @@ web/saved-classes.ts the saved classes in storage, and the branch initialism
                      on their cards
 web/worklist.ts      the register worklist: which rows show, their order, the
                      row tint, and the badge words both surfaces share
-web/components/      eight presentational modules; none of them holds state
+web/components/      ten presentational modules; only HomePanel holds state,
+                     and only its ticking clock — the memories live in App
 web/types.ts         Note, the one shape three modules share
 shared/api.ts        the server/client contract; both sides import it
 vite.config.ts       build, lint and fmt config; both blocks come from the

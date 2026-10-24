@@ -1,4 +1,5 @@
 import { classKey } from "./saved-classes";
+import { readStringMap, writeStringMap } from "./string-map-store";
 
 /** The earliest held days seen, per class: class key to dd/mm/yyyy. Portal data,
  *  not personal data, so — unlike saved classes — it is not scoped by user id
@@ -21,27 +22,10 @@ const code = (date: string): number => {
 };
 const valid = (date: string): boolean => !Number.isNaN(code(date));
 export function readSemStarts(): SemStarts {
-  try {
-    const raw = localStorage.getItem(STARTS_KEY);
-    if (!raw) return {};
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
-    return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
-        (entry): entry is [string, string] =>
-          typeof entry[1] === "string" && valid(entry[1])
-      )
-    );
-  } catch {
-    return {};
-  }
+  return readStringMap(STARTS_KEY, valid);
 }
 export function writeSemStarts(starts: SemStarts): void {
-  try {
-    localStorage.setItem(STARTS_KEY, JSON.stringify(starts));
-  } catch {
-    /* a refused write must not break the screen */
-  }
+  writeStringMap(STARTS_KEY, starts);
 }
 /**
  * Fold one register's first day into the memory: the earliest day ever seen
