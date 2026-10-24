@@ -97,7 +97,7 @@ export const UnpostedPanel = ({
   const inBranch = (short: string): DayWorkSection[] =>
     sections ? sections.filter((s) => s.branchShort === short) : [];
   return (
-    <Stack gap="md" mt="xl">
+    <Stack gap="md" mt="xl" pb="md">
       <Title order={4}>Day Class Work{date ? ` · ${date}` : ""}</Title>
       {note ? (
         <Alert color={note.kind === "error" ? "red" : "yellow"}>
