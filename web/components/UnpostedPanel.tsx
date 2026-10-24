@@ -1,7 +1,16 @@
-import { Alert, Loader, Paper, Stack, Table, Text, Title } from "@mantine/core";
+import {
+  Alert,
+  Loader,
+  Paper,
+  Stack,
+  Table,
+  Tabs,
+  Text,
+  Title,
+} from "@mantine/core";
 
-import type { DayWorkRow, DayWorkSection } from "../../shared/api";
-import { capitalCase } from "../format";
+import type { DayWorkSection } from "../../shared/api";
+import { PERIOD_COUNT } from "../period-times";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
@@ -10,102 +19,134 @@ export type UnpostedPanelProps = {
   /** False when the report stated no sections at all — no classes that day,
    *  which is not the same as all posted. */
   reported?: boolean;
-  /** Every section's rows in the report's order. Null while unread. */
+  /** Every section's cells in the report's order. Null while unread. */
   sections?: DayWorkSection[] | null;
   busy?: boolean;
   /** A read that failed says so here. A fully posted day is not this — it is
-   *  the tables below with nothing tinted. */
+   *  the matrix below with every cell ticked. */
   note?: Note | null;
 };
-/** A held period with blank counts is not yet posted: every posted period
- *  states both. The tint is the register's critical-row red — it answers
- *  "whose posting is pending" at a glance. */
-const isUnposted = (row: DayWorkRow): boolean =>
-  row.present === "" && row.absent === "";
-const sectionName = (section: DayWorkSection): string =>
-  [section.semester.replace(/\s*Semester\s*/i, ""), section.section]
-    .filter(Boolean)
-    .join(" · ");
+/** One matrix cell: ticked when posted, crossed when not, empty when the
+ *  report never listed the period. */
+const markOf = (cell: { posted: boolean } | undefined): string => {
+  if (!cell) return "—";
+  return cell.posted ? "✅" : "❌";
+};
+/** One branch's matrix: section tabs across the top, one row per semester,
+ *  one column per period. A ticked period is posted; a cross is not yet;
+ *  empty is a period the report never listed. */
+const BranchMatrix = ({
+  sections,
+}: {
+  sections: DayWorkSection[];
+}): React.JSX.Element => {
+  const names = [...new Set(sections.map((s) => s.section))];
+  const semesters = [...new Set(sections.map((s) => s.semester))];
+  const at = (semester: string, section: string, period: string) =>
+    sections
+      .find((s) => s.semester === semester && s.section === section)
+      ?.cells.find((c) => c.period === period);
+  return (
+    <Tabs defaultValue={names[0] ?? ""}>
+      <Tabs.List>
+        {names.map((name) => (
+          <Tabs.Tab key={name} value={name}>
+            Sec {name}
+          </Tabs.Tab>
+        ))}
+      </Tabs.List>
+      {names.map((name) => (
+        <Tabs.Panel key={name} value={name} pt="sm">
+          <Table striped highlightOnHover withTableBorder withColumnBorders>
+            <Table.Thead>
+              <Table.Tr>
+                <Table.Th>Semester</Table.Th>
+                {Array.from({ length: PERIOD_COUNT }, (_, index) => (
+                  <Table.Th key={index + 1} ta="center">
+                    {index + 1}
+                  </Table.Th>
+                ))}
+              </Table.Tr>
+            </Table.Thead>
+            <Table.Tbody>
+              {semesters.map((semester) => (
+                <Table.Tr key={semester}>
+                  <Table.Td c="dimmed">
+                    <Text size="sm">
+                      {semester.replace(/\s*Semester\s*/i, "")}
+                    </Text>
+                  </Table.Td>
+                  {Array.from({ length: PERIOD_COUNT }, (_, index) => {
+                    const cell = at(semester, name, String(index + 1));
+                    return (
+                      <Table.Td key={index + 1} ta="center">
+                        <Text size="lg">{markOf(cell)}</Text>
+                      </Table.Td>
+                    );
+                  })}
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
+        </Tabs.Panel>
+      ))}
+    </Tabs>
+  );
+};
 export const UnpostedPanel = ({
   date,
   reported,
   sections,
   busy,
   note,
-}: UnpostedPanelProps): React.JSX.Element => (
-  <Stack gap="md" mt="xl">
-    <Title order={4}>Day Class Work{date ? ` · ${date}` : ""}</Title>
-    {note ? (
-      <Alert color={note.kind === "error" ? "red" : "yellow"}>
-        {note.text}
-      </Alert>
-    ) : null}
-    {!sections && busy ? (
-      <Stack align="center" mt="xl" gap="sm">
-        <Loader size="lg" />
-        <Text c="dimmed" size="sm">
-          Reading the branch from ECAP...
-        </Text>
-      </Stack>
-    ) : null}
-    {sections && !reported && !busy ? (
-      <Paper withBorder p="lg">
-        <Text c="dimmed">No classes{date ? ` on ${date}` : ""}.</Text>
-      </Paper>
-    ) : null}
-    {sections?.map((section) => (
-      <Stack gap="xs" key={`${section.semester}-${section.section}`}>
-        <Text c="dimmed" size="xs" tt="uppercase">
-          {sectionName(section) || "Section"}
-        </Text>
-        <Table
-          striped
-          highlightOnHover
-          withTableBorder
-          withColumnBorders
-          tabularNums
-        >
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Period</Table.Th>
-              <Table.Th>Subject</Table.Th>
-              <Table.Th>Present</Table.Th>
-              <Table.Th>Absent</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {section.rows.map((row, index) => (
-              // The report states no identifiers, so the order it gave is key.
-              <Table.Tr
-                key={`${row.period}-${row.subject}-${index}`}
-                bg={
-                  isUnposted(row) ? "var(--mantine-color-red-light)" : undefined
-                }
-              >
-                <Table.Td>
-                  <Text fw={700}>{row.period || "—"}</Text>
-                </Table.Td>
-                <Table.Td>
-                  {row.subject ? (
-                    <Text fw={600}>{capitalCase(row.subject)}</Text>
-                  ) : null}
-                  {row.staff ? (
-                    <Text c="dimmed" size="xs">
-                      {row.staff}
-                    </Text>
-                  ) : null}
-                </Table.Td>
-                <Table.Td ta="right">
-                  <Text size="sm">{row.present || "—"}</Text>
-                </Table.Td>
-                <Table.Td ta="right">
-                  <Text size="sm">{row.absent || "—"}</Text>
-                </Table.Td>
-              </Table.Tr>
+}: UnpostedPanelProps): React.JSX.Element => {
+  const branches: string[] = [];
+  if (sections) {
+    for (const section of sections) {
+      if (!branches.includes(section.branchShort)) {
+        branches.push(section.branchShort);
+      }
+    }
+  }
+  const inBranch = (short: string): DayWorkSection[] =>
+    sections ? sections.filter((s) => s.branchShort === short) : [];
+  return (
+    <Stack gap="md" mt="xl">
+      <Title order={4}>Day Class Work{date ? ` · ${date}` : ""}</Title>
+      {note ? (
+        <Alert color={note.kind === "error" ? "red" : "yellow"}>
+          {note.text}
+        </Alert>
+      ) : null}
+      {!sections && busy ? (
+        <Stack align="center" mt="xl" gap="sm">
+          <Loader size="lg" />
+          <Text c="dimmed" size="sm">
+            Reading the branches from ECAP...
+          </Text>
+        </Stack>
+      ) : null}
+      {sections && !reported && !busy ? (
+        <Paper withBorder p="lg">
+          <Text c="dimmed">No classes{date ? ` on ${date}` : ""}.</Text>
+        </Paper>
+      ) : null}
+      {sections && reported ? (
+        <Tabs defaultValue={branches[0] ?? ""}>
+          <Tabs.List>
+            {branches.map((branch) => (
+              <Tabs.Tab key={branch} value={branch}>
+                {branch}
+              </Tabs.Tab>
             ))}
-          </Table.Tbody>
-        </Table>
-      </Stack>
-    ))}
-  </Stack>
-);
+          </Tabs.List>
+          {branches.map((branch) => (
+            <Tabs.Panel key={branch} value={branch} pt="sm">
+              <BranchMatrix sections={inBranch(branch)} />
+            </Tabs.Panel>
+          ))}
+        </Tabs>
+      ) : null}
+    </Stack>
+  );
+};

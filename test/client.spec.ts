@@ -315,24 +315,21 @@ const stub = async (route: Route): Promise<void> => {
       reported: true,
       sections: [
         {
+          branch: "Information Technology",
+          branchShort: "IT",
           semester: "III Semester",
           section: "B",
-          rows: [
-            {
-              period: "2",
-              subject: "MFCS",
-              staff: "Some One",
-              present: "30",
-              absent: "5",
-            },
-            {
-              period: "3",
-              subject: "SE",
-              staff: "Other Two",
-              present: "",
-              absent: "",
-            },
+          cells: [
+            { period: "1", posted: true },
+            { period: "2", posted: false },
           ],
+        },
+        {
+          branch: "Computer Science and Engineering (Artificial Intelligence)",
+          branchShort: "CSE (AI)",
+          semester: "III Semester",
+          section: "B",
+          cells: [{ period: "1", posted: true }],
         },
       ],
     });
@@ -516,7 +513,7 @@ test.describe("the app's own data layer", () => {
     ).toHaveCount(7);
     expect(todayCalls, "the skeleton is drawn from one empty read").toBe(1);
   });
-  test("Home lists the branch's unposted periods below the timetable", async ({
+  test("Home tabs the branches with a ticked period matrix", async ({
     page,
   }) => {
     await page.goto("/login");
@@ -524,10 +521,16 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("heading", { name: "Day Class Work" })
     ).toBeVisible({ timeout: 15_000 });
-    // The staff the posting waits on, as ECAP writes the name; the posted
-    // row beside it keeps its counts.
-    await expect(page.getByText("Some One", { exact: true })).toBeVisible();
-    await expect(page.getByText("Other Two", { exact: true })).toBeVisible();
+    // Inactive branch tabs stay mounted but hidden, so the counts scope to
+    // the visible panel: IT opens with one tick and one cross.
+    const shown = () => page.locator('[role="tabpanel"]:visible');
+    await expect(shown().getByText("✅", { exact: true })).toHaveCount(1);
+    await expect(shown().getByText("❌", { exact: true })).toHaveCount(1);
+    // Branch tabs name the short form ECAP itself uses on its dropdowns.
+    await page.getByRole("tab", { name: "CSE (AI)" }).click();
+    await expect(page.getByRole("tab", { name: "Sec B" })).toBeVisible();
+    await expect(shown().getByText("✅", { exact: true })).toHaveCount(1);
+    await expect(shown().getByText("❌", { exact: true })).toHaveCount(0);
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
   });
   test("a cleared day keeps the slots' remembered hours", async ({ page }) => {

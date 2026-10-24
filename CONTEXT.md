@@ -210,13 +210,13 @@ is an empty day rather than a failure. See ADR 0027.
 _Avoid_: Schedule, periods, routine
 
 **Attendance Not Posted**:
-Periods across the faculty's own branch with no posted attendance today, from
-the day-class-work report (`ShowDayClassWork`, `_session=no`): one table per
-section with the period, the subject, the staff, and the posted counts, so a
-held period with blank counts reads as not yet posted and tints red. Read
-when Home opens, below the timetable; a refusal stays in its own section and
-never fails the table above it. No classes that day is a different answer
-from all posted. See ADR 0028.
+Whether the day's periods got their attendance, from the day-class-work
+report (`ShowDayClassWork`, `_session=no`): branch tabs across the top,
+section tabs under them, one row per semester and one column per period —
+ticked where posted, crossed where not. Read when Home opens, below the
+timetable; a refusal stays in its own section and never fails the table
+above it. No classes that day is a different answer from all posted. See ADR
+0028.
 _Avoid_: Pending attendance, unmarked periods
 
 ## Identity

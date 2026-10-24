@@ -233,20 +233,19 @@ export interface TodayClassesReply {
    *  a cleared evening or a day with no periods, never a failed read. */
   classes: TodayClass[];
 }
-/** One held period out of ECAP's day-class-work report, with the counts it
- *  states — blank where nothing is posted yet. */
-export interface DayWorkRow {
+/** One held period out of ECAP's day-class-work report: posted or not, which
+ *  is all the matrix shows. */
+export interface DayWorkCell {
   period: string;
-  subject: string;
-  staff: string;
-  present: string;
-  absent: string;
+  posted: boolean;
 }
 /** One section's block of the day-class-work report. */
 export interface DayWorkSection {
+  branch: string;
+  branchShort: string;
   semester: string;
   section: string;
-  rows: DayWorkRow[];
+  cells: DayWorkCell[];
 }
 export interface UnpostedReply {
   /** The day asked, dd/mm/yyyy on the campus clock. */
@@ -254,8 +253,7 @@ export interface UnpostedReply {
   /** False when the report stated no sections at all — no classes that day,
    *  which is not the same as all posted. */
   reported: boolean;
-  /** Every section's rows in the report's order; a row with blank counts is
-   *  not yet posted. */
+  /** Every section's cells in the report's order. */
   sections: DayWorkSection[];
 }
 export interface StudentRequest {

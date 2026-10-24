@@ -85,16 +85,16 @@ export function studentPairs(
  */
 export function dayWorkPairs(p: {
   course: Option;
-  branch: Option;
+  branches: Option[];
   semesters: Option[];
   date: string;
 }): [string, string | number][] {
   return [
     ["courseid", p.course.value],
-    ["arrbranchid", p.branch.value],
+    ["arrbranchid", p.branches.map((b) => b.value).join(",")],
     ["arrsemid", p.semesters.map((s) => s.value).join(",")],
     ["arrbatch", p.semesters.map((s) => s.title).join(",")],
-    ["arrbranchname", JSON.stringify([p.branch.label])],
+    ["arrbranchname", JSON.stringify(p.branches.map((b) => b.label))],
     ["arrsemstername", JSON.stringify(p.semesters.map((s) => s.label))],
     ["sectionid", "0"],
     ["searchdate", p.date],

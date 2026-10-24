@@ -8,7 +8,7 @@ import type {
   StudentProfile,
   StudentSgpa,
   TodayClass,
-  DayWorkRow,
+  DayWorkCell,
   DayWorkSection,
 } from "../shared/api.js";
 import type { RegisterRow } from "./attendance-bands.js";
@@ -547,31 +547,39 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
  * all posted.
  */
 const SECTION_BLOCK = /<b>Course:<\/b>/i;
+const BLOCK_BRANCH = /<b>Branch:<\/b>&nbsp;(?<branch>[^<]*)/i;
 const BLOCK_SEMESTER = /<b>Semester:<\/b>&nbsp;(?<semester>[^<]*)/i;
 const BLOCK_SECTION = /<b>Section:<\/b>&nbsp;(?<section>[^<]*)/i;
-export function parseDayClassWork(html: string): {
+export function parseDayClassWork(
+  html: string,
+  shorts: Record<string, string> = {}
+): {
   reported: boolean;
   sections: DayWorkSection[];
 } {
   const blocks = html.split(SECTION_BLOCK).slice(1);
   const sections: DayWorkSection[] = [];
   for (const block of blocks) {
+    const branch = block.match(BLOCK_BRANCH)?.groups?.branch?.trim() ?? "";
     const semester =
       block.match(BLOCK_SEMESTER)?.groups?.semester?.trim() ?? "";
     const section = block.match(BLOCK_SECTION)?.groups?.section?.trim() ?? "";
-    const rows: DayWorkRow[] = [];
+    const cells: DayWorkCell[] = [];
     for (const row of block.match(ROW) ?? []) {
-      const cells = cellsOf(row);
-      if (cells.length < 8 || !/^\d+$/.test(cells[0] ?? "")) continue;
-      rows.push({
-        period: cells[0] ?? "",
-        subject: cells[1] ?? "",
-        staff: cells[2] ?? "",
-        present: cells[5] ?? "",
-        absent: cells[6] ?? "",
+      const rowCells = cellsOf(row);
+      if (rowCells.length < 8 || !/^\d+$/.test(rowCells[0] ?? "")) continue;
+      cells.push({
+        period: rowCells[0] ?? "",
+        posted: (rowCells[5] ?? "") !== "" || (rowCells[6] ?? "") !== "",
       });
     }
-    sections.push({ semester, section, rows });
+    sections.push({
+      branch,
+      branchShort: shorts[branch] ?? branch,
+      semester,
+      section,
+      cells,
+    });
   }
   return { reported: blocks.length > 0, sections };
 }

@@ -1,10 +1,10 @@
-# ADR 0028: Home shows the day's class work with unposted rows tinted
+# ADR 0028: Home ticks the day's posted periods in a branch matrix
 
 ## Status
 
-Accepted. Supersedes the unposted-only shape: the section first shipped
-listing only blank-count periods, and an all-posted day read "All posted".
-Faculty asked for all tables instead, so the section is the day's report.
+Accepted. Supersedes two earlier shapes: the section first shipped listing
+only blank-count periods, then all tables with tinted rows. Faculty asked for
+the compact matrix instead — no details — so this records what replaced both.
 
 ## Context
 
@@ -19,25 +19,24 @@ yet posted: every posted period in every live reply states both counts.
 
 Home reads the report through `POST /api/unposted`, below the timetable:
 
-- The ask carries the faculty's own course and branch plus every semester
-  the Portal counts into the academic year, over today on the campus clock
+- The ask carries the course, every offered branch, and every semester the
+  Portal counts into the academic year, over today on the campus clock
   (IST — a UTC server would ask for yesterday after 18:30 UTC). One call
-  covers the whole branch; the section is always all of them.
-- Course and branch are matched from the Portal's own lists by name. A
-  refusal throws before the parser is reached, so it says the read failed
-  rather than passing for all posted — and it stays in its own section,
-  never failing the timetable above it.
-- Every section renders its own table with the posted counts; rows with
-  blank counts tint red with "—" cells, so the pending postings read at a
-  glance. A report with no section blocks is no classes that day, which is a
+  covers the whole day; the section is always all of them.
+- The course is matched from the Portal's own list by name; placeholders
+  never travel. A refusal throws before the parser is reached, so it says
+  the read failed rather than passing for all posted — and it stays in its
+  own section, never failing the timetable above it.
+- The panel shows branch tabs, section tabs under them, one row per
+  semester and one column per period: ticked where posted, crossed where
+  not, empty where the report never listed the period. No subjects, no
+  staff, no counts — the matrix is the whole answer.
+- A report with no section blocks is no classes that day, which is a
   different answer from all posted.
-- The section is scoped to the faculty's own branch (Information
-  Technology). A branch the Portal does not offer fails named rather than
-  reading another branch's periods.
 
 ## Consequences
 
 - No new kind of Portal call beyond the report's own method, through the
   same handler shape as every other read.
-- The row geometry is pinned against the live 23/10/2026 reply (all posted)
-  plus the same block with one period's counts blanked.
+- The posted/blank geometry is pinned against the live 23/10/2026 reply (all
+  posted) plus the same block with one period's counts blanked.

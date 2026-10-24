@@ -1064,7 +1064,7 @@ test.describe("the today handler", () => {
 });
 /** One section block with the report's own geometry: a posted period with
  *  both counts, and a held period with neither. */
-const DAYWORK = `<b>Course:</b>&nbsp;B.Tech<div><b>Semester:</b>&nbsp;III Semester</div><div><b>Section:</b>&nbsp;B</div>
+const DAYWORK = `<b>Course:</b>&nbsp;B.Tech<div><b>Branch:</b>&nbsp;Information Technology</div><div><b>Semester:</b>&nbsp;III Semester</div><div><b>Section:</b>&nbsp;B</div>
 <table><tr><td>Period</td><td>Subject</td><td>Name of the staff</td><td>Unit.No</td><td>Topics Covered</td><td>Present</td><td>Absent</td><td>Rolls</td></tr>
 <tr><td>1</td><td>MFCS</td><td>Some One</td><td>-</td><td>-</td><td>30</td><td>5</td><td>21B</td></tr>
 <tr><td>2</td><td>SE</td><td>Other Two</td><td>-</td><td>-</td><td></td><td></td><td></td></tr></table>`;
@@ -1072,14 +1072,15 @@ const itBranch = [
   opt("0", "-Branch-"),
   opt("6", "Information Technology", "IT"),
 ];
+const cseBranch = opt("11", "CSE (AI)", "CSE (AI)");
 const titledSemesters = [
   opt("2", "III Semester", "2025"),
   opt("4", "V Semester", "2024"),
 ];
 test.describe("the unposted handler", () => {
-  test("reads every section's rows with their counts", async () => {
+  test("asks every offered branch in one call", async () => {
     const { reader, calls } = fake({
-      branch: itBranch,
+      branch: [...itBranch, cseBranch],
       semester: titledSemesters,
       dayWork: DAYWORK,
     });
@@ -1089,44 +1090,33 @@ test.describe("the unposted handler", () => {
     );
     expect(reply.reported).toBe(true);
     expect(reply.sections).toMatchObject([
-      { semester: "III Semester", section: "B" },
+      { branchShort: "IT", semester: "III Semester", section: "B" },
     ]);
     expect(
-      reply.sections[0]?.rows,
-      "posted rows keep their counts, blank rows stay blank"
+      reply.sections[0]?.cells,
+      "posted rows tick, blank rows do not"
     ).toEqual([
-      {
-        period: "1",
-        subject: "MFCS",
-        staff: "Some One",
-        present: "30",
-        absent: "5",
-      },
-      {
-        period: "2",
-        subject: "SE",
-        staff: "Other Two",
-        present: "",
-        absent: "",
-      },
+      { period: "1", posted: true },
+      { period: "2", posted: false },
     ]);
-    // The ask carries the matched course and branch plus every titled
-    // semester: one call covers the whole branch.
+    // The ask carries every offered branch plus every titled semester: one
+    // call covers the whole day.
     expect(nth(calls.dayWork, 0)).toMatchObject({
       course: { value: "1", label: "B.Tech" },
-      branch: { value: "6", label: "Information Technology" },
       date: reply.date,
     });
+    expect(
+      nth(calls.dayWork, 0).branches.map((b) => b.value),
+      "placeholders never travel"
+    ).toEqual(["6", "11"]);
     expect(
       nth(calls.dayWork, 0).semesters.map((s) => s.value),
       "only semesters the Portal counts into the year travel"
     ).toEqual(["2", "4"]);
   });
-  test("a branch ECAP does not offer fails named", async () => {
-    const { reader } = fake({ branch: [opt("9", "CSE")] });
-    await expect(handleUnposted(reader)).rejects.toThrow(
-      /Information Technology/
-    );
+  test("a course ECAP does not offer fails named", async () => {
+    const { reader } = fake({ course: [opt("9", "M.Tech")] });
+    await expect(handleUnposted(reader)).rejects.toThrow(/B\.Tech/);
   });
   test("a dead session during the read still signs out", async () => {
     const { reader } = fake({ course: [] });

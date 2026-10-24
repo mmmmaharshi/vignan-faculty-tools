@@ -73,12 +73,12 @@ export type PortalReader = {
   /** The day-class-work report's fragment for one branch and date. */
   dayClassWork: (p: DayWorkRequest) => Promise<string>;
 };
-/** What the day-class-work report is asked for: the faculty's own course and
- *  branch, every semester the Portal counts into the academic year, and the
- *  day on the campus clock. The section is always all of them. */
+/** What the day-class-work report is asked for: the course, every branch it
+ *  is asked across, every semester the Portal counts into the academic year,
+ *  and the day on the campus clock. The section is always all of them. */
 export interface DayWorkRequest {
   course: Option;
-  branch: Option;
+  branches: Option[];
   semesters: Option[];
   date: string;
 }
@@ -673,13 +673,13 @@ export async function handleTodayClasses(
 ): Promise<TodayClassesReply> {
   return { classes: parseTodayClasses(await portal.todayClasses()) };
 }
-/** The day-class-work report for the faculty's branch today: every section's
+/** The day-class-work report for every offered branch today: each section's
  *  periods with their posted counts, blank where nothing is posted yet. The
- *  course and branch are matched from the Portal's own lists by name, and
- *  only semesters the Portal counts into the academic year travel — the day
- *  report's own page skips title-less ones the same way. A refusal throws
- *  before the parser is reached, so it says the read failed rather than
- *  passing for all posted. */
+ *  course is matched from the Portal's own list by name, every offered branch
+ *  travels, and only semesters the Portal counts into the academic year do —
+ *  the day report's own page skips title-less ones the same way. A refusal
+ *  throws before the parser is reached, so it says the read failed rather
+ *  than passing for all posted. */
 export async function handleUnposted(
   portal: PortalReader
 ): Promise<UnpostedReply> {
@@ -695,13 +695,10 @@ export async function handleUnposted(
   if (!course) {
     throw new HttpError(502, "ECAP did not offer a B.Tech course.");
   }
-  const [branches, semesters] = await portal.branchesAndSemesters(course.value);
-  const branch = matchOption("Information Technology", branches);
-  if (!branch) {
-    throw new HttpError(
-      502,
-      "ECAP did not offer the Information Technology branch."
-    );
+  const [offered, semesters] = await portal.branchesAndSemesters(course.value);
+  const branches = realOptions(offered);
+  if (!branches.length) {
+    throw new HttpError(502, "ECAP offered no branches.");
   }
   const titled = semesters.filter((s) => s.title);
   if (!titled.length) {
@@ -710,8 +707,17 @@ export async function handleUnposted(
       "ECAP counted no semesters into this academic year."
     );
   }
+  const shorts: Record<string, string> = Object.fromEntries(
+    branches.map((b) => [b.label, b.title || b.label])
+  );
   const { reported, sections } = parseDayClassWork(
-    await portal.dayClassWork({ course, branch, semesters: titled, date })
+    await portal.dayClassWork({
+      course,
+      branches,
+      semesters: titled,
+      date,
+    }),
+    shorts
   );
   return { date, reported, sections };
 }
