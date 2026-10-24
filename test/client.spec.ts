@@ -575,9 +575,9 @@ test.describe("the app's own data layer", () => {
     await expect(panel.getByText(/Section-1/)).toBeVisible();
     await expect(panel.getByText(/I Semester \(inferred\)/)).toBeVisible();
     await expect(panel.getByText("CGPA 5.61")).toBeVisible();
-    await expect(panel.getByText("Absent (1)")).toBeVisible();
-    // The full-semester list walks beside the month's, with its own window —
-    // the start the walk found, not the asked month.
+    // One absent list only: the full semester's, with the walked-back start
+    // naming it. The month's own list is not beside it.
+    await expect(panel.getByText("Absent (1)", { exact: true })).toHaveCount(0);
     await expect(panel.getByText("Absent — full semester (1)")).toBeVisible();
     await expect(panel.getByText(/15\/07\/2026/)).toBeVisible();
   });
@@ -801,17 +801,25 @@ test.describe("the app's own data layer", () => {
     await expect(dialog.getByText("CGPA 5.61")).toBeVisible({
       timeout: 15_000,
     });
-    // The snapped window starts at the remembered start, so the list on
-    // screen already is the full semester — no second list.
+    // The snapped window starts at the remembered start, so the window's own
+    // list already is the full semester's — shown once, under its name, with
+    // no wider read behind it.
     await expect(
-      dialog.getByText("Absent — full semester", { exact: false })
-    ).toHaveCount(0);
+      dialog.getByText("Absent — full semester, this subject (1)")
+    ).toBeVisible();
+    await expect(
+      dialog.getByRole("cell", { name: "12/10", exact: true })
+    ).toBeVisible();
+    await expect(
+      dialog.getByText("01/09/2026 to 16/10/2026", { exact: true })
+    ).toBeVisible();
     expect(
       semAbsencesCalls,
       "no wider read when the window is the semester"
     ).toBe(0);
     await page.getByRole("button", { name: "Close student details" }).click();
-    // Narrowing the window keeps the window's own list and adds the semester's.
+    // Narrowing the window asks the wider read, and its answer replaces the
+    // window's list rather than joining it.
     statedFrom = "01/10/2026";
     await page.getByLabel("From").fill("2026-10-01");
     await page.getByRole("button", { name: "Load register" }).click();
@@ -824,15 +832,15 @@ test.describe("the app's own data layer", () => {
     });
     await expect(
       dialog.getByRole("cell", { name: "12/10", exact: true }),
-      "the window's own list holds the window's absences"
-    ).toBeVisible();
+      "the window's dates leave with the window's list"
+    ).toHaveCount(0);
     await expect(
       dialog.getByText("01/10/2026 to 16/10/2026", { exact: true }),
-      "the window's list names the window it came from"
-    ).toBeVisible();
+      "and the window's period goes with them"
+    ).toHaveCount(0);
     await expect(
       dialog.getByText("Absent — full semester, this subject (2)"),
-      "the semester's list arrives beside it, not instead of it"
+      "the semester's list stands alone"
     ).toBeVisible();
     await expect(
       dialog.getByRole("cell", { name: "05/08", exact: true }),
@@ -871,6 +879,9 @@ test.describe("the app's own data layer", () => {
   test("a subject register shows its own figures alone, table and panel", async ({
     page,
   }) => {
+    // The register states its own start, so the snapped window is the whole
+    // semester: the window's dates arrive as the one full-semester list.
+    statedFrom = "01/07/2026";
     await signInAndSettle(page);
     await page.getByRole("combobox", { name: "Subject" }).click();
     await page.getByRole("option", { name: "MFCS", exact: true }).click();
@@ -910,6 +921,12 @@ test.describe("the app's own data layer", () => {
       panel.getByText("Date Range", { exact: false }),
       "the facts table above the register belongs to the register, not the panel"
     ).toHaveCount(0);
+    await expect(
+      panel.getByText("Absent — full semester, this subject (1)", {
+        exact: true,
+      }),
+      "one list, holding the window's own dates as the semester's"
+    ).toBeVisible();
     await expect(
       panel.getByText("12/10", { exact: true }),
       "absence dates are read from the register's own columns, five to a row"

@@ -46,14 +46,11 @@ type StudentDetailsProps = {
    *  Student Search screen, which shows one result below its form. */
   inline?: boolean;
   note: Note | null;
-  /** The date window the absent dates came from, so the block names its own
-   *  period rather than borrowing the register's Date Range fact above. Null
-   *  when no register has loaded yet. */
-  absenceRange?: string | null;
-  /** The same student's absent days over the whole semester, read over the
-   *  remembered start when the window above starts after it. Null when the
-   *  window already is the whole semester, or when ECAP would not give the
-   *  wider read — either way there is no second list to show. */
+  /** The student's absent days over the whole semester, read over the
+   *  remembered start — or the window's own list where the window already is
+   *  the whole semester, which the caller passes through as this same prop.
+   *  One list, never two: a month's dates beside the semester's read as two
+   *  answers to one question. Null when ECAP would give neither. */
   fullAbsent?: string[] | null;
   /** The period the full-semester list covers, so it names its own window. */
   fullRange?: string | null;
@@ -165,7 +162,6 @@ export const StudentDetails = ({
   scope,
   inline = false,
   note,
-  absenceRange,
   fullAbsent,
   fullRange,
   fullTitle = "Absent — full semester",
@@ -180,12 +176,6 @@ export const StudentDetails = ({
   const backlogNote = profile?.backlogs.note ?? "";
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
-  /* Where the dates come from: the register row's own cells where it has them
-     (a subject register), and otherwise the Student Wise report the panel asks
-     for by this student's roll number — the All subjects report states none. */
-  const absences = student?.absent.length
-    ? student.absent
-    : (profile?.absent ?? []);
   const content = (
     <Stack
       gap="md"
@@ -248,16 +238,9 @@ export const StudentDetails = ({
           ) : null}
         </>
       ) : null}
-      {/* The dates the register's own columns say "A" for this student, in
-              the order the register lists them — or, on the All subjects path,
-              the ones that student's own grid states, unioned over subjects. No
-              list when there are none, because a grid that states no dates must
-              not be read as a clean sheet. */}
-      {absences.length ? (
-        <AbsenceBlock title="Absent" dates={absences} range={absenceRange} />
-      ) : null}
-      {/* The same student's absences over the whole semester, read over the
-              remembered start when the window above starts after it. */}
+      {/* The student's absences over the whole semester, five to a row. No
+          list when there are none, because a grid that states no dates must
+          not be read as a clean sheet. */}
       {fullAbsent?.length ? (
         <AbsenceBlock title={fullTitle} dates={fullAbsent} range={fullRange} />
       ) : null}

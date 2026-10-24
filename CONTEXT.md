@@ -108,10 +108,12 @@ The flags on a row and the counts in the summary come from one pass in
 **Student details**:
 The panel a register row opens: that row's own figures, the dates the Portal says
 that student missed, and the GPA, semesters, phone numbers and backlogs ECAP
-states for the one student. The figures are the row already on screen; the absences are the
-dates inside the **asked window** — the Portal states only the days a window
-covers — and a second list beside them gives the same student's absences over the
-remembered semester start, so a narrowed window does not hide the semester. The
+states for the one student. The figures are the row already on screen; the
+absences are one list — the full semester's, named with its own period. The
+Portal states only the days a window covers, so the panel reads the same read
+again over the remembered semester start whenever the window starts after it;
+when the window already is the whole semester, its own dates are shown as the
+one list and no wider read is asked. The
 GPA, semesters and numbers are one Portal call for that roll number, made when
 the panel opens rather than with the register, because the Portal answers for one
 student at a time. On the **All subjects** view, whose report aggregates by

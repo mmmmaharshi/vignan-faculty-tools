@@ -257,19 +257,19 @@ const App = (): React.JSX.Element => {
       : null;
   const semSeen = summary?.statedFrom ?? semStart.data?.statedFrom ?? null;
   const semStartShown = (semKey && (semStarts[semKey] ?? semSeen)) || null;
+  /** Whether the window starts after the remembered start: only then is the
+   *  wider read worth asking for. When they coincide the window's own list
+   *  already is the full semester's, so the panel shows it as the one list. */
+  const startBeforeWindow = Boolean(
+    semStartShown && toInputDate(semStartShown) < range.from
+  );
   /** The full-semester absent list for the open panel: the same read that fed
    *  the window's own list, asked again over the remembered start. Gated on the
    *  drawer being open, not just on a student being set: `detail` survives the
    *  ~200ms slide-out by design, and a register loaded in that window must not
-   *  read for a panel that is already leaving. Only when the window starts
-   *  after the remembered start — when they coincide the list on screen
-   *  already is the full semester, and there is no second list to show. */
+   *  read for a panel that is already leaving. */
   const semAbsences = useSemAbsences(
-    detailOpen &&
-      detail &&
-      click?.request &&
-      semStartShown &&
-      toInputDate(semStartShown) < range.from
+    detailOpen && detail && click?.request && startBeforeWindow && semStartShown
       ? {
           roll: detail.roll,
           name: detail.name,
@@ -278,6 +278,19 @@ const App = (): React.JSX.Element => {
         }
       : null
   );
+  /** The panel's one absent list: the wider read where the window starts after
+   *  the remembered start, else the window's own list — the register row's
+   *  cells where it has them, otherwise the Student Wise report the panel
+   *  reads for this student. Null where neither has anything to show. */
+  const windowAbsences =
+    detail && detail.absent.length > 0
+      ? detail.absent
+      : (profile.data?.absent ?? []);
+  const fullAbsencesShown =
+    semAbsences.data?.absent ??
+    (semStartShown && !startBeforeWindow && windowAbsences.length
+      ? windowAbsences
+      : null);
   const classChosen =
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
@@ -795,11 +808,6 @@ const App = (): React.JSX.Element => {
               busy={search.isLoading}
               note={searchNote}
               scope={searchScope}
-              absenceRange={
-                found?.window
-                  ? `${found.window.from} to ${found.window.to}`
-                  : null
-              }
               fullAbsent={found?.fullAbsent ?? null}
               fullRange={
                 found?.fullRange
@@ -848,12 +856,7 @@ const App = (): React.JSX.Element => {
               profile={profile.data ?? null}
               busy={profile.isLoading}
               note={profileNote ?? semAbsencesNote}
-              absenceRange={
-                summary?.range
-                  ? `${summary.statedFrom || summary.range.from} to ${summary.range.to}`
-                  : null
-              }
-              fullAbsent={semAbsences.data?.absent ?? null}
+              fullAbsent={fullAbsencesShown}
               fullTitle={
                 overallMode
                   ? "Absent — full semester"
