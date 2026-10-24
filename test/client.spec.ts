@@ -527,7 +527,7 @@ test.describe("the app's own data layer", () => {
     await expect(page.getByText("III-B", { exact: true })).toBeVisible();
     await expect(page.getByText("Some One", { exact: true })).toHaveCount(0);
     // CSE (AI) posted everything: one line, no table.
-    await expect(page.getByText("all posted", { exact: true })).toBeVisible();
+    await expect(page.getByText("All Posted", { exact: true })).toBeVisible();
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
   });
   test("a cleared day keeps the slots' remembered hours", async ({ page }) => {

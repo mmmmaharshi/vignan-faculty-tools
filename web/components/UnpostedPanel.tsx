@@ -43,7 +43,7 @@ const BranchPending = ({
             <Table.Tr>
               <Table.Td>
                 <Text c="dimmed" size="sm">
-                  all posted
+                  All Posted
                 </Text>
               </Table.Td>
             </Table.Tr>
