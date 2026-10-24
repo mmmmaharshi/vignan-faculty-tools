@@ -21,6 +21,21 @@ export type HomePanelProps = {
    *  sentence below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
 };
+/** The section's pieces, each riding its own pill: the comma separates the
+ *  section from the course line, and a "B.Tech V Semester" course line splits
+ *  further into its course and semester. Anything else stays one pill. */
+const pillsOf = (section: string): string[] =>
+  section
+    .split(",")
+    .flatMap((piece) => {
+      const halves = piece
+        .trim()
+        .match(/^(?<course>\S+)\s+(?<semester>[IVX]+\s+Semester)$/i)?.groups;
+      return halves?.course && halves.semester
+        ? [halves.course, halves.semester]
+        : [piece.trim()];
+    })
+    .filter(Boolean);
 export const HomePanel = ({
   classes,
   busy,
@@ -72,9 +87,9 @@ export const HomePanel = ({
                     rides its own pill rather than one long line. */}
                 {entry.section ? (
                   <Group gap={4} mt={4}>
-                    {entry.section.split(",").map((piece) => (
-                      <Pill key={piece.trim()} size="xs">
-                        {piece.trim()}
+                    {pillsOf(entry.section).map((pill) => (
+                      <Pill key={pill} size="xs">
+                        {pill}
                       </Pill>
                     ))}
                   </Group>
