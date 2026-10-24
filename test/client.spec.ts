@@ -479,26 +479,6 @@ test.describe("the app's own data layer", () => {
     await expect(page.getByText("No periods today")).toHaveCount(0);
     expect(todayCalls, "the skeleton is drawn from one empty read").toBe(1);
   });
-  test("a cleared day keeps the slots' remembered hours", async ({ page }) => {
-    await page.goto("/login");
-    await signIn(page);
-    await expect(page.getByText("AI", { exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
-    // A day ECAP answered folds its hours into memory; the cleared day after
-    // it borrows those hours and blanks only the classes.
-    todayEmpty = true;
-    await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Today's Classes" })
-    ).toBeVisible({ timeout: 15_000 });
-    await expect.poll(() => todayCalls, { timeout: 5000 }).toBe(2);
-    await expect(page.getByText("AI", { exact: true })).toHaveCount(0);
-    await expect(
-      page.getByRole("row", { name: /Period 1 \d/ }),
-      "the borrowed hours name the slot they came from"
-    ).toBeVisible();
-  });
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({
     page,
   }) => {

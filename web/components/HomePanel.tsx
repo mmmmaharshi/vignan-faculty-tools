@@ -11,12 +11,6 @@ import {
 import React, { useEffect, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
-import {
-  notePeriodTimes,
-  readPeriodTimes,
-  writePeriodTimes,
-} from "../period-times";
-import type { PeriodTimes } from "../period-times";
 import type { Note } from "../types";
 
 export type HomePanelProps = {
@@ -113,21 +107,15 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
     </>
   );
 };
-/** The skeleton an empty day shows: the usual seven periods with blank
- *  classes. A cleared day states no times either, so each slot borrows the
- *  latest hours ECAP stated for it — the slots' hours, which change far less
- *  often than the days' subjects. */
-const emptyDay = (times: PeriodTimes): TodayClass[] =>
-  Array.from({ length: 7 }, (_, index) => {
-    const period = `Period ${index + 1}`;
-    return {
-      period,
-      time: times[period] ?? "",
-      subject: "",
-      section: "",
-      room: "",
-    };
-  });
+/** An empty day still shows the usual table: seven periods, blank classes.
+ *  ECAP clears the day rather than naming it, so the skeleton is fixed. */
+const EMPTY_DAY: TodayClass[] = Array.from({ length: 7 }, (_, index) => ({
+  period: `Period ${index + 1}`,
+  time: "",
+  subject: "",
+  section: "",
+  room: "",
+}));
 export const HomePanel = ({
   classes,
   busy,
@@ -140,22 +128,6 @@ export const HomePanel = ({
     const tick = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(tick);
   }, []);
-  /* oxlint-disable react/set-state-in-effect -- folding the answered hours
-     into memory on arrival, like the semester-start memory in App. */
-  // The slots' latest hours, so a cleared day still shows its usual table.
-  // Folded from every answered timetable and persisted only when changed.
-  const [slotTimes, setSlotTimes] = useState<PeriodTimes>(() =>
-    readPeriodTimes()
-  );
-  useEffect(() => {
-    if (!classes?.length) return;
-    setSlotTimes((prev) => {
-      const next = notePeriodTimes(prev, classes);
-      if (next !== prev) writePeriodTimes(next);
-      return next;
-    });
-  }, [classes]);
-  /* oxlint-enable react/set-state-in-effect */
   return (
     <Stack gap="md">
       <Title order={4}>Today&apos;s Classes</Title>
@@ -181,33 +153,31 @@ export const HomePanel = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(classes.length ? classes : emptyDay(slotTimes)).map(
-              (entry, index) => (
-                // The grid states no identifiers, so the order it gave is the key.
-                // The live period carries the register's critical-row tint in
-                // blue: it answers "where am I supposed to be" at a glance.
-                <Table.Tr
-                  key={`${entry.period}-${entry.subject}-${index}`}
-                  bg={
-                    isLive(entry.time, now)
-                      ? "var(--mantine-color-blue-light)"
-                      : undefined
-                  }
-                >
-                  <Table.Td>
-                    <Text fw={700}>{entry.period || "—"}</Text>
-                    {entry.time ? (
-                      <Text c="dimmed" size="xs">
-                        {entry.time}
-                      </Text>
-                    ) : null}
-                  </Table.Td>
-                  <Table.Td>
-                    <ClassCell entry={entry} />
-                  </Table.Td>
-                </Table.Tr>
-              )
-            )}
+            {(classes.length ? classes : EMPTY_DAY).map((entry, index) => (
+              // The grid states no identifiers, so the order it gave is the key.
+              // The live period carries the register's critical-row tint in
+              // blue: it answers "where am I supposed to be" at a glance.
+              <Table.Tr
+                key={`${entry.period}-${entry.subject}-${index}`}
+                bg={
+                  isLive(entry.time, now)
+                    ? "var(--mantine-color-blue-light)"
+                    : undefined
+                }
+              >
+                <Table.Td>
+                  <Text fw={700}>{entry.period || "—"}</Text>
+                  {entry.time ? (
+                    <Text c="dimmed" size="xs">
+                      {entry.time}
+                    </Text>
+                  ) : null}
+                </Table.Td>
+                <Table.Td>
+                  <ClassCell entry={entry} />
+                </Table.Td>
+              </Table.Tr>
+            ))}
           </Table.Tbody>
         </Table>
       ) : null}
