@@ -109,7 +109,7 @@ The flags on a row and the counts in the summary come from one pass in
 The panel a register row opens: that row's own figures, the dates the Portal says
 that student missed, and the GPA, semesters, phone numbers and backlogs ECAP
 states for the one student. The figures are the row already on screen; the
-absences are one list — the full semester's, named with its own period. The
+absences are one list — the full semester's. The
 Portal states only the days a window covers, so the panel reads the same read
 again over the remembered semester start whenever the window starts after it;
 when the window already is the whole semester, its own dates are shown as the

@@ -402,10 +402,10 @@ carries one also has its name in text.
   in `localStorage`, keyed by the five levels plus the Portal's batch title),
   so a later From moves the figures but never the row. See ADR 0022.
 
-- **A panel shows one absent list: the full semester's, named with its own
-  period.** The Portal states only the days inside the window, so the panel
-  reads the **same** read again over the remembered start and shows that
-  answer alone — never the window's dates beside the semester's. No new kind
+- **A panel shows one absent list: the full semester's.** The Portal states only
+  the days inside the window, so the panel reads the **same** read again over
+  the remembered start and shows that answer alone — never the window's dates
+  beside the semester's. No new kind
   of Portal call: the subject path reads the same register grid, the All
   subjects path the same Student Wise grid. Asked only when the window starts
   after the remembered start — when they coincide the window's own dates are

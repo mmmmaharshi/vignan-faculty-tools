@@ -579,7 +579,6 @@ test.describe("the app's own data layer", () => {
     // naming it. The month's own list is not beside it.
     await expect(panel.getByText("Absent (1)", { exact: true })).toHaveCount(0);
     await expect(panel.getByText("Absent — full semester (1)")).toBeVisible();
-    await expect(panel.getByText(/15\/07\/2026/)).toBeVisible();
   });
   test("a roll in no section of that class still shows its profile", async ({
     page,
@@ -810,9 +809,6 @@ test.describe("the app's own data layer", () => {
     await expect(
       dialog.getByRole("cell", { name: "12/10", exact: true })
     ).toBeVisible();
-    await expect(
-      dialog.getByText("01/09/2026 to 16/10/2026", { exact: true })
-    ).toBeVisible();
     expect(
       semAbsencesCalls,
       "no wider read when the window is the semester"
@@ -835,20 +831,12 @@ test.describe("the app's own data layer", () => {
       "the window's dates leave with the window's list"
     ).toHaveCount(0);
     await expect(
-      dialog.getByText("01/10/2026 to 16/10/2026", { exact: true }),
-      "and the window's period goes with them"
-    ).toHaveCount(0);
-    await expect(
       dialog.getByText("Absent — full semester, this subject (2)"),
       "the semester's list stands alone"
     ).toBeVisible();
     await expect(
       dialog.getByRole("cell", { name: "05/08", exact: true }),
       "and it holds the semester's absences"
-    ).toBeVisible();
-    await expect(
-      dialog.getByText("01/09/2026 to 16/10/2026", { exact: true }),
-      "and it names the remembered start, not the typed one"
     ).toBeVisible();
     expect(semAbsencesCalls, "one wider read for the open panel").toBe(1);
   });

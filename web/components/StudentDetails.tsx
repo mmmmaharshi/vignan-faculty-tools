@@ -52,8 +52,7 @@ type StudentDetailsProps = {
    *  One list, never two: a month's dates beside the semester's read as two
    *  answers to one question. Null when ECAP would give neither. */
   fullAbsent?: string[] | null;
-  /** The period the full-semester list covers, so it names its own window. */
-  fullRange?: string | null;
+
   /** What the full-semester list is called. On the All subjects path it is the
    *  student's absences across every subject; on a subject path it is that
    *  subject's alone, and the title says so. */
@@ -71,16 +70,14 @@ const chunked = (dates: readonly string[]): string[][] =>
   Array.from({ length: Math.ceil(dates.length / 5) }, (_, i) =>
     dates.slice(i * 5, i * 5 + 5)
   );
-/** One absent-dates block: a heading with its count, its own period line, the
- *  five-per-row table, and a copy button for the comma-separated dates. */
+/** One absent-dates block: a heading with its count, the five-per-row table,
+ *  and a copy button for the comma-separated dates. */
 const AbsenceBlock = ({
   title,
   dates,
-  range,
 }: {
   title: string;
   dates: readonly string[];
-  range?: string | null;
 }): React.JSX.Element => (
   <>
     <Group gap="xs" align="center" justify="space-between" w="100%">
@@ -95,11 +92,6 @@ const AbsenceBlock = ({
         )}
       </CopyButton>
     </Group>
-    {range ? (
-      <Text c="dimmed" size="xs">
-        {range}
-      </Text>
-    ) : null}
     <Table striped withTableBorder withColumnBorders tabularNums>
       <Table.Tbody>
         {chunked(dates).map((row) => (
@@ -163,7 +155,6 @@ export const StudentDetails = ({
   inline = false,
   note,
   fullAbsent,
-  fullRange,
   fullTitle = "Absent — full semester",
 }: StudentDetailsProps): React.JSX.Element => {
   const phones = profile?.phones ?? [];
@@ -266,7 +257,7 @@ export const StudentDetails = ({
           list when there are none, because a grid that states no dates must
           not be read as a clean sheet. */}
       {fullAbsent?.length ? (
-        <AbsenceBlock title={fullTitle} dates={fullAbsent} range={fullRange} />
+        <AbsenceBlock title={fullTitle} dates={fullAbsent} />
       ) : null}
       {/* Both figures are badged here where the table badges the subject
               alone: two badges on one table row is noise, but two labelled lines

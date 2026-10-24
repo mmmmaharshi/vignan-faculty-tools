@@ -816,11 +816,6 @@ const App = (): React.JSX.Element => {
               note={searchNote}
               scope={searchScope}
               fullAbsent={found?.fullAbsent ?? null}
-              fullRange={
-                found?.fullRange
-                  ? `${found.fullRange.from} to ${found.fullRange.to}`
-                  : null
-              }
               fullTitle="Absent — full semester"
             />
           </>
@@ -868,11 +863,6 @@ const App = (): React.JSX.Element => {
                 overallMode
                   ? "Absent — full semester"
                   : "Absent — full semester, this subject"
-              }
-              fullRange={
-                semStartShown && summary
-                  ? `${semStartShown} to ${summary.range.to}`
-                  : null
               }
             />
           </>
