@@ -24,10 +24,13 @@ export type HomePanelProps = {
 /** The subject's trailing branch ("FLUTER LAB (CSE (AI))" → "FLUTER LAB" plus
  *  "(CSE (AI))"), so the branch rides a pill with the rest. A subject with no
  *  trailing parens keeps its single line. */
+/** "(CSE (AI))" rides the pill as "CSE(AI)": outer parens off, spaces out. */
+const compactBranch = (branch: string): string =>
+  branch.replace(/^\((?<inner>.*)\)$/, "$<inner>").replaceAll(/\s+/g, "");
 const splitSubject = (subject: string): { name: string; branch: string } => {
   const parts = subject.match(/^(?<name>.*?)\s*(?<branch>\(.*\))$/)?.groups;
   return parts?.name && parts.branch
-    ? { name: parts.name, branch: parts.branch }
+    ? { name: parts.name, branch: compactBranch(parts.branch) }
     : { name: subject, branch: "" };
 };
 /** The section's pieces, each riding its own pill: the comma separates the
