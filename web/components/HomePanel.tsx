@@ -34,18 +34,22 @@ const splitSubject = (subject: string): { name: string; branch: string } => {
     : { name: subject, branch: "" };
 };
 /** The section's pieces, each riding its own pill: the comma separates the
- *  section from the course line, and a "B.Tech V Semester" course line splits
- *  further into its course and semester. Anything else stays one pill. */
+ *  section from the course line, a "B.Tech V Semester" course line splits
+ *  into its course and a short "V Sem", and anything else stays one pill. */
 const pillsOf = (section: string): string[] =>
   section
     .split(",")
     .flatMap((piece) => {
-      const halves = piece
-        .trim()
-        .match(/^(?<course>\S+)\s+(?<semester>[IVX]+\s+Semester)$/i)?.groups;
-      return halves?.course && halves.semester
-        ? [halves.course, halves.semester]
-        : [piece.trim()];
+      const words = piece.trim();
+      const full = words.match(
+        /^(?<course>\S+)\s+(?<numeral>[IVX]+)\s+Semester$/i
+      )?.groups;
+      if (full?.course && full.numeral) {
+        return [full.course, `${full.numeral} Sem`];
+      }
+      const bare = words.match(/^(?<numeral>[IVX]+)\s+Semester$/i)?.groups;
+      if (bare?.numeral) return [`${bare.numeral} Sem`];
+      return [words];
     })
     .filter(Boolean);
 /** "FLUTER LAB" reads "Fluter Lab": ECAP shouts its subject names, and the
