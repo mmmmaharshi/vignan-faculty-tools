@@ -8,7 +8,8 @@ import type {
   StudentProfile,
   StudentSgpa,
   TodayClass,
-  UnpostedPeriod,
+  DayWorkRow,
+  DayWorkSection,
 } from "../shared/api.js";
 import type { RegisterRow } from "./attendance-bands.js";
 
@@ -538,55 +539,42 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
     }));
 }
 /**
- * The periods ECAP's day-class-work report states with no posted attendance,
- * in the report's own order. The report lays one block per section — course,
- * branch, semester, section and headcount, then one row per period with the
- * subject, the staff, and the present/absent counts. A held period whose
- * counts are blank is not yet posted: every posted period in every live reply
- * states both counts, so blank is the absence of a posting rather than of a
- * class. A reply with no section blocks states no classes at all, which is
- * not the same as all posted.
+ * ECAP's day-class-work report, one block per section: course, branch,
+ * semester, section and headcount, then one row per period with the subject,
+ * the staff, and the present/absent counts. Every held period states both
+ * counts once posted, so a row with blank counts is not yet posted; a reply
+ * with no section blocks states no classes at all, which is not the same as
+ * all posted.
  */
 const SECTION_BLOCK = /<b>Course:<\/b>/i;
 const BLOCK_SEMESTER = /<b>Semester:<\/b>&nbsp;(?<semester>[^<]*)/i;
 const BLOCK_SECTION = /<b>Section:<\/b>&nbsp;(?<section>[^<]*)/i;
 export function parseDayClassWork(html: string): {
   reported: boolean;
-  periods: UnpostedPeriod[];
+  sections: DayWorkSection[];
 } {
   const blocks = html.split(SECTION_BLOCK).slice(1);
-  const periods: UnpostedPeriod[] = [];
+  const sections: DayWorkSection[] = [];
   for (const block of blocks) {
     const semester =
       block.match(BLOCK_SEMESTER)?.groups?.semester?.trim() ?? "";
     const section = block.match(BLOCK_SECTION)?.groups?.section?.trim() ?? "";
+    const rows: DayWorkRow[] = [];
     for (const row of block.match(ROW) ?? []) {
       const cells = cellsOf(row);
       if (cells.length < 8 || !/^\d+$/.test(cells[0] ?? "")) continue;
-      if ((cells[5] ?? "") !== "" || (cells[6] ?? "") !== "") continue;
-      periods.push({
+      rows.push({
         period: cells[0] ?? "",
         subject: cells[1] ?? "",
-        semester,
-        section,
         staff: cells[2] ?? "",
+        present: cells[5] ?? "",
+        absent: cells[6] ?? "",
       });
     }
+    sections.push({ semester, section, rows });
   }
-  return { reported: blocks.length > 0, periods };
+  return { reported: blocks.length > 0, sections };
 }
-/**
- * Today's periods out of the faculty dashboard's schedule grid, in the grid's
- * own order. The grid has no header row: each row is the period and time in
- * the first cell, subject over section in the second, read as written. An
- * `<hr/>` stacks a second subject under the first, which reads as two periods
- * at the same time; an empty second cell is a free period, left out rather
- * than shown with an invented subject. The grid states no room, so room is
- * always empty — the field stays so the panel's row shape survives the day
- * ECAP adds one. A reply with no schedule grid at all (the cleared-evening
- * `</table>` ECAP answers after ~4pm) is an empty day, never a failure:
- * transport-level failures throw before this is ever reached.
- */
 export function parseTodayClasses(html: string): TodayClass[] {
   const grid = html.match(SCHEDULE_GRID)?.groups?.grid ?? "";
   if (!grid) return [];

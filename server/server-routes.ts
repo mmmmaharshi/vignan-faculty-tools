@@ -673,8 +673,9 @@ export async function handleTodayClasses(
 ): Promise<TodayClassesReply> {
   return { classes: parseTodayClasses(await portal.todayClasses()) };
 }
-/** Periods across the faculty's own branch with no posted attendance today.
- *  The course and branch are matched from the Portal's own lists by name, and
+/** The day-class-work report for the faculty's branch today: every section's
+ *  periods with their posted counts, blank where nothing is posted yet. The
+ *  course and branch are matched from the Portal's own lists by name, and
  *  only semesters the Portal counts into the academic year travel — the day
  *  report's own page skips title-less ones the same way. A refusal throws
  *  before the parser is reached, so it says the read failed rather than
@@ -709,8 +710,8 @@ export async function handleUnposted(
       "ECAP counted no semesters into this academic year."
     );
   }
-  const { reported, periods } = parseDayClassWork(
+  const { reported, sections } = parseDayClassWork(
     await portal.dayClassWork({ course, branch, semesters: titled, date })
   );
-  return { date, reported, periods };
+  return { date, reported, sections };
 }

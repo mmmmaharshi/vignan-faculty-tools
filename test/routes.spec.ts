@@ -1077,7 +1077,7 @@ const titledSemesters = [
   opt("4", "V Semester", "2024"),
 ];
 test.describe("the unposted handler", () => {
-  test("names periods with blank counts across the branch", async () => {
+  test("reads every section's rows with their counts", async () => {
     const { reader, calls } = fake({
       branch: itBranch,
       semester: titledSemesters,
@@ -1088,13 +1088,26 @@ test.describe("the unposted handler", () => {
       /^\d\d\/\d\d\/\d\d\d\d$/
     );
     expect(reply.reported).toBe(true);
-    expect(reply.periods).toEqual([
+    expect(reply.sections).toMatchObject([
+      { semester: "III Semester", section: "B" },
+    ]);
+    expect(
+      reply.sections[0]?.rows,
+      "posted rows keep their counts, blank rows stay blank"
+    ).toEqual([
+      {
+        period: "1",
+        subject: "MFCS",
+        staff: "Some One",
+        present: "30",
+        absent: "5",
+      },
       {
         period: "2",
         subject: "SE",
-        semester: "III Semester",
-        section: "B",
         staff: "Other Two",
+        present: "",
+        absent: "",
       },
     ]);
     // The ask carries the matched course and branch plus every titled

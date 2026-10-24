@@ -313,13 +313,26 @@ const stub = async (route: Route): Promise<void> => {
     await json({
       date: "24/10/2026",
       reported: true,
-      periods: [
+      sections: [
         {
-          period: "2",
-          subject: "MFCS",
           semester: "III Semester",
           section: "B",
-          staff: "Some One",
+          rows: [
+            {
+              period: "2",
+              subject: "MFCS",
+              staff: "Some One",
+              present: "30",
+              absent: "5",
+            },
+            {
+              period: "3",
+              subject: "SE",
+              staff: "Other Two",
+              present: "",
+              absent: "",
+            },
+          ],
         },
       ],
     });
@@ -509,10 +522,12 @@ test.describe("the app's own data layer", () => {
     await page.goto("/login");
     await signIn(page);
     await expect(
-      page.getByRole("heading", { name: "Attendance Not Posted" })
+      page.getByRole("heading", { name: "Day Class Work" })
     ).toBeVisible({ timeout: 15_000 });
-    // The staff the posting waits on, as ECAP writes the name.
+    // The staff the posting waits on, as ECAP writes the name; the posted
+    // row beside it keeps its counts.
     await expect(page.getByText("Some One", { exact: true })).toBeVisible();
+    await expect(page.getByText("Other Two", { exact: true })).toBeVisible();
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
   });
   test("a cleared day keeps the slots' remembered hours", async ({ page }) => {

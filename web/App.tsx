@@ -802,7 +802,7 @@ const App = (): React.JSX.Element => {
             <UnpostedPanel
               date={unposted.data?.date ?? null}
               reported={unposted.data?.reported}
-              periods={unposted.data?.periods ?? null}
+              sections={unposted.data?.sections ?? null}
               busy={unposted.isLoading}
               note={unpostedNote}
             />

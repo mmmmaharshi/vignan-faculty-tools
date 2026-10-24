@@ -211,12 +211,12 @@ _Avoid_: Schedule, periods, routine
 
 **Attendance Not Posted**:
 Periods across the faculty's own branch with no posted attendance today, from
-the day-class-work report (`ShowDayClassWork`, `_session=no`): one block per
+the day-class-work report (`ShowDayClassWork`, `_session=no`): one table per
 section with the period, the subject, the staff, and the posted counts, so a
-held period with blank counts is not yet posted. Read when Home opens, beside
-the timetable; a refusal stays in its own section and never fails the table
-above it. No classes that day is a different answer from all posted. See ADR
-0028.
+held period with blank counts reads as not yet posted and tints red. Read
+when Home opens, below the timetable; a refusal stays in its own section and
+never fails the table above it. No classes that day is a different answer
+from all posted. See ADR 0028.
 _Avoid_: Pending attendance, unmarked periods
 
 ## Identity
