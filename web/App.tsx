@@ -883,7 +883,9 @@ const App = (): React.JSX.Element => {
         breakpoint: "sm",
         collapsed: { mobile: true, desktop: screen !== "app" },
       }}
-      footer={{ height: "calc(64px + env(safe-area-inset-bottom))" }}
+      footer={{
+        height: { base: "calc(64px + env(safe-area-inset-bottom))", sm: 0 },
+      }}
     >
       <AppShell.Header>
         <Group h="100%" px="md" align="center" gap="sm">
