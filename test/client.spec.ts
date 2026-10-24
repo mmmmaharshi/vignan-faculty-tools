@@ -56,6 +56,8 @@ let semStartCalls = 0;
 const profileRolls: string[] = [];
 /** How often Home asked for today's timetable — once per opening. */
 let todayCalls = 0;
+/** When true, the stub answers a cleared day: no periods at all. */
+let todayEmpty = false;
 /** Whether the panel asked for a student's own day-wise grid — sent only when
  *  the register on screen states no dates of its own (the All subjects view). */
 let absentAsked = false;
@@ -287,17 +289,21 @@ const stub = async (route: Route): Promise<void> => {
     todayCalls += 1;
     // Spans the moment the test runs, so the period is live whenever the
     // clock says it is: the highlight is asserted, not the hour.
-    await json({
-      classes: [
-        {
-          period: "Period 1",
-          time: aroundNow(Date.now()),
-          subject: "AI",
-          section: "3 IT-C",
-          room: "",
-        },
-      ],
-    });
+    await json(
+      todayEmpty
+        ? { classes: [] }
+        : {
+            classes: [
+              {
+                period: "Period 1",
+                time: aroundNow(Date.now()),
+                subject: "AI",
+                section: "3 IT-C",
+                room: "",
+              },
+            ],
+          }
+    );
     return;
   }
   if (path === "/api/faculty-profile") {
@@ -377,6 +383,7 @@ test.describe("the app's own data layer", () => {
     profileRolls.length = 0;
     absentAsked = false;
     todayCalls = 0;
+    todayEmpty = false;
     await page.route("**/api/**", stub);
   });
   test("the boot read decides which screen a stranger gets", async ({
@@ -458,6 +465,19 @@ test.describe("the app's own data layer", () => {
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
       .toBe("/dashboard");
+  });
+  test("a cleared day shows the period skeleton with blank classes", async ({
+    page,
+  }) => {
+    todayEmpty = true;
+    await page.goto("/login");
+    await signIn(page);
+    await expect(
+      page.getByRole("heading", { name: "Today's Classes" })
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Period 7", { exact: true })).toBeVisible();
+    await expect(page.getByText("No periods today")).toHaveCount(0);
+    expect(todayCalls, "the skeleton is drawn from one empty read").toBe(1);
   });
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({
     page,

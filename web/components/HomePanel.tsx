@@ -2,7 +2,6 @@ import {
   Alert,
   Group,
   Loader,
-  Paper,
   Pill,
   Stack,
   Table,
@@ -93,7 +92,7 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
   const pills = [...(branch ? [branch] : []), ...pillsOf(entry.section)];
   return (
     <>
-      <Text fw={600}>{capitalCase(name) || "—"}</Text>
+      {name ? <Text fw={600}>{capitalCase(name)}</Text> : null}
       {/* The branch and the section's own pieces ride pills rather than one
           long line. */}
       {pills.length ? (
@@ -108,6 +107,15 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
     </>
   );
 };
+/** An empty day still shows the usual table: seven periods, blank classes.
+ *  ECAP clears the day rather than naming it, so the skeleton is fixed. */
+const EMPTY_DAY: TodayClass[] = Array.from({ length: 7 }, (_, index) => ({
+  period: `Period ${index + 1}`,
+  time: "",
+  subject: "",
+  section: "",
+  room: "",
+}));
 export const HomePanel = ({
   classes,
   busy,
@@ -136,12 +144,7 @@ export const HomePanel = ({
           </Text>
         </Stack>
       ) : null}
-      {classes && classes.length === 0 && !busy ? (
-        <Paper withBorder p="lg">
-          <Text c="dimmed">No periods today.</Text>
-        </Paper>
-      ) : null}
-      {classes && classes.length > 0 ? (
+      {classes && !busy ? (
         <Table striped highlightOnHover withTableBorder withColumnBorders>
           <Table.Thead>
             <Table.Tr>
@@ -150,7 +153,7 @@ export const HomePanel = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {classes.map((entry, index) => (
+            {(classes.length ? classes : EMPTY_DAY).map((entry, index) => (
               // The grid states no identifiers, so the order it gave is the key.
               // The live period carries the register's critical-row tint in
               // blue: it answers "where am I supposed to be" at a glance.
