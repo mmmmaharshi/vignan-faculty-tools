@@ -95,7 +95,7 @@ export const UnpostedPanel = ({
     sections ? sections.filter((s) => s.branchShort === short) : [];
   return (
     <Stack gap="md" mt="xl" pb="md">
-      <Title order={4}>Day Class Work</Title>
+      <Title order={4}>Today&apos;s Attendance</Title>
       {note ? (
         <Alert color={note.kind === "error" ? "red" : "yellow"}>
           {note.text}

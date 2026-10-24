@@ -518,7 +518,7 @@ test.describe("the app's own data layer", () => {
     await page.goto("/login");
     await signIn(page);
     await expect(
-      page.getByRole("heading", { name: "Day Class Work" })
+      page.getByRole("heading", { name: "Today's Attendance" })
     ).toBeVisible({ timeout: 15_000 });
     // IT has one pending period: its number, its section, and the staff it
     // waits on — nothing else.
