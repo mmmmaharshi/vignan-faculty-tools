@@ -1,4 +1,4 @@
-import { ALL_SUBJECTS, isAllSubjects } from "../shared/api.js";
+import { ALL_SUBJECTS, isAllSubjects, todayIST } from "../shared/api.js";
 import type {
   CascadeLevel,
   FacultyProfile,
@@ -19,6 +19,7 @@ import type {
 } from "../shared/api.js";
 import type { OverallLookup } from "./attendance-bands.js";
 import { statedStartDate, summarise } from "./attendance-bands.js";
+import type { DayWorkRequest } from "./portal-conventions.js";
 import { courseVerdict } from "./portal-liveness.js";
 import {
   HttpError,
@@ -70,31 +71,9 @@ export type PortalReader = {
   ) => Promise<string>;
   /** The faculty dashboard's schedule fragment for today. */
   todayClasses: () => Promise<string>;
-  /** The day-class-work report's fragment for one branch and date. */
+  /** The day-class-work report's fragment for the asked branches and date. */
   dayClassWork: (p: DayWorkRequest) => Promise<string>;
 };
-/** What the day-class-work report is asked for: the course, every branch it
- *  is asked across, every semester the Portal counts into the academic year,
- *  and the day on the campus clock. The section is always all of them. */
-export interface DayWorkRequest {
-  course: Option;
-  branches: Option[];
-  semesters: Option[];
-  date: string;
-}
-/** Today on the campus clock, dd/mm/yyyy: ECAP's dates are IST, and a server
- *  on UTC would ask for yesterday after 18:30 UTC. */
-export function todayIST(now: Date = new Date()): string {
-  const parts = new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Kolkata",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).formatToParts(now);
-  const get = (type: string): string =>
-    parts.find((p) => p.type === type)?.value ?? "";
-  return `${get("day")}/${get("month")}/${get("year")}`;
-}
 export async function handleOptions(
   portal: PortalReader,
   b: OptionsRequest
@@ -674,12 +653,13 @@ export async function handleTodayClasses(
   return { classes: parseTodayClasses(await portal.todayClasses()) };
 }
 /** The day-class-work report for every offered branch today: each section's
- *  periods with their posted counts, blank where nothing is posted yet. The
- *  course is matched from the Portal's own list by name, every offered branch
- *  travels, and only semesters the Portal counts into the academic year do —
- *  the day report's own page skips title-less ones the same way. A refusal
- *  throws before the parser is reached, so it says the read failed rather
- *  than passing for all posted. */
+ *  periods with their posted flags. The course prefers B.Tech and falls back
+ *  to the first offered course, so a faculty outside B.Tech reads their own
+ *  branches rather than a named failure; every offered branch travels, and
+ *  only semesters the Portal counts into the academic year do — the day
+ *  report's own page skips title-less ones the same way. A refusal throws
+ *  before the parser is reached, so it says the read failed rather than
+ *  passing for all posted. */
 export async function handleUnposted(
   portal: PortalReader
 ): Promise<UnpostedReply> {
@@ -691,9 +671,10 @@ export async function handleUnposted(
       "Your ECAP session expired. Please sign in again."
     );
   }
-  const course = matchOption("B.Tech", courseOptions);
+  const courses = realOptions(courseOptions);
+  const course = matchOption("B.Tech", courses) ?? courses[0];
   if (!course) {
-    throw new HttpError(502, "ECAP did not offer a B.Tech course.");
+    throw new HttpError(502, "ECAP offered no courses.");
   }
   const [offered, semesters] = await portal.branchesAndSemesters(course.value);
   const branches = realOptions(offered);
@@ -710,7 +691,7 @@ export async function handleUnposted(
   const shorts: Record<string, string> = Object.fromEntries(
     branches.map((b) => [b.label, b.title || b.label])
   );
-  const { reported, sections } = parseDayClassWork(
+  const sections = parseDayClassWork(
     await portal.dayClassWork({
       course,
       branches,
@@ -719,5 +700,5 @@ export async function handleUnposted(
     }),
     shorts
   );
-  return { date, reported, sections };
+  return { date, sections };
 }

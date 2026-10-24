@@ -38,6 +38,9 @@ export const pillsOf = (section: string): string[] =>
       return [words];
     })
     .filter(Boolean);
+/** "III Semester" + "A" reads "III-A": the pending list's section cell. */
+export const sectionShort = (semester: string, section: string): string =>
+  `${semester.replace(/\s*Semester\s*/i, "").trim()}-${section.trim()}`;
 /** "FLUTER LAB" reads "Fluter Lab": ECAP shouts its subject names, and the
  *  Class column should not. Words of two letters or fewer stay as written, so
  *  an acronym like "AI" does not come out "Ai". */

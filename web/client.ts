@@ -254,14 +254,18 @@ export function useSemAbsences(asked: SemAbsencesRequest | null) {
       postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body)
   );
 }
+/** A screen-opened read with no parameters: the key is the path, so sign-out
+ *  sweeps it, and reopening refreshes it behind the cached answer. */
+function usePostOnOpen<T>(path: string, enabled: boolean) {
+  return useSWR<T, ApiError>(enabled ? path : null, () =>
+    postJson<T>(path, {})
+  );
+}
 /** The faculty member's own details from ECAP's main.aspx: name, photo URL, and
  *  designation code. Read once when the profile page is opened. */
 export function useFacultyProfile(enabled: boolean) {
   // Same remount-refresh contract as the student panel above.
-  return useSWR<FacultyProfile, ApiError>(
-    enabled ? FACULTY_PROFILE_PATH : null,
-    () => postJson<FacultyProfile>(FACULTY_PROFILE_PATH, {})
-  );
+  return usePostOnOpen<FacultyProfile>(FACULTY_PROFILE_PATH, enabled);
 }
 /**
  * Today's timetable, from the faculty dashboard's own schedule grid. Read when
@@ -271,21 +275,16 @@ export function useFacultyProfile(enabled: boolean) {
  * it with everything else the Portal said.
  */
 export function useTodayClasses(enabled: boolean) {
-  return useSWR<TodayClassesReply, ApiError>(enabled ? TODAY_PATH : null, () =>
-    postJson<TodayClassesReply>(TODAY_PATH, {})
-  );
+  return usePostOnOpen<TodayClassesReply>(TODAY_PATH, enabled);
 }
 /**
- * Periods across the faculty's own branch with no posted attendance today,
- * from the day-class-work report. Same read contract as the timetable above:
- * read when Home opens, refreshed behind the cached answer on return, swept
- * on sign-out. A refusal stays in this section — it never fails the table
- * above it.
+ * Whether the day's periods got their attendance, from the day-class-work
+ * report. Same read contract as the timetable above: read when Home opens,
+ * refreshed behind the cached answer on return, swept on sign-out. A refusal
+ * stays in its own section — it never fails the table above it.
  */
 export function useUnposted(enabled: boolean) {
-  return useSWR<UnpostedReply, ApiError>(enabled ? UNPOSTED_PATH : null, () =>
-    postJson<UnpostedReply>(UNPOSTED_PATH, {})
-  );
+  return usePostOnOpen<UnpostedReply>(UNPOSTED_PATH, enabled);
 }
 /**
  * One pass of the option chain. Cached under the request it answered, so the

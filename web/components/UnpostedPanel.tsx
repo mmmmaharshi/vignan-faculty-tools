@@ -1,13 +1,13 @@
 import { Alert, Loader, Paper, Stack, Table, Text, Title } from "@mantine/core";
 
 import type { DayWorkSection } from "../../shared/api";
+import { sectionShort } from "../format";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
-  /** False when the report stated no sections at all — no classes that day,
-   *  which is not the same as all posted. */
-  reported?: boolean;
-  /** Every section's cells in the report's order. Null while unread. */
+  /** Every section's cells in the report's order. Null while unread; empty
+   *  when the report stated no sections at all — no classes that day, which
+   *  is not the same as all posted. */
   sections?: DayWorkSection[] | null;
   busy?: boolean;
   /** A read that failed says so here. A fully posted day is not this — it is
@@ -28,7 +28,7 @@ const BranchPending = ({
       .filter((cell) => !cell.posted)
       .map((cell) => ({
         period: cell.period,
-        where: `${section.semester.replace(/\s*Semester\s*/i, "")}-${section.section}`,
+        where: sectionShort(section.semester, section.section),
         staff: cell.staff,
       }))
   );
@@ -78,7 +78,6 @@ const BranchPending = ({
   );
 };
 export const UnpostedPanel = ({
-  reported,
   sections,
   busy,
   note,
@@ -86,13 +85,13 @@ export const UnpostedPanel = ({
   const branches: string[] = [];
   if (sections) {
     for (const section of sections) {
-      if (!branches.includes(section.branchShort)) {
-        branches.push(section.branchShort);
-      }
+      if (!branches.includes(section.branch)) branches.push(section.branch);
     }
   }
-  const inBranch = (short: string): DayWorkSection[] =>
-    sections ? sections.filter((s) => s.branchShort === short) : [];
+  const inBranch = (branch: string): DayWorkSection[] =>
+    sections ? sections.filter((s) => s.branch === branch) : [];
+  const shortOf = (branch: string): string =>
+    sections?.find((s) => s.branch === branch)?.branchShort ?? branch;
   return (
     <Stack gap="md" mt="xl" pb="md">
       <Title order={4}>Today&apos;s Attendance</Title>
@@ -109,16 +108,16 @@ export const UnpostedPanel = ({
           </Text>
         </Stack>
       ) : null}
-      {sections && !reported && !busy ? (
+      {sections && sections.length === 0 && !busy ? (
         <Paper withBorder p="lg">
           <Text c="dimmed">No classes today.</Text>
         </Paper>
       ) : null}
-      {sections && reported
+      {sections && sections.length > 0
         ? branches.map((branch) => (
             <BranchPending
               key={branch}
-              short={branch}
+              short={shortOf(branch)}
               sections={inBranch(branch)}
             />
           ))

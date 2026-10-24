@@ -439,10 +439,9 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
   test("the day-class-work report reads posted flags per section", () => {
     // One live section block (III-A, 23/10/2026): every period posted, with
     // both counts as written — a posted period always states both.
-    const { reported, sections } = parseDayClassWork(DAYWORK_BLOCK, {
+    const sections = parseDayClassWork(DAYWORK_BLOCK, {
       "Information Technology": "IT",
     });
-    expect(reported).toBe(true);
     expect(sections).toHaveLength(1);
     expect(sections[0]).toMatchObject({
       branch: "Information Technology",
@@ -466,16 +465,25 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
         "<td class='cellBorder' align='center'></td><td class='cellBorder' align='center'></td>"
       )
     );
-    expect(blanked.sections[0]?.branchShort).toBe("Information Technology");
+    expect(blanked[0]?.branchShort).toBe("Information Technology");
     expect(
-      blanked.sections[0]?.cells.filter((cell) => !cell.posted),
+      blanked[0]?.cells.filter((cell) => !cell.posted),
       "only the blanked period reads unposted, keeping who was to take it"
     ).toEqual([{ period: "1", posted: false, staff: "MRS.G.MANI" }]);
+    // A row with exactly one count still reads posted: every posted period
+    // states both, so half-blank is malformed, not unposted.
+    const halfBlank = parseDayClassWork(
+      DAYWORK_BLOCK.replace(
+        "<td class='cellBorder' align='center'>32</td><td class='cellBorder' align='center'>31</td>",
+        "<td class='cellBorder' align='center'></td><td class='cellBorder' align='center'>31</td>"
+      )
+    );
+    expect(
+      halfBlank[0]?.cells.every((cell) => cell.posted),
+      "half-blank is malformed, not unposted"
+    ).toBe(true);
     // No section blocks at all is no classes that day, not all posted.
-    expect(parseDayClassWork("<div>holiday</div>")).toEqual({
-      reported: false,
-      sections: [],
-    });
+    expect(parseDayClassWork("<div>holiday</div>")).toEqual([]);
   });
   test("leave status comes from the application grid, per stage", () => {
     // Copied from the APPLY-SELF page's `showLeaves` reply: the counts sit

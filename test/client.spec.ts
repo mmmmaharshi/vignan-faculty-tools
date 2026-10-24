@@ -312,7 +312,6 @@ const stub = async (route: Route): Promise<void> => {
     unpostedCalls += 1;
     await json({
       date: "24/10/2026",
-      reported: true,
       sections: [
         {
           branch: "Information Technology",

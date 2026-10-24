@@ -22,6 +22,7 @@ import {
   portalEncrypt,
   studentPairs,
 } from "./portal-conventions.js";
+import type { DayWorkRequest } from "./portal-conventions.js";
 import { liveness } from "./portal-liveness.js";
 import type { CourseReader } from "./portal-liveness.js";
 import {
@@ -61,7 +62,7 @@ import {
   handleTodayClasses,
   handleUnposted,
 } from "./server-routes.js";
-import type { PortalReader, DayWorkRequest } from "./server-routes.js";
+import type { PortalReader } from "./server-routes.js";
 
 type Level = CascadeLevel;
 /** Thirty days of *not using it*, after ADR 0013. The browser carries `at`

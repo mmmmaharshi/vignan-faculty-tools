@@ -21,6 +21,7 @@ import type {
   SemStartReply,
   Student,
 } from "../shared/api";
+import { todayIST } from "../shared/api";
 import {
   chosenLevels,
   isAllSubjects,
@@ -777,10 +778,9 @@ const App = (): React.JSX.Element => {
               classes={today.data?.classes ?? null}
               busy={today.isLoading}
               note={todayNote}
-              date={unposted.data?.date ?? null}
+              date={todayIST()}
             />
             <UnpostedPanel
-              reported={unposted.data?.reported}
               sections={unposted.data?.sections ?? null}
               busy={unposted.isLoading}
               note={unpostedNote}

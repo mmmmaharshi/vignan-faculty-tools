@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 
+import type { DayWorkRequest } from "../server/portal-conventions";
 import { HttpError } from "../server/portal-replies";
 import {
   handleFind,
@@ -12,7 +13,7 @@ import {
   handleUnposted,
   requireLevels,
 } from "../server/server-routes";
-import type { PortalReader, DayWorkRequest } from "../server/server-routes";
+import type { PortalReader } from "../server/server-routes";
 import type {
   Option,
   RegisterRequest,
@@ -1088,7 +1089,6 @@ test.describe("the unposted handler", () => {
     expect(reply.date, "the campus day, not the server's").toMatch(
       /^\d\d\/\d\d\/\d\d\d\d$/
     );
-    expect(reply.reported).toBe(true);
     expect(reply.sections).toMatchObject([
       { branchShort: "IT", semester: "III Semester", section: "B" },
     ]);
@@ -1114,9 +1114,27 @@ test.describe("the unposted handler", () => {
       "only semesters the Portal counts into the year travel"
     ).toEqual(["2", "4"]);
   });
-  test("a course ECAP does not offer fails named", async () => {
-    const { reader } = fake({ course: [opt("9", "M.Tech")] });
-    await expect(handleUnposted(reader)).rejects.toThrow(/B\.Tech/);
+  test("a portal that will not say its courses fails named", async () => {
+    const { reader: base } = fake();
+    const reader: PortalReader = {
+      ...base,
+      courses: () => Promise.reject(new HttpError(502, "unreadable reply")),
+    };
+    await expect(handleUnposted(reader)).rejects.toThrow(/no courses/);
+  });
+  test("outside B.Tech the first offered course is read instead", async () => {
+    const { reader, calls } = fake({
+      course: [opt("9", "M.Tech")],
+      branch: [opt("7", "Information Technology", "IT")],
+      semester: titledSemesters,
+      dayWork: DAYWORK,
+    });
+    const reply = await handleUnposted(reader);
+    expect(
+      nth(calls.dayWork, 0).course,
+      "the fallback asks what ECAP offers, not B.Tech"
+    ).toEqual({ value: "9", label: "M.Tech", title: "" });
+    expect(reply.sections).toHaveLength(1);
   });
   test("a dead session during the read still signs out", async () => {
     const { reader } = fake({ course: [] });

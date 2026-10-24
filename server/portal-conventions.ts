@@ -77,18 +77,24 @@ export function studentPairs(
   ];
 }
 /**
+ * What the day-class-work report is asked for: the course, every branch it
+ * is asked across, every semester the Portal counts into the academic year,
+ * and the day on the campus clock. The section is always all of them.
+ */
+export interface DayWorkRequest {
+  course: Option;
+  branches: Option[];
+  semesters: Option[];
+  date: string;
+}
+/**
  * The day-class-work report's nine values, in the order its generated proxy
  * declares them. Branch, semester and batch travel as comma-joined arrays —
  * the page builds them from every offered dropdown entry, so one call covers
  * the whole branch — and the two name arrays travel as JSON, exactly as the
  * page's `json_from_object` sends them. Section is always all of them.
  */
-export function dayWorkPairs(p: {
-  course: Option;
-  branches: Option[];
-  semesters: Option[];
-  date: string;
-}): [string, string | number][] {
+export function dayWorkPairs(p: DayWorkRequest): [string, string | number][] {
   return [
     ["courseid", p.course.value],
     ["arrbranchid", p.branches.map((b) => b.value).join(",")],

@@ -548,15 +548,18 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
  */
 const SECTION_BLOCK = /<b>Course:<\/b>/i;
 const BLOCK_BRANCH = /<b>Branch:<\/b>&nbsp;(?<branch>[^<]*)/i;
+/** The report's Present and Absent count columns, by position: its header
+ *  names them, so a reorder that moved them would silently flip postedness
+ *  — which is why the positions are named once here rather than numbered at
+ *  the read. */
+const PRESENT_COLUMN = 5;
+const ABSENT_COLUMN = 6;
 const BLOCK_SEMESTER = /<b>Semester:<\/b>&nbsp;(?<semester>[^<]*)/i;
 const BLOCK_SECTION = /<b>Section:<\/b>&nbsp;(?<section>[^<]*)/i;
 export function parseDayClassWork(
   html: string,
   shorts: Record<string, string> = {}
-): {
-  reported: boolean;
-  sections: DayWorkSection[];
-} {
+): DayWorkSection[] {
   const blocks = html.split(SECTION_BLOCK).slice(1);
   const sections: DayWorkSection[] = [];
   for (const block of blocks) {
@@ -568,9 +571,17 @@ export function parseDayClassWork(
     for (const row of block.match(ROW) ?? []) {
       const rowCells = cellsOf(row);
       if (rowCells.length < 8 || !/^\d+$/.test(rowCells[0] ?? "")) continue;
+      // Present and Absent are the report's own count columns, by position:
+      // the header names them, so a reorder that moved them would silently
+      // flip postedness — which is why the positions are named once in the
+      // constants above rather than numbered at the read. A row with exactly
+      // one count still reads posted: every posted period in every live reply
+      // states both, so half-blank is malformed, not unposted.
+      const present = rowCells[PRESENT_COLUMN] ?? "";
+      const absent = rowCells[ABSENT_COLUMN] ?? "";
       cells.push({
         period: rowCells[0] ?? "",
-        posted: (rowCells[5] ?? "") !== "" || (rowCells[6] ?? "") !== "",
+        posted: present !== "" || absent !== "",
         staff: rowCells[2] ?? "",
       });
     }
@@ -582,7 +593,7 @@ export function parseDayClassWork(
       cells,
     });
   }
-  return { reported: blocks.length > 0, sections };
+  return sections;
 }
 export function parseTodayClasses(html: string): TodayClass[] {
   const grid = html.match(SCHEDULE_GRID)?.groups?.grid ?? "";

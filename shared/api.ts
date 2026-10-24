@@ -251,11 +251,24 @@ export interface DayWorkSection {
 export interface UnpostedReply {
   /** The day asked, dd/mm/yyyy on the campus clock. */
   date: string;
-  /** False when the report stated no sections at all — no classes that day,
-   *  which is not the same as all posted. */
-  reported: boolean;
-  /** Every section's cells in the report's order. */
+  /** Every section's cells in the report's order. Empty when the report
+   *  stated no sections at all — no classes that day, which is not the same
+   *  as all posted. */
   sections: DayWorkSection[];
+}
+/** Today on the campus clock, dd/mm/yyyy: ECAP's dates are IST, and a server
+ *  on UTC would ask for yesterday after 18:30 UTC. Pure, so both the server's
+ *  ask and the client's title read the same day. */
+export function todayIST(now: Date = new Date()): string {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Kolkata",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).formatToParts(now);
+  const get = (type: string): string =>
+    parts.find((p) => p.type === type)?.value ?? "";
+  return `${get("day")}/${get("month")}/${get("year")}`;
 }
 export interface StudentRequest {
   roll: string;
