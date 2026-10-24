@@ -417,7 +417,10 @@ test.describe("the app's own data layer", () => {
     await expect(page.getByRole("heading", { name: "Today" })).toBeVisible({
       timeout: 15_000,
     });
-    await expect(page.getByText("AI", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Period" })
+    ).toBeVisible();
+    await expect(page.getByRole("cell", { name: "AI · 3 IT-C" })).toBeVisible();
     expect(todayCalls, "one read per opening").toBe(1);
     expect(registerCalls, "and the register waits for its click").toBe(0);
     // Attendance keeps its own screen one tab over.
