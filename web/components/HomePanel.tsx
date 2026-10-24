@@ -62,7 +62,7 @@ export const HomePanel = ({
       </Paper>
     ) : null}
     {classes && classes.length > 0 ? (
-      <Table striped highlightOnHover>
+      <Table striped highlightOnHover withTableBorder withColumnBorders>
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Period</Table.Th>
