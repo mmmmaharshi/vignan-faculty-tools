@@ -21,6 +21,15 @@ export type HomePanelProps = {
    *  sentence below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
 };
+/** The subject's trailing branch ("FLUTER LAB (CSE (AI))" → "FLUTER LAB" plus
+ *  "(CSE (AI))"), so the branch rides a pill with the rest. A subject with no
+ *  trailing parens keeps its single line. */
+const splitSubject = (subject: string): { name: string; branch: string } => {
+  const parts = subject.match(/^(?<name>.*?)\s*(?<branch>\(.*\))$/)?.groups;
+  return parts?.name && parts.branch
+    ? { name: parts.name, branch: parts.branch }
+    : { name: subject, branch: "" };
+};
 /** The section's pieces, each riding its own pill: the comma separates the
  *  section from the course line, and a "B.Tech V Semester" course line splits
  *  further into its course and semester. Anything else stays one pill. */
@@ -36,6 +45,26 @@ const pillsOf = (section: string): string[] =>
         : [piece.trim()];
     })
     .filter(Boolean);
+const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
+  const { name, branch } = splitSubject(entry.subject);
+  const pills = [...(branch ? [branch] : []), ...pillsOf(entry.section)];
+  return (
+    <>
+      <Text fw={600}>{name || "—"}</Text>
+      {/* The branch and the section's own pieces ride pills rather than one
+          long line. */}
+      {pills.length ? (
+        <Group gap={4} mt={4}>
+          {pills.map((pill) => (
+            <Pill key={pill} size="xs">
+              {pill}
+            </Pill>
+          ))}
+        </Group>
+      ) : null}
+    </>
+  );
+};
 export const HomePanel = ({
   classes,
   busy,
@@ -82,18 +111,7 @@ export const HomePanel = ({
                 ) : null}
               </Table.Td>
               <Table.Td>
-                <Text fw={600}>{entry.subject || "—"}</Text>
-                {/* The section's own comma separates its pieces, so each
-                    rides its own pill rather than one long line. */}
-                {entry.section ? (
-                  <Group gap={4} mt={4}>
-                    {pillsOf(entry.section).map((pill) => (
-                      <Pill key={pill} size="xs">
-                        {pill}
-                      </Pill>
-                    ))}
-                  </Group>
-                ) : null}
+                <ClassCell entry={entry} />
               </Table.Td>
             </Table.Tr>
           ))}
