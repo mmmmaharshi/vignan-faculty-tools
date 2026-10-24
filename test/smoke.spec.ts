@@ -634,7 +634,9 @@ test.describe("Vignan Faculty Tools", () => {
           page.getByRole("combobox", { name: "Subject" })
         ).toBeEnabled({ timeout: 90_000 });
       } else {
-        await expect(page.getByRole("heading", { name: "Today" })).toBeVisible({
+        await expect(
+          page.getByRole("heading", { name: "Today's Classes" })
+        ).toBeVisible({
           timeout: 90_000,
         });
       }

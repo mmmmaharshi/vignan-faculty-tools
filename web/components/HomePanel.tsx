@@ -27,7 +27,7 @@ export const HomePanel = ({
   note,
 }: HomePanelProps): React.JSX.Element => (
   <Stack gap="md">
-    <Title order={4}>Today</Title>
+    <Title order={4}>Today&apos;s Classes</Title>
     {note ? (
       <Alert color={note.kind === "error" ? "red" : "yellow"}>
         {note.text}

@@ -420,7 +420,9 @@ test.describe("the app's own data layer", () => {
       new URL(page.url()).pathname,
       "sign-in lands on Home, not the register"
     ).toBe("/home");
-    await expect(page.getByRole("heading", { name: "Today" })).toBeVisible({
+    await expect(
+      page.getByRole("heading", { name: "Today's Classes" })
+    ).toBeVisible({
       timeout: 15_000,
     });
     await expect(
