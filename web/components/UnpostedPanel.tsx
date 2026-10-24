@@ -4,8 +4,6 @@ import type { DayWorkSection } from "../../shared/api";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
-  /** The day asked, dd/mm/yyyy on the campus clock. */
-  date?: string | null;
   /** False when the report stated no sections at all — no classes that day,
    *  which is not the same as all posted. */
   reported?: boolean;
@@ -80,7 +78,6 @@ const BranchPending = ({
   );
 };
 export const UnpostedPanel = ({
-  date,
   reported,
   sections,
   busy,
@@ -98,7 +95,7 @@ export const UnpostedPanel = ({
     sections ? sections.filter((s) => s.branchShort === short) : [];
   return (
     <Stack gap="md" mt="xl" pb="md">
-      <Title order={4}>Day Class Work{date ? ` · ${date}` : ""}</Title>
+      <Title order={4}>Day Class Work</Title>
       {note ? (
         <Alert color={note.kind === "error" ? "red" : "yellow"}>
           {note.text}
@@ -114,7 +111,7 @@ export const UnpostedPanel = ({
       ) : null}
       {sections && !reported && !busy ? (
         <Paper withBorder p="lg">
-          <Text c="dimmed">No classes{date ? ` on ${date}` : ""}.</Text>
+          <Text c="dimmed">No classes today.</Text>
         </Paper>
       ) : null}
       {sections && reported

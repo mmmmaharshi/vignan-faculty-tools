@@ -23,6 +23,8 @@ export type HomePanelProps = {
   /** A read that failed says so here. An empty day is not this — it is the
    *  skeleton below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
+  /** The day both Home sections cover, dd/mm/yyyy on the campus clock. */
+  date?: string | null;
   /** The slots' latest hours, folded by the caller from every answered
    *  timetable: a cleared day borrows them for its skeleton. */
   slotTimes: PeriodTimes;
@@ -41,14 +43,16 @@ const toMinutes = (clock: string): number | null => {
   return hour * 60 + Number(parts.minute);
 };
 /** Whether the faculty member is inside this period right now, by the
- *  browser's own clock — ECAP and the faculty share the campus day. */
+ *  browser's own clock — ECAP and the faculty share the campus day. Ranges
+ *  read on a 24-hour clock, so an evening range past midnight still contains
+ *  its early minutes. */
 const isLive = (time: string, now: Date): boolean => {
   const range = time.match(TIME_RANGE)?.groups;
   const from = range?.from ? toMinutes(range.from) : null;
   const to = range?.to ? toMinutes(range.to) : null;
   if (from === null || to === null) return false;
   const at = now.getHours() * 60 + now.getMinutes();
-  return from <= at && at < to;
+  return from <= to ? from <= at && at < to : at >= from || at < to;
 };
 const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
   const { name, branch } = splitSubject(entry.subject);
@@ -89,6 +93,7 @@ export const HomePanel = ({
   classes,
   busy,
   note,
+  date,
   slotTimes,
 }: HomePanelProps): React.JSX.Element => {
   // The highlight must flip when a period starts or ends mid-visit, so the
@@ -101,7 +106,7 @@ export const HomePanel = ({
 
   return (
     <Stack gap="md">
-      <Title order={4}>Today&apos;s Classes</Title>
+      <Title order={4}>Today&apos;s Classes{date ? ` · ${date}` : ""}</Title>
       {note ? (
         <Alert color={note.kind === "error" ? "red" : "yellow"}>
           {note.text}

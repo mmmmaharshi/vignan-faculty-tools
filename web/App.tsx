@@ -797,10 +797,10 @@ const App = (): React.JSX.Element => {
               classes={today.data?.classes ?? null}
               busy={today.isLoading}
               note={todayNote}
+              date={unposted.data?.date ?? null}
               slotTimes={slotTimes}
             />
             <UnpostedPanel
-              date={unposted.data?.date ?? null}
               reported={unposted.data?.reported}
               sections={unposted.data?.sections ?? null}
               busy={unposted.isLoading}
