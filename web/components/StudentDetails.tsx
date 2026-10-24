@@ -205,18 +205,23 @@ export const StudentDetails = ({
                   </Text>
                 </Table.Td>
               </Table.Tr>
-              {scope ? (
-                <Table.Tr>
-                  <Table.Td c="dimmed">
-                    <Text size="sm">Class</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text c="dimmed" size="xs">
-                      {scope}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              ) : null}
+              {/* The class the figure belongs to, one piece per row: the
+                  scope string joins course, semester, branch, section and
+                  window with middots, which wraps badly as one line. */}
+              {scope
+                ? scope.split("\u00B7").map((piece, index) => (
+                    <Table.Tr key={`${piece.trim()}-${index}`}>
+                      <Table.Td c="dimmed">
+                        <Text size="sm">{index === 0 ? "Class" : ""}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Text c="dimmed" size="xs">
+                          {piece.trim()}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))
+                : null}
             </Table.Tbody>
           </Table>
           {/* A figure the Portal did not give is an absence, not a zero, so its
