@@ -9,6 +9,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
+import React, { useEffect, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
 import type { Note } from "../types";
@@ -20,6 +21,29 @@ export type HomePanelProps = {
   /** A read that failed says so here. An empty day is not this — it is the
    *  sentence below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
+};
+/** "08:45 AM- 09:35 PM" as minutes since midnight, or null when the grid
+ *  wrote something else. Twelve-hour clock, as ECAP writes it. */
+const TIME_RANGE =
+  /(?<from>\d{1,2}:\d{2}\s*[AP]M)\s*-\s*(?<to>\d{1,2}:\d{2}\s*[AP]M)/i;
+const toMinutes = (clock: string): number | null => {
+  const parts = clock
+    .trim()
+    .match(/^(?<hour>\d{1,2}):(?<minute>\d{2})\s*(?<half>[AP])M$/i)?.groups;
+  if (!parts?.hour || !parts.minute || !parts.half) return null;
+  const hour =
+    (Number(parts.hour) % 12) + (parts.half.toUpperCase() === "P" ? 12 : 0);
+  return hour * 60 + Number(parts.minute);
+};
+/** Whether the faculty member is inside this period right now, by the
+ *  browser's own clock — ECAP and the faculty share the campus day. */
+const isLive = (time: string, now: Date): boolean => {
+  const range = time.match(TIME_RANGE)?.groups;
+  const from = range?.from ? toMinutes(range.from) : null;
+  const to = range?.to ? toMinutes(range.to) : null;
+  if (from === null || to === null) return false;
+  const at = now.getHours() * 60 + now.getMinutes();
+  return from <= at && at < to;
 };
 /** The subject's trailing branch ("FLUTER LAB (CSE (AI))" → "FLUTER LAB" plus
  *  "(CSE (AI))"), so the branch rides a pill with the rest. A subject with no
@@ -88,54 +112,72 @@ export const HomePanel = ({
   classes,
   busy,
   note,
-}: HomePanelProps): React.JSX.Element => (
-  <Stack gap="md">
-    <Title order={4}>Today&apos;s Classes</Title>
-    {note ? (
-      <Alert color={note.kind === "error" ? "red" : "yellow"}>
-        {note.text}
-      </Alert>
-    ) : null}
-    {!classes && busy ? (
-      <Stack align="center" mt="xl" gap="sm">
-        <Loader size="lg" />
-        <Text c="dimmed" size="sm">
-          Reading today from ECAP...
-        </Text>
-      </Stack>
-    ) : null}
-    {classes && classes.length === 0 && !busy ? (
-      <Paper withBorder p="lg">
-        <Text c="dimmed">No periods today.</Text>
-      </Paper>
-    ) : null}
-    {classes && classes.length > 0 ? (
-      <Table striped highlightOnHover withTableBorder withColumnBorders>
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Period</Table.Th>
-            <Table.Th>Class</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {classes.map((entry, index) => (
-            // The grid states no identifiers, so the order it gave is the key.
-            <Table.Tr key={`${entry.period}-${entry.subject}-${index}`}>
-              <Table.Td>
-                <Text fw={700}>{entry.period || "—"}</Text>
-                {entry.time ? (
-                  <Text c="dimmed" size="xs">
-                    {entry.time}
-                  </Text>
-                ) : null}
-              </Table.Td>
-              <Table.Td>
-                <ClassCell entry={entry} />
-              </Table.Td>
+}: HomePanelProps): React.JSX.Element => {
+  // The highlight must flip when a period starts or ends mid-visit, so the
+  // clock ticks rather than being read once on mount.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const tick = setInterval(() => setNow(new Date()), 30_000);
+    return () => clearInterval(tick);
+  }, []);
+  return (
+    <Stack gap="md">
+      <Title order={4}>Today&apos;s Classes</Title>
+      {note ? (
+        <Alert color={note.kind === "error" ? "red" : "yellow"}>
+          {note.text}
+        </Alert>
+      ) : null}
+      {!classes && busy ? (
+        <Stack align="center" mt="xl" gap="sm">
+          <Loader size="lg" />
+          <Text c="dimmed" size="sm">
+            Reading today from ECAP...
+          </Text>
+        </Stack>
+      ) : null}
+      {classes && classes.length === 0 && !busy ? (
+        <Paper withBorder p="lg">
+          <Text c="dimmed">No periods today.</Text>
+        </Paper>
+      ) : null}
+      {classes && classes.length > 0 ? (
+        <Table striped highlightOnHover withTableBorder withColumnBorders>
+          <Table.Thead>
+            <Table.Tr>
+              <Table.Th>Period</Table.Th>
+              <Table.Th>Class</Table.Th>
             </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
-    ) : null}
-  </Stack>
-);
+          </Table.Thead>
+          <Table.Tbody>
+            {classes.map((entry, index) => (
+              // The grid states no identifiers, so the order it gave is the key.
+              // The live period carries the register's critical-row tint in
+              // blue: it answers "where am I supposed to be" at a glance.
+              <Table.Tr
+                key={`${entry.period}-${entry.subject}-${index}`}
+                bg={
+                  isLive(entry.time, now)
+                    ? "var(--mantine-color-blue-light)"
+                    : undefined
+                }
+              >
+                <Table.Td>
+                  <Text fw={700}>{entry.period || "—"}</Text>
+                  {entry.time ? (
+                    <Text c="dimmed" size="xs">
+                      {entry.time}
+                    </Text>
+                  ) : null}
+                </Table.Td>
+                <Table.Td>
+                  <ClassCell entry={entry} />
+                </Table.Td>
+              </Table.Tr>
+            ))}
+          </Table.Tbody>
+        </Table>
+      ) : null}
+    </Stack>
+  );
+};

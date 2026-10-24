@@ -29,6 +29,16 @@ const opt = (value: string, label: string, title = ""): Option => ({
   label,
   title,
 });
+/** A clock time, so a stubbed period can name hours the panel can read. */
+const clockTime = (d: Date): string => {
+  const hour = d.getHours() % 12 || 12;
+  const minute = String(d.getMinutes()).padStart(2, "0");
+  return `${hour}:${minute} ${d.getHours() < 12 ? "AM" : "PM"}`;
+};
+/** An hour each way from a moment, so a stubbed period spans "now" whenever
+ *  the test runs: the highlight is asserted, not the hour. */
+const aroundNow = (at: number): string =>
+  `${clockTime(new Date(at - 30 * 60_000))}- ${clockTime(new Date(at + 30 * 60_000))}`;
 /** What the last read of `/api/session` said, and what the stub has been asked
  *  for so far. Reset for each test. */
 let signedIn = false;
@@ -275,11 +285,13 @@ const stub = async (route: Route): Promise<void> => {
   }
   if (path === "/api/today") {
     todayCalls += 1;
+    // Spans the moment the test runs, so the period is live whenever the
+    // clock says it is: the highlight is asserted, not the hour.
     await json({
       classes: [
         {
           period: "Period 1",
-          time: "10:00 - 11:00",
+          time: aroundNow(Date.now()),
           subject: "AI",
           section: "3 IT-C",
           room: "",
@@ -429,9 +441,12 @@ test.describe("the app's own data layer", () => {
       page.getByRole("columnheader", { name: "Period" })
     ).toBeVisible();
     await expect(page.getByRole("cell", { name: "AI 3 IT-C" })).toBeVisible();
-    await expect(
-      page.getByRole("cell", { name: "Period 1 10:00 - 11:00" })
-    ).toBeVisible();
+    await expect(page.getByRole("cell", { name: "Period 1" })).toBeVisible();
+    // The stubbed period spans now, so its row carries the live tint and the
+    // only tint on screen.
+    const live = page.locator("tbody tr", { hasText: "AI" });
+    await expect(live).toHaveAttribute("style", /blue-light/);
+    await expect(page.locator("tbody tr[style*='blue-light']")).toHaveCount(1);
     expect(todayCalls, "one read per opening").toBe(1);
     expect(registerCalls, "and the register waits for its click").toBe(0);
     // Attendance keeps its own screen one tab over.
