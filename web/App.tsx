@@ -77,12 +77,6 @@ import { SignInPanel } from "./components/SignInPanel";
 import { StudentDetails } from "./components/StudentDetails";
 import { UnpostedPanel } from "./components/UnpostedPanel";
 import {
-  notePeriodTimes,
-  readPeriodTimes,
-  writePeriodTimes,
-} from "./period-times";
-import type { PeriodTimes } from "./period-times";
-import {
   abbreviate,
   rememberClass,
   savedClasses,
@@ -206,12 +200,6 @@ const App = (): React.JSX.Element => {
    *  answer on return. ECAP clears the day after ~4pm, so the read is never
    *  older than the visit. */
   const today = useTodayClasses(Boolean(onHome));
-  /** The slots' latest hours, so a cleared day still shows its usual table.
-   *  Folded from every answered timetable and persisted only when changed —
-   *  the same memory shape as the semester start above. */
-  const [slotTimes, setSlotTimes] = useState<PeriodTimes>(() =>
-    readPeriodTimes()
-  );
   /** Periods across the branch with no posted attendance today: read with the
    *  timetable when Home opens, and a refusal stays in its own section. */
   const unposted = useUnposted(Boolean(onHome));
@@ -654,14 +642,6 @@ const App = (): React.JSX.Element => {
       return next;
     });
   }, [semKey, semSeen]);
-  /** Fold the answered timetable's hours into the slot memory beside it. */
-  useEffect(() => {
-    if (!today.data?.classes?.length) return;
-    const next = notePeriodTimes(slotTimes, today.data.classes);
-    if (next === slotTimes) return;
-    writePeriodTimes(next);
-    setSlotTimes(next);
-  }, [today.data, slotTimes]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {
@@ -798,7 +778,6 @@ const App = (): React.JSX.Element => {
               busy={today.isLoading}
               note={todayNote}
               date={unposted.data?.date ?? null}
-              slotTimes={slotTimes}
             />
             <UnpostedPanel
               reported={unposted.data?.reported}

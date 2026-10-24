@@ -32,23 +32,19 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
   grid states no room, so room always reads empty.
 - A fragment with no schedule grid — the bare `</table>` ECAP answers after
   ~4pm, when it clears the day — is an empty day, never a failure. The panel
-  shows the usual table with blank classes for it, each slot borrowing the
-  latest hours ECAP stated for it (`web/period-times.ts`, the same memory
-  shape as the semester start — portal data, so it survives sign-out like
-  that one does). A refused call throws before the parser is reached, so a
-  502 still says the read failed and a 401 still ends the session.
+  shows one row reading No Classes Today for it. A refused call throws before
+  the parser is reached, so a 502 still says the read failed and a 401 still
+  ends the session.
 - Home is the landing screen (`/home`, first tab, House icon). The read
   happens when Home opens and refreshes behind the cached answer on return;
   the key is an `/api/` key, so sign-out sweeps it. Sundays, holidays, and
-  cleared evenings share the one skeleton — ECAP gives no holiday
+  cleared evenings share the one row — ECAP gives no holiday
   list and none is hardcoded.
 
 ## Consequences
 
 - No manual timetable entry: one more portal read through the same handler
-  shape as every other, plus one small memory — the slots' latest hours, so
-  a cleared day keeps its times. Same shape and same sign-out rule as the
-  semester-start memory.
+  shape as every other.
 - The row parser's shape is pinned by the live teaching-day reply
   (2026-10-24), not by a guess: the header patterns are gone with the header
   they assumed, and the free-period skip plus the `<hr/>` stacking are the

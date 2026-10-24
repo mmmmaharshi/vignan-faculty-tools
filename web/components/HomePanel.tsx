@@ -12,8 +12,6 @@ import React, { useEffect, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
 import { capitalCase, pillsOf, splitSubject } from "../format";
-import { PERIOD_COUNT } from "../period-times";
-import type { PeriodTimes } from "../period-times";
 import type { Note } from "../types";
 
 export type HomePanelProps = {
@@ -25,9 +23,6 @@ export type HomePanelProps = {
   note?: Note | null;
   /** The day both Home sections cover, dd/mm/yyyy on the campus clock. */
   date?: string | null;
-  /** The slots' latest hours, folded by the caller from every answered
-   *  timetable: a cleared day borrows them for its skeleton. */
-  slotTimes: PeriodTimes;
 };
 /** "08:45 AM- 09:35 PM" as minutes since midnight, or null when the grid
  *  wrote something else. Twelve-hour clock, as ECAP writes it. */
@@ -74,27 +69,11 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
     </>
   );
 };
-/** The skeleton an empty day shows: the usual periods with blank classes.
- *  A cleared day states no times either, so each slot borrows the latest
- *  hours ECAP stated for it — the slots' hours, which change far less often
- *  than the days' subjects. */
-const emptyDay = (times: PeriodTimes): TodayClass[] =>
-  Array.from({ length: PERIOD_COUNT }, (_, index) => {
-    const period = `Period ${index + 1}`;
-    return {
-      period,
-      time: times[period] ?? "",
-      subject: "",
-      section: "",
-      room: "",
-    };
-  });
 export const HomePanel = ({
   classes,
   busy,
   note,
   date,
-  slotTimes,
 }: HomePanelProps): React.JSX.Element => {
   // The highlight must flip when a period starts or ends mid-visit, so the
   // clock ticks rather than being read once on mount.
@@ -121,13 +100,7 @@ export const HomePanel = ({
         </Stack>
       ) : null}
       {classes && !busy ? (
-        <Table
-          striped
-          highlightOnHover
-          withTableBorder
-          withColumnBorders
-          opacity={classes.length ? 1 : 0.6}
-        >
+        <Table striped highlightOnHover withTableBorder withColumnBorders>
           <Table.Thead>
             <Table.Tr>
               <Table.Th>Period</Table.Th>
@@ -135,8 +108,8 @@ export const HomePanel = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {(classes.length ? classes : emptyDay(slotTimes)).map(
-              (entry, index) => (
+            {classes.length ? (
+              classes.map((entry, index) => (
                 // The grid states no identifiers, so the order it gave is the key.
                 // The live period carries the register's critical-row tint in
                 // blue: it answers "where am I supposed to be" at a glance.
@@ -157,16 +130,18 @@ export const HomePanel = ({
                     ) : null}
                   </Table.Td>
                   <Table.Td>
-                    {classes.length ? (
-                      <ClassCell entry={entry} />
-                    ) : (
-                      <Text c="dimmed" size="sm">
-                        no classes today
-                      </Text>
-                    )}
+                    <ClassCell entry={entry} />
                   </Table.Td>
                 </Table.Tr>
-              )
+              ))
+            ) : (
+              <Table.Tr>
+                <Table.Td colSpan={2}>
+                  <Text c="dimmed" size="sm">
+                    No Classes Today
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
             )}
           </Table.Tbody>
         </Table>

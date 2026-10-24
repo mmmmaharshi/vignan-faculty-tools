@@ -497,7 +497,7 @@ test.describe("the app's own data layer", () => {
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
       .toBe("/dashboard");
   });
-  test("a cleared day shows the period skeleton with blank classes", async ({
+  test("a cleared day shows one row reading No Classes Today", async ({
     page,
   }) => {
     todayEmpty = true;
@@ -506,12 +506,11 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("heading", { name: "Today's Classes" })
     ).toBeVisible({ timeout: 15_000 });
-    await expect(page.getByText("Period 7", { exact: true })).toBeVisible();
-    await expect(page.getByText("No periods today")).toHaveCount(0);
     await expect(
-      page.getByText("no classes today", { exact: true })
-    ).toHaveCount(7);
-    expect(todayCalls, "the skeleton is drawn from one empty read").toBe(1);
+      page.getByText("No Classes Today", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText("Period 7", { exact: true })).toHaveCount(0);
+    expect(todayCalls, "the row is drawn from one empty read").toBe(1);
   });
   test("Home lists pending postings per branch, all-posted as one line", async ({
     page,
@@ -529,26 +528,6 @@ test.describe("the app's own data layer", () => {
     // CSE (AI) posted everything: one line, no table.
     await expect(page.getByText("All Posted", { exact: true })).toBeVisible();
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
-  });
-  test("a cleared day keeps the slots' remembered hours", async ({ page }) => {
-    await page.goto("/login");
-    await signIn(page);
-    await expect(page.getByText("AI", { exact: true })).toBeVisible({
-      timeout: 15_000,
-    });
-    // A day ECAP answered folds its hours into memory; the cleared day after
-    // it borrows those hours and blanks only the classes.
-    todayEmpty = true;
-    await page.reload();
-    await expect(
-      page.getByRole("heading", { name: "Today's Classes" })
-    ).toBeVisible({ timeout: 15_000 });
-    await expect.poll(() => todayCalls, { timeout: 5000 }).toBe(2);
-    await expect(page.getByText("AI", { exact: true })).toHaveCount(0);
-    await expect(
-      page.getByRole("row", { name: /Period 1 \d/ }),
-      "the borrowed hours name the slot they came from"
-    ).toBeVisible();
   });
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({
     page,
