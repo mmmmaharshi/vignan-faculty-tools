@@ -57,37 +57,39 @@ const BranchMatrix = ({
       </Tabs.List>
       {names.map((name) => (
         <Tabs.Panel key={name} value={name} pt="sm">
-          <Table striped highlightOnHover withTableBorder withColumnBorders>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Semester</Table.Th>
-                {Array.from({ length: PERIOD_COUNT }, (_, index) => (
-                  <Table.Th key={index + 1} ta="center">
-                    {index + 1}
-                  </Table.Th>
-                ))}
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {semesters.map((semester) => (
-                <Table.Tr key={semester}>
-                  <Table.Td c="dimmed">
-                    <Text size="sm">
-                      {semester.replace(/\s*Semester\s*/i, "")}
-                    </Text>
-                  </Table.Td>
-                  {Array.from({ length: PERIOD_COUNT }, (_, index) => {
-                    const cell = at(semester, name, String(index + 1));
-                    return (
-                      <Table.Td key={index + 1} ta="center">
-                        <Text size="lg">{markOf(cell)}</Text>
-                      </Table.Td>
-                    );
-                  })}
+          <Table.ScrollContainer minWidth={480}>
+            <Table striped highlightOnHover withTableBorder withColumnBorders>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Semester</Table.Th>
+                  {Array.from({ length: PERIOD_COUNT }, (_, index) => (
+                    <Table.Th key={index + 1} ta="center">
+                      {index + 1}
+                    </Table.Th>
+                  ))}
                 </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </Table>
+              </Table.Thead>
+              <Table.Tbody>
+                {semesters.map((semester) => (
+                  <Table.Tr key={semester}>
+                    <Table.Td c="dimmed">
+                      <Text size="sm">
+                        {semester.replace(/\s*Semester\s*/i, "")}
+                      </Text>
+                    </Table.Td>
+                    {Array.from({ length: PERIOD_COUNT }, (_, index) => {
+                      const cell = at(semester, name, String(index + 1));
+                      return (
+                        <Table.Td key={index + 1} ta="center">
+                          <Text size="lg">{markOf(cell)}</Text>
+                        </Table.Td>
+                      );
+                    })}
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
         </Tabs.Panel>
       ))}
     </Tabs>

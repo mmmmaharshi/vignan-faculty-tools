@@ -532,6 +532,18 @@ test.describe("the app's own data layer", () => {
     await expect(shown().getByText("✅", { exact: true })).toHaveCount(1);
     await expect(shown().getByText("❌", { exact: true })).toHaveCount(0);
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
+    // Eight columns cannot fit a phone: the matrix must scroll inside its
+    // own container rather than pushing the whole page sideways.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect
+      .poll(
+        () =>
+          page.evaluate(
+            () => document.documentElement.scrollWidth - window.innerWidth
+          ),
+        { message: "no page-level sideways scroll on a phone", timeout: 5000 }
+      )
+      .toBeLessThanOrEqual(1);
   });
   test("a cleared day keeps the slots' remembered hours", async ({ page }) => {
     await page.goto("/login");
