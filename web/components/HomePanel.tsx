@@ -188,7 +188,13 @@ export const HomePanel = ({
                     ) : null}
                   </Table.Td>
                   <Table.Td>
-                    <ClassCell entry={entry} />
+                    {classes.length ? (
+                      <ClassCell entry={entry} />
+                    ) : (
+                      <Text c="dimmed" size="sm">
+                        no classes today
+                      </Text>
+                    )}
                   </Table.Td>
                 </Table.Tr>
               )

@@ -477,6 +477,9 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(page.getByText("Period 7", { exact: true })).toBeVisible();
     await expect(page.getByText("No periods today")).toHaveCount(0);
+    await expect(
+      page.getByText("no classes today", { exact: true })
+    ).toHaveCount(7);
     expect(todayCalls, "the skeleton is drawn from one empty read").toBe(1);
   });
   test("a cleared day keeps the slots' remembered hours", async ({ page }) => {
