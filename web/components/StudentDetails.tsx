@@ -374,7 +374,15 @@ export const StudentDetails = ({
               </Table.Tbody>
             </Table>
           ) : (
-            <Text size="sm">{backlogNote}</Text>
+            <Table striped withTableBorder tabularNums>
+              <Table.Tbody>
+                <Table.Tr>
+                  <Table.Td>
+                    <Text size="sm">{backlogNote}</Text>
+                  </Table.Td>
+                </Table.Tr>
+              </Table.Tbody>
+            </Table>
           )}
         </>
       ) : null}
