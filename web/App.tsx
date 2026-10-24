@@ -890,7 +890,7 @@ const App = (): React.JSX.Element => {
           <Title order={3}>Vignan Faculty Tools</Title>
         </Group>
       </AppShell.Header>
-      <AppShell.Navbar p="md" visibleFrom="sm">
+      <AppShell.Navbar p="md" pb={0} visibleFrom="sm">
         <AppShell.Section grow>
           <RailNav active={activeTab(pathname)} onNavigate={navigate} />
         </AppShell.Section>
