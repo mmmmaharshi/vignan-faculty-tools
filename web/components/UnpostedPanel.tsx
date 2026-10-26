@@ -45,18 +45,35 @@ export function branchesOf(
   return out;
 }
 
+/** One section's cells by period, in the report's order: the boxes and the
+ *  detail modal read this one grouping, so a period cannot show posted in
+ *  one and unposted in the other. */
+function cellsByPeriod(cells: DayWorkCell[]): Map<string, DayWorkCell[]> {
+  const map = new Map<string, DayWorkCell[]>();
+  for (const cell of cells) {
+    const list = map.get(cell.period) ?? [];
+    list.push(cell);
+    map.set(cell.period, list);
+  }
+  return map;
+}
+
 /** Postedness per period for one section: a period is posted only when every
  *  cell the section has for it is posted. */
-function postedByPeriod(cells: DayWorkSection["cells"]): Map<string, boolean> {
+function postedByPeriod(cells: DayWorkCell[]): Map<string, boolean> {
   const map = new Map<string, boolean>();
-  for (const cell of cells) {
-    const current = map.get(cell.period);
+  for (const [period, group] of cellsByPeriod(cells)) {
     map.set(
-      cell.period,
-      current === undefined ? cell.posted : current && cell.posted
+      period,
+      group.every((cell) => cell.posted)
     );
   }
   return map;
+}
+
+/** The cell a period box opens onto: the first the report states for it. */
+function firstCell(cells: DayWorkCell[], period: string): DayWorkCell | null {
+  return cellsByPeriod(cells).get(period)?.[0] ?? null;
 }
 
 const PeriodBox = ({
@@ -73,7 +90,7 @@ const PeriodBox = ({
   // A real button, not a div with a handler: keyboard and reader free.
   // The box names only its period; subject and staff live in the modal it
   // opens, so the grid stays glanceable.
-  <UnstyledButton onClick={onOpen} aria-label={label} style={{ width: "100%" }}>
+  <UnstyledButton onClick={onOpen} aria-label={label} w="100%">
     <Paper
       h={40}
       p={0}
@@ -98,68 +115,74 @@ const statusOf = (cell: DayWorkCell | null): string => {
   return cell.posted ? "Posted" : "Not posted yet";
 };
 
+/** One open box: the section and period it was opened from. A single modal
+ *  serves the whole branch — one mounted dialog, not one per section. */
+type SlotSelection = {
+  section: DayWorkSection;
+  period: string;
+} | null;
+
 /** Whose class a period box is: the section and period it was opened from,
  *  the subject and staff ECAP states for them, and whether it posted. A
  *  free period states no cell at all, which is not an unposted class — the
  *  modal says so instead of naming a teacher for an empty room. */
 const SlotDetails = ({
-  section,
-  period,
+  selection,
   onClose,
 }: {
-  section: DayWorkSection;
-  period: string | null;
+  selection: SlotSelection;
   onClose: () => void;
 }): React.JSX.Element => {
-  const cell: DayWorkCell | null =
-    period === null
+  const cell =
+    selection === null
       ? null
-      : (section.cells.find((entry) => entry.period === period) ?? null);
+      : firstCell(selection.section.cells, selection.period);
+  const facts =
+    selection === null
+      ? null
+      : [
+          { label: "Branch", value: selection.section.branch },
+          { label: "Semester", value: selection.section.semester },
+          { label: "Section", value: selection.section.section },
+          { label: "Period", value: selection.period },
+          {
+            label: "Subject",
+            value: cell?.subject || "No class stated",
+          },
+          { label: "Staff", value: cell?.staff || "—" },
+          { label: "Status", value: statusOf(cell) },
+          // Counts exist only where posted: an unposted period has no
+          // headcount to show, not a zero one.
+          ...(cell?.posted
+            ? [
+                { label: "Present", value: cell.present || "—" },
+                { label: "Absent", value: cell.absent || "—" },
+              ]
+            : []),
+        ];
   return (
     <Modal
-      opened={period !== null}
+      opened={selection !== null}
       onClose={onClose}
       title={
-        period === null ? "" : `Period ${period} · Section ${section.section}`
+        selection === null
+          ? ""
+          : `Period ${selection.period} · Section ${selection.section.section}`
       }
     >
-      {period === null ? null : (
-        <FactsTable
-          facts={[
-            { label: "Branch", value: section.branch },
-            { label: "Semester", value: section.semester },
-            { label: "Section", value: section.section },
-            { label: "Period", value: period },
-            {
-              label: "Subject",
-              value: cell?.subject || "No class stated",
-            },
-            { label: "Staff", value: cell?.staff || "—" },
-            { label: "Status", value: statusOf(cell) },
-            // Counts exist only where posted: an unposted period has no
-            // headcount to show, not a zero one.
-            ...(cell?.posted
-              ? [
-                  { label: "Present", value: cell.present || "—" },
-                  { label: "Absent", value: cell.absent || "—" },
-                ]
-              : []),
-          ]}
-        />
-      )}
+      {facts ? <FactsTable facts={facts} /> : null}
     </Modal>
   );
 };
 
 const SectionBoxes = ({
   section,
+  onOpen,
 }: {
   section: DayWorkSection;
+  onOpen: (period: string) => void;
 }): React.JSX.Element => {
   const posted = postedByPeriod(section.cells);
-  // UI-ephemeral like HomePanel's clock: what is open lives here, while the
-  // branch choice (which section list is on screen) stays in App.
-  const [open, setOpen] = useState<string | null>(null);
   return (
     <Stack gap="xs">
       <Text fw={600} size="sm">
@@ -172,20 +195,17 @@ const SectionBoxes = ({
             period={period}
             posted={posted.get(period) === true}
             label={`Period ${period}, Section ${section.section}`}
-            onOpen={() => setOpen(period)}
+            onOpen={() => onOpen(period)}
           />
         ))}
       </SimpleGrid>
-      <SlotDetails
-        section={section}
-        period={open}
-        onClose={() => setOpen(null)}
-      />
     </Stack>
   );
 };
 
-/** One branch's sections grouped by semester into cards. */
+/** One branch's sections grouped by semester into cards. Holds the one open
+ *  box for the branch: UI-ephemeral like HomePanel's clock, while the branch
+ *  choice (which section list is on screen) stays in App. */
 const BranchPending = ({
   sections,
 }: {
@@ -197,6 +217,7 @@ const BranchPending = ({
     list.push(section);
     bySemester.set(section.semester, list);
   }
+  const [open, setOpen] = useState<SlotSelection>(null);
   return (
     <Stack gap="md">
       {[...bySemester.entries()].map(([semester, group]) => (
@@ -204,11 +225,16 @@ const BranchPending = ({
           <Stack gap="md">
             <Text fw={700}>{semester}</Text>
             {group.map((section) => (
-              <SectionBoxes key={section.section} section={section} />
+              <SectionBoxes
+                key={section.section}
+                section={section}
+                onOpen={(period) => setOpen({ section, period })}
+              />
             ))}
           </Stack>
         </Card>
       ))}
+      <SlotDetails selection={open} onClose={() => setOpen(null)} />
     </Stack>
   );
 };

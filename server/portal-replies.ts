@@ -582,16 +582,18 @@ export function parseDayClassWork(
       // states both, so half-blank is malformed, not unposted.
       const present = rowCells[PRESENT_COLUMN] ?? "";
       const absent = rowCells[ABSENT_COLUMN] ?? "";
+      const hasPresent = isCount(present);
+      const hasAbsent = isCount(absent);
       // Subject and staff travel as stated — including ECAP's own "-" where
       // a period carries no allocation yet. Only counts are normalised: a
       // dash is not a count of zero.
       cells.push({
         period: rowCells[0] ?? "",
         subject: rowCells[1] ?? "",
-        posted: isCount(present) || isCount(absent),
+        posted: hasPresent || hasAbsent,
         staff: rowCells[2] ?? "",
-        present: isCount(present) ? present : "",
-        absent: isCount(absent) ? absent : "",
+        present: hasPresent ? present : "",
+        absent: hasAbsent ? absent : "",
       });
     }
     sections.push({

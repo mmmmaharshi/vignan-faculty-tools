@@ -332,19 +332,33 @@ export function useSignOut() {
  */
 export const forgetServerData = (): Promise<unknown> =>
   mutate(isServerKey, undefined, { revalidate: false });
-/** Every server key a refresh may re-read: all of them but the register, so
- *  the sweep above and the refresh below cannot drift apart on the exclusion. */
+/** Every screen read a refresh may re-read: each read hook's path, named
+ *  once here so a new endpoint joins the refresh by joining this list. The
+ *  register is deliberately absent — the click stays its only fetch
+ *  (ADR 0015) — and so are the login, logout, and options-chain mutation
+ *  keys, which hold no screen read to revalidate. */
+const REFRESHABLE_PATHS: readonly string[] = new Set([
+  SESSION_PATH,
+  STUDENT_PATH,
+  FIND_PATH,
+  SEM_START_PATH,
+  SEM_ABSENCES_PATH,
+  FACULTY_PROFILE_PATH,
+  TODAY_PATH,
+  UNPOSTED_PATH,
+  OPTIONS_PATH,
+]);
 const isRefreshableKey = (
   key: unknown
 ): key is string | [string, ...unknown[]] =>
   isServerKey(key) &&
-  (typeof key === "string" ? key : key[0]) !== REGISTER_PATH;
+  REFRESHABLE_PATHS.has(typeof key === "string" ? key : key[0]);
 /**
- * Re-reads what the screens show, in place: every refreshable key (all
- * `/api/` keys but the register) revalidates. A register stays a decision
- * (ADR 0015), so the click is still the only way one is ever fetched. The
- * cascade re-runs from its own caller beside this, where a picker is on
- * screen to settle it.
+ * Re-reads what the screens show, in place: every path in
+ * `REFRESHABLE_PATHS` revalidates. A register stays a decision (ADR 0015),
+ * so the click is still the only way one is ever fetched. The cascade
+ * re-runs from its own caller beside this, where a picker is on screen to
+ * settle it.
  */
 export const revalidateServerData = (): Promise<unknown> =>
   mutate(isRefreshableKey, undefined, { revalidate: true });

@@ -448,8 +448,12 @@ const App = (): React.JSX.Element => {
     if (refreshing || busy) return;
     setRefreshing(true);
     try {
-      if (onDashboard) await runRefresh(sel, opts);
-      await revalidateServerData();
+      // Independent re-reads, asked together: neither waits on the other,
+      // and neither rejection survives — each hook surfaces its own error.
+      await Promise.allSettled([
+        onDashboard ? runRefresh(sel, opts) : Promise.resolve(),
+        revalidateServerData(),
+      ]);
     } finally {
       setRefreshing(false);
     }
