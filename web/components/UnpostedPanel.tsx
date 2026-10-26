@@ -13,7 +13,6 @@ import {
 import React, { useState } from "react";
 
 import type { DayWorkSection } from "../../shared/api";
-import { sectionShort } from "../format";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
@@ -45,6 +44,7 @@ const BranchPending = ({
       {[...bySemester.entries()].map(([semester, group]) => (
         <Card key={semester} withBorder padding="sm" radius="sm">
           <Stack gap="md">
+            <Text fw={700}>{semester}</Text>
             {group.map((section) => {
               const postedByPeriod = new Map<string, boolean>();
               for (const cell of section.cells) {
@@ -54,14 +54,13 @@ const BranchPending = ({
                   (current ?? true) && cell.posted
                 );
               }
-              const where = sectionShort(section.semester, section.section);
               const periods = Array.from({ length: 7 }, (_, index) =>
                 String(index + 1)
               );
               return (
-                <Stack key={where} gap="xs">
+                <Stack key={section.section} gap="xs">
                   <Text fw={600} size="sm">
-                    {where}
+                    Section {section.section}
                   </Text>
                   <SimpleGrid cols={7} spacing="xs">
                     {periods.map((period) => {
