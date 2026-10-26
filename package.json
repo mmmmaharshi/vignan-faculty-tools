@@ -9,6 +9,7 @@
     "start": "bun server/server.ts",
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json && tsc -p tsconfig.test.json",
     "test": "playwright test",
+    "test:fast": "playwright test --config=playwright.fast.config.ts",
     "lint": "vp check",
     "lint:fix": "vp check --fix"
   },
