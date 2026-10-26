@@ -8,10 +8,16 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
 import { capitalCase, pillsOf, splitSubject } from "../format";
+import {
+  notePeriodTimes,
+  readPeriodTimes,
+  writePeriodTimes,
+} from "../period-times";
+import type { PeriodTimes } from "../period-times";
 import type { Note } from "../types";
 
 export type HomePanelProps = {
@@ -77,19 +83,40 @@ const hasClass = (entry: TodayClass): boolean =>
  *  rest blank. A period ECAP named outside 1..7 rides along rather than
  *  vanishing. */
 const PERIOD_COUNT = 7;
-const dayRows = (classes: TodayClass[]): TodayClass[] => {
+const dayRows = (
+  classes: TodayClass[],
+  known: PeriodTimes = {}
+): TodayClass[] => {
   const rows: TodayClass[] = [];
   for (let index = 1; index <= PERIOD_COUNT; index += 1) {
     const slot = `Period ${index}`;
     const stated = classes.filter((entry) => entry.period === slot);
     if (stated.length) {
-      rows.push(...stated);
+      // A stated slot that states no hours still reads the last hours this
+      // browser was told for it.
+      rows.push(
+        ...stated.map((entry) => ({
+          ...entry,
+          time: entry.time || known[slot] || "",
+        }))
+      );
     } else {
-      rows.push({ period: slot, time: "", subject: "", section: "", room: "" });
+      rows.push({
+        period: slot,
+        time: known[slot] ?? "",
+        subject: "",
+        section: "",
+        room: "",
+      });
     }
   }
+  // A period ECAP named outside 1..7 rides along rather than vanishing. The
+  // comparison is by period, not by object: the slots above hold copies, so an
+  // identity check would push every stated period a second time.
+  const named = new Set(rows.map((row) => row.period));
   for (const entry of classes) {
-    if (!rows.includes(entry)) rows.push(entry);
+    if (named.has(entry.period)) continue;
+    rows.push({ ...entry, time: entry.time || known[entry.period] || "" });
   }
   return rows;
 };
@@ -106,6 +133,16 @@ export const HomePanel = ({
     const tick = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(tick);
   }, []);
+  // ECAP states every slot's hours until it clears the day, and then states
+  // none at all — so each read teaches the memory the slot hours it will need
+  // once they are gone. One read per mount, so the hours read back at mount
+  // are the ones an earlier read persisted.
+  const known = useMemo(() => readPeriodTimes(), []);
+  useEffect(() => {
+    if (!classes) return;
+    const next = notePeriodTimes(known, classes);
+    if (next !== known) writePeriodTimes(next);
+  }, [classes, known]);
 
   return (
     <Stack gap="md">
@@ -132,7 +169,7 @@ export const HomePanel = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {dayRows(classes).map((entry, index) => (
+            {dayRows(classes, known).map((entry, index) => (
               // The grid states no identifiers, so the order it gave is the key.
               // The live period carries the register's critical-row tint in
               // blue: it answers "where am I supposed to be" at a glance. A

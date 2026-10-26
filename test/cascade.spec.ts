@@ -5,6 +5,7 @@ import type {
   OptionsReply,
   OptionsRequest,
   Student,
+  TodayClass,
 } from "../shared/api";
 import { ALL_SUBJECTS } from "../shared/api";
 import {
@@ -24,6 +25,7 @@ import {
   toPortalDate,
 } from "../web/cascade";
 import type { ChosenFact, Level, Sel } from "../web/cascade";
+import { notePeriodTimes } from "../web/period-times";
 import {
   abbreviate,
   rememberClass,
@@ -40,6 +42,14 @@ import {
 } from "../web/worklist";
 import type { RowFilter } from "../web/worklist";
 
+/** One grid row: hours stated, or none at all once ECAP clears the day. */
+const slot = (period: string, time: string): TodayClass => ({
+  period,
+  time,
+  subject: time ? "AI" : "",
+  section: time ? "3 IT-C" : "",
+  room: "",
+});
 const opt = (value: string, label = `L${value}`, title = ""): Option => ({
   value,
   label,
@@ -437,6 +447,41 @@ test.describe("the register, before it is sent", () => {
         "2026"
       );
       expect(next).not.toBe(key);
+    });
+  });
+  test.describe("the period-hours memory", () => {
+    test("a stated hour is learnt, and its own repeat changes nothing", () => {
+      const learnt = notePeriodTimes({}, [
+        slot("Period 1", "08:45 AM- 09:35 AM"),
+      ]);
+      expect(learnt["Period 1"]).toBe("08:45 AM- 09:35 AM");
+      // The same answer again is the same map, not a rewrite.
+      expect(
+        notePeriodTimes(learnt, [slot("Period 1", "08:45 AM- 09:35 AM")])
+      ).toBe(learnt);
+    });
+    test("a cleared evening never erases what the morning taught", () => {
+      const learnt = notePeriodTimes({}, [
+        slot("Period 1", "08:45 AM- 09:35 AM"),
+        slot("Period 4", "11:40 AM- 12:30 PM"),
+      ]);
+      // ECAP's cleared day: the same slots, no hours stated at all.
+      const cleared = notePeriodTimes(learnt, [
+        slot("Period 1", ""),
+        slot("Period 4", ""),
+      ]);
+      expect(cleared).toBe(learnt);
+      expect(cleared["Period 1"]).toBe("08:45 AM- 09:35 AM");
+    });
+    test("a period that moved corrects itself, and junk is never stored", () => {
+      const learnt = notePeriodTimes({ "Period 1": "08:45 AM- 09:35 AM" }, [
+        slot("Period 1", "09:00 AM- 09:50 AM"),
+        slot("Period 2", "whenever"),
+        slot("", "10:50 AM- 11:40 AM"),
+      ]);
+      expect(learnt["Period 1"]).toBe("09:00 AM- 09:50 AM");
+      expect(learnt["Period 2"]).toBeUndefined();
+      expect(learnt[""]).toBeUndefined();
     });
   });
 });

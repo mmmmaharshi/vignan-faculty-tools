@@ -514,6 +514,30 @@ test.describe("the app's own data layer", () => {
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
       .toBe("/dashboard");
   });
+  test("a cleared day still reads the hours it was once told", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await signIn(page);
+    // The stub states hours for periods 1 and 3; both are learnt on this read.
+    await expect(
+      page.locator("tbody tr", { hasText: "Period 3" })
+    ).toContainText(/\d{1,2}:\d{2}\s*[AP]M/);
+    // ECAP clears the day: every slot now states no hours at all.
+    todayEmpty = true;
+    await page.reload();
+    await expect(
+      page.getByRole("heading", { name: "Today's Classes" })
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      page.getByText("No Classes Today", { exact: true }),
+      "still every slot, all blank"
+    ).toHaveCount(7);
+    await expect(
+      page.locator("tbody tr").filter({ hasText: /\d{1,2}:\d{2}\s*[AP]M/ }),
+      "the two slots it was once timed, and no invented hours for the rest"
+    ).toHaveCount(2);
+  });
   test("a cleared day names every slot, blank ones reading No Classes Today", async ({
     page,
   }) => {

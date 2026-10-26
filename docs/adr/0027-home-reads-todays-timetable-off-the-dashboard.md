@@ -46,7 +46,15 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
 
 - No manual timetable entry: one more portal read through the same handler
   shape as every other.
+- The hours are remembered, in `web/period-times.ts`, keyed by period name:
+  every read folds its stated hours in, so a period that moved corrects
+  itself and a read that states nothing never erases what was learnt. It is
+  what lets a cleared evening — when ECAP states no hours at all — still show
+  when each period it has once seen meets. Portal data, not personal data, so
+  it survives sign-out with the next user; a slot never once timed shows no
+  hours rather than invented ones.
 - The row parser's shape is pinned by the live teaching-day reply
   (2026-10-24), not by a guess: the header patterns are gone with the header
-  they assumed, and the free-period skip plus the `<hr/>` stacking are the
-  grid's own semantics, covered by the same live fixture.
+  they assumed, the free-period row keeps the hours the grid stated for it,
+  and the `<hr/>` stacking is the grid's own semantics, covered by the same
+  live fixture.
