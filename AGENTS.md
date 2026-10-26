@@ -682,9 +682,9 @@ fill is a rule bug, two requests racing is a loop bug.
   single portal timeout is already 60s against a serverless budget, and
   `test/api.spec.ts` pins "a 502 is not retried". What retries is the cascade
   loop itself: one stumble per pass is asked again before the run fails,
-  because one failed call used to fail all five passes behind it. A 401 is
-  answered, never re-asked, so a dead session still reaches the sign-out
-  sweep at once.
+  because one failed call used to fail all five passes behind it. A judged
+  4xx is answered, never re-asked — the 401 still reaches the sign-out sweep
+  at once, and re-asking any judged request cannot change its answer.
 
 ## The data layer
 

@@ -205,18 +205,35 @@ export type CascadeSetup = {
  * rejects with an abort the caller would have to tell apart from a failure.
  */
 /**
- * Whether a failed pass refused the session rather than stumbled on the way
- * there: only the former reaches the sign-out sweep at once, so only the
- * latter is asked again. Duck-typed on purpose — the loop is driven by the
- * client's `ApiError` in the app and by fakes in tests, and neither shares a
- * class with the other.
+ * Whether asking again could change the answer: anything but a judged
+ * client error. A refused session (401) and its 4xx siblings were already
+ * judged — re-asking cannot change the answer, and the 401 must reach the
+ * sign-out sweep at once. Anything else (a 5xx, a network failure, a throw
+ * with no status at all) may be transient. Structural on purpose: the loop
+ * is driven by the client's error class in the app and by fakes in tests.
  */
-function refused(error: unknown): boolean {
-  return (
-    error instanceof Error &&
-    "status" in error &&
-    (error as { status: unknown }).status === 401
-  );
+export function isRetriable(error: unknown): boolean {
+  if (!(error instanceof Error)) return true;
+  if (!("status" in error) || typeof error.status !== "number") return true;
+  return error.status >= 500;
+}
+/**
+ * One pass, asked at most twice: a stumble is re-asked once, a judged
+ * failure and a superseded run are answered at once. Aborts are never
+ * retried — a run the screen stopped wanting asks the Portal nothing more —
+ * and the caller still sees a superseded run as `null` via its own check.
+ */
+async function fetchWithOneRetry(
+  fetchOptions: (request: OptionsRequest) => Promise<OptionsReply>,
+  request: OptionsRequest,
+  signal?: AbortSignal
+): Promise<OptionsReply> {
+  try {
+    return await fetchOptions(request);
+  } catch (error) {
+    if (!isRetriable(error) || signal?.aborted) throw error;
+    return fetchOptions(request);
+  }
 }
 export async function runCascade(
   setup: CascadeSetup,
@@ -233,27 +250,17 @@ export async function runCascade(
           ?.title
       : undefined;
     const before = draft;
-    const ask = (): Promise<OptionsReply> =>
-      fetchOptions({
+    const reply = await fetchWithOneRetry(
+      fetchOptions,
+      {
         course: draft.course || undefined,
         semester: draft.semester || undefined,
         semesterTitle,
         branch: draft.branch || undefined,
         section: draft.section || undefined,
-      });
-    // One stumble per pass is asked again: ECAP answers the course read
-    // unreliably, and one failed call used to fail the whole run behind it.
-    // A refused session is answered, never re-asked — and a run the screen
-    // stopped wanting asks nothing more either way.
-    const pass = async (): Promise<OptionsReply> => {
-      try {
-        return await ask();
-      } catch (error) {
-        if (refused(error) || signal?.aborted) throw error;
-        return ask();
-      }
-    };
-    const reply = await pass();
+      },
+      signal
+    );
     if (signal?.aborted) return null;
     for (const option of reply.subject) {
       if (isAllSubjects(option)) continue;
