@@ -61,57 +61,34 @@ function postedByPeriod(cells: DayWorkSection["cells"]): Map<string, boolean> {
 
 const PeriodBox = ({
   period,
-  subject,
-  staff,
   posted,
   label,
   onOpen,
 }: {
   period: string;
-  /** What ECAP states for the period, or "" where it states none. Shown on
-   *  unposted boxes only — posted and free boxes stay plain numbers. */
-  subject: string;
-  staff: string;
   posted: boolean;
   label: string;
   onOpen: () => void;
-}): React.JSX.Element => {
-  const namesClass = !posted && (subject !== "" || staff !== "");
-  return (
-    // A real button, not a div with a handler: keyboard and reader free.
-    <UnstyledButton
-      onClick={onOpen}
-      aria-label={label}
-      style={{ width: "100%" }}
+}): React.JSX.Element => (
+  // A real button, not a div with a handler: keyboard and reader free.
+  // The box names only its period; subject and staff live in the modal it
+  // opens, so the grid stays glanceable.
+  <UnstyledButton onClick={onOpen} aria-label={label} style={{ width: "100%" }}>
+    <Paper
+      h={40}
+      p={0}
+      bg={posted ? "green.6" : "gray.1"}
+      withBorder
+      radius="sm"
     >
-      <Paper
-        h={64}
-        p={0}
-        bg={posted ? "green.6" : "gray.1"}
-        withBorder
-        radius="sm"
-      >
-        <Center h={64}>
-          <Stack gap={0} align="center">
-            <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
-              {period}
-            </Text>
-            {namesClass && subject ? (
-              <Text size="xs" c="dimmed" truncate maw="100%">
-                {subject}
-              </Text>
-            ) : null}
-            {namesClass && staff ? (
-              <Text size="xs" c="dimmed" truncate maw="100%">
-                {staff}
-              </Text>
-            ) : null}
-          </Stack>
-        </Center>
-      </Paper>
-    </UnstyledButton>
-  );
-};
+      <Center h={40}>
+        <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
+          {period}
+        </Text>
+      </Center>
+    </Paper>
+  </UnstyledButton>
+);
 
 /** What a period box opens onto: "Posted", "Not posted yet", or the honest
  *  third answer — a free period states no cell at all, which is not an
@@ -181,20 +158,15 @@ const SectionBoxes = ({
         Section {section.section}
       </Text>
       <SimpleGrid cols={7} spacing="xs">
-        {PERIODS.map((period) => {
-          const cell = section.cells.find((entry) => entry.period === period);
-          return (
-            <PeriodBox
-              key={period}
-              period={period}
-              subject={cell?.subject ?? ""}
-              staff={cell?.staff ?? ""}
-              posted={posted.get(period) === true}
-              label={`Period ${period}, Section ${section.section}`}
-              onOpen={() => setOpen(period)}
-            />
-          );
-        })}
+        {PERIODS.map((period) => (
+          <PeriodBox
+            key={period}
+            period={period}
+            posted={posted.get(period) === true}
+            label={`Period ${period}, Section ${section.section}`}
+            onOpen={() => setOpen(period)}
+          />
+        ))}
       </SimpleGrid>
       <SlotDetails
         section={section}

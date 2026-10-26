@@ -674,24 +674,10 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("heading", { name: "Today's Attendance" })
     ).toBeVisible({ timeout: 15_000 });
-    // Period 2 of Section B is unposted: its box names the subject and the
-    // staff, and opening it shows the section they belong to.
-    const box = page.getByRole("button", { name: "Period 2, Section B" });
-    await expect(
-      box.getByText("SE", { exact: true }),
-      "the subject rides the unposted box"
-    ).toBeVisible();
-    await expect(
-      box.getByText("Other Two"),
-      "and so does the staff who owes it"
-    ).toBeVisible();
-    await expect(
-      page
-        .getByRole("button", { name: "Period 1, Section B" })
-        .getByText("Some One"),
-      "a posted box stays a plain number"
-    ).toHaveCount(0);
-    await box.click();
+    // Period 2 of Section B is unposted: opening its box names the subject,
+    // the staff, and the section they belong to — the box itself stays a
+    // plain number, details live in the modal alone.
+    await page.getByRole("button", { name: "Period 2, Section B" }).click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByText("SE", { exact: true })).toBeVisible();
     await expect(dialog.getByText("Other Two")).toBeVisible();
