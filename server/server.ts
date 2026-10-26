@@ -6,6 +6,10 @@ import { createApi, json } from "./api.js";
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
 const DIST = `${ROOT}/../dist`;
+/** The build output, normalised: `path.resolve` below normalises the request
+ *  too, so the containment check must compare against this, not the raw
+ *  `../dist` string — which no resolved path can ever start with. */
+const DIST_DIR = path.resolve(DIST);
 /**
  * Every document and asset answer carries these. The CSP mirrors vercel.json,
  * which carries the same set for the deployed front end — keep the two in
@@ -58,7 +62,10 @@ const server = Bun.serve({
         // Keep the request inside dist/: resolve and reject anything that
         // escapes it, so /../ cannot read files outside the build output.
         const resolved = path.resolve(DIST, `.${reqPath}`);
-        if (!resolved.startsWith(DIST + path.sep)) {
+        if (
+          resolved !== DIST_DIR &&
+          !resolved.startsWith(DIST_DIR + path.sep)
+        ) {
           return json({ error: "Not found" } satisfies ErrorReply, 404);
         }
         const asset = Bun.file(resolved);
