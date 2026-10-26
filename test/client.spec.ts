@@ -676,7 +676,12 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible({ timeout: 15_000 });
     // Period 2 of Section B is unposted: its box names the subject, the
     // staff ECAP states for it, and the section it belongs to.
-    await page.getByRole("button", { name: "Period 2, Section B" }).click();
+    const box = page.getByRole("button", { name: "Period 2, Section B" });
+    await expect(
+      box.getByText("SE", { exact: true }),
+      "the subject rides the box itself"
+    ).toBeVisible();
+    await box.click();
     const dialog = page.getByRole("dialog");
     await expect(dialog.getByText("SE", { exact: true })).toBeVisible();
     await expect(dialog.getByText("Other Two")).toBeVisible();
