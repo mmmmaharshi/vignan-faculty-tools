@@ -204,6 +204,20 @@ export type CascadeSetup = {
  * never given `signal`: an aborted run stops *between* passes, so nothing here
  * rejects with an abort the caller would have to tell apart from a failure.
  */
+/**
+ * Whether a failed pass refused the session rather than stumbled on the way
+ * there: only the former reaches the sign-out sweep at once, so only the
+ * latter is asked again. Duck-typed on purpose — the loop is driven by the
+ * client's `ApiError` in the app and by fakes in tests, and neither shares a
+ * class with the other.
+ */
+function refused(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    "status" in error &&
+    (error as { status: unknown }).status === 401
+  );
+}
 export async function runCascade(
   setup: CascadeSetup,
   fetchOptions: (request: OptionsRequest) => Promise<OptionsReply>
@@ -219,13 +233,27 @@ export async function runCascade(
           ?.title
       : undefined;
     const before = draft;
-    const reply = await fetchOptions({
-      course: draft.course || undefined,
-      semester: draft.semester || undefined,
-      semesterTitle,
-      branch: draft.branch || undefined,
-      section: draft.section || undefined,
-    });
+    const ask = (): Promise<OptionsReply> =>
+      fetchOptions({
+        course: draft.course || undefined,
+        semester: draft.semester || undefined,
+        semesterTitle,
+        branch: draft.branch || undefined,
+        section: draft.section || undefined,
+      });
+    // One stumble per pass is asked again: ECAP answers the course read
+    // unreliably, and one failed call used to fail the whole run behind it.
+    // A refused session is answered, never re-asked — and a run the screen
+    // stopped wanting asks nothing more either way.
+    const pass = async (): Promise<OptionsReply> => {
+      try {
+        return await ask();
+      } catch (error) {
+        if (refused(error) || signal?.aborted) throw error;
+        return ask();
+      }
+    };
+    const reply = await pass();
     if (signal?.aborted) return null;
     for (const option of reply.subject) {
       if (isAllSubjects(option)) continue;

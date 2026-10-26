@@ -1380,6 +1380,50 @@ test.describe("the cascade's option loop", () => {
     expect(runs.length, "nothing is gained, so nothing more is asked").toBe(1);
     expect(outcome?.sel).toEqual(SETTLED);
   });
+  test("a pass that stumbles is asked again once, then settles", async () => {
+    const runs: OptionsRequest[] = [];
+    const outcome = await runCascade(
+      { seed: sel(SETTLED), known: nothing },
+      (request) => {
+        runs.push(request);
+        if (runs.length === 1) {
+          throw Object.assign(new Error("ECAP stumbled"), { status: 502 });
+        }
+        return Promise.resolve(fullReply());
+      }
+    );
+    expect(
+      runs.length,
+      "the failed pass is re-asked, not the run restarted"
+    ).toBe(2);
+    expect(outcome?.sel).toEqual(SETTLED);
+  });
+  test("a pass that keeps stumbling fails the run after its retry", async () => {
+    const runs: OptionsRequest[] = [];
+    const failure = await runCascade(
+      { seed: sel(SETTLED), known: nothing },
+      (request) => {
+        runs.push(request);
+        throw Object.assign(new Error("ECAP stumbled"), { status: 502 });
+      }
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(runs.length, "one retry per pass, never a loop").toBe(2);
+  });
+  test("a refused session is answered, never re-asked", async () => {
+    const runs: OptionsRequest[] = [];
+    const failure = await runCascade(
+      { seed: sel(SETTLED), known: nothing },
+      (request) => {
+        runs.push(request);
+        throw Object.assign(new Error("session expired"), { status: 401 });
+      }
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(Error);
+    expect(runs.length, "the 401 must reach the sign-out sweep at once").toBe(
+      1
+    );
+  });
   test("a run that starts with a semester chosen sends its title as the batch", async () => {
     const runs: OptionsRequest[] = [];
     const known = reply({

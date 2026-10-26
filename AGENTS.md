@@ -680,7 +680,11 @@ fill is a rule bug, two requests racing is a loop bug.
   only while an options error sits, and a run that then starts clears it.
   There is deliberately no server-side retry of a 502 behind this — the
   single portal timeout is already 60s against a serverless budget, and
-  `test/api.spec.ts` pins "a 502 is not retried".
+  `test/api.spec.ts` pins "a 502 is not retried". What retries is the cascade
+  loop itself: one stumble per pass is asked again before the run fails,
+  because one failed call used to fail all five passes behind it. A 401 is
+  answered, never re-asked, so a dead session still reaches the sign-out
+  sweep at once.
 
 ## The data layer
 

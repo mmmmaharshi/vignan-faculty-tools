@@ -44,9 +44,10 @@ const aroundNow = (at: number): string =>
 let signedIn = false;
 let sessionCalls = 0;
 let optionsCalls = 0;
-/** When true, the next `/api/options` call answers 502, then answers again:
- *  one transient portal failure, the way ECAP fails from the server. */
-let optionsFailOnce = false;
+/** The next that many `/api/options` calls answer 502, then answer again:
+ *  consecutive portal failures, the way ECAP fails from the server. The loop
+ *  re-asks one stumble per pass, so stranding the picker takes two. */
+let optionsFailCount = 0;
 let registerCalls = 0;
 let registerFails = false;
 let statedFrom = "";
@@ -231,8 +232,8 @@ const stub = async (route: Route): Promise<void> => {
   }
   if (path === "/api/options") {
     optionsCalls += 1;
-    if (optionsFailOnce) {
-      optionsFailOnce = false;
+    if (optionsFailCount > 0) {
+      optionsFailCount -= 1;
       await json(
         { error: "ECAP did not answer the course list. Try again." },
         502
@@ -435,7 +436,7 @@ test.describe("the app's own data layer", () => {
     signedIn = false;
     sessionCalls = 0;
     optionsCalls = 0;
-    optionsFailOnce = false;
+    optionsFailCount = 0;
     registerCalls = 0;
     registerFails = false;
     statedFrom = "";
@@ -484,10 +485,10 @@ test.describe("the app's own data layer", () => {
     expect(optionsCalls, "a pass per level, and no more").toBe(5);
     expect(registerCalls, "and no register until the click").toBe(0);
   });
-  test("a course read that fails once is retried from the picker, not a reload", async ({
+  test("a course read that fails twice is retried from the picker, not a reload", async ({
     page,
   }) => {
-    optionsFailOnce = true;
+    optionsFailCount = 2;
     await page.goto("/login");
     await signIn(page);
     await page.getByRole("button", { name: "Attendance" }).click();
