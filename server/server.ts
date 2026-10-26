@@ -1,3 +1,5 @@
+import path from "node:path";
+
 import type { ErrorReply } from "../shared/api.js";
 import { createApi, json } from "./api.js";
 
@@ -41,37 +43,46 @@ const server = Bun.serve({
   hostname: "127.0.0.1",
   async fetch(req) {
     const url = new URL(req.url);
-    const path = url.pathname;
+    const reqPath = url.pathname;
     try {
-      if (req.method === "GET" && (path === "/" || path === "/index.html")) {
+      if (
+        req.method === "GET" &&
+        (reqPath === "/" || reqPath === "/index.html")
+      ) {
         return indexHtml();
       }
-      if (req.method === "GET" && path === "/favicon.ico") {
+      if (req.method === "GET" && reqPath === "/favicon.ico") {
         return new Response(null, { status: 204 });
       }
-      if (req.method === "GET" && !path.startsWith("/api/")) {
-        const asset = Bun.file(DIST + path);
+      if (req.method === "GET" && !reqPath.startsWith("/api/")) {
+        // Keep the request inside dist/: resolve and reject anything that
+        // escapes it, so /../ cannot read files outside the build output.
+        const resolved = path.resolve(DIST, `.${reqPath}`);
+        if (!resolved.startsWith(DIST + path.sep)) {
+          return json({ error: "Not found" } satisfies ErrorReply, 404);
+        }
+        const asset = Bun.file(resolved);
         if (await asset.exists()) {
           // Bun's MIME table cannot be trusted for this one: Chrome wants the
           // manifest served as JSON, whatever the runtime guesses.
-          const contentType = path.endsWith(".webmanifest")
+          const contentType = reqPath.endsWith(".webmanifest")
             ? "application/manifest+json"
             : asset.type || "application/octet-stream";
           return new Response(asset, {
             headers: {
               "content-type": contentType,
-              "cache-control": path.startsWith("/assets/")
+              "cache-control": reqPath.startsWith("/assets/")
                 ? "public, max-age=31536000, immutable"
                 : "no-store, must-revalidate",
               ...SECURITY_HEADERS,
             },
           });
         }
-        if (!path.includes(".")) {
+        if (!reqPath.includes(".")) {
           return indexHtml();
         }
       }
-      if (path.startsWith("/api/")) {
+      if (reqPath.startsWith("/api/")) {
         return api.handleApi(req);
       }
       return json({ error: "Not found" } satisfies ErrorReply, 404);

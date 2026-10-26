@@ -817,6 +817,10 @@ one diff produce two lists to reconcile, and the stricter one is the one that
 finds the restructuring. The repo standards in `CODING_STANDARDS.md` still win
 where the two disagree.
 
+After every `$code-review`, run `$thermo-nuclear-code-quality-review`,
+`$vercel-composition-patterns`, and `$vercel-react-best-practices` as MUST.
+After all code review issues are fixed, then run `$ponytail-audit`.
+
 ### Issue tracker
 Issues live as markdown files under `.scratch/<feature>/`. See `docs/agents/issue-tracker.md`.
 
