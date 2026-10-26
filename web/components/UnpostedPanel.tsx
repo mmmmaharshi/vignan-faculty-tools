@@ -1,5 +1,6 @@
 import {
   Alert,
+  Card,
   Center,
   Loader,
   Paper,
@@ -25,56 +26,77 @@ export type UnpostedPanelProps = {
    *  an "all posted" line below. */
   note?: Note | null;
 };
-/** One branch's sections shown individually: each section gets its own row of
- *  period boxes, filled when that period's attendance is posted, empty
- *  otherwise. */
+/** One branch's sections grouped by semester into cards: each section gets its
+ *  own row of period boxes, filled when that period's attendance is posted,
+ *  empty otherwise. */
 const BranchPending = ({
   sections,
 }: {
   sections: DayWorkSection[];
-}): React.JSX.Element => (
-  <Stack gap="md">
-    {sections.map((section) => {
-      const postedByPeriod = new Map<string, boolean>();
-      for (const cell of section.cells) {
-        const current = postedByPeriod.get(cell.period);
-        postedByPeriod.set(cell.period, (current ?? true) && cell.posted);
-      }
-      const where = sectionShort(section.semester, section.section);
-      const periods = Array.from({ length: 7 }, (_, index) =>
-        String(index + 1)
-      );
-      return (
-        <Stack key={where} gap="xs">
-          <Text fw={600} size="sm">
-            {where}
-          </Text>
-          <SimpleGrid cols={7} spacing="xs">
-            {periods.map((period) => {
-              const posted = postedByPeriod.get(period) === true;
+}): React.JSX.Element => {
+  const bySemester = new Map<string, DayWorkSection[]>();
+  for (const section of sections) {
+    const list = bySemester.get(section.semester) ?? [];
+    list.push(section);
+    bySemester.set(section.semester, list);
+  }
+  return (
+    <Stack gap="md">
+      {[...bySemester.entries()].map(([semester, group]) => (
+        <Card key={semester} withBorder padding="sm" radius="sm">
+          <Stack gap="md">
+            {group.map((section) => {
+              const postedByPeriod = new Map<string, boolean>();
+              for (const cell of section.cells) {
+                const current = postedByPeriod.get(cell.period);
+                postedByPeriod.set(
+                  cell.period,
+                  (current ?? true) && cell.posted
+                );
+              }
+              const where = sectionShort(section.semester, section.section);
+              const periods = Array.from({ length: 7 }, (_, index) =>
+                String(index + 1)
+              );
               return (
-                <Paper
-                  key={period}
-                  h={40}
-                  p={0}
-                  bg={posted ? "green.6" : "gray.1"}
-                  withBorder
-                  radius="sm"
-                >
-                  <Center h={40}>
-                    <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
-                      {period}
-                    </Text>
-                  </Center>
-                </Paper>
+                <Stack key={where} gap="xs">
+                  <Text fw={600} size="sm">
+                    {where}
+                  </Text>
+                  <SimpleGrid cols={7} spacing="xs">
+                    {periods.map((period) => {
+                      const posted = postedByPeriod.get(period) === true;
+                      return (
+                        <Paper
+                          key={period}
+                          h={40}
+                          p={0}
+                          bg={posted ? "green.6" : "gray.1"}
+                          withBorder
+                          radius="sm"
+                        >
+                          <Center h={40}>
+                            <Text
+                              size="sm"
+                              fw={700}
+                              c={posted ? "white" : "dimmed"}
+                            >
+                              {period}
+                            </Text>
+                          </Center>
+                        </Paper>
+                      );
+                    })}
+                  </SimpleGrid>
+                </Stack>
               );
             })}
-          </SimpleGrid>
-        </Stack>
-      );
-    })}
-  </Stack>
-);
+          </Stack>
+        </Card>
+      ))}
+    </Stack>
+  );
+};
 export const UnpostedPanel = ({
   sections,
   busy,
