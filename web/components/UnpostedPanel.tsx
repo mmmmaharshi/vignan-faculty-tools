@@ -3,18 +3,21 @@ import {
   Card,
   Center,
   Loader,
+  Modal,
   Paper,
   Select,
   SimpleGrid,
   Stack,
   Text,
   Title,
+  UnstyledButton,
 } from "@mantine/core";
-import React from "react";
+import React, { useState } from "react";
 
-import type { DayWorkSection } from "../../shared/api";
+import type { DayWorkCell, DayWorkSection } from "../../shared/api";
 import { PERIODS } from "../period-times";
 import type { Note } from "../types";
+import { FactsTable } from "./FactsTable";
 
 export type UnpostedPanelProps = {
   /** Every section's cells in the report's order. Null while unread; empty
@@ -59,18 +62,84 @@ function postedByPeriod(cells: DayWorkSection["cells"]): Map<string, boolean> {
 const PeriodBox = ({
   period,
   posted,
+  label,
+  onOpen,
 }: {
   period: string;
   posted: boolean;
+  label: string;
+  onOpen: () => void;
 }): React.JSX.Element => (
-  <Paper h={40} p={0} bg={posted ? "green.6" : "gray.1"} withBorder radius="sm">
-    <Center h={40}>
-      <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
-        {period}
-      </Text>
-    </Center>
-  </Paper>
+  // A real button, not a div with a handler: keyboard and reader free.
+  <UnstyledButton onClick={onOpen} aria-label={label} style={{ width: "100%" }}>
+    <Paper
+      h={40}
+      p={0}
+      bg={posted ? "green.6" : "gray.1"}
+      withBorder
+      radius="sm"
+    >
+      <Center h={40}>
+        <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
+          {period}
+        </Text>
+      </Center>
+    </Paper>
+  </UnstyledButton>
 );
+
+/** What a period box opens onto: "Posted", "Not posted yet", or the honest
+ *  third answer — a free period states no cell at all, which is not an
+ *  unposted class. */
+const statusOf = (cell: DayWorkCell | null): string => {
+  if (cell == null) return "No class stated";
+  return cell.posted ? "Posted" : "Not posted yet";
+};
+
+/** Whose class a period box is: the section and period it was opened from,
+ *  the subject and staff ECAP states for them, and whether it posted. A
+ *  free period states no cell at all, which is not an unposted class — the
+ *  modal says so instead of naming a teacher for an empty room. */
+const SlotDetails = ({
+  section,
+  period,
+  onClose,
+}: {
+  section: DayWorkSection;
+  period: string | null;
+  onClose: () => void;
+}): React.JSX.Element => {
+  const cell: DayWorkCell | null =
+    period === null
+      ? null
+      : (section.cells.find((entry) => entry.period === period) ?? null);
+  return (
+    <Modal
+      opened={period !== null}
+      onClose={onClose}
+      title={
+        period === null ? "" : `Period ${period} · Section ${section.section}`
+      }
+    >
+      {period === null ? null : (
+        <FactsTable
+          facts={[
+            { label: "Branch", value: section.branch },
+            { label: "Semester", value: section.semester },
+            { label: "Section", value: section.section },
+            { label: "Period", value: period },
+            {
+              label: "Subject",
+              value: cell?.subject || "No class stated",
+            },
+            { label: "Staff", value: cell?.staff || "—" },
+            { label: "Status", value: statusOf(cell) },
+          ]}
+        />
+      )}
+    </Modal>
+  );
+};
 
 const SectionBoxes = ({
   section,
@@ -78,6 +147,9 @@ const SectionBoxes = ({
   section: DayWorkSection;
 }): React.JSX.Element => {
   const posted = postedByPeriod(section.cells);
+  // UI-ephemeral like HomePanel's clock: what is open lives here, while the
+  // branch choice (which section list is on screen) stays in App.
+  const [open, setOpen] = useState<string | null>(null);
   return (
     <Stack gap="xs">
       <Text fw={600} size="sm">
@@ -89,9 +161,16 @@ const SectionBoxes = ({
             key={period}
             period={period}
             posted={posted.get(period) === true}
+            label={`Period ${period}, Section ${section.section}`}
+            onOpen={() => setOpen(period)}
           />
         ))}
       </SimpleGrid>
+      <SlotDetails
+        section={section}
+        period={open}
+        onClose={() => setOpen(null)}
+      />
     </Stack>
   );
 };

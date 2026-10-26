@@ -475,7 +475,14 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     expect(
       blanked[0]?.cells.filter((cell) => !cell.posted),
       "only the blanked period reads unposted, keeping who was to take it"
-    ).toEqual([{ period: "1", posted: false, staff: "MRS.G.MANI" }]);
+    ).toEqual([
+      {
+        period: "1",
+        subject: "Digital Logic And Computer Organization",
+        posted: false,
+        staff: "MRS.G.MANI",
+      },
+    ]);
     // A row with exactly one count still reads posted: every posted period
     // states both, so half-blank is malformed, not unposted.
     const halfBlank = parseDayClassWork(

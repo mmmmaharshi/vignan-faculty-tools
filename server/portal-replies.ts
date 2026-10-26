@@ -584,6 +584,7 @@ export function parseDayClassWork(
       const absent = rowCells[ABSENT_COLUMN] ?? "";
       cells.push({
         period: rowCells[0] ?? "",
+        subject: rowCells[1] ?? "",
         posted: isCount(present) || isCount(absent),
         staff: rowCells[2] ?? "",
       });

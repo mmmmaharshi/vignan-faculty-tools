@@ -255,9 +255,10 @@ export interface TodayClassesReply {
   classes: TodayClass[];
 }
 /** One held period out of ECAP's day-class-work report: posted or not, with
- *  who was to take it for the pending list. */
+ *  the subject stated for it and who was to take it for the pending list. */
 export interface DayWorkCell {
   period: string;
+  subject: string;
   posted: boolean;
   staff: string;
 }

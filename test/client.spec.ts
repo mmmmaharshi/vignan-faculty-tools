@@ -352,8 +352,8 @@ const stub = async (route: Route): Promise<void> => {
           semester: "III Semester",
           section: "B",
           cells: [
-            { period: "1", posted: true, staff: "Some One" },
-            { period: "2", posted: false, staff: "Other Two" },
+            { period: "1", subject: "MFCS", posted: true, staff: "Some One" },
+            { period: "2", subject: "SE", posted: false, staff: "Other Two" },
           ],
         },
         {
@@ -361,7 +361,14 @@ const stub = async (route: Route): Promise<void> => {
           branchShort: "CSE (AI)",
           semester: "III Semester",
           section: "B",
-          cells: [{ period: "1", posted: true, staff: "Third Person" }],
+          cells: [
+            {
+              period: "1",
+              subject: "MFCS",
+              posted: true,
+              staff: "Third Person",
+            },
+          ],
         },
       ],
     });
@@ -660,6 +667,22 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("div[style*='green']")).toHaveCount(1);
     await expect(page.locator("div[style*='gray']")).toHaveCount(6);
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
+  });
+  test("a period box opens whose class it is", async ({ page }) => {
+    await page.goto("/login");
+    await signIn(page);
+    await expect(
+      page.getByRole("heading", { name: "Today's Attendance" })
+    ).toBeVisible({ timeout: 15_000 });
+    // Period 2 of Section B is unposted: its box names the subject, the
+    // staff ECAP states for it, and the section it belongs to.
+    await page.getByRole("button", { name: "Period 2, Section B" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("SE", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Other Two")).toBeVisible();
+    await expect(dialog.getByText("Not posted yet")).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(dialog, "the modal closes again").toBeHidden();
   });
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({
     page,
