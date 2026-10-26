@@ -324,9 +324,11 @@ test.describe("the options ladder", () => {
       ...reader,
       courses: () => Promise.reject(new HttpError(502, "unreadable reply")),
     };
-    const reply = await handleOptions(flaky, {});
-    expect(reply.course).toEqual([]);
-    expect(reply.emptyLevels).toContain("course");
+    const failure = await handleOptions(flaky, {}).catch(
+      (error: unknown) => error
+    );
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(502);
   });
   test("an empty course list is a dead session, not a layout change", async () => {
     const { reader: noCourses } = fake({ course: [] });
@@ -1120,6 +1122,10 @@ test.describe("the unposted handler", () => {
       ...base,
       courses: () => Promise.reject(new HttpError(502, "unreadable reply")),
     };
+    const failure = await handleUnposted(reader).catch(
+      (error: unknown) => error
+    );
+    expect((failure as HttpError).status).toBe(502);
     await expect(handleUnposted(reader)).rejects.toThrow(/no courses/);
   });
   test("outside B.Tech the first offered course is read instead", async () => {

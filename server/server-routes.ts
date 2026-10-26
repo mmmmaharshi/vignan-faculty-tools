@@ -99,6 +99,9 @@ export async function handleOptions(
       "Your ECAP session expired. Please sign in again."
     );
   }
+  if (verdict === "unknown") {
+    throw new HttpError(502, "ECAP did not answer the course list. Try again.");
+  }
   take("course", courseOptions);
   if (b.course) {
     const [branches, semesters] = await portal.branchesAndSemesters(b.course);
@@ -670,6 +673,9 @@ export async function handleUnposted(
       401,
       "Your ECAP session expired. Please sign in again."
     );
+  }
+  if (verdict === "unknown") {
+    throw new HttpError(502, "ECAP offered no courses.");
   }
   const courses = realOptions(courseOptions);
   const course = matchOption("B.Tech", courses) ?? courses[0];
