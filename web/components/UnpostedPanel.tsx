@@ -12,6 +12,7 @@ import {
 import React, { useState } from "react";
 
 import type { DayWorkSection } from "../../shared/api";
+import { sectionShort } from "../format";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
@@ -24,54 +25,56 @@ export type UnpostedPanelProps = {
    *  an "all posted" line below. */
   note?: Note | null;
 };
-/** One branch's pending postings shown as period boxes: filled when that
- *  period's attendance is posted, empty otherwise. Seven slots, the campus
- *  day's own shape, so a free slot is visible rather than implied. */
+/** One branch's sections shown individually: each section gets its own row of
+ *  period boxes, filled when that period's attendance is posted, empty
+ *  otherwise. */
 const BranchPending = ({
-  short,
   sections,
 }: {
-  short: string;
   sections: DayWorkSection[];
-}): React.JSX.Element => {
-  // A period is posted only when every section the branch has for it is posted.
-  // A period with no cells at all is not posted — there is nothing to show
-  // filled for it.
-  const postedByPeriod = new Map<string, boolean>();
-  for (const section of sections) {
-    for (const cell of section.cells) {
-      const current = postedByPeriod.get(cell.period);
-      postedByPeriod.set(cell.period, (current ?? true) && cell.posted);
-    }
-  }
-  const periods = Array.from({ length: 7 }, (_, index) => String(index + 1));
-  return (
-    <Stack gap="xs">
-      <Text fw={600}>{short}</Text>
-      <SimpleGrid cols={7} spacing="xs">
-        {periods.map((period) => {
-          const posted = postedByPeriod.get(period) === true;
-          return (
-            <Paper
-              key={period}
-              h={40}
-              p={0}
-              bg={posted ? "green.6" : "gray.1"}
-              withBorder
-              radius="sm"
-            >
-              <Center h={40}>
-                <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
-                  {period}
-                </Text>
-              </Center>
-            </Paper>
-          );
-        })}
-      </SimpleGrid>
-    </Stack>
-  );
-};
+}): React.JSX.Element => (
+  <Stack gap="md">
+    {sections.map((section) => {
+      const postedByPeriod = new Map<string, boolean>();
+      for (const cell of section.cells) {
+        const current = postedByPeriod.get(cell.period);
+        postedByPeriod.set(cell.period, (current ?? true) && cell.posted);
+      }
+      const where = sectionShort(section.semester, section.section);
+      const periods = Array.from({ length: 7 }, (_, index) =>
+        String(index + 1)
+      );
+      return (
+        <Stack key={where} gap="xs">
+          <Text fw={600} size="sm">
+            {where}
+          </Text>
+          <SimpleGrid cols={7} spacing="xs">
+            {periods.map((period) => {
+              const posted = postedByPeriod.get(period) === true;
+              return (
+                <Paper
+                  key={period}
+                  h={40}
+                  p={0}
+                  bg={posted ? "green.6" : "gray.1"}
+                  withBorder
+                  radius="sm"
+                >
+                  <Center h={40}>
+                    <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
+                      {period}
+                    </Text>
+                  </Center>
+                </Paper>
+              );
+            })}
+          </SimpleGrid>
+        </Stack>
+      );
+    })}
+  </Stack>
+);
 export const UnpostedPanel = ({
   sections,
   busy,
@@ -124,11 +127,7 @@ export const UnpostedPanel = ({
             aria-label="Branch"
           />
           {active ? (
-            <BranchPending
-              key={active}
-              short={shortOf(active)}
-              sections={inBranch(active)}
-            />
+            <BranchPending key={active} sections={inBranch(active)} />
           ) : null}
         </>
       ) : null}
