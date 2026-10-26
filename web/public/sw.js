@@ -8,7 +8,7 @@
  * - `/assets/*` filenames carry a content hash, so cache-first is safe there
  *   and nowhere else is cached blindly.
  */
-const SHELL = "vignan-shell-v1";
+const SHELL = "vignan-shell-v2";
 
 // The one page allowed to work with no connection: cached up front so it is
 // there before it is ever needed. If even the install was offline, the worker
