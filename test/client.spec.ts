@@ -561,12 +561,15 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("heading", { name: "Today's Attendance" })
     ).toBeVisible({ timeout: 15_000 });
-    // IT has one pending period: its number, its section, and the staff it
-    // waits on — nothing else.
+    // The dropdown carries every branch the report named; the first one is
+    // chosen by default, so its pending period shows without a click.
+    await expect(page.getByRole("combobox")).toBeVisible();
     await expect(page.getByText("Other Two", { exact: true })).toBeVisible();
     await expect(page.getByText("III-B", { exact: true })).toBeVisible();
     await expect(page.getByText("Some One", { exact: true })).toHaveCount(0);
-    // CSE (AI) posted everything: one line, no table.
+    // CSE (AI) posted everything: choosing it reads one line, no table.
+    await page.getByRole("combobox").click();
+    await page.getByRole("option", { name: "CSE (AI)" }).click();
     await expect(page.getByText("All Posted", { exact: true })).toBeVisible();
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
   });

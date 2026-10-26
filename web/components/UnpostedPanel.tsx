@@ -1,4 +1,14 @@
-import { Alert, Loader, Paper, Stack, Table, Text, Title } from "@mantine/core";
+import {
+  Alert,
+  Loader,
+  Paper,
+  Select,
+  Stack,
+  Table,
+  Text,
+  Title,
+} from "@mantine/core";
+import React, { useState } from "react";
 
 import type { DayWorkSection } from "../../shared/api";
 import { sectionShort } from "../format";
@@ -88,6 +98,9 @@ export const UnpostedPanel = ({
       if (!branches.includes(section.branch)) branches.push(section.branch);
     }
   }
+  const [chosen, setChosen] = useState<string | null>(null);
+  const active =
+    chosen && branches.includes(chosen) ? chosen : (branches[0] ?? null);
   const inBranch = (branch: string): DayWorkSection[] =>
     sections ? sections.filter((s) => s.branch === branch) : [];
   const shortOf = (branch: string): string =>
@@ -113,15 +126,27 @@ export const UnpostedPanel = ({
           <Text c="dimmed">No classes today.</Text>
         </Paper>
       ) : null}
-      {sections && sections.length > 0
-        ? branches.map((branch) => (
+      {sections && sections.length > 0 ? (
+        <>
+          <Select
+            value={active ?? ""}
+            onChange={(value) => setChosen(value ?? null)}
+            data={branches.map((branch) => ({
+              value: branch,
+              label: shortOf(branch),
+            }))}
+            placeholder="Choose a branch"
+            aria-label="Branch"
+          />
+          {active ? (
             <BranchPending
-              key={branch}
-              short={shortOf(branch)}
-              sections={inBranch(branch)}
+              key={active}
+              short={shortOf(active)}
+              sections={inBranch(active)}
             />
-          ))
-        : null}
+          ) : null}
+        </>
+      ) : null}
     </Stack>
   );
 };
