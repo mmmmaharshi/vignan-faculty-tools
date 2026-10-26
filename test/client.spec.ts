@@ -479,6 +479,10 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(page.getByRole("cell", { name: "AI 3 IT-C" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Period 1" })).toBeVisible();
+    // One stated period out of seven slots: the other six read blank.
+    await expect(
+      page.getByText("No Classes Today", { exact: true })
+    ).toHaveCount(6);
     // The stubbed period spans now, so its row carries the live tint and the
     // only tint on screen.
     const live = page.locator("tbody tr", { hasText: "AI" });
@@ -496,7 +500,7 @@ test.describe("the app's own data layer", () => {
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
       .toBe("/dashboard");
   });
-  test("a cleared day shows one row reading No Classes Today", async ({
+  test("a cleared day names every slot, blank ones reading No Classes Today", async ({
     page,
   }) => {
     todayEmpty = true;
@@ -505,11 +509,11 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("heading", { name: "Today's Classes" })
     ).toBeVisible({ timeout: 15_000 });
+    await expect(page.getByText("Period 7", { exact: true })).toBeVisible();
     await expect(
       page.getByText("No Classes Today", { exact: true })
-    ).toBeVisible();
-    await expect(page.getByText("Period 7", { exact: true })).toHaveCount(0);
-    expect(todayCalls, "the row is drawn from one empty read").toBe(1);
+    ).toHaveCount(7);
+    expect(todayCalls, "the rows are drawn from one empty read").toBe(1);
   });
   test("Home lists pending postings per branch, all-posted as one line", async ({
     page,

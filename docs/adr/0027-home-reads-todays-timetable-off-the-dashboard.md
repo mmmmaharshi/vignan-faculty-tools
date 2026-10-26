@@ -32,9 +32,9 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
   grid states no room, so room always reads empty.
 - A fragment with no schedule grid — the bare `</table>` ECAP answers after
   ~4pm, when it clears the day — is an empty day, never a failure. The panel
-  shows one row reading No Classes Today for it. A refused call throws before
-  the parser is reached, so a 502 still says the read failed and a 401 still
-  ends the session.
+  still names every slot: stated periods as ECAP gave them, the rest reading
+  No Classes Today. A refused call throws before the parser is reached, so a
+  502 still says the read failed and a 401 still ends the session.
 - Home is the landing screen (`/home`, first tab, House icon). The read
   happens when Home opens and refreshes behind the cached answer on return;
   the key is an `/api/` key, so sign-out sweeps it. Sundays, holidays, and

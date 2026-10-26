@@ -192,8 +192,10 @@ The navigation's first screen and the landing screen: today's own timetable
 for the signed-in faculty member — time, subject, and section as the grid
 writes them (it states no room) — read off the faculty dashboard's schedule
 grid when Home is opened, and refreshed behind the cached answer on return.
-An empty day shows one row reading No Classes Today — which is also what
-ECAP answers after ~4pm, when it clears the day. See ADR 0027.
+An empty day still names every slot: stated periods as ECAP gave them, the
+rest reading No Classes Today. A fragment with no schedule grid — the bare
+`</table>` ECAP answers after ~4pm, when it clears the day — is an empty day,
+never a failure. See ADR 0027.
 _Avoid_: Dashboard, landing page, homepage
 
 **Today's classes**:

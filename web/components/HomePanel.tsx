@@ -69,6 +69,26 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
     </>
   );
 };
+/** Every slot of the day in order: stated periods as ECAP gave them, the
+ *  rest blank. A period ECAP named outside 1..7 rides along rather than
+ *  vanishing. */
+const PERIOD_COUNT = 7;
+const dayRows = (classes: TodayClass[]): TodayClass[] => {
+  const rows: TodayClass[] = [];
+  for (let index = 1; index <= PERIOD_COUNT; index += 1) {
+    const slot = `Period ${index}`;
+    const stated = classes.filter((entry) => entry.period === slot);
+    if (stated.length) {
+      rows.push(...stated);
+    } else {
+      rows.push({ period: slot, time: "", subject: "", section: "", room: "" });
+    }
+  }
+  for (const entry of classes) {
+    if (!rows.includes(entry)) rows.push(entry);
+  }
+  return rows;
+};
 export const HomePanel = ({
   classes,
   busy,
@@ -108,41 +128,37 @@ export const HomePanel = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {classes.length ? (
-              classes.map((entry, index) => (
-                // The grid states no identifiers, so the order it gave is the key.
-                // The live period carries the register's critical-row tint in
-                // blue: it answers "where am I supposed to be" at a glance.
-                <Table.Tr
-                  key={`${entry.period}-${entry.subject}-${index}`}
-                  bg={
-                    isLive(entry.time, now)
-                      ? "var(--mantine-color-blue-light)"
-                      : undefined
-                  }
-                >
-                  <Table.Td>
-                    <Text fw={700}>{entry.period || "—"}</Text>
-                    {entry.time ? (
-                      <Text c="dimmed" size="xs">
-                        {entry.time}
-                      </Text>
-                    ) : null}
-                  </Table.Td>
-                  <Table.Td>
+            {dayRows(classes).map((entry, index) => (
+              // The grid states no identifiers, so the order it gave is the key.
+              // The live period carries the register's critical-row tint in
+              // blue: it answers "where am I supposed to be" at a glance.
+              <Table.Tr
+                key={`${entry.period}-${entry.subject}-${index}`}
+                bg={
+                  isLive(entry.time, now)
+                    ? "var(--mantine-color-blue-light)"
+                    : undefined
+                }
+              >
+                <Table.Td>
+                  <Text fw={700}>{entry.period || "—"}</Text>
+                  {entry.time ? (
+                    <Text c="dimmed" size="xs">
+                      {entry.time}
+                    </Text>
+                  ) : null}
+                </Table.Td>
+                <Table.Td>
+                  {classes.includes(entry) ? (
                     <ClassCell entry={entry} />
-                  </Table.Td>
-                </Table.Tr>
-              ))
-            ) : (
-              <Table.Tr>
-                <Table.Td colSpan={2}>
-                  <Text c="dimmed" size="sm">
-                    No Classes Today
-                  </Text>
+                  ) : (
+                    <Text c="dimmed" size="sm">
+                      No Classes Today
+                    </Text>
+                  )}
                 </Table.Td>
               </Table.Tr>
-            )}
+            ))}
           </Table.Tbody>
         </Table>
       ) : null}
