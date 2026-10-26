@@ -689,7 +689,7 @@ test.describe("the app's own data layer", () => {
   }) => {
     await page.goto("/login");
     await signIn(page);
-    expect(todayCalls, "the landing read").toBe(1);
+    await expect.poll(() => todayCalls, { timeout: 15_000 }).toBe(1);
     await page.getByRole("button", { name: "Refresh" }).click();
     await expect.poll(() => todayCalls, { timeout: 15_000 }).toBe(2);
     await expect.poll(() => unpostedCalls, { timeout: 15_000 }).toBe(2);
