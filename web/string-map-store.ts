@@ -30,3 +30,29 @@ export function writeStringMap(key: string, map: Record<string, string>): void {
     /* a refused write must not break the screen */
   }
 }
+/**
+ * One localStorage value of any JSON shape: read with a guard, written whole.
+ * The string maps above are the multi-entry memories; this is the single-value
+ * one — same walk, so the storage failure rules live once rather than once
+ * per memory.
+ */
+export function readStored<T>(
+  key: string,
+  valid: (value: unknown) => value is T
+): T | null {
+  try {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed: unknown = JSON.parse(raw);
+    return valid(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+export function writeStored(key: string, value: unknown): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    /* a refused write must not break the screen */
+  }
+}

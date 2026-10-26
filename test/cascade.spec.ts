@@ -13,11 +13,13 @@ import {
   chosenFacts,
   chosenLevels,
   defaultRange,
+  probeSubject,
   rememberRangeStart,
   resetFor,
   runCascade,
   selectionAfter,
   selKeyOf,
+  semesterTitleOf,
   startingRange,
   disabledLevels,
   isReady,
@@ -1209,6 +1211,26 @@ test.describe("the saved classes", () => {
     // two sections happen to share a code. Value-only keys pass everything else.
     expect(subjectNameKey("A", "101")).not.toBe("101");
     expect(subjectNameKey("B", "101")).not.toBe(subjectNameKey("A", "101"));
+  });
+  test("ALL SUBJECTS stands in its first subject for a probe, or nothing", () => {
+    const subjects = [ALL_SUBJECTS, opt("7", "MFCS"), opt("8", "DBMS")];
+    expect(probeSubject(subjects, ALL_SUBJECTS)).toEqual(opt("7", "MFCS"));
+    expect(probeSubject(subjects, opt("8", "DBMS"))).toEqual(opt("8", "DBMS"));
+    expect(probeSubject([ALL_SUBJECTS], ALL_SUBJECTS)).toBeNull();
+  });
+  test("the semester title travels empty where the semester names nothing", () => {
+    const titled: OptionsReply = {
+      ...reply({
+        course: [],
+        semester: [],
+        branch: [],
+        section: [],
+        subject: [],
+      }),
+      semester: [opt("3", "III", "2025")],
+    };
+    expect(semesterTitleOf(titled, "3")).toBe("2025");
+    expect(semesterTitleOf(titled, "9")).toBe("");
   });
   test("a selection key names every level, in cascade order", () => {
     const full = sel({

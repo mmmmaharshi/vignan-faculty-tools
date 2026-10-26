@@ -18,11 +18,9 @@ import type {
   OptionsReply,
   RegisterReply,
   RegisterRequest,
-  SemStartReply,
-  SemStartRequest,
   Student,
 } from "../shared/api";
-import { SEM_START_WALK_MONTHS, todayIST } from "../shared/api";
+import { todayIST } from "../shared/api";
 import {
   chosenLevels,
   isAllSubjects,
@@ -30,7 +28,6 @@ import {
   disabledLevels,
   rememberRangeStart,
   selectionAfter,
-  selKeyOf,
   startingRange,
   EMPTY_OPTS,
   EMPTY_SEL,
@@ -56,8 +53,6 @@ import {
   useStudentSearch,
   useFacultyProfile,
   useSemAbsences,
-  useSemStart,
-  useTodayClasses,
   useUnposted,
 } from "./client";
 import type { RegisterClick, FindClick, ApiError } from "./client";
@@ -86,20 +81,8 @@ import {
   forgetClass,
 } from "./saved-classes";
 import type { SavedClass } from "./saved-classes";
-import {
-  noteSemStart,
-  readSemStarts,
-  semStartKey,
-  writeSemStarts,
-} from "./sem-starts";
-import type { SemStarts } from "./sem-starts";
-import {
-  noteTodayMemory,
-  readTodayMemory,
-  shownToday,
-  writeTodayMemory,
-} from "./today-memory";
-import type { TodayMemory } from "./today-memory";
+import { useSemStartSettle } from "./sem-start-settle";
+import { useTodayTable } from "./today-memory";
 import type { Note } from "./types";
 import { NO_FILTER, registerRows } from "./worklist";
 import type { RowFilter } from "./worklist";
@@ -184,20 +167,6 @@ const App = (): React.JSX.Element => {
   /** Set true when a register load is initiated, consumed by the snap effect so
    *  a manual range edit cannot be overridden by a stale register. */
   const justLoaded = useRef(false);
-  /** The probe answer the All subjects snap already ran for (see below). A ref
-   *  rather than state: it guards an effect and must never render. */
-  const semSnapApplied = useRef<SemStartReply | null>(null);
-  /** The settle-time probe answer already snapped, as `preKey|statedFrom`: a
-   *  cached answer revisited on a class switch must snap again, so identity
-   *  alone cannot guard it. */
-  const preSnapApplied = useRef<string | null>(null);
-  /** The selection the memory snap already ran for, as the raw five values:
-   *  ALL SUBJECTS and its first subject resolve to one memory key, but they
-   *  are different selections — keying here keeps the switch between them a
-   *  fresh snap. A load that teaches the memory keeps the selection, so it
-   *  never re-snaps the window it loaded. Unlike the answer-guarding refs
-   *  above, this one guards a selection, hence the different name. */
-  const snappedSelection = useRef<string | null>(null);
   const rangeEdited = useRef(false);
   /** Every fetch the app makes, through its own key. See `web/client.ts`. */
   const register = useRegisterLoad(click);
@@ -218,10 +187,11 @@ const App = (): React.JSX.Element => {
       : null
   );
   const facultyProfile = useFacultyProfile(Boolean(onProfile));
-  /** Home's timetable: read when Home is opened, refreshed behind the cached
-   *  answer on return. ECAP clears the day after ~4pm, so the read is never
-   *  older than the visit. */
-  const today = useTodayClasses(Boolean(onHome));
+  /** Home's timetable with its own memory: read when Home is opened, refreshed
+   *  behind the cached answer on return, and the cleared evening shows the
+   *  day's own table until midnight. ECAP clears the day after ~4pm, so the
+   *  read is never older than the visit. */
+  const { today, todayShown } = useTodayTable(Boolean(onHome));
   /** Periods across the branch with no posted attendance today: read with the
    *  timetable when Home opens, and a refusal stays in its own section. */
   const unposted = useUnposted(Boolean(onHome));
@@ -247,95 +217,20 @@ const App = (): React.JSX.Element => {
   const overallMode = Boolean(result) && isAllSubjects(click?.request.subject);
   const rows = result ? registerRows(result.students, filter, overallMode) : [];
   const summary = result?.summary;
-  /** The All subjects report states no dates, so its first day is read from one
-   *  subject's own register instead: the first subject this session was offered,
-   *  over the same range, asked once per register and never revalidated. A probe
-   *  that fails changes nothing — the register on screen is complete without
-   *  it — except a 401, which still ends the session through the sweep below. */
-  const semProbeSubject =
-    result && overallMode
-      ? (opts.subject.find((o) => !isAllSubjects(o)) ?? null)
-      : null;
-  const semStart = useSemStart(
-    result && overallMode && semProbeSubject && click?.request
-      ? { ...click.request, subject: semProbeSubject }
-      : null
-  );
-  /** The earliest start day ever seen for the class on screen, remembered in
-   *  `sem-starts.ts`: the probe (or the register's own grid) only ever sees the
-   *  asked window, so without this a later From would move "Sem Start Date"
-   *  forward to the window's first day instead of the semester's. Keyed by the
-   *  five levels plus the Portal's batch title, so a new year starts a new
-   *  memory. Portal data, not personal data: it is not scoped by user id. */
-  const [semStarts, setSemStarts] = useState<SemStarts>(() => readSemStarts());
-  /** Today's timetable as last read with periods in it: ECAP clears the day
-   *  after ~4pm, so an empty read behind this memory shows it instead — until
-   *  midnight, when the date rolls and the memory stops matching. Portal data,
-   *  not personal data: it survives sign-out like the period hours. */
-  const [todayMemory, setTodayMemory] = useState<TodayMemory>(() =>
-    readTodayMemory()
-  );
-  /** The settle-time semester-start probe: the cascade just completed and this
-   *  class has no remembered start, so ECAP is asked — walking back — and From
-   *  opens at the answer instead of the first of the month. Gated on a
-   *  complete selection with a concrete subject: ALL SUBJECTS stands in its
-   *  first subject, the same approximation the probe above makes. A class the
-   *  memory already names probes nothing. */
-  const settled = chosenLevels(opts, sel);
-  const settledSubject = settled.ok ? settled.levels.subject : null;
-  const preProbeSubject =
-    settledSubject && isAllSubjects(settledSubject)
-      ? (opts.subject.find((o) => !isAllSubjects(o)) ?? null)
-      : settledSubject;
-  const preKey =
-    settled.ok && preProbeSubject
-      ? semStartKey(
-          { ...sel, subject: preProbeSubject.value },
-          opts.semester.find((o) => String(o.value) === sel.semester)?.title ??
-            ""
-        )
-      : null;
-  const preProbe: SemStartRequest | null =
-    settled.ok &&
-    preProbeSubject &&
-    preKey &&
-    !(semStarts[preKey] ?? null) &&
-    range.to
-      ? {
-          course: settled.levels.course,
-          semester: settled.levels.semester,
-          branch: settled.levels.branch,
-          section: settled.levels.section,
-          subject: preProbeSubject,
-          // The walk anchors at `to` and shapes its own months, so `from`
-          // travels as `to`: the snap must not rebuild the probe's own key,
-          // or every answer would ask the walk again.
-          from: toPortalDate(range.to),
-          to: toPortalDate(range.to),
-          walkBack: SEM_START_WALK_MONTHS,
-        }
-      : null;
-  const preSemStart = useSemStart(preProbe);
-  /** The remembered start for the settled class, if any load ever taught it:
-   *  settling onto a known class snaps From with no ECAP call at all. */
-  const rememberedStart = preKey ? (semStarts[preKey] ?? null) : null;
-  const semKey =
-    result &&
-    sel.course &&
-    sel.semester &&
-    sel.branch &&
-    sel.section &&
-    (overallMode ? semProbeSubject?.value : sel.subject)
-      ? semStartKey(
-          overallMode && semProbeSubject
-            ? { ...sel, subject: semProbeSubject.value }
-            : sel,
-          opts.semester.find((o) => String(o.value) === sel.semester)?.title ??
-            ""
-        )
-      : null;
-  const semSeen = summary?.statedFrom ?? semStart.data?.statedFrom ?? null;
-  const semStartShown = (semKey && (semStarts[semKey] ?? semSeen)) || null;
+  /** The semester's probes, its remembered start, and every settle-time From
+   *  snap — one hook, so the probes, the memory, and the snaps cannot drift
+   *  apart. App keeps the range they snap, the register they follow, and the
+   *  just-loaded snap that owns a register already on screen. */
+  const { semStart, preSemStart, semStartShown } = useSemStartSettle({
+    opts,
+    sel,
+    range,
+    setRange,
+    rangeEdited,
+    result,
+    overallMode,
+    click,
+  });
   /** Whether the window starts after the remembered start: only then is the
    *  wider read worth asking for. When they coincide the window's own list
    *  already is the full semester's, so the panel shows it as the one list. */
@@ -438,13 +333,6 @@ const App = (): React.JSX.Element => {
   /** Home's own sentence: what the server refused. An empty day is not this —
    *  it is the skeleton table with blank classes. */
   const todayNote: Note | null = refusalNote(today.error, "error");
-  /** The table on screen: the fresh read where it states periods, else the
-   *  day's own memory — never yesterday's, never while still loading. */
-  const todayShown = shownToday(
-    today.data?.classes ?? null,
-    todayMemory,
-    todayIST()
-  );
   /** The unposted section's own sentence. A 401 has already ended the session
    *  through the sweep above, so it says nothing here. */
   const unpostedNote: Note | null = refusalNote(unposted.error, "error");
@@ -711,72 +599,6 @@ const App = (): React.JSX.Element => {
     rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
   }, [register.data, range]);
-  /** The All subjects snap: the probe's first day plays the role the register's
-   *  own `statedFrom` plays on the subject path, so From, Date Range and Sem
-   *  Start Date all name it. Runs once per probe answer, so a manual edit made
-   *  afterwards is never snapped back. */
-  useEffect(() => {
-    const answer = semStart.data;
-    if (!answer?.statedFrom || answer === semSnapApplied.current) return;
-    semSnapApplied.current = answer;
-    const iso = toInputDate(answer.statedFrom);
-    if (!iso || iso === range.from) return;
-    rememberRangeStart(iso);
-    setRange((r) => ({ ...r, from: iso }));
-  }, [semStart.data, range]);
-  /** The settle-time memory snap: a known class opens at its remembered start
-   *  with no probe behind it. Runs once per selection — a load that teaches
-   *  the memory keeps the selection, so it never re-snaps the window it
-   *  loaded. */
-  const selKey = selKeyOf(sel);
-  useEffect(() => {
-    if (snappedSelection.current === selKey) return;
-    snappedSelection.current = selKey;
-    if (!rememberedStart || rangeEdited.current) return;
-    const iso = toInputDate(rememberedStart);
-    if (!iso || iso === range.from) return;
-    rememberRangeStart(iso);
-    setRange((r) => ({ ...r, from: iso }));
-  }, [selKey, rememberedStart, range]);
-  /** The settle-time snap: the walked start opens the From input before any
-   *  register loads, so an unknown class starts at its semester instead of
-   *  the month. Runs once per probe answer, and never over a manual edit —
-   *  an explicit date wins over a probe that lands after it. */
-  useEffect(() => {
-    const answer = preSemStart.data;
-    if (!answer?.statedFrom || !preKey) return;
-    const stamp = `${preKey}|${answer.statedFrom}`;
-    if (stamp === preSnapApplied.current) return;
-    preSnapApplied.current = stamp;
-    if (rangeEdited.current) return;
-    const iso = toInputDate(answer.statedFrom);
-    if (!iso || iso === range.from) return;
-    rememberRangeStart(iso);
-    setRange((r) => ({ ...r, from: iso }));
-  }, [preSemStart.data, preKey, range]);
-  /** Fold the window's first day into the earliest-start memory: without this a
-   *  later From would move "Sem Start Date" forward to the window's first day
-   *  instead of the semester's (the memory lives in `sem-starts.ts`). */
-  useEffect(() => {
-    if (!semKey || !semSeen) return;
-    setSemStarts((prev) => {
-      const next = noteSemStart(prev, semKey, semSeen);
-      if (next !== prev) writeSemStarts(next);
-      return next;
-    });
-  }, [semKey, semSeen]);
-  /** Fold each timetable read into the day's memory: a cleared evening states
-   *  no periods, so it teaches nothing and never erases what the day showed. */
-  useEffect(() => {
-    const classes = today.data?.classes;
-    if (!classes) return;
-    const day = todayIST();
-    setTodayMemory((prev) => {
-      const next = noteTodayMemory(prev, day, classes);
-      if (next && next !== prev) writeTodayMemory(next);
-      return next;
-    });
-  }, [today.data]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {

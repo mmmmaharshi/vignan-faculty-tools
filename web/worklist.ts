@@ -1,5 +1,8 @@
 import type { RegisterReply } from "../shared/api";
 
+/** One student row out of a register reply, subject figures and overall ones. */
+export type StudentRow = RegisterReply["students"][number];
+
 /** Which figure a percentage is: the subject's own, or the section-wide overall.
  *  The two differ in emphasis — the subject figure reads heavier, and its low
  *  badge is yellow where the overall's is orange — so that pairing lives here,
@@ -37,7 +40,7 @@ export const badgeFor = (
  * the one thing it was added to expose.
  */
 export function tintFor(
-  s: RegisterReply["students"][number],
+  s: StudentRow,
   overallMode = false
 ): string | undefined {
   const critical = overallMode ? s.overallCritical : s.critical;
@@ -86,7 +89,7 @@ export function isFiltering(filter: RowFilter): boolean {
  * place the two fields' joint meaning lives, so the table column and the
  * panel row cannot drift apart on what "has an overall" means.
  */
-export function carriesOverall(s: RegisterReply["students"][number]): boolean {
+export function carriesOverall(s: StudentRow): boolean {
   return s.overallPct != null || s.overallAttendedOfHeld !== "";
 }
 /**
@@ -97,10 +100,7 @@ export function carriesOverall(s: RegisterReply["students"][number]): boolean {
  * the worklist still judges one: the overall is a second fact on the row,
  * never the bar that admits it or the order it sorts by.
  */
-function figureFor(
-  s: RegisterReply["students"][number],
-  overallMode: boolean
-): number | null {
+function figureFor(s: StudentRow, overallMode: boolean): number | null {
   return overallMode ? s.overallPct : s.pct;
 }
 /**
@@ -116,10 +116,10 @@ function figureFor(
  * figure is an absence, not a low one, so it clears no fixed bar.
  */
 export function visibleStudents(
-  students: readonly RegisterReply["students"][number][],
+  students: readonly StudentRow[],
   filter: RowFilter,
   overallMode: boolean
-): RegisterReply["students"][number][] {
+): StudentRow[] {
   // Rolls are typed as remembered and names show upper-cased, so both halves
   // of the match read lower-cased: the match cannot care about case. A blank
   // needle matches every row, so a bare roster needs no early return here.
@@ -164,10 +164,10 @@ export function visibleStudents(
  * component is a rule that survives the change that makes it wrong.
  */
 export function registerRows(
-  students: readonly RegisterReply["students"][number][],
+  students: readonly StudentRow[],
   filter: RowFilter,
   overallMode: boolean
-): RegisterReply["students"][number][] {
+): StudentRow[] {
   const shown = visibleStudents(students, filter, overallMode);
   if (!isFiltering(filter)) return shown;
   return shown.toSorted((a, b) => {

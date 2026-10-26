@@ -267,6 +267,47 @@ async function readAbsences(
     return {};
   }
 }
+/** One calendar month as a portal window, dd/mm/yyyy both ends. Month shapes
+ *  are the only range ECAP reliably answers — live runs show wide registers
+ *  come back empty — so both walks below read month by month. */
+function monthWindow(
+  year: number,
+  month: number
+): { from: string; to: string } {
+  const mm = String(month).padStart(2, "0");
+  return {
+    from: `01/${mm}/${year}`,
+    to: `${new Date(year, month, 0).getDate()}/${mm}/${year}`,
+  };
+}
+/** The month before, across a year boundary. */
+function previousMonth(
+  year: number,
+  month: number
+): { year: number; month: number } {
+  return month > 1 ? { year, month: month - 1 } : { year: year - 1, month: 12 };
+}
+/**
+ * A grid's date columns belonging to one month, in the grid's own order. Only
+ * this month's own columns may name anything below: the year attached there
+ * is the step's own. The comparison is numeric because the Portal is not
+ * trusted to zero-pad.
+ */
+function datesInMonth(dates: readonly string[], month: number): string[] {
+  return dates.filter((c) => Number(c.split("/")[1]) === month);
+}
+/** The month's own first held day as dd/mm/yyyy, or null where the grid
+ *  states none of it. */
+function monthStart(
+  dates: readonly string[],
+  year: number,
+  month: number
+): string | null {
+  const [day] = (datesInMonth(dates, month)[0] ?? "").split("/");
+  if (!day) return null;
+  const mm = String(month).padStart(2, "0");
+  return `${day.padStart(2, "0")}/${mm}/${year}`;
+}
 /**
  * One student's absent days over the whole semester: the section's Student
  * Wise grid walked back one month at a time from the asked window, unioned
@@ -300,14 +341,10 @@ async function readFullSemesterAbsences(
   let year = ty;
   let month = tm;
   for (let step = 0; step < 12; step++) {
-    const mm = String(month).padStart(2, "0");
+    const window = monthWindow(year, month);
     let grid: string;
     try {
-      grid = await portal.studentWise(roll, name, {
-        ...p,
-        from: `01/${mm}/${year}`,
-        to: `${new Date(year, month, 0).getDate()}/${mm}/${year}`,
-      });
+      grid = await portal.studentWise(roll, name, { ...p, ...window });
     } catch (error) {
       rethrowExpired(error);
       return {
@@ -316,24 +353,14 @@ async function readFullSemesterAbsences(
         note: "ECAP would not give every month's absent days, so the full-semester list below may be incomplete.",
       };
     }
-    // Only this month's own columns may name the start: the year attached
-    // below is this step's, and anything else is not this month to name. The
-    // comparison is numeric because the Portal is not trusted to zero-pad.
-    const dates = studentWiseDates(grid).filter(
-      (c) => Number(c.split("/")[1]) === month
-    );
-    if (!dates.length) {
+    const startOfMonth = monthStart(studentWiseDates(grid), year, month);
+    if (!startOfMonth) {
       stoppedEarly = true;
       break;
     }
-    const [day] = (dates[0] ?? "").split("/");
-    start = `${day?.padStart(2, "0")}/${mm}/${year}`;
+    start = startOfMonth;
     perMonth.unshift(parseStudentAbsences(grid) ?? []);
-    month -= 1;
-    if (month < 1) {
-      month = 12;
-      year -= 1;
-    }
+    ({ year, month } = previousMonth(year, month));
   }
   if (!start) return { absent: null, range: null, note: "" };
   return {
@@ -600,25 +627,15 @@ async function walkSemStart(
   let year = ty;
   let month = tm;
   for (let step = 0; step <= steps; step++) {
-    const mm = String(month).padStart(2, "0");
-    const window = {
-      from: `01/${mm}/${year}`,
-      to: `${new Date(year, month, 0).getDate()}/${mm}/${year}`,
-    };
-    // Only this month's own columns may name the start: the year attached
-    // below is this step's, and anything else is not this month to name. The
-    // comparison is numeric because the Portal is not trusted to zero-pad.
-    const dates = registerDates(
-      await portal.register({ ...p, ...window })
-    ).filter((c) => Number(c.split("/")[1]) === month);
-    if (!dates.length) break;
-    const [day] = (dates[0] ?? "").split("/");
-    start = `${day?.padStart(2, "0")}/${mm}/${year}`;
-    month -= 1;
-    if (month < 1) {
-      month = 12;
-      year -= 1;
-    }
+    const window = monthWindow(year, month);
+    const startOfMonth = monthStart(
+      registerDates(await portal.register({ ...p, ...window })),
+      year,
+      month
+    );
+    if (!startOfMonth) break;
+    start = startOfMonth;
+    ({ year, month } = previousMonth(year, month));
   }
   return { statedFrom: start };
 }
@@ -640,8 +657,7 @@ export async function handleSemStart(
 ): Promise<SemStartReply> {
   if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
   const p = requireLevels(b);
-  const steps =
-    b.walkBack && b.walkBack > 0 ? Math.min(Math.floor(b.walkBack), 12) : 0;
+  const steps = Math.min(Math.max(Math.floor(b.walkBack ?? 0), 0), 12);
   if (!steps) {
     const dates = registerDates(
       await portal.register({ ...p, from: b.from, to: b.to })

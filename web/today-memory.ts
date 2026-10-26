@@ -1,4 +1,9 @@
+import { useEffect, useState } from "react";
+
 import type { TodayClass } from "../shared/api";
+import { todayIST } from "../shared/api";
+import { useTodayClasses } from "./client";
+import { readStored, writeStored } from "./string-map-store";
 
 /**
  * Today's timetable as last read with periods still in it, and the campus day
@@ -17,31 +22,21 @@ const isEntry = (entry: unknown): entry is TodayClass => {
     (key) => typeof row[key] === "string"
   );
 };
+const isMemory = (value: unknown): value is Exclude<TodayMemory, null> => {
+  if (typeof value !== "object" || value === null) return false;
+  const { date, classes } = value as { date?: unknown; classes?: unknown };
+  return (
+    typeof date === "string" &&
+    Array.isArray(classes) &&
+    classes.length > 0 &&
+    classes.every(isEntry)
+  );
+};
 export function readTodayMemory(): TodayMemory {
-  try {
-    const raw = localStorage.getItem(MEMORY_KEY);
-    if (!raw) return null;
-    const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return null;
-    const { date, classes } = parsed as { date?: unknown; classes?: unknown };
-    if (
-      typeof date !== "string" ||
-      !Array.isArray(classes) ||
-      classes.length === 0
-    )
-      return null;
-    if (!classes.every(isEntry)) return null;
-    return { date, classes };
-  } catch {
-    return null;
-  }
+  return readStored(MEMORY_KEY, isMemory);
 }
 export function writeTodayMemory(memory: Exclude<TodayMemory, null>): void {
-  try {
-    localStorage.setItem(MEMORY_KEY, JSON.stringify(memory));
-  } catch {
-    /* a refused write must not break the screen */
-  }
+  writeStored(MEMORY_KEY, memory);
 }
 /**
  * Fold one timetable read into the memory: a read stating periods replaces
@@ -72,4 +67,37 @@ export function shownToday(
   if (fresh && fresh.length > 0) return fresh;
   if (fresh !== null && memory?.date === date) return memory.classes;
   return fresh;
+}
+/**
+ * Home's timetable with its memory: reads when enabled, folds each read into
+ * the day's memory, and shows the memory behind a cleared evening until
+ * midnight. One hook, so the read, the fold, and the display rule cannot
+ * drift apart across call sites.
+ */
+export function useTodayTable(enabled: boolean): {
+  today: ReturnType<typeof useTodayClasses>;
+  todayShown: TodayClass[] | null;
+} {
+  const today = useTodayClasses(enabled);
+  const [todayMemory, setTodayMemory] = useState<TodayMemory>(() =>
+    readTodayMemory()
+  );
+  /* oxlint-disable react/set-state-in-effect */
+  useEffect(() => {
+    const classes = today.data?.classes;
+    if (!classes) return;
+    const day = todayIST();
+    setTodayMemory((prev) => {
+      const next = noteTodayMemory(prev, day, classes);
+      if (next && next !== prev) writeTodayMemory(next);
+      return next;
+    });
+  }, [today.data]);
+  /* oxlint-enable react/set-state-in-effect */
+  const todayShown = shownToday(
+    today.data?.classes ?? null,
+    todayMemory,
+    todayIST()
+  );
+  return { today, todayShown };
 }

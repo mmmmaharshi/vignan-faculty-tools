@@ -150,6 +150,28 @@ export function selKeyOf(sel: Sel): string {
   return LEVEL_KEYS.map((key) => sel[key]).join("|");
 }
 /**
+ * The subject a semester-start probe reads: the chosen one, or the first
+ * offered subject where ALL SUBJECTS stands in — the report on screen states
+ * no dates, so one concrete grid stands in for the section. Null where the
+ * section offers no subject at all, which is what keeps the probe honest.
+ */
+export function probeSubject(
+  subjects: Option[],
+  subject: Option
+): Option | null {
+  return isAllSubjects(subject)
+    ? (subjects.find((o) => !isAllSubjects(o)) ?? null)
+    : subject;
+}
+/**
+ * The semester's batch title (`2025`) for a selection, or "" where the
+ * semester names nothing: the Portal wants the title beside the value as the
+ * batch number. One lookup, so the memory key cannot drift per call site.
+ */
+export function semesterTitleOf(opts: OptionsReply, semester: string): string {
+  return opts.semester.find((o) => String(o.value) === semester)?.title ?? "";
+}
+/**
  * One run of the option loop, with every request it makes and everything it
  * settled. The loop is the caller's because the chain is sequential: a pass is
  * built from the reply to the pass before it, so no cache can compute it ahead.
