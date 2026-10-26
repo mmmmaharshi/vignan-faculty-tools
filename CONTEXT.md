@@ -204,9 +204,10 @@ ECAP's own answer to what the signed-in faculty member teaches today:
 `r` session marker the proxy declares. It answers an HTML fragment for the
 `tblschedule` grid, which has no header row: period and time in the first
 cell, subject over section in the second. An `<hr/>` stacks a second subject
-under the first; an empty second cell is a free period and is left out. The
-grid states no room. The cleared-evening fragment is a bare `</table>`, which
-is an empty day rather than a failure. See ADR 0027.
+under the first; an empty second cell is a free period, which keeps the hours
+the grid stated for it and loses only its class. The grid states no room. The
+cleared-evening fragment is a bare `</table>`, which is an empty day rather
+than a failure. See ADR 0027.
 _Avoid_: Schedule, periods, routine
 
 **Attendance Not Posted**:

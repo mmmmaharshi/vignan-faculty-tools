@@ -69,6 +69,10 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
     </>
   );
 };
+/** Whether ECAP stated a class in this slot. A free period still carries its
+ *  hours, so the hours cannot answer this — only the class can. */
+const hasClass = (entry: TodayClass): boolean =>
+  Boolean(entry.subject || entry.section);
 /** Every slot of the day in order: stated periods as ECAP gave them, the
  *  rest blank. A period ECAP named outside 1..7 rides along rather than
  *  vanishing. */
@@ -131,11 +135,13 @@ export const HomePanel = ({
             {dayRows(classes).map((entry, index) => (
               // The grid states no identifiers, so the order it gave is the key.
               // The live period carries the register's critical-row tint in
-              // blue: it answers "where am I supposed to be" at a glance.
+              // blue: it answers "where am I supposed to be" at a glance. A
+              // free period keeps its hours but never tints — there is nowhere
+              // to be.
               <Table.Tr
                 key={`${entry.period}-${entry.subject}-${index}`}
                 bg={
-                  isLive(entry.time, now)
+                  hasClass(entry) && isLive(entry.time, now)
                     ? "var(--mantine-color-blue-light)"
                     : undefined
                 }
@@ -149,7 +155,7 @@ export const HomePanel = ({
                   ) : null}
                 </Table.Td>
                 <Table.Td>
-                  {classes.includes(entry) ? (
+                  {hasClass(entry) ? (
                     <ClassCell entry={entry} />
                   ) : (
                     <Text c="dimmed" size="sm">

@@ -610,11 +610,12 @@ export function parseTodayClasses(html: string): TodayClass[] {
       period: (period ?? "").replace("-", " "),
       time: hours.join(" "),
     };
+    const stacked: TodayClass[] = [];
     for (const entry of stackCell.split(NEXT_SUBJECT)) {
       const [subject, ...rest] = entry.split(NEXT_LINE).map(cellText);
       const section = rest.join(" ");
       if (subject || section) {
-        out.push({
+        stacked.push({
           period: when.period,
           time: when.time,
           subject: subject ?? "",
@@ -623,6 +624,14 @@ export function parseTodayClasses(html: string): TodayClass[] {
         });
       }
     }
+    // The grid names every slot with its hours, free periods included — only
+    // the class cell is blank. Keeping the row is what lets a blank period
+    // show when it meets; dropping it left the front end guessing.
+    out.push(
+      ...(stacked.length
+        ? stacked
+        : [{ ...when, subject: "", section: "", room: "" }])
+    );
   }
   return out;
 }

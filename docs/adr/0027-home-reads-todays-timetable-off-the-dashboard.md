@@ -28,7 +28,8 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
   the second — so positions are fixed by the shape ECAP itself pinned live
   (2026-10-24), not guessed. An `<hr/>` stacks a second subject under the
   first and reads as two periods at the same time; an empty second cell is a
-  free period and is left out rather than shown with an invented subject. The
+  free period, and it keeps the hours the grid stated for it — only the class
+  is blank, so no slot is left for the front end to time by guesswork. The
   grid states no room, so room always reads empty.
 - A fragment with no schedule grid — the bare `</table>` ECAP answers after
   ~4pm, when it clears the day — is an empty day, never a failure. The panel

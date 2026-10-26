@@ -408,15 +408,21 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     expect(parseTodayClasses("</table>")).toEqual([]);
     expect(parseTodayClasses("")).toEqual([]);
   });
-  test("today's grid reads periods, skips the free one, splits the stacked one", () => {
+  test("today's grid reads periods, keeps the free one's hours, splits the stacked one", () => {
     // Pinned against the live GetToDayClasses fragment (TODAY_GRID,
     // 2026-10-24), but asserting one rule each — never a copy of the whole
     // answer, which would red on any timetable change without saying why.
     const classes = parseTodayClasses(TODAY_GRID);
     expect(
-      classes.some(({ period }) => period === "Period 5"),
-      "the free period is left out, not shown empty"
-    ).toBe(false);
+      classes.find(({ period }) => period === "Period 5"),
+      "the free period keeps the hours the grid states for it"
+    ).toEqual({
+      period: "Period 5",
+      time: "12:30 PM- 01:20 PM",
+      subject: "",
+      section: "",
+      room: "",
+    });
     expect(
       classes.filter(({ time }) => time === "03:10 PM- 04:00 PM"),
       "the <hr/> stacks a second period onto the same time"

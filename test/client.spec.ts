@@ -303,6 +303,15 @@ const stub = async (route: Route): Promise<void> => {
                 section: "3 IT-C",
                 room: "",
               },
+              // A free period the grid still times: ECAP states the hours and
+              // leaves only the class cell blank.
+              {
+                period: "Period 3",
+                time: aroundNow(Date.now()),
+                subject: "",
+                section: "",
+                room: "",
+              },
             ],
           }
     );
@@ -479,12 +488,17 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(page.getByRole("cell", { name: "AI 3 IT-C" })).toBeVisible();
     await expect(page.getByRole("cell", { name: "Period 1" })).toBeVisible();
+    // Every slot is named. The free period 3 keeps the hours the grid stated
+    // for it — the row reads its hours, not a bare "No Classes Today".
+    const free = page.locator("tbody tr", { hasText: "Period 3" });
+    await expect(free).toContainText(/\d{1,2}:\d{2}\s*[AP]M/);
+    await expect(free).toContainText("No Classes Today");
     // One stated period out of seven slots: the other six read blank.
     await expect(
       page.getByText("No Classes Today", { exact: true })
     ).toHaveCount(6);
     // The stubbed period spans now, so its row carries the live tint and the
-    // only tint on screen.
+    // only tint on screen — a free period never tints, there is nowhere to be.
     const live = page.locator("tbody tr", { hasText: "AI" });
     await expect(live).toHaveAttribute("style", /blue-light/);
     await expect(page.locator("tbody tr[style*='blue-light']")).toHaveCount(1);
