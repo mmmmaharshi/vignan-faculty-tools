@@ -61,14 +61,11 @@ function postedByPeriod(cells: DayWorkSection["cells"]): Map<string, boolean> {
 
 const PeriodBox = ({
   period,
-  subject,
   posted,
   label,
   onOpen,
 }: {
   period: string;
-  /** The subject ECAP states for the period, or "" where it states none. */
-  subject: string;
   posted: boolean;
   label: string;
   onOpen: () => void;
@@ -76,23 +73,16 @@ const PeriodBox = ({
   // A real button, not a div with a handler: keyboard and reader free.
   <UnstyledButton onClick={onOpen} aria-label={label} style={{ width: "100%" }}>
     <Paper
-      h={52}
+      h={40}
       p={0}
       bg={posted ? "green.6" : "gray.1"}
       withBorder
       radius="sm"
     >
-      <Center h={52}>
-        <Stack gap={0} align="center">
-          <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
-            {period}
-          </Text>
-          {subject ? (
-            <Text size="xs" c={posted ? "white" : "dimmed"} truncate maw="100%">
-              {subject}
-            </Text>
-          ) : null}
-        </Stack>
+      <Center h={40}>
+        <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
+          {period}
+        </Text>
       </Center>
     </Paper>
   </UnstyledButton>
@@ -170,10 +160,6 @@ const SectionBoxes = ({
           <PeriodBox
             key={period}
             period={period}
-            subject={
-              section.cells.find((entry) => entry.period === period)?.subject ??
-              ""
-            }
             posted={posted.get(period) === true}
             label={`Period ${period}, Section ${section.section}`}
             onOpen={() => setOpen(period)}
