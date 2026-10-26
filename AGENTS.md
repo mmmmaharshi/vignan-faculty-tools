@@ -710,7 +710,9 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   *once*.** `revalidateOnFocus: false`, `revalidateOnReconnect: false`,
   `shouldRetryOnError: false` and `dedupingInterval: 0` are the `<SWRConfig>`
   defaults in `web/main.tsx`, because a read must be something the user asked
-  for; a hook adds only what differs. Those defaults used to be repeated on every
+  for; a hook adds only what differs. The header's Refresh is the user asking:
+  it revalidates every `/api/` key except the register — the click stays the
+  only fetch there — and re-settles the cascade where a picker is on screen. Those defaults used to be repeated on every
   hook, five copies of one decision. The two exceptions are deliberate. The
   **session** probe overrides them: `refreshInterval` of `SESSION_PROBE_MS` when
   idle and `0` when a request is in flight or the login screen is up. And the

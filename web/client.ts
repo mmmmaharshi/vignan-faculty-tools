@@ -56,7 +56,7 @@ const OPTIONS_RUN = `${OPTIONS_PATH}#chain`;
 const LOGIN_PATH = "/api/login";
 const LOGOUT_PATH = "/api/logout";
 /** A key this server answers, on its own or as the first half of an array key. */
-const isServerKey = (key: unknown): boolean =>
+const isServerKey = (key: unknown): key is string | [string, ...unknown[]] =>
   (typeof key === "string" && key.startsWith("/api/")) ||
   (Array.isArray(key) &&
     typeof key[0] === "string" &&
@@ -332,3 +332,17 @@ export function useSignOut() {
  */
 export const forgetServerData = (): Promise<unknown> =>
   mutate(isServerKey, undefined, { revalidate: false });
+/**
+ * Re-reads what the screens show, in place: every `/api/` key revalidates
+ * except the register — a register stays a decision (ADR 0015), so the click
+ * is still the only way one is ever fetched. The cascade re-runs from its
+ * own caller beside this, where a picker is on screen to settle it.
+ */
+export const refreshServerData = (): Promise<unknown> =>
+  mutate(
+    (key) =>
+      isServerKey(key) &&
+      (typeof key === "string" ? key : key[0]) !== REGISTER_PATH,
+    undefined,
+    { revalidate: true }
+  );

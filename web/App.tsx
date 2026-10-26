@@ -9,7 +9,7 @@ import {
   TextInput,
   Title,
 } from "@mantine/core";
-import { FloppyDisk, SignOut } from "@phosphor-icons/react";
+import { ArrowClockwise, FloppyDisk, SignOut } from "@phosphor-icons/react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
@@ -41,6 +41,7 @@ import type { Level, Range, Sel } from "./cascade";
 import {
   clearStoredSession,
   forgetServerData,
+  refreshServerData,
   isExpired,
   messageOf,
   reloadSession,
@@ -102,6 +103,9 @@ const App = (): React.JSX.Element => {
   const onHome = pathname === HOME_PATH;
   const onProfile = pathname === PROFILE_PATH;
   const onSearch = pathname === SEARCH_PATH;
+  /** The dashboard is the screen with the picker: every other app screen is
+   *  named above, and `/` renders its body before the guard sends it on. */
+  const onDashboard = !onLogin && !onHome && !onProfile && !onSearch;
   const [booted, setBooted] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [userId, setUserId] = useState("");
@@ -123,6 +127,9 @@ const App = (): React.JSX.Element => {
   const applyFilter = (patch: Partial<RowFilter>): void => {
     setFilter((f) => ({ ...f, ...patch }));
   };
+  /** A header refresh in flight. Held here, not in the header, because the
+   *  header is presentational and keeps none. */
+  const [refreshing, setRefreshing] = useState(false);
   /** The row whose panel is open. Held here, not in the table, because the table
    *  is a presentational module with no state of its own. */
   const [detail, setDetail] = useState<Student | null>(null);
@@ -431,6 +438,20 @@ const App = (): React.JSX.Element => {
   const retryOptions = useCallback(() => {
     void runRefresh(sel, opts);
   }, [runRefresh, sel, opts]);
+  /** Re-reads the screen in place: server data revalidates, and the dashboard
+   *  re-settles its cascade too — the selection stays, so unlike a reload
+   *  nothing the picker holds is lost. The register is never re-read here:
+   *  the click stays its only fetch. */
+  const refreshScreen = async (): Promise<void> => {
+    if (refreshing || busy) return;
+    setRefreshing(true);
+    try {
+      if (onDashboard) await runRefresh(sel, opts);
+      await refreshServerData();
+    } finally {
+      setRefreshing(false);
+    }
+  };
   const loadRegister = () => {
     justLoaded.current = true;
     setFormNote(null);
@@ -876,8 +897,19 @@ const App = (): React.JSX.Element => {
       }}
     >
       <AppShell.Header>
-        <Group h="100%" px="md" align="center" gap="sm">
+        <Group h="100%" px="md" align="center" gap="sm" justify="space-between">
           <Title order={3}>Vignan Faculty Tools</Title>
+          {screen === "app" ? (
+            <Button
+              onClick={refreshScreen}
+              loading={refreshing}
+              disabled={busy}
+              variant="default"
+              leftSection={<ArrowClockwise size={18} aria-hidden />}
+            >
+              Refresh
+            </Button>
+          ) : null}
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="md" pb="xs" visibleFrom="sm">

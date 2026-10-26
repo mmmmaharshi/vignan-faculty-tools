@@ -684,6 +684,26 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("div[style*='gray']")).toHaveCount(6);
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
   });
+  test("refresh re-reads the home screen without a reload", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await signIn(page);
+    expect(todayCalls, "the landing read").toBe(1);
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect.poll(() => todayCalls, { timeout: 15_000 }).toBe(2);
+    await expect.poll(() => unpostedCalls, { timeout: 15_000 }).toBe(2);
+    expect(new URL(page.url()).pathname, "no reload: still home").toBe("/home");
+  });
+  test("refresh re-settles the cascade but never the register", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    expect(optionsCalls, "settle once").toBe(5);
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect.poll(() => optionsCalls, { timeout: 15_000 }).toBe(6);
+    expect(registerCalls, "the click stays the register's only fetch").toBe(0);
+  });
   test("a period box opens whose class it is", async ({ page }) => {
     await page.goto("/login");
     await signIn(page);
