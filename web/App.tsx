@@ -186,10 +186,16 @@ const App = (): React.JSX.Element => {
   /** The probe answer the All subjects snap already ran for (see below). A ref
    *  rather than state: it guards an effect and must never render. */
   const semSnapApplied = useRef<SemStartReply | null>(null);
-  /** The settle-time probe answer the From snap already ran for, and whether
-   *  the range was typed by hand: an explicit date wins over a probe that
-   *  lands after it. Both guard effects and must never render. */
-  const preSnapApplied = useRef<SemStartReply | null>(null);
+  /** The settle-time probe answer already snapped, as `preKey|statedFrom`: a
+   *  cached answer revisited on a class switch must snap again, so identity
+   *  alone cannot guard it. */
+  const preSnapApplied = useRef<string | null>(null);
+  /** The selection the memory snap already ran for, as the raw five values:
+   *  ALL SUBJECTS and its first subject resolve to one memory key, but they
+   *  are different selections — keying here keeps the switch between them a
+   *  fresh snap. A load that teaches the memory keeps the selection, so it
+   *  never re-snaps the window it loaded. */
+  const memSnapSel = useRef<string | null>(null);
   const rangeEdited = useRef(false);
   /** Every fetch the app makes, through its own key. See `web/client.ts`. */
   const register = useRegisterLoad(click);
@@ -308,6 +314,9 @@ const App = (): React.JSX.Element => {
         }
       : null;
   const preSemStart = useSemStart(preProbe);
+  /** The remembered start for the settled class, if any load ever taught it:
+   *  settling onto a known class snaps From with no ECAP call at all. */
+  const rememberedStart = preKey ? (semStarts[preKey] ?? null) : null;
   const semKey =
     result &&
     sel.course &&
@@ -713,20 +722,36 @@ const App = (): React.JSX.Element => {
     rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
   }, [semStart.data, range]);
+  /** The settle-time memory snap: a known class opens at its remembered start
+   *  with no probe behind it. Runs once per selection — a load that teaches
+   *  the memory keeps the selection, so it never re-snaps the window it
+   *  loaded. */
+  const selKey = `${sel.course}|${sel.semester}|${sel.branch}|${sel.section}|${sel.subject}`;
+  useEffect(() => {
+    if (memSnapSel.current === selKey) return;
+    memSnapSel.current = selKey;
+    if (!rememberedStart || rangeEdited.current) return;
+    const iso = toInputDate(rememberedStart);
+    if (!iso || iso === range.from) return;
+    rememberRangeStart(iso);
+    setRange((r) => ({ ...r, from: iso }));
+  }, [selKey, rememberedStart, range]);
   /** The settle-time snap: the walked start opens the From input before any
    *  register loads, so an unknown class starts at its semester instead of
    *  the month. Runs once per probe answer, and never over a manual edit —
    *  an explicit date wins over a probe that lands after it. */
   useEffect(() => {
     const answer = preSemStart.data;
-    if (!answer?.statedFrom || answer === preSnapApplied.current) return;
-    preSnapApplied.current = answer;
+    if (!answer?.statedFrom || !preKey) return;
+    const stamp = `${preKey}|${answer.statedFrom}`;
+    if (stamp === preSnapApplied.current) return;
+    preSnapApplied.current = stamp;
     if (rangeEdited.current) return;
     const iso = toInputDate(answer.statedFrom);
     if (!iso || iso === range.from) return;
     rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
-  }, [preSemStart.data, range]);
+  }, [preSemStart.data, preKey, range]);
   /** Fold the window's first day into the earliest-start memory: without this a
    *  later From would move "Sem Start Date" forward to the window's first day
    *  instead of the semester's (the memory lives in `sem-starts.ts`). */
@@ -775,7 +800,10 @@ const App = (): React.JSX.Element => {
     const changed = { ...sel, [key]: value };
     // The subject has nothing below it, so it re-reads nothing; every other level
     // invalidates what is under it, and the screen shows that immediately.
+    // Either way the selection moved on, so a range typed for the last one no
+    // longer guards From against the settle-time snaps.
     if (key === "subject") {
+      rangeEdited.current = false;
       setSel(changed);
       return;
     }

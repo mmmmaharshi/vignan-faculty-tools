@@ -517,6 +517,28 @@ test.describe("the app's own data layer", () => {
     ).toHaveValue("2026-06-20", { timeout: 15_000 });
     expect(walkCalls, "one walk per settled class without a memory").toBe(1);
   });
+  test("a remembered start opens From with no walk at all", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    // The All subjects load teaches the memory through its post-load probe;
+    // MFCS is the first subject offered, so the memory lands under its key.
+    await expect(
+      page.getByRole("row", { name: "Sem Start Date 05/08/2026" })
+    ).toBeVisible({ timeout: 15_000 });
+    expect(walkCalls, "the unknown class walked once").toBe(1);
+    // A date typed by hand stands — then switching to the known subject
+    // snaps From back to its remembered start, asking ECAP nothing.
+    await page.getByLabel("From").fill("2026-10-01");
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await expect(
+      page.getByLabel("From"),
+      "From opens at the memory"
+    ).toHaveValue("2026-08-05", { timeout: 15_000 });
+    expect(walkCalls, "no second walk for a known class").toBe(1);
+  });
   test("the rail names the register screen Attendance", async ({ page }) => {
     await signInAndSettle(page);
     await expect(
@@ -1043,7 +1065,7 @@ test.describe("the app's own data layer", () => {
     await page.getByLabel("All irregular students").click();
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
   });
-  test("a subject register shows its own figures alone, table and panel", async ({
+  test("a subject register shows subject and overall figures side by side", async ({
     page,
   }) => {
     // The register states its own start, so the snapped window is the whole
@@ -1061,8 +1083,12 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("columnheader", { name: "Overall Attendance %" }),
-      "the overall column belongs to the all-subjects view"
-    ).toHaveCount(0);
+      "the overall column rides beside the subject one"
+    ).toBeVisible();
+    await expect(
+      page.getByText("52.00%", { exact: true }),
+      "B student's overall beside their 44.40% subject figure"
+    ).toBeVisible();
     await expect(
       page.getByRole("row", { name: "Subject MFCS" }),
       "the card names the subject register it shows"

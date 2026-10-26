@@ -789,10 +789,10 @@ With any filter ticked — *All irregular students*, *Below 75%*,
 *Below 65%* — the table is a worklist rather than a roster, so it sorts
 worst-first: that is the one thing the checkboxes are for. Ticked bars
 intersect, so the strictest one wins. **The
-figure read is the one the table shows**: the overall percentage on All subjects,
+figure read is the one the path judges by**: the overall percentage on All subjects,
 the Subject's own on a subject register — where the overall figure is not read as
-a fallback, because that path puts no overall figure on screen, and a row admitted
-or ordered by one would carry nothing to explain it. **A missing percentage sorts
+a fallback even though it rides the row beside the subject one, and a row admitted
+or ordered by one would answer a question nobody asked. **A missing percentage sorts
 last**, never first — `null`
 is an absence of evidence, and putting such a student at the top of a triage list
 sends someone after them for the wrong reason. `registerRows` in `web/worklist.ts`

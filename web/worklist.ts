@@ -81,12 +81,12 @@ export function isFiltering(filter: RowFilter): boolean {
   );
 }
 /**
- * The figure a row is judged on, and the one the worklist is ordered by: the one
- * the table is actually showing. `overallMode` is the All subjects path, which
- * shows the overall percentage and no subject percentage at all; everywhere else
- * the table shows the Subject figure alone. The overall figure is deliberately
- * not read as a fallback here — on a Subject register it is not on screen, so a
- * row admitted or ordered by it would be a row with nothing to explain it.
+ * The figure a row is judged on, and the one the worklist is ordered by: the
+ * subject figure, everywhere but the All subjects path. `overallMode` is the
+ * All subjects path, which shows the overall percentage and no subject
+ * percentage at all. Both figures are on screen on a subject register, but
+ * the worklist still judges one: the overall is a second fact on the row,
+ * never the bar that admits it or the order it sorts by.
  */
 function figureFor(
   s: RegisterReply["students"][number],
@@ -96,12 +96,12 @@ function figureFor(
 }
 /**
  * `All irregular students` keeps a student who is in trouble in whichever band
- * the table is actually showing — the Subject band on a subject register, the
- * overall band on All subjects. Reading the Subject band on the All subjects path
+ * the path judges by — the Subject band on a subject register, the overall
+ * band on All subjects. Reading the Subject band on the All subjects path
  * hid the very student the overall column was added to expose: healthy in the one
  * Subject you happened to open, critical across the section. Reading the overall
- * band on the subject path fails the other way round: it keeps a row for a band
- * that path does not show, so nothing on screen explains why the row is there.
+ * band on the subject path fails the other way round: the worklist would keep
+ * rows for a band it does not judge by, so nothing on screen explains the cut.
  *
  * The fixed bars read the same figure the worklist is ordered by. A missing
  * figure is an absence, not a low one, so it clears no fixed bar.

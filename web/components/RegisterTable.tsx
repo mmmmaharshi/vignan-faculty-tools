@@ -80,14 +80,16 @@ export const RegisterTable = ({
   chosen,
   overallMode = false,
 }: RegisterTableProps): React.JSX.Element => {
-  // A subject register shows its own figures alone: the overall column belongs
-  // to the all-subjects view, so a class report that failed changes nothing
-  // visible here. On the all-subjects path the column shows whenever any row
+  // Both figures ride the table: the subject register shows its own columns
+  // and the overall column beside them, so a row's triage figure and its
+  // semester figure explain each other. The column shows whenever any row
   // carries an overall — a report that failed leaves every figure absent, and
-  // showing a column of dashes would read as "nobody has an overall".
-  const showOverall =
-    overallMode &&
-    rows.some((s) => s.overallPct != null || s.overallAttendedOfHeld !== "");
+  // showing a column of dashes would read as "nobody has an overall". The
+  // worklist still judges the subject figure alone (see `worklist.ts`): the
+  // overall is a second fact on the row, never the bar that admits it.
+  const showOverall = rows.some(
+    (s) => s.overallPct != null || s.overallAttendedOfHeld !== ""
+  );
   return (
     <Paper withBorder p="lg">
       <Group gap="md" mb="sm">
@@ -204,9 +206,9 @@ export const RegisterTable = ({
                             —
                           </Text>
                         ) : (
-                          // This is the overall view: the row carries no
-                          // subject figure, so this is the only badge on it and
-                          // the irregular filter reads this same band.
+                          // Each figure badges its own band: the subject cell its
+                          // subject band above, this one the overall band —
+                          // and the irregular filter reads the path's own band.
                           <Figure
                             pct={s.overallPct}
                             kind="overall"
