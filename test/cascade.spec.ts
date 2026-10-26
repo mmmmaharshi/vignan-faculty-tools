@@ -34,6 +34,12 @@ import {
 } from "../web/saved-classes";
 import { noteSemStart, semStartKey } from "../web/sem-starts";
 import {
+  noteTodayMemory,
+  readTodayMemory,
+  shownToday,
+  writeTodayMemory,
+} from "../web/today-memory";
+import {
   emptyRegisterText,
   NO_FILTER,
   registerRows,
@@ -956,6 +962,63 @@ test.describe("dates", () => {
   test("a single-digit month and day are zero-padded, so the input accepts them", () => {
     const range = defaultRange(new Date(2026, 0, 5, 9, 30, 0));
     expect(range.to).toBe("2026-01-05");
+  });
+});
+
+test.describe("the today-table memory", () => {
+  const day = "26/10/2026";
+  const rows = [slot("Period 1", "08:45 AM- 09:35 AM")];
+  test("a read stating periods is remembered under that date", () => {
+    const memory = noteTodayMemory(null, day, rows);
+    expect(memory).toEqual({ date: day, classes: rows });
+  });
+  test("a cleared evening never erases the table the day taught", () => {
+    const memory = noteTodayMemory(null, day, rows);
+    // ECAP's cleared day states no periods at all — not even untimed rows.
+    expect(noteTodayMemory(memory, day, [])).toBe(memory);
+  });
+  test("midnight starts a new memory instead of merging days", () => {
+    const memory = noteTodayMemory(null, day, rows);
+    const next = [slot("Period 2", "09:35 AM- 10:25 AM")];
+    expect(noteTodayMemory(memory, "27/10/2026", next)).toEqual({
+      date: "27/10/2026",
+      classes: next,
+    });
+  });
+  test("the screen shows the fresh read where it states periods", () => {
+    const memory = noteTodayMemory(null, day, rows);
+    expect(shownToday(rows, memory, day)).toBe(rows);
+    // ...and the memory where the fresh read is a cleared evening.
+    expect(shownToday([], memory, day)).toBe(memory?.classes ?? null);
+  });
+  test("yesterday's table never survives midnight, and loading never flashes it", () => {
+    const memory = noteTodayMemory(null, day, rows);
+    expect(shownToday([], memory, "27/10/2026")).toEqual([]);
+    expect(shownToday(null, memory, day)).toBeNull();
+  });
+  test("the table survives a reload until its date rolls", () => {
+    saved.clear();
+    const memory = noteTodayMemory(null, day, rows);
+    if (!memory) throw new Error("expected a memory to persist");
+    writeTodayMemory(memory);
+    expect(readTodayMemory()).toEqual(memory);
+  });
+  test("a refused storage breaks neither the read nor the write", () => {
+    const real = globalThis.localStorage;
+    globalThis.localStorage = {
+      getItem: () => {
+        throw new Error("denied");
+      },
+      setItem: () => {
+        throw new Error("denied");
+      },
+    } as unknown as Storage;
+    const memory = noteTodayMemory(null, day, rows);
+    expect(() => {
+      if (memory) writeTodayMemory(memory);
+    }).not.toThrow();
+    expect(readTodayMemory()).toBeNull();
+    globalThis.localStorage = real;
   });
 });
 

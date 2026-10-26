@@ -91,6 +91,13 @@ import {
   writeSemStarts,
 } from "./sem-starts";
 import type { SemStarts } from "./sem-starts";
+import {
+  noteTodayMemory,
+  readTodayMemory,
+  shownToday,
+  writeTodayMemory,
+} from "./today-memory";
+import type { TodayMemory } from "./today-memory";
 import type { Note } from "./types";
 import { NO_FILTER, registerRows } from "./worklist";
 import type { RowFilter } from "./worklist";
@@ -247,6 +254,13 @@ const App = (): React.JSX.Element => {
    *  five levels plus the Portal's batch title, so a new year starts a new
    *  memory. Portal data, not personal data: it is not scoped by user id. */
   const [semStarts, setSemStarts] = useState<SemStarts>(() => readSemStarts());
+  /** Today's timetable as last read with periods in it: ECAP clears the day
+   *  after ~4pm, so an empty read behind this memory shows it instead — until
+   *  midnight, when the date rolls and the memory stops matching. Portal data,
+   *  not personal data: it survives sign-out like the period hours. */
+  const [todayMemory, setTodayMemory] = useState<TodayMemory>(() =>
+    readTodayMemory()
+  );
   const semKey =
     result &&
     sel.course &&
@@ -365,6 +379,13 @@ const App = (): React.JSX.Element => {
   /** Home's own sentence: what the server refused. An empty day is not this —
    *  it is the skeleton table with blank classes. */
   const todayNote: Note | null = refusalNote(today.error, "error");
+  /** The table on screen: the fresh read where it states periods, else the
+   *  day's own memory — never yesterday's, never while still loading. */
+  const todayShown = shownToday(
+    today.data?.classes ?? null,
+    todayMemory,
+    todayIST()
+  );
   /** The unposted section's own sentence. A 401 has already ended the session
    *  through the sweep above, so it says nothing here. */
   const unpostedNote: Note | null = refusalNote(unposted.error, "error");
@@ -453,6 +474,13 @@ const App = (): React.JSX.Element => {
     },
     [triggerCascade]
   );
+  /** The failed options read, asked again from the selection on screen: with
+   *  no course there is no level to change, so without this the picker sits
+   *  in its error until a reload. A run that then succeeds settles the same
+   *  way a fresh one does, keeping whatever the new options still offer. */
+  const retryOptions = useCallback(() => {
+    void runRefresh(sel, opts);
+  }, [runRefresh, sel, opts]);
   const loadRegister = () => {
     justLoaded.current = true;
     setFormNote(null);
@@ -645,6 +673,18 @@ const App = (): React.JSX.Element => {
       return next;
     });
   }, [semKey, semSeen]);
+  /** Fold each timetable read into the day's memory: a cleared evening states
+   *  no periods, so it teaches nothing and never erases what the day showed. */
+  useEffect(() => {
+    const classes = today.data?.classes;
+    if (!classes) return;
+    const day = todayIST();
+    setTodayMemory((prev) => {
+      const next = noteTodayMemory(prev, day, classes);
+      if (next && next !== prev) writeTodayMemory(next);
+      return next;
+    });
+  }, [today.data]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     if (booted && signedIn && onLogin) {
@@ -734,6 +774,9 @@ const App = (): React.JSX.Element => {
       onSelect={onSelectLevel}
       onRange={onRangeChange}
       onLoad={loadRegister}
+      onRetryOptions={
+        optionsError && !optionsLoading ? retryOptions : undefined
+      }
       trailing={
         <Button
           onClick={saveClass}
@@ -777,7 +820,7 @@ const App = (): React.JSX.Element => {
         body = (
           <>
             <HomePanel
-              classes={today.data?.classes ?? null}
+              classes={todayShown}
               busy={today.isLoading}
               note={todayNote}
               date={todayIST()}

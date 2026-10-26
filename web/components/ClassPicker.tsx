@@ -27,6 +27,10 @@ type ClassPickerProps = {
   onSelect: (key: CascadeLevel, value: string) => void;
   onRange: (part: "from" | "to", value: string) => void;
   onLoad: () => void;
+  /** Retries the failed options read from scratch. Present only while an
+   *  options error sits on screen: with no course there is no level to change,
+   *  so without this the picker sits in its error until a reload. */
+  onRetryOptions?: () => void;
   /** Rendered at the far end of the button row, so the class's own actions sit
    *  on the same line as Load register rather than under it. */
   trailing?: React.ReactNode;
@@ -52,6 +56,7 @@ export const ClassPicker = ({
   onSelect,
   onRange,
   onLoad,
+  onRetryOptions,
   trailing,
 }: ClassPickerProps): React.JSX.Element => (
   <Paper withBorder p="lg" mb="md">
@@ -104,6 +109,11 @@ export const ClassPicker = ({
         <Alert color={filterNote.kind === "error" ? "red" : "yellow"}>
           {filterNote.text}
         </Alert>
+      )}
+      {onRetryOptions && (
+        <Button onClick={onRetryOptions} variant="default" loading={busy}>
+          Try again
+        </Button>
       )}
       {opts.emptyLevels.length > 0 && (
         <Alert color="yellow">

@@ -662,6 +662,15 @@ fill is a rule bug, two requests racing is a loop bug.
   before a pass *and* after the reply, so a run already superseded asks the
   Portal nothing and one superseded mid-flight asks no further.
 
+- **A failed run is retried from the picker, not a reload.** With no course
+  there is no level to change, so an options error with no way back strands
+  the picker in its alert. `Try again` re-runs `runRefresh` from the selection
+  on screen, which settles the same way a fresh run does; the button shows
+  only while an options error sits, and a run that then starts clears it.
+  There is deliberately no server-side retry of a 502 behind this — the
+  single portal timeout is already 60s against a serverless budget, and
+  `test/api.spec.ts` pins "a 502 is not retried".
+
 ## The data layer
 
 **Every fetch goes through `web/client.ts`, and every read of server data is an

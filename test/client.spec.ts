@@ -44,6 +44,9 @@ const aroundNow = (at: number): string =>
 let signedIn = false;
 let sessionCalls = 0;
 let optionsCalls = 0;
+/** When true, the next `/api/options` call answers 502, then answers again:
+ *  one transient portal failure, the way ECAP fails from the server. */
+let optionsFailOnce = false;
 let registerCalls = 0;
 let registerFails = false;
 let statedFrom = "";
@@ -222,6 +225,14 @@ const stub = async (route: Route): Promise<void> => {
   }
   if (path === "/api/options") {
     optionsCalls += 1;
+    if (optionsFailOnce) {
+      optionsFailOnce = false;
+      await json(
+        { error: "ECAP did not answer the course list. Try again." },
+        502
+      );
+      return;
+    }
     await json(optionsFor(request.postDataJSON() as OptionsRequest));
     return;
   }
@@ -412,6 +423,7 @@ test.describe("the app's own data layer", () => {
     signedIn = false;
     sessionCalls = 0;
     optionsCalls = 0;
+    optionsFailOnce = false;
     registerCalls = 0;
     registerFails = false;
     statedFrom = "";
@@ -457,6 +469,23 @@ test.describe("the app's own data layer", () => {
     });
     expect(optionsCalls, "a pass per level, and no more").toBe(5);
     expect(registerCalls, "and no register until the click").toBe(0);
+  });
+  test("a course read that fails once is retried from the picker, not a reload", async ({
+    page,
+  }) => {
+    optionsFailOnce = true;
+    await page.goto("/login");
+    await signIn(page);
+    await page.getByRole("button", { name: "Attendance" }).click();
+    await expect(
+      page.getByText("ECAP did not answer the course list", { exact: false })
+    ).toBeVisible({ timeout: 15_000 });
+    // No course means no level to change, so without its own button the
+    // picker would sit in this error until a reload.
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
   });
   test("the rail names the register screen Attendance", async ({ page }) => {
     await signInAndSettle(page);
@@ -514,7 +543,7 @@ test.describe("the app's own data layer", () => {
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
       .toBe("/dashboard");
   });
-  test("a cleared day still reads the hours it was once told", async ({
+  test("a cleared day keeps the table it stated that morning", async ({
     page,
   }) => {
     await page.goto("/login");
@@ -523,16 +552,21 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.locator("tbody tr", { hasText: "Period 3" })
     ).toContainText(/\d{1,2}:\d{2}\s*[AP]M/);
-    // ECAP clears the day: every slot now states no hours at all.
+    // ECAP clears the day: every slot now states no periods at all — but the
+    // morning's own table stays until midnight, not the blank skeleton.
     todayEmpty = true;
     await page.reload();
     await expect(
       page.getByRole("heading", { name: "Today's Classes" })
     ).toBeVisible({ timeout: 15_000 });
     await expect(
+      page.getByRole("cell", { name: "AI 3 IT-C" }),
+      "the morning's class, not a blank row"
+    ).toBeVisible();
+    await expect(
       page.getByText("No Classes Today", { exact: true }),
-      "still every slot, all blank"
-    ).toHaveCount(7);
+      "every slot but the remembered one"
+    ).toHaveCount(6);
     await expect(
       page.locator("tbody tr").filter({ hasText: /\d{1,2}:\d{2}\s*[AP]M/ }),
       "the two slots it was once timed, and no invented hours for the rest"
