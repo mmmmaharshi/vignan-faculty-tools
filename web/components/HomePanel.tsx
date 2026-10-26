@@ -8,7 +8,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
 import { capitalCase, pillsOf, splitSubject } from "../format";
@@ -18,6 +18,7 @@ import {
   writePeriodTimes,
 } from "../period-times";
 import type { PeriodTimes } from "../period-times";
+import { PERIOD_COUNT } from "../periods";
 import type { Note } from "../types";
 
 export type HomePanelProps = {
@@ -79,10 +80,6 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
  *  hours, so the hours cannot answer this — only the class can. */
 const hasClass = (entry: TodayClass): boolean =>
   Boolean(entry.subject || entry.section);
-/** Every slot of the day in order: stated periods as ECAP gave them, the
- *  rest blank. A period ECAP named outside 1..7 rides along rather than
- *  vanishing. */
-const PERIOD_COUNT = 7;
 const dayRows = (
   classes: TodayClass[],
   known: PeriodTimes = {}
@@ -135,14 +132,16 @@ export const HomePanel = ({
   }, []);
   // ECAP states every slot's hours until it clears the day, and then states
   // none at all — so each read teaches the memory the slot hours it will need
-  // once they are gone. One read per mount, so the hours read back at mount
-  // are the ones an earlier read persisted.
-  const known = useMemo(() => readPeriodTimes(), []);
+  // once they are gone. The hours are read back on every render rather than
+  // captured once, so a read that arrives later in the same session cannot
+  // fold into a stale snapshot and erase what an earlier read taught.
+  const known = notePeriodTimes(readPeriodTimes(), classes ?? []);
   useEffect(() => {
     if (!classes) return;
-    const next = notePeriodTimes(known, classes);
-    if (next !== known) writePeriodTimes(next);
-  }, [classes, known]);
+    const prev = readPeriodTimes();
+    const next = notePeriodTimes(prev, classes);
+    if (next !== prev) writePeriodTimes(next);
+  }, [classes]);
 
   return (
     <Stack gap="md">

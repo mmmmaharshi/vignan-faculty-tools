@@ -213,11 +213,13 @@ _Avoid_: Schedule, periods, routine
 
 **Attendance Not Posted**:
 Whether the day's periods got their attendance, from the day-class-work
-report (`ShowDayClassWork`, `_session=no`): one branch after another, each
-pending period with its section and the staff it waits on — a fully posted
-branch reads as one line. Read when Home opens, below the timetable; a
-refusal stays in its own section and never fails the table above it. No
-classes that day is a different answer from all posted. See ADR 0028.
+report (`ShowDayClassWork`, `_session=no`): a branch `Select` over every branch
+the report named, defaulting to the first; the chosen branch's sections grouped
+by semester into cards, each section showing its periods as seven boxes —
+filled when posted, empty otherwise (ECAP's "-" reads unposted). Read when
+Home opens, below the timetable; a refusal stays in its own section and never
+fails the table above it. No classes that day is a different answer from all
+posted. See ADR 0028.
 _Avoid_: Pending attendance, unmarked periods
 
 ## Identity

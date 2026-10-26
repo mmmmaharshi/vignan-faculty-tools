@@ -204,6 +204,7 @@ const App = (): React.JSX.Element => {
   /** Periods across the branch with no posted attendance today: read with the
    *  timetable when Home opens, and a refusal stays in its own section. */
   const unposted = useUnposted(Boolean(onHome));
+  const [unpostedBranch, setUnpostedBranch] = useState<string | null>(null);
   /** Student Search: the roll being typed and the ask the panel below the form
    *  is showing. The ask carries a click number for the register's reason — a
    *  search is deliberate, so asking again reads again. */
@@ -784,6 +785,15 @@ const App = (): React.JSX.Element => {
               sections={unposted.data?.sections ?? null}
               busy={unposted.isLoading}
               note={unpostedNote}
+              branch={
+                unpostedBranch &&
+                (unposted.data?.sections ?? []).some(
+                  (s) => s.branch === unpostedBranch
+                )
+                  ? unpostedBranch
+                  : (unposted.data?.sections?.[0]?.branch ?? null)
+              }
+              onBranchChange={setUnpostedBranch}
             />
           </>
         );

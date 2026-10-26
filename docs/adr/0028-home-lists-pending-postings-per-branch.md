@@ -1,20 +1,16 @@
-# ADR 0028: Home lists pending postings per branch
+# ADR 0028 — Home lists pending postings per branch
 
 ## Status
 
-Accepted. Supersedes two earlier shapes: the section first shipped listing
-only blank-count periods, then a ticked branch-by-section matrix. Faculty
-asked for the exceptions only — no details — so this records what replaced
-both.
+Accepted (amended): the presentation moved from a per-period table to per-period
+boxes grouped by semester into cards, with branches chosen through a single
+`Select`. The wire contract and the parser are unchanged.
 
 ## Context
 
-Faculty asked for an "Absentees Not Posted" section for the whole branch,
-below the timetable. ECAP's ACADEMICS menu reaches it without any HOD login:
-DAY CLASS WORK (`rptdayclasswork.aspx`) answers a per-section report for one
-date — period, subject, staff, and the posted present/absent counts — through
-`ShowDayClassWork` on its own proxy. A held period with blank counts is not
-yet posted: every posted period in every live reply states both counts.
+`ShowDayClassWork` (the Class attendance report's sibling) already states, per
+section, which periods have posted attendance today. Home can reuse it to show a
+faculty member what still needs posting, without a new Portal call.
 
 ## Decision
 
@@ -29,9 +25,12 @@ Home reads the report through `POST /api/unposted`, below the timetable:
   travel. A refusal throws before the parser is reached, so it says the read
   failed rather than passing for all posted — and it stays in its own
   section, never failing the timetable above it.
-- The panel shows one branch after another: each pending period with its
-  section and the staff it waits on; a fully posted branch reads as one
-  line. No subjects, no counts — the exceptions are the whole answer.
+- The panel offers every branch the report named in a single `Select`, defaulting
+  to the first; the chosen branch's sections are grouped by semester into cards,
+  and each section shows its periods as seven boxes — filled when that period's
+  attendance is posted, empty otherwise. A period counts as posted only when
+  every section's cell for it is posted. ECAP writes "-" where a period has not
+  been posted; that is not a count of zero, so it reads unposted.
 - A report with no section blocks is no classes that day, which is a
   different answer from all posted.
 
@@ -40,4 +39,7 @@ Home reads the report through `POST /api/unposted`, below the timetable:
 - No new kind of Portal call beyond the report's own method, through the
   same handler shape as every other read.
 - The posted/blank geometry is pinned against the live 23/10/2026 reply (all
-  posted) plus the same block with one period's counts blanked.
+  posted) plus the same block with one period's counts blanked and with a dash.
+- Staff and section attribution per pending period is no longer shown in this
+  view; the boxes encode only posted/unposted per period. The register and
+  student profile remain the place for per-student detail.

@@ -10,9 +10,10 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import React, { useState } from "react";
+import React from "react";
 
 import type { DayWorkSection } from "../../shared/api";
+import { PERIODS } from "../periods";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
@@ -24,6 +25,10 @@ export type UnpostedPanelProps = {
   /** A read that failed says so here. A fully posted day is not this — it is
    *  an "all posted" line below. */
   note?: Note | null;
+  /** The branch currently shown; null means none chosen yet. */
+  branch?: string | null;
+  /** Called when the user picks a branch. */
+  onBranchChange?: (branch: string | null) => void;
 };
 /** One branch's sections grouped by semester into cards: each section gets its
  *  own row of period boxes, filled when that period's attendance is posted,
@@ -51,12 +56,10 @@ const BranchPending = ({
                 const current = postedByPeriod.get(cell.period);
                 postedByPeriod.set(
                   cell.period,
-                  (current ?? true) && cell.posted
+                  current === undefined ? cell.posted : current && cell.posted
                 );
               }
-              const periods = Array.from({ length: 7 }, (_, index) =>
-                String(index + 1)
-              );
+              const periods = [...PERIODS];
               return (
                 <Stack key={section.section} gap="xs">
                   <Text fw={600} size="sm">
@@ -100,6 +103,8 @@ export const UnpostedPanel = ({
   sections,
   busy,
   note,
+  branch,
+  onBranchChange,
 }: UnpostedPanelProps): React.JSX.Element => {
   const branches: string[] = [];
   if (sections) {
@@ -107,13 +112,10 @@ export const UnpostedPanel = ({
       if (!branches.includes(section.branch)) branches.push(section.branch);
     }
   }
-  const [chosen, setChosen] = useState<string | null>(null);
-  const active =
-    chosen && branches.includes(chosen) ? chosen : (branches[0] ?? null);
-  const inBranch = (branch: string): DayWorkSection[] =>
-    sections ? sections.filter((s) => s.branch === branch) : [];
-  const shortOf = (branch: string): string =>
-    sections?.find((s) => s.branch === branch)?.branchShort ?? branch;
+  const inBranch = (b: string): DayWorkSection[] =>
+    sections ? sections.filter((s) => s.branch === b) : [];
+  const shortOf = (b: string): string =>
+    sections?.find((s) => s.branch === b)?.branchShort ?? b;
   return (
     <Stack gap="md" mt="xl" pb="md">
       <Title order={4}>Today&apos;s Attendance</Title>
@@ -138,17 +140,17 @@ export const UnpostedPanel = ({
       {sections && sections.length > 0 ? (
         <>
           <Select
-            value={active ?? ""}
-            onChange={(value) => setChosen(value ?? null)}
-            data={branches.map((branch) => ({
-              value: branch,
-              label: shortOf(branch),
+            value={branch ?? ""}
+            onChange={(value) => onBranchChange?.(value ?? null)}
+            data={branches.map((b) => ({
+              value: b,
+              label: shortOf(b),
             }))}
             placeholder="Choose a branch"
             aria-label="Branch"
           />
-          {active ? (
-            <BranchPending key={active} sections={inBranch(active)} />
+          {branch ? (
+            <BranchPending key={branch} sections={inBranch(branch)} />
           ) : null}
         </>
       ) : null}
