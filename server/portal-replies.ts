@@ -554,6 +554,9 @@ const BLOCK_BRANCH = /<b>Branch:<\/b>&nbsp;(?<branch>[^<]*)/i;
  *  the read. */
 const PRESENT_COLUMN = 5;
 const ABSENT_COLUMN = 6;
+/** A count is a number, never a dash: ECAP writes "-" where a period has
+ *  not been posted, and that is not a count of zero. */
+const isCount = (value: string): boolean => /^\d+$/.test(value);
 const BLOCK_SEMESTER = /<b>Semester:<\/b>&nbsp;(?<semester>[^<]*)/i;
 const BLOCK_SECTION = /<b>Section:<\/b>&nbsp;(?<section>[^<]*)/i;
 export function parseDayClassWork(
@@ -581,7 +584,7 @@ export function parseDayClassWork(
       const absent = rowCells[ABSENT_COLUMN] ?? "";
       cells.push({
         period: rowCells[0] ?? "",
-        posted: present !== "" || absent !== "",
+        posted: isCount(present) || isCount(absent),
         staff: rowCells[2] ?? "",
       });
     }

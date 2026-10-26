@@ -488,6 +488,18 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
       halfBlank[0]?.cells.every((cell) => cell.posted),
       "half-blank is malformed, not unposted"
     ).toBe(true);
+    // ECAP writes "-" where a period has not been posted: that is not a count
+    // of zero, so it reads unposted rather than posted.
+    const dashed = parseDayClassWork(
+      DAYWORK_BLOCK.replace(
+        "<td class='cellBorder' align='center'>32</td><td class='cellBorder' align='center'>31</td>",
+        "<td class='cellBorder' align='center'>-</td><td class='cellBorder' align='center'>-</td>"
+      )
+    );
+    expect(
+      dashed[0]?.cells.some((cell) => !cell.posted),
+      "a dash is not a count, so the period reads unposted"
+    ).toBe(true);
     // No section blocks at all is no classes that day, not all posted.
     expect(parseDayClassWork("<div>holiday</div>")).toEqual([]);
   });
