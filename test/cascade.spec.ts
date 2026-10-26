@@ -451,14 +451,16 @@ test.describe("the register, before it is sent", () => {
   });
   test.describe("the period-hours memory", () => {
     test("a stated hour is learnt, and its own repeat changes nothing", () => {
-      const learnt = notePeriodTimes({}, [
-        slot("Period 1", "08:45 AM- 09:35 AM"),
-      ]);
-      expect(learnt["Period 1"]).toBe("08:45 AM- 09:35 AM");
+      const stated = [slot("Period 1", "08:45 AM- 09:35 AM")];
+      const learnt = notePeriodTimes({}, stated);
+      // Property, not a copy of the answer: one stated hour with a clock
+      // becomes one remembered hour — no more, no less.
+      expect(Object.keys(learnt)).toHaveLength(
+        stated.filter((entry) => /\d{1,2}:\d{2}\s*[AP]M/i.test(entry.time))
+          .length
+      );
       // The same answer again is the same map, not a rewrite.
-      expect(
-        notePeriodTimes(learnt, [slot("Period 1", "08:45 AM- 09:35 AM")])
-      ).toBe(learnt);
+      expect(notePeriodTimes(learnt, stated)).toBe(learnt);
     });
     test("a cleared evening never erases what the morning taught", () => {
       const learnt = notePeriodTimes({}, [

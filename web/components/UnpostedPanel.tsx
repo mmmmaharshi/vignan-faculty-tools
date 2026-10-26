@@ -78,6 +78,7 @@ const SectionBoxes = ({
   section: DayWorkSection;
 }): React.JSX.Element => {
   const posted = postedByPeriod(section.cells);
+  const pending = section.cells.filter((cell) => !cell.posted);
   return (
     <Stack gap="xs">
       <Text fw={600} size="sm">
@@ -92,6 +93,14 @@ const SectionBoxes = ({
           />
         ))}
       </SimpleGrid>
+      {pending.length > 0 ? (
+        <Text size="xs" c="dimmed">
+          Pending:{" "}
+          {pending
+            .map((cell) => `${cell.period} (${cell.staff || "—"})`)
+            .join(", ")}
+        </Text>
+      ) : null}
     </Stack>
   );
 };
