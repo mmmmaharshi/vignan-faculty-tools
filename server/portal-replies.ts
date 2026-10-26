@@ -557,6 +557,9 @@ const ABSENT_COLUMN = 6;
 /** A count is a number, never a dash: ECAP writes "-" where a period has
  *  not been posted, and that is not a count of zero. */
 const isCount = (value: string): boolean => /^\d+$/.test(value);
+/** A dash is ECAP's blank, in any column: stored bare, so "nothing stated"
+ *  reads as blank rather than as a name. */
+const dash = (value: string): string => (value === "-" ? "" : value);
 const BLOCK_SEMESTER = /<b>Semester:<\/b>&nbsp;(?<semester>[^<]*)/i;
 const BLOCK_SECTION = /<b>Section:<\/b>&nbsp;(?<section>[^<]*)/i;
 export function parseDayClassWork(
@@ -582,11 +585,14 @@ export function parseDayClassWork(
       // states both, so half-blank is malformed, not unposted.
       const present = rowCells[PRESENT_COLUMN] ?? "";
       const absent = rowCells[ABSENT_COLUMN] ?? "";
+      // A dash is ECAP's blank, in any column: counts, and — on unposted
+      // periods that carry no allocation yet — subject and staff too. Stored
+      // bare, so the panel can tell "nothing stated" from a name.
       cells.push({
         period: rowCells[0] ?? "",
-        subject: rowCells[1] ?? "",
+        subject: dash(rowCells[1] ?? ""),
         posted: isCount(present) || isCount(absent),
-        staff: rowCells[2] ?? "",
+        staff: dash(rowCells[2] ?? ""),
         present: isCount(present) ? present : "",
         absent: isCount(absent) ? absent : "",
       });

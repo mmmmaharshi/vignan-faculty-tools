@@ -509,6 +509,20 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
       dashed[0]?.cells.some((cell) => !cell.posted),
       "a dash is not a count, so the period reads unposted"
     ).toBe(true);
+    // A dash in the subject and staff columns is the same blank: an unposted
+    // period ECAP allocated nothing to yet, not a subject named "-".
+    const unallocated = parseDayClassWork(
+      DAYWORK_BLOCK.replace(
+        "<td class='cellBorder' align='left'>Digital Logic And Computer Organization</td><td class='cellBorder' align='left'>MRS.G.MANI</td>",
+        "<td class='cellBorder' align='left'>-</td><td class='cellBorder' align='left'>-</td>"
+      )
+    );
+    expect(unallocated[0]?.cells[0]).toMatchObject({
+      period: "1",
+      subject: "",
+      posted: true,
+      staff: "",
+    });
     // No section blocks at all is no classes that day, not all posted.
     expect(parseDayClassWork("<div>holiday</div>")).toEqual([]);
   });
