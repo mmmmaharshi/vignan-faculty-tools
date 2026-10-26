@@ -16,6 +16,7 @@ import type { RegisterReply, Student } from "../../shared/api";
 import type { ChosenFact } from "../cascade";
 import {
   badgeFor,
+  carriesOverall,
   FIGURE_STYLE,
   tintFor,
   emptyRegisterText,
@@ -87,9 +88,7 @@ export const RegisterTable = ({
   // showing a column of dashes would read as "nobody has an overall". The
   // worklist still judges the subject figure alone (see `worklist.ts`): the
   // overall is a second fact on the row, never the bar that admits it.
-  const showOverall = rows.some(
-    (s) => s.overallPct != null || s.overallAttendedOfHeld !== ""
-  );
+  const showOverall = rows.some(carriesOverall);
   return (
     <Paper withBorder p="lg">
       <Group gap="md" mb="sm">

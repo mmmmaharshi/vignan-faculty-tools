@@ -1108,8 +1108,8 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(
       panel.getByText("Overall attendance", { exact: true }),
-      "the panel shows the subject figure alone"
-    ).toHaveCount(0);
+      "the panel shows both figures, like the table"
+    ).toBeVisible();
     await expect(
       panel.getByText("Date Range", { exact: false }),
       "the facts table above the register belongs to the register, not the panel"

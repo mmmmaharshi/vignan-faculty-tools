@@ -17,6 +17,7 @@ import {
   resetFor,
   runCascade,
   selectionAfter,
+  selKeyOf,
   startingRange,
   disabledLevels,
   isReady,
@@ -40,6 +41,7 @@ import {
   writeTodayMemory,
 } from "../web/today-memory";
 import {
+  carriesOverall,
   emptyRegisterText,
   NO_FILTER,
   registerRows,
@@ -530,6 +532,25 @@ test.describe("the bands", () => {
       "var(--mantine-color-red-light)"
     );
     expect(tintFor(student(90))).toBeUndefined();
+  });
+  test("a count without a percentage still counts as an overall", () => {
+    // The column rule is "any row carries one", so a row the report counted
+    // but never percentaged must hold the column up beside fully-stated rows.
+    expect(carriesOverall(student(90))).toBe(true);
+    expect(
+      carriesOverall({
+        ...student(90),
+        overallPct: null,
+        overallAttendedOfHeld: "10/20",
+      })
+    ).toBe(true);
+    expect(
+      carriesOverall({
+        ...student(90),
+        overallPct: null,
+        overallAttendedOfHeld: "",
+      })
+    ).toBe(false);
   });
   test("the tint reads the band the table is showing", () => {
     // On All subjects there is no subject figure, so reading the subject band
@@ -1188,6 +1209,18 @@ test.describe("the saved classes", () => {
     // two sections happen to share a code. Value-only keys pass everything else.
     expect(subjectNameKey("A", "101")).not.toBe("101");
     expect(subjectNameKey("B", "101")).not.toBe(subjectNameKey("A", "101"));
+  });
+  test("a selection key names every level, in cascade order", () => {
+    const full = sel({
+      course: "1",
+      semester: "3",
+      branch: "6",
+      section: "2",
+      subject: "57",
+    });
+    expect(selKeyOf(full)).toBe("1|3|6|2|57");
+    expect(selKeyOf({ ...full, subject: "58" })).not.toBe(selKeyOf(full));
+    expect(selKeyOf({ ...full, section: "9" })).not.toBe(selKeyOf(full));
   });
   test("a saved class is named again after a reload, with no portal call", () => {
     // A card that cannot name its own subject makes the user open every card once

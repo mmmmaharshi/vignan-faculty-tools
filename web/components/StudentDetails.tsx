@@ -14,7 +14,7 @@ import {
 
 import type { Student, StudentProfile } from "../../shared/api";
 import type { Note } from "../types";
-import { badgeFor } from "../worklist";
+import { badgeFor, carriesOverall } from "../worklist";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */
@@ -28,10 +28,6 @@ type StudentDetailsProps = {
   /** Called once the slide-out has finished, which is when the panel's student
    *  may be dropped. Clearing it at the click instead empties the drawer first. */
   onExitTransitionEnd?: () => void;
-  /** The All subjects path: the panel shows the overall figure, while a subject
-   *  register shows its own alone. Shared with the table — one prop, because a
-   *  subject was either chosen or not. */
-  overallMode?: boolean;
   /** The student's GPA and phone numbers, which the register does not state and
    *  ECAP answers for one roll number at a time. Read when the panel opens, so
    *  the attendance figures are on screen while this is still arriving. */
@@ -147,7 +143,6 @@ export const StudentDetails = ({
   opened,
   onClose,
   onExitTransitionEnd,
-  overallMode = false,
   profile,
   busy,
   scope,
@@ -213,12 +208,11 @@ export const StudentDetails = ({
             </Table.Tbody>
           </Table>
           {/* A figure the Portal did not give is an absence, not a zero, so its
-              row is left out rather than printed as a dash — and a subject
-              register shows its own figure alone, so the overall row belongs
-              to the all-subjects view. */}
+              row is left out rather than printed as a dash — and the figures
+              ride the same rows the table shows, subject beside overall. */}
           {student.pct != null ||
           student.attendedOfHeld !== "" ||
-          (overallMode && student.overallPct != null) ? (
+          carriesOverall(student) ? (
             <Table striped withTableBorder tabularNums>
               <Table.Tbody>
                 {student.pct != null || student.attendedOfHeld !== "" ? (
@@ -235,7 +229,7 @@ export const StudentDetails = ({
                 ) : null}
                 {/* The count lives in the table's Attended / Total column; the
                     panel repeats only the figure and its band. */}
-                {overallMode && student.overallPct != null ? (
+                {carriesOverall(student) ? (
                   <FigureRow
                     label="Overall attendance"
                     cell=""
@@ -258,9 +252,8 @@ export const StudentDetails = ({
       {fullAbsent?.length ? (
         <AbsenceBlock title={fullTitle} dates={fullAbsent} />
       ) : null}
-      {/* Both figures are badged here where the table badges the subject
-              alone: two badges on one table row is noise, but two labelled lines
-              are how the reader sees which band each figure sits in. */}
+      {/* Both figures are badged here as on the table: two labelled lines are
+          how the reader sees which band each figure sits in. */}
       {student ? <Divider /> : null}
       {busy ? (
         <Group gap="xs">

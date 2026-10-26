@@ -30,6 +30,7 @@ import {
   disabledLevels,
   rememberRangeStart,
   selectionAfter,
+  selKeyOf,
   startingRange,
   EMPTY_OPTS,
   EMPTY_SEL,
@@ -194,8 +195,9 @@ const App = (): React.JSX.Element => {
    *  ALL SUBJECTS and its first subject resolve to one memory key, but they
    *  are different selections — keying here keeps the switch between them a
    *  fresh snap. A load that teaches the memory keeps the selection, so it
-   *  never re-snaps the window it loaded. */
-  const memSnapSel = useRef<string | null>(null);
+   *  never re-snaps the window it loaded. Unlike the answer-guarding refs
+   *  above, this one guards a selection, hence the different name. */
+  const snappedSelection = useRef<string | null>(null);
   const rangeEdited = useRef(false);
   /** Every fetch the app makes, through its own key. See `web/client.ts`. */
   const register = useRegisterLoad(click);
@@ -726,10 +728,10 @@ const App = (): React.JSX.Element => {
    *  with no probe behind it. Runs once per selection — a load that teaches
    *  the memory keeps the selection, so it never re-snaps the window it
    *  loaded. */
-  const selKey = `${sel.course}|${sel.semester}|${sel.branch}|${sel.section}|${sel.subject}`;
+  const selKey = selKeyOf(sel);
   useEffect(() => {
-    if (memSnapSel.current === selKey) return;
-    memSnapSel.current = selKey;
+    if (snappedSelection.current === selKey) return;
+    snappedSelection.current = selKey;
     if (!rememberedStart || rangeEdited.current) return;
     const iso = toInputDate(rememberedStart);
     if (!iso || iso === range.from) return;
@@ -976,7 +978,6 @@ const App = (): React.JSX.Element => {
             <StudentDetails
               student={found?.student ?? null}
               inline
-              overallMode
               profile={found?.profile ?? null}
               busy={search.isLoading}
               note={searchNote}
@@ -1020,7 +1021,6 @@ const App = (): React.JSX.Element => {
               opened={detailOpen}
               onClose={() => setDetailOpen(false)}
               onExitTransitionEnd={() => setDetail(null)}
-              overallMode={overallMode}
               profile={profile.data ?? null}
               busy={profile.isLoading}
               note={profileNote ?? semAbsencesNote}

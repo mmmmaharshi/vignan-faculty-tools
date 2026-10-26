@@ -141,6 +141,15 @@ export function subjectNameKey(section: string, subject: string): string {
   return `${section} ${subject}`;
 }
 /**
+ * A selection's identity within a session: the five values joined, for guards
+ * that must tell one selection from another even where two selections resolve
+ * to one memory key (ALL SUBJECTS and its first subject). One join, so the
+ * shape cannot drift per call site.
+ */
+export function selKeyOf(sel: Sel): string {
+  return LEVEL_KEYS.map((key) => sel[key]).join("|");
+}
+/**
  * One run of the option loop, with every request it makes and everything it
  * settled. The loop is the caller's because the chain is sequential: a pass is
  * built from the reply to the pass before it, so no cache can compute it ahead.

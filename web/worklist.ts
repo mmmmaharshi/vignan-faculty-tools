@@ -81,6 +81,15 @@ export function isFiltering(filter: RowFilter): boolean {
   );
 }
 /**
+ * Whether a row carries an overall figure to show: a percentage, or an
+ * attended-of-held count where the percentage itself never arrived. The one
+ * place the two fields' joint meaning lives, so the table column and the
+ * panel row cannot drift apart on what "has an overall" means.
+ */
+export function carriesOverall(s: RegisterReply["students"][number]): boolean {
+  return s.overallPct != null || s.overallAttendedOfHeld !== "";
+}
+/**
  * The figure a row is judged on, and the one the worklist is ordered by: the
  * subject figure, everywhere but the All subjects path. `overallMode` is the
  * All subjects path, which shows the overall percentage and no subject
