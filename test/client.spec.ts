@@ -562,15 +562,16 @@ test.describe("the app's own data layer", () => {
       page.getByRole("heading", { name: "Today's Attendance" })
     ).toBeVisible({ timeout: 15_000 });
     // The dropdown carries every branch the report named; the first one is
-    // chosen by default, so its pending period shows without a click.
+    // chosen by default, so its period boxes render without a click.
     await expect(page.getByRole("combobox")).toBeVisible();
-    await expect(page.getByText("Other Two", { exact: true })).toBeVisible();
-    await expect(page.getByText("III-B", { exact: true })).toBeVisible();
-    await expect(page.getByText("Some One", { exact: true })).toHaveCount(0);
-    // CSE (AI) posted everything: choosing it reads one line, no table.
+    // Period 1 is posted, period 2 is not: one filled box, the rest empty.
+    await expect(page.locator("div[style*='green']")).toHaveCount(1);
+    await expect(page.locator("div[style*='gray']")).toHaveCount(6);
+    // CSE (AI) posted its only period: choosing it shows one filled box.
     await page.getByRole("combobox").click();
     await page.getByRole("option", { name: "CSE (AI)" }).click();
-    await expect(page.getByText("All Posted", { exact: true })).toBeVisible();
+    await expect(page.locator("div[style*='green']")).toHaveCount(1);
+    await expect(page.locator("div[style*='gray']")).toHaveCount(6);
     expect(unpostedCalls, "one branch read per Home opening").toBe(1);
   });
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({

@@ -1,17 +1,17 @@
 import {
   Alert,
+  Center,
   Loader,
   Paper,
   Select,
+  SimpleGrid,
   Stack,
-  Table,
   Text,
   Title,
 } from "@mantine/core";
 import React, { useState } from "react";
 
 import type { DayWorkSection } from "../../shared/api";
-import { sectionShort } from "../format";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
@@ -24,8 +24,9 @@ export type UnpostedPanelProps = {
    *  an "all posted" line below. */
   note?: Note | null;
 };
-/** One branch's pending postings: each entry names its period, section, and
- *  the staff it waits on. A branch with none reads as one all-posted line. */
+/** One branch's pending postings shown as period boxes: filled when that
+ *  period's attendance is posted, empty otherwise. Seven slots, the campus
+ *  day's own shape, so a free slot is visible rather than implied. */
 const BranchPending = ({
   short,
   sections,
@@ -33,57 +34,41 @@ const BranchPending = ({
   short: string;
   sections: DayWorkSection[];
 }): React.JSX.Element => {
-  const pending = sections.flatMap((section) =>
-    section.cells
-      .filter((cell) => !cell.posted)
-      .map((cell) => ({
-        period: cell.period,
-        where: sectionShort(section.semester, section.section),
-        staff: cell.staff,
-      }))
-  );
+  // A period is posted only when every section the branch has for it is posted.
+  // A period with no cells at all is not posted — there is nothing to show
+  // filled for it.
+  const postedByPeriod = new Map<string, boolean>();
+  for (const section of sections) {
+    for (const cell of section.cells) {
+      const current = postedByPeriod.get(cell.period);
+      postedByPeriod.set(cell.period, (current ?? true) && cell.posted);
+    }
+  }
+  const periods = Array.from({ length: 7 }, (_, index) => String(index + 1));
   return (
     <Stack gap="xs">
       <Text fw={600}>{short}</Text>
-      {pending.length === 0 ? (
-        <Table striped withTableBorder tabularNums>
-          <Table.Tbody>
-            <Table.Tr>
-              <Table.Td>
-                <Text c="dimmed" size="sm">
-                  All Posted
+      <SimpleGrid cols={7} spacing="xs">
+        {periods.map((period) => {
+          const posted = postedByPeriod.get(period) === true;
+          return (
+            <Paper
+              key={period}
+              h={40}
+              p={0}
+              bg={posted ? "green.6" : "gray.1"}
+              withBorder
+              radius="sm"
+            >
+              <Center h={40}>
+                <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
+                  {period}
                 </Text>
-              </Table.Td>
-            </Table.Tr>
-          </Table.Tbody>
-        </Table>
-      ) : (
-        <Table striped highlightOnHover withTableBorder withColumnBorders>
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>Period</Table.Th>
-              <Table.Th>Section</Table.Th>
-              <Table.Th>Staff</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {pending.map((entry) => (
-              // The report states no identifiers; period plus section is key.
-              <Table.Tr key={`${entry.period}-${entry.where}`}>
-                <Table.Td>
-                  <Text fw={700}>{entry.period || "—"}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{entry.where}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="sm">{entry.staff || "—"}</Text>
-                </Table.Td>
-              </Table.Tr>
-            ))}
-          </Table.Tbody>
-        </Table>
-      )}
+              </Center>
+            </Paper>
+          );
+        })}
+      </SimpleGrid>
     </Stack>
   );
 };
