@@ -481,6 +481,8 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
         subject: "Digital Logic And Computer Organization",
         posted: false,
         staff: "MRS.G.MANI",
+        present: "",
+        absent: "",
       },
     ]);
     // A row with exactly one count still reads posted: every posted period

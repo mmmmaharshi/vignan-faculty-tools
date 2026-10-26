@@ -587,6 +587,8 @@ export function parseDayClassWork(
         subject: rowCells[1] ?? "",
         posted: isCount(present) || isCount(absent),
         staff: rowCells[2] ?? "",
+        present: isCount(present) ? present : "",
+        absent: isCount(absent) ? absent : "",
       });
     }
     sections.push({

@@ -352,8 +352,22 @@ const stub = async (route: Route): Promise<void> => {
           semester: "III Semester",
           section: "B",
           cells: [
-            { period: "1", subject: "MFCS", posted: true, staff: "Some One" },
-            { period: "2", subject: "SE", posted: false, staff: "Other Two" },
+            {
+              period: "1",
+              subject: "MFCS",
+              posted: true,
+              staff: "Some One",
+              present: "30",
+              absent: "5",
+            },
+            {
+              period: "2",
+              subject: "SE",
+              posted: false,
+              staff: "Other Two",
+              present: "",
+              absent: "",
+            },
           ],
         },
         {
@@ -367,6 +381,8 @@ const stub = async (route: Route): Promise<void> => {
               subject: "MFCS",
               posted: true,
               staff: "Third Person",
+              present: "28",
+              absent: "2",
             },
           ],
         },
@@ -684,6 +700,25 @@ test.describe("the app's own data layer", () => {
     await expect(dialog.getByText("Not posted yet")).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(dialog, "the modal closes again").toBeHidden();
+  });
+  test("a posted box opens its headcount beside the class", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await signIn(page);
+    await expect(
+      page.getByRole("heading", { name: "Today's Attendance" })
+    ).toBeVisible({ timeout: 15_000 });
+    // Period 1 posted with 30 present and 5 absent: the modal pairs the
+    // headcount with the class it belongs to.
+    await page.getByRole("button", { name: "Period 1, Section B" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("MFCS", { exact: true })).toBeVisible();
+    await expect(dialog.getByText("Posted", { exact: true })).toBeVisible();
+    await expect(
+      dialog.getByRole("row", { name: /Present\s*30/ })
+    ).toBeVisible();
+    await expect(dialog.getByRole("row", { name: /Absent\s*5/ })).toBeVisible();
   });
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({
     page,

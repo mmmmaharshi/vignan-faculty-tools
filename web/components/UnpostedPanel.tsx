@@ -136,6 +136,14 @@ const SlotDetails = ({
             },
             { label: "Staff", value: cell?.staff || "—" },
             { label: "Status", value: statusOf(cell) },
+            // Counts exist only where posted: an unposted period has no
+            // headcount to show, not a zero one.
+            ...(cell?.posted
+              ? [
+                  { label: "Present", value: cell.present || "—" },
+                  { label: "Absent", value: cell.absent || "—" },
+                ]
+              : []),
           ]}
         />
       )}
