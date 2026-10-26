@@ -13,7 +13,7 @@ import {
 import React from "react";
 
 import type { DayWorkSection } from "../../shared/api";
-import { PERIODS } from "../periods";
+import { PERIODS } from "../period-times";
 import type { Note } from "../types";
 
 export type UnpostedPanelProps = {
@@ -30,9 +30,73 @@ export type UnpostedPanelProps = {
   /** Called when the user picks a branch. */
   onBranchChange?: (branch: string | null) => void;
 };
-/** One branch's sections grouped by semester into cards: each section gets its
- *  own row of period boxes, filled when that period's attendance is posted,
- *  empty otherwise. */
+
+/** Branches named by the report, in first-seen order. */
+export function branchesOf(
+  sections: DayWorkSection[] | null | undefined
+): string[] {
+  const out: string[] = [];
+  for (const section of sections ?? []) {
+    if (!out.includes(section.branch)) out.push(section.branch);
+  }
+  return out;
+}
+
+/** Postedness per period for one section: a period is posted only when every
+ *  cell the section has for it is posted. */
+function postedByPeriod(cells: DayWorkSection["cells"]): Map<string, boolean> {
+  const map = new Map<string, boolean>();
+  for (const cell of cells) {
+    const current = map.get(cell.period);
+    map.set(
+      cell.period,
+      current === undefined ? cell.posted : current && cell.posted
+    );
+  }
+  return map;
+}
+
+const PeriodBox = ({
+  period,
+  posted,
+}: {
+  period: string;
+  posted: boolean;
+}): React.JSX.Element => (
+  <Paper h={40} p={0} bg={posted ? "green.6" : "gray.1"} withBorder radius="sm">
+    <Center h={40}>
+      <Text size="sm" fw={700} c={posted ? "white" : "dimmed"}>
+        {period}
+      </Text>
+    </Center>
+  </Paper>
+);
+
+const SectionBoxes = ({
+  section,
+}: {
+  section: DayWorkSection;
+}): React.JSX.Element => {
+  const posted = postedByPeriod(section.cells);
+  return (
+    <Stack gap="xs">
+      <Text fw={600} size="sm">
+        Section {section.section}
+      </Text>
+      <SimpleGrid cols={7} spacing="xs">
+        {PERIODS.map((period) => (
+          <PeriodBox
+            key={period}
+            period={period}
+            posted={posted.get(period) === true}
+          />
+        ))}
+      </SimpleGrid>
+    </Stack>
+  );
+};
+
+/** One branch's sections grouped by semester into cards. */
 const BranchPending = ({
   sections,
 }: {
@@ -50,55 +114,16 @@ const BranchPending = ({
         <Card key={semester} withBorder padding="sm" radius="sm">
           <Stack gap="md">
             <Text fw={700}>{semester}</Text>
-            {group.map((section) => {
-              const postedByPeriod = new Map<string, boolean>();
-              for (const cell of section.cells) {
-                const current = postedByPeriod.get(cell.period);
-                postedByPeriod.set(
-                  cell.period,
-                  current === undefined ? cell.posted : current && cell.posted
-                );
-              }
-              const periods = [...PERIODS];
-              return (
-                <Stack key={section.section} gap="xs">
-                  <Text fw={600} size="sm">
-                    Section {section.section}
-                  </Text>
-                  <SimpleGrid cols={7} spacing="xs">
-                    {periods.map((period) => {
-                      const posted = postedByPeriod.get(period) === true;
-                      return (
-                        <Paper
-                          key={period}
-                          h={40}
-                          p={0}
-                          bg={posted ? "green.6" : "gray.1"}
-                          withBorder
-                          radius="sm"
-                        >
-                          <Center h={40}>
-                            <Text
-                              size="sm"
-                              fw={700}
-                              c={posted ? "white" : "dimmed"}
-                            >
-                              {period}
-                            </Text>
-                          </Center>
-                        </Paper>
-                      );
-                    })}
-                  </SimpleGrid>
-                </Stack>
-              );
-            })}
+            {group.map((section) => (
+              <SectionBoxes key={section.section} section={section} />
+            ))}
           </Stack>
         </Card>
       ))}
     </Stack>
   );
 };
+
 export const UnpostedPanel = ({
   sections,
   busy,
@@ -106,16 +131,11 @@ export const UnpostedPanel = ({
   branch,
   onBranchChange,
 }: UnpostedPanelProps): React.JSX.Element => {
-  const branches: string[] = [];
-  if (sections) {
-    for (const section of sections) {
-      if (!branches.includes(section.branch)) branches.push(section.branch);
-    }
-  }
-  const inBranch = (b: string): DayWorkSection[] =>
-    sections ? sections.filter((s) => s.branch === b) : [];
+  const branches = branchesOf(sections);
   const shortOf = (b: string): string =>
     sections?.find((s) => s.branch === b)?.branchShort ?? b;
+  const inBranch = (b: string): DayWorkSection[] =>
+    sections ? sections.filter((s) => s.branch === b) : [];
   return (
     <Stack gap="md" mt="xl" pb="md">
       <Title order={4}>Today&apos;s Attendance</Title>

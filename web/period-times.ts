@@ -1,6 +1,14 @@
 import type { TodayClass } from "../shared/api";
 import { readStringMap, writeStringMap } from "./string-map-store";
 
+/** How many periods an ECAP day holds. The timetable and the pending-postings
+ *  boxes both name every slot of this length, so the count lives once. */
+export const PERIOD_COUNT = 7;
+export const PERIODS: readonly string[] = Array.from(
+  { length: PERIOD_COUNT },
+  (_, index) => String(index + 1)
+);
+
 /**
  * The hours the timetable has ever stated for a period, by period name:
  * `Period 1` → `08:45 AM- 09:35 AM`. Portal data, not personal data, so it

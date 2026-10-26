@@ -8,7 +8,7 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
 import { capitalCase, pillsOf, splitSubject } from "../format";
@@ -16,9 +16,9 @@ import {
   notePeriodTimes,
   readPeriodTimes,
   writePeriodTimes,
+  PERIOD_COUNT,
 } from "../period-times";
 import type { PeriodTimes } from "../period-times";
-import { PERIOD_COUNT } from "../periods";
 import type { Note } from "../types";
 
 export type HomePanelProps = {
@@ -135,7 +135,10 @@ export const HomePanel = ({
   // once they are gone. The hours are read back on every render rather than
   // captured once, so a read that arrives later in the same session cannot
   // fold into a stale snapshot and erase what an earlier read taught.
-  const known = notePeriodTimes(readPeriodTimes(), classes ?? []);
+  const known = useMemo(
+    () => notePeriodTimes(readPeriodTimes(), classes ?? []),
+    [classes]
+  );
   useEffect(() => {
     if (!classes) return;
     const prev = readPeriodTimes();

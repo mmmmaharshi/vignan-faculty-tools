@@ -419,6 +419,7 @@ const App = (): React.JSX.Element => {
       setOpts(EMPTY_OPTS);
       setFilter(NO_FILTER);
       setDetail(null);
+      setUnpostedBranch(null);
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
