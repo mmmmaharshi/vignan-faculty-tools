@@ -11,6 +11,7 @@ import type {
   RegisterRequest,
   SemAbsencesRequest,
   SessionReply,
+  SemStartRequest,
   StudentRequest,
 } from "../shared/api.js";
 import { SESSION_HEADER } from "../shared/api.js";
@@ -493,7 +494,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         );
       }
       if (req.method === "POST" && path === "/api/sem-start") {
-        const body = await readJson<RegisterRequest>(req);
+        const body = await readJson<SemStartRequest>(req);
         return json(
           await withPortal(s, (p) => handleSemStart(p.reader, body)),
           200,

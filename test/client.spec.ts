@@ -56,6 +56,12 @@ let semAbsencesCalls = 0;
 /** How often the All subjects view probed one subject's earliest held day —
  *  sent only on that path, where the report on screen states no dates. */
 let semStartCalls = 0;
+/** How often a settled picker without a remembered start walked back for one:
+ *  the settle-time probe, kept apart so the per-load probe keeps its count. */
+let walkCalls = 0;
+/** What the settle-time walk answers, or null for no start found. Reset for
+ *  each test, so only the test that names a walked start can see one. */
+let semStartWalkFrom: string | null = null;
 const profileRolls: string[] = [];
 /** How often Home asked for today's timetable — once per opening. */
 let todayCalls = 0;
@@ -250,6 +256,12 @@ const stub = async (route: Route): Promise<void> => {
     return;
   }
   if (path === "/api/sem-start") {
+    const walked = (request.postDataJSON() as { walkBack?: number }).walkBack;
+    if (walked) {
+      walkCalls += 1;
+      await json({ statedFrom: semStartWalkFrom });
+      return;
+    }
     semStartCalls += 1;
     await json({ statedFrom: "05/08/2026" });
     return;
@@ -428,6 +440,8 @@ test.describe("the app's own data layer", () => {
     registerFails = false;
     statedFrom = "";
     semStartCalls = 0;
+    walkCalls = 0;
+    semStartWalkFrom = null;
     semAbsencesCalls = 0;
     profileRolls.length = 0;
     absentAsked = false;
@@ -486,6 +500,22 @@ test.describe("the app's own data layer", () => {
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
+  });
+  test("the From input opens at the walked semester start, not the month", async ({
+    page,
+  }) => {
+    semStartWalkFrom = "20/06/2026";
+    await page.goto("/login");
+    await signIn(page);
+    // Sign-in settles the cascade, and the settled class has no remembered
+    // start, so the walk fires behind the landing screen and From opens at
+    // its answer instead of the first of the month.
+    await page.getByRole("button", { name: "Attendance" }).click();
+    await expect(
+      page.getByLabel("From"),
+      "From opens at the walked start"
+    ).toHaveValue("2026-06-20", { timeout: 15_000 });
+    expect(walkCalls, "one walk per settled class without a memory").toBe(1);
   });
   test("the rail names the register screen Attendance", async ({ page }) => {
     await signInAndSettle(page);

@@ -15,6 +15,7 @@ import type {
   SemAbsencesReply,
   SemAbsencesRequest,
   SemStartReply,
+  SemStartRequest,
   SessionReply,
   StudentProfile,
   StudentRequest,
@@ -233,10 +234,10 @@ export function useStudentSearch(click: FindClick | null) {
  * without it — except a 401, which still ends the session through the shared
  * failure sweep.
  */
-export function useSemStart(request: RegisterRequest | null) {
+export function useSemStart(request: SemStartRequest | null) {
   return useSWRImmutable<SemStartReply, ApiError>(
     request ? [SEM_START_PATH, request] : null,
-    ([, body]: [string, RegisterRequest]) =>
+    ([, body]: [string, SemStartRequest]) =>
       postJson<SemStartReply>(SEM_START_PATH, body)
   );
 }

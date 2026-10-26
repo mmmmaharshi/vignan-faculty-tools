@@ -403,6 +403,17 @@ carries one also has its name in text.
   in `localStorage`, keyed by the five levels plus the Portal's batch title),
   so a later From moves the figures but never the row. See ADR 0022.
 
+- **The From input opens at the walked semester start, not the month.** When
+  the cascade settles on a class with no remembered start, the app asks
+  `/api/sem-start` with `walkBack` before any register loads: the asked month
+  plus up to six before it, each a month-shaped read — the only shape ECAP
+  reliably answers — stopping at the first dateless month, and From opens at
+  the earliest day found. A class the memory already names probes nothing; a
+  range typed by hand wins over a probe that lands after it; a probe that
+  fails changes nothing, except a 401, which still signs out. `Load register`
+  stays the only caller of `/api/register`: the walk reads through
+  `/api/sem-start`, the same endpoint the row above already calls.
+
 - **A panel shows one absent list: the full semester's.** The Portal states only
   the days inside the window, so the panel reads the **same** read again over
   the remembered start and shows that answer alone — never the window's dates

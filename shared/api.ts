@@ -190,6 +190,16 @@ export interface SemAbsencesReply {
 export interface SemStartReply {
   statedFrom: string | null;
 }
+/** How far the settle-time semester-start probe walks back: the asked month
+ *  plus this many before it, each a month-shaped read — the only shape ECAP
+ *  reliably answers. */
+export const SEM_START_WALK_MONTHS = 6;
+/** A semester-start probe that walks back instead of reading one window:
+ *  `walkBack` names how many months before the asked one to read. Absent or
+ *  zero reads the asked window alone, exactly as before. */
+export interface SemStartRequest extends RegisterRequest {
+  walkBack?: number;
+}
 /** One leave type's per-stage counts, as the APPLY-SELF page's `showLeaves`
  *  reply states them. */
 export interface LeaveStatus {

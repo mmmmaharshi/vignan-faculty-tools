@@ -19,9 +19,10 @@ import type {
   RegisterReply,
   RegisterRequest,
   SemStartReply,
+  SemStartRequest,
   Student,
 } from "../shared/api";
-import { todayIST } from "../shared/api";
+import { SEM_START_WALK_MONTHS, todayIST } from "../shared/api";
 import {
   chosenLevels,
   isAllSubjects,
@@ -185,6 +186,11 @@ const App = (): React.JSX.Element => {
   /** The probe answer the All subjects snap already ran for (see below). A ref
    *  rather than state: it guards an effect and must never render. */
   const semSnapApplied = useRef<SemStartReply | null>(null);
+  /** The settle-time probe answer the From snap already ran for, and whether
+   *  the range was typed by hand: an explicit date wins over a probe that
+   *  lands after it. Both guard effects and must never render. */
+  const preSnapApplied = useRef<SemStartReply | null>(null);
+  const rangeEdited = useRef(false);
   /** Every fetch the app makes, through its own key. See `web/client.ts`. */
   const register = useRegisterLoad(click);
   /* The two callbacks are stable and the state is not, so they are taken apart:
@@ -261,6 +267,47 @@ const App = (): React.JSX.Element => {
   const [todayMemory, setTodayMemory] = useState<TodayMemory>(() =>
     readTodayMemory()
   );
+  /** The settle-time semester-start probe: the cascade just completed and this
+   *  class has no remembered start, so ECAP is asked — walking back — and From
+   *  opens at the answer instead of the first of the month. Gated on a
+   *  complete selection with a concrete subject: ALL SUBJECTS stands in its
+   *  first subject, the same approximation the probe above makes. A class the
+   *  memory already names probes nothing. */
+  const settled = chosenLevels(opts, sel);
+  const settledSubject = settled.ok ? settled.levels.subject : null;
+  const preProbeSubject =
+    settledSubject && isAllSubjects(settledSubject)
+      ? (opts.subject.find((o) => !isAllSubjects(o)) ?? null)
+      : settledSubject;
+  const preKey =
+    settled.ok && preProbeSubject
+      ? semStartKey(
+          { ...sel, subject: preProbeSubject.value },
+          opts.semester.find((o) => String(o.value) === sel.semester)?.title ??
+            ""
+        )
+      : null;
+  const preProbe: SemStartRequest | null =
+    settled.ok &&
+    preProbeSubject &&
+    preKey &&
+    !(semStarts[preKey] ?? null) &&
+    range.to
+      ? {
+          course: settled.levels.course,
+          semester: settled.levels.semester,
+          branch: settled.levels.branch,
+          section: settled.levels.section,
+          subject: preProbeSubject,
+          // The walk anchors at `to` and shapes its own months, so `from`
+          // travels as `to`: the snap must not rebuild the probe's own key,
+          // or every answer would ask the walk again.
+          from: toPortalDate(range.to),
+          to: toPortalDate(range.to),
+          walkBack: SEM_START_WALK_MONTHS,
+        }
+      : null;
+  const preSemStart = useSemStart(preProbe);
   const semKey =
     result &&
     sel.course &&
@@ -355,6 +402,7 @@ const App = (): React.JSX.Element => {
     today.error ??
     unposted.error ??
     semStart.error ??
+    preSemStart.error ??
     semAbsences.error;
   const filterNote: Note | null =
     formNote ?? refusalNote(optionsError ?? register.error, "error");
@@ -458,6 +506,9 @@ const App = (): React.JSX.Element => {
       cascadeRun.current?.abort();
       const run = new AbortController();
       cascadeRun.current = run;
+      // A new settle is a new class context: a range typed for the last one
+      // no longer guards From against the settle-time snap.
+      rangeEdited.current = false;
       setFormNote(null);
       const outcome = await triggerCascade({
         seed,
@@ -662,6 +713,20 @@ const App = (): React.JSX.Element => {
     rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
   }, [semStart.data, range]);
+  /** The settle-time snap: the walked start opens the From input before any
+   *  register loads, so an unknown class starts at its semester instead of
+   *  the month. Runs once per probe answer, and never over a manual edit —
+   *  an explicit date wins over a probe that lands after it. */
+  useEffect(() => {
+    const answer = preSemStart.data;
+    if (!answer?.statedFrom || answer === preSnapApplied.current) return;
+    preSnapApplied.current = answer;
+    if (rangeEdited.current) return;
+    const iso = toInputDate(answer.statedFrom);
+    if (!iso || iso === range.from) return;
+    rememberRangeStart(iso);
+    setRange((r) => ({ ...r, from: iso }));
+  }, [preSemStart.data, range]);
   /** Fold the window's first day into the earliest-start memory: without this a
    *  later From would move "Sem Start Date" forward to the window's first day
    *  instead of the semester's (the memory lives in `sem-starts.ts`). */
@@ -720,6 +785,7 @@ const App = (): React.JSX.Element => {
   };
   const onRangeChange = (part: "from" | "to", value: string) => {
     justLoaded.current = false;
+    rangeEdited.current = true;
     setRange((r) => ({ ...r, [part]: value }));
   };
   const saveClass = () => {

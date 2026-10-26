@@ -18,6 +18,7 @@ import type {
   Option,
   RegisterRequest,
   SemAbsencesRequest,
+  SemStartRequest,
 } from "../shared/api";
 import { ALL_SUBJECTS } from "../shared/api";
 
@@ -740,6 +741,79 @@ test.describe("the semester start probe", () => {
       (error: unknown) => error
     );
     expect((failure as HttpError).status).toBe(401);
+  });
+});
+const walkDated = (date: string): string => `<table>
+    <tr><th>Sl.No</th><th>Roll.No</th><th>Name</th><th>${date}</th><th>Attend/Held</th><th>%</th></tr>
+    <tr><td>1</td><td>21CS001</td><td>A</td><td>P</td><td>1/1</td><td>100</td></tr>
+  </table>`;
+const walked = (extra: Record<string, unknown> = {}): SemStartRequest => ({
+  ...levels({ from: "01/10/2026", to: "18/10/2026" }),
+  walkBack: 2,
+  ...extra,
+});
+test.describe("the semester start walk", () => {
+  const dateless =
+    "<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>" +
+    "<tr><td>1</td><td>21CS001</td><td>A Student</td><td>0/0</td><td>0</td></tr></table>";
+  const walking = (grids: Record<string, string>) => {
+    const { reader } = fake();
+    const months: { from: string; to: string }[] = [];
+    const walkingReader: PortalReader = {
+      ...reader,
+      register: (p) => {
+        months.push({ from: p.from, to: p.to });
+        return Promise.resolve(grids[p.from] ?? dateless);
+      },
+    };
+    return { reader: walkingReader, months };
+  };
+  test("walks back month by month to the first held day", async () => {
+    const { reader, months } = walking({
+      "01/10/2026": walkDated("12/10"),
+      "01/09/2026": walkDated("03/09"),
+    });
+    const reply = await handleSemStart(reader, walked());
+    expect(reply).toEqual({ statedFrom: "03/09/2026" });
+    // The asked month plus two before it, each a month-shaped read — and the
+    // dateless August stops the walk instead of being read past.
+    expect(months).toEqual([
+      { from: "01/10/2026", to: "31/10/2026" },
+      { from: "01/09/2026", to: "30/09/2026" },
+      { from: "01/08/2026", to: "31/08/2026" },
+    ]);
+  });
+  test("a dateless asked month states no start after one read", async () => {
+    const { reader, months } = walking({});
+    const reply = await handleSemStart(reader, walked());
+    expect(reply).toEqual({ statedFrom: null });
+    expect(months).toHaveLength(1);
+  });
+  test("no walkBack reads the asked window alone, unshaped", async () => {
+    const { reader, months } = walking({ "01/10/2026": walkDated("12/10") });
+    const reply = await handleSemStart(
+      reader,
+      levels({ from: "01/10/2026", to: "18/10/2026" })
+    );
+    expect(reply).toEqual({ statedFrom: "12/10/2026" });
+    expect(months).toEqual([{ from: "01/10/2026", to: "18/10/2026" }]);
+  });
+  test("the walk never exceeds twelve months back", async () => {
+    const { reader, months } = walking({});
+    const everDated: PortalReader = {
+      ...reader,
+      register: (p) => {
+        months.push({ from: p.from, to: p.to });
+        const [, mm] = p.from.split("/");
+        return Promise.resolve(walkDated(`15/${mm}`));
+      },
+    };
+    const reply = await handleSemStart(
+      everDated,
+      walked({ to: "18/10/2026", walkBack: 99 })
+    );
+    expect(months, "the asked month plus twelve before it").toHaveLength(13);
+    expect(reply).toEqual({ statedFrom: "15/10/2025" });
   });
 });
 test.describe("the full-semester absences read", () => {

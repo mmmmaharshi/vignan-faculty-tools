@@ -12,6 +12,7 @@ import type {
   SemAbsencesReply,
   SemAbsencesRequest,
   SemStartReply,
+  SemStartRequest,
   StudentProfile,
   StudentRequest,
   TodayClassesReply,
@@ -579,24 +580,76 @@ export async function handleFind(
   };
 }
 /**
+ * The semester's first held day, walking back month by month from the asked
+ * `to`: the asked month plus up to `steps` before it, each a month-shaped
+ * read — the only shape ECAP reliably answers, wide registers come back
+ * empty. The first month stating no meeting days stops the walk, and the
+ * earliest month stating any names the start. A whole break month with no
+ * meetings stops the walk early; accepted, the same trade the semester
+ * absences walk makes.
+ */
+async function walkSemStart(
+  portal: PortalReader,
+  p: Record<Level, Option>,
+  to: string,
+  steps: number
+): Promise<SemStartReply> {
+  const [, tm, ty] = to.split("/").map(Number);
+  if (!tm || !ty || tm > 12) throw new HttpError(400, "Choose a date range.");
+  let start: string | null = null;
+  let year = ty;
+  let month = tm;
+  for (let step = 0; step <= steps; step++) {
+    const mm = String(month).padStart(2, "0");
+    const window = {
+      from: `01/${mm}/${year}`,
+      to: `${new Date(year, month, 0).getDate()}/${mm}/${year}`,
+    };
+    // Only this month's own columns may name the start: the year attached
+    // below is this step's, and anything else is not this month to name. The
+    // comparison is numeric because the Portal is not trusted to zero-pad.
+    const dates = registerDates(
+      await portal.register({ ...p, ...window })
+    ).filter((c) => Number(c.split("/")[1]) === month);
+    if (!dates.length) break;
+    const [day] = (dates[0] ?? "").split("/");
+    start = `${day?.padStart(2, "0")}/${mm}/${year}`;
+    month -= 1;
+    if (month < 1) {
+      month = 12;
+      year -= 1;
+    }
+  }
+  return { statedFrom: start };
+}
+/**
  * One subject's earliest held day inside the asked window, for the All subjects
  * path whose own report states no dates at all. Reads that subject's register
  * grid and returns only its first date — never a roster — so the All subjects
  * view can name a start date without fetching a second register. Null where
  * the grid states no dates, which is not a clean sheet; a 401 still propagates
  * so a dead session signs out.
+ *
+ * With `walkBack` the read walks back instead: the asked month plus up to
+ * that many before it, for the settle-time probe that opens From at the
+ * semester rather than the month.
  */
 export async function handleSemStart(
   portal: PortalReader,
-  b: Partial<RegisterRequest>
+  b: Partial<SemStartRequest>
 ): Promise<SemStartReply> {
   if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
   const p = requireLevels(b);
-  const dates = registerDates(
-    await portal.register({ ...p, from: b.from, to: b.to })
-  );
-  if (!dates.length) return { statedFrom: null };
-  return { statedFrom: statedStartDate(dates, { from: b.from, to: b.to }) };
+  const steps =
+    b.walkBack && b.walkBack > 0 ? Math.min(Math.floor(b.walkBack), 12) : 0;
+  if (!steps) {
+    const dates = registerDates(
+      await portal.register({ ...p, from: b.from, to: b.to })
+    );
+    if (!dates.length) return { statedFrom: null };
+    return { statedFrom: statedStartDate(dates, { from: b.from, to: b.to }) };
+  }
+  return walkSemStart(portal, p, b.to, steps);
 }
 /**
  * One student's absent days over a wider window than the register on screen —
