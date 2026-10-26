@@ -1,4 +1,5 @@
 import {
+  ActionIcon,
   AppShell,
   Button,
   Container,
@@ -906,15 +907,16 @@ const App = (): React.JSX.Element => {
         <Group h="100%" px="md" align="center" gap="sm" justify="space-between">
           <Title order={3}>Vignan Faculty Tools</Title>
           {screen === "app" ? (
-            <Button
+            <ActionIcon
               onClick={refreshScreen}
               loading={refreshing}
               disabled={busy}
               variant="default"
-              leftSection={<ArrowClockwise size={18} aria-hidden />}
+              size="lg"
+              aria-label="Refresh"
             >
-              Refresh
-            </Button>
+              <ArrowClockwise size={18} aria-hidden />
+            </ActionIcon>
           ) : null}
         </Group>
       </AppShell.Header>

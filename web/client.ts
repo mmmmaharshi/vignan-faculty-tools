@@ -337,7 +337,7 @@ export const forgetServerData = (): Promise<unknown> =>
  *  register is deliberately absent — the click stays its only fetch
  *  (ADR 0015) — and so are the login, logout, and options-chain mutation
  *  keys, which hold no screen read to revalidate. */
-const REFRESHABLE_PATHS: readonly string[] = new Set([
+const REFRESHABLE_PATHS: ReadonlySet<string> = new Set([
   SESSION_PATH,
   STUDENT_PATH,
   FIND_PATH,
