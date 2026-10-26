@@ -41,7 +41,7 @@ import type { Level, Range, Sel } from "./cascade";
 import {
   clearStoredSession,
   forgetServerData,
-  refreshServerData,
+  revalidateServerData,
   isExpired,
   messageOf,
   reloadSession,
@@ -61,6 +61,7 @@ import { ClassPicker } from "./components/ClassPicker";
 import { HomePanel } from "./components/HomePanel";
 import {
   BarNav,
+  DASHBOARD_PATH,
   HOME_PATH,
   LOGIN_PATH,
   PROFILE_PATH,
@@ -103,9 +104,10 @@ const App = (): React.JSX.Element => {
   const onHome = pathname === HOME_PATH;
   const onProfile = pathname === PROFILE_PATH;
   const onSearch = pathname === SEARCH_PATH;
-  /** The dashboard is the screen with the picker: every other app screen is
-   *  named above, and `/` renders its body before the guard sends it on. */
-  const onDashboard = !onLogin && !onHome && !onProfile && !onSearch;
+  /** The dashboard is the default tab: any path no tab names renders its
+   *  body, so the default lives once in `activeTab`, not in a second
+   *  negation of the named paths here. */
+  const onDashboard = activeTab(pathname) === DASHBOARD_PATH;
   const [booted, setBooted] = useState(false);
   const [signedIn, setSignedIn] = useState(false);
   const [userId, setUserId] = useState("");
@@ -447,7 +449,7 @@ const App = (): React.JSX.Element => {
     setRefreshing(true);
     try {
       if (onDashboard) await runRefresh(sel, opts);
-      await refreshServerData();
+      await revalidateServerData();
     } finally {
       setRefreshing(false);
     }

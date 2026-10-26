@@ -332,17 +332,19 @@ export function useSignOut() {
  */
 export const forgetServerData = (): Promise<unknown> =>
   mutate(isServerKey, undefined, { revalidate: false });
+/** Every server key a refresh may re-read: all of them but the register, so
+ *  the sweep above and the refresh below cannot drift apart on the exclusion. */
+const isRefreshableKey = (
+  key: unknown
+): key is string | [string, ...unknown[]] =>
+  isServerKey(key) &&
+  (typeof key === "string" ? key : key[0]) !== REGISTER_PATH;
 /**
- * Re-reads what the screens show, in place: every `/api/` key revalidates
- * except the register — a register stays a decision (ADR 0015), so the click
- * is still the only way one is ever fetched. The cascade re-runs from its
- * own caller beside this, where a picker is on screen to settle it.
+ * Re-reads what the screens show, in place: every refreshable key (all
+ * `/api/` keys but the register) revalidates. A register stays a decision
+ * (ADR 0015), so the click is still the only way one is ever fetched. The
+ * cascade re-runs from its own caller beside this, where a picker is on
+ * screen to settle it.
  */
-export const refreshServerData = (): Promise<unknown> =>
-  mutate(
-    (key) =>
-      isServerKey(key) &&
-      (typeof key === "string" ? key : key[0]) !== REGISTER_PATH,
-    undefined,
-    { revalidate: true }
-  );
+export const revalidateServerData = (): Promise<unknown> =>
+  mutate(isRefreshableKey, undefined, { revalidate: true });
