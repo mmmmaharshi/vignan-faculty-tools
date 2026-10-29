@@ -1,0 +1,12 @@
+/* Scoutie Sans, latin only. Fontsource publishes no per-subset stylesheet for
+   this package — its index.css ships latin-ext and vietnamese beside latin —
+   so the one face is declared here rather than importing all three. The path
+   reaches into the package because there is no exported latin-only entry. */
+@font-face {
+  font-family: "Scoutie Sans Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 200 800;
+  src: url("../node_modules/@fontsource-variable/scoutie-sans/files/scoutie-sans-latin-wght-normal.woff2")
+    format("woff2-variations");
+}
