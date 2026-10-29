@@ -17,7 +17,7 @@ export const SEARCH_PATH = "/search";
  *  miss the bar: the two surfaces differ only in chrome, never in content. */
 const TABS: readonly { path: string; label: string; Icon: Icon }[] = [
   { path: HOME_PATH, label: "Home", Icon: House },
-  { path: DASHBOARD_PATH, label: "Attendance", Icon: CalendarCheck },
+  { path: DASHBOARD_PATH, label: "Register", Icon: CalendarCheck },
   { path: SEARCH_PATH, label: "Student Search", Icon: MagnifyingGlass },
   { path: PROFILE_PATH, label: "Profile", Icon: UserCircle },
 ];

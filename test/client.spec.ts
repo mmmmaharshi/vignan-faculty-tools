@@ -444,11 +444,11 @@ async function signIn(page: Page): Promise<void> {
     .toBe("/home");
 }
 /** Signed in, with the cascade settled on the stub's first class. Sign-in lands
- *  on Home now, so settling is observed over on the Attendance screen. */
+ *  on Home now, so settling is observed over on the Register screen. */
 async function signInAndSettle(page: Page): Promise<void> {
   await page.goto("/login");
   await signIn(page);
-  await page.getByRole("button", { name: "Attendance" }).click();
+  await page.getByRole("button", { name: "Register", exact: true }).click();
   await expect
     .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
     .toBe("ALL SUBJECTS");
@@ -514,7 +514,7 @@ test.describe("the app's own data layer", () => {
     optionsFailCount = 2;
     await page.goto("/login");
     await signIn(page);
-    await page.getByRole("button", { name: "Attendance" }).click();
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     await expect(
       page.getByText("ECAP did not answer the course list", { exact: false })
     ).toBeVisible({ timeout: 15_000 });
@@ -534,7 +534,7 @@ test.describe("the app's own data layer", () => {
     // Sign-in settles the cascade, and the settled class has no remembered
     // start, so the walk fires behind the landing screen and From opens at
     // its answer instead of the first of the month.
-    await page.getByRole("button", { name: "Attendance" }).click();
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     await expect(
       page.getByLabel("From"),
       "From opens at the walked start"
@@ -563,13 +563,13 @@ test.describe("the app's own data layer", () => {
     ).toHaveValue("2026-08-05", { timeout: 15_000 });
     expect(walkCalls, "no second walk for a known class").toBe(1);
   });
-  test("the rail names the register screen Attendance", async ({ page }) => {
+  test("the rail names the register screen Register", async ({ page }) => {
     await signInAndSettle(page);
     await expect(
-      page.getByRole("button", { name: "Attendance" })
+      page.getByRole("button", { name: "Register", exact: true })
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Dashboard" }),
+      page.getByRole("button", { name: "Attendance", exact: true }),
       "the old name is gone, not duplicated"
     ).toHaveCount(0);
   });
@@ -609,12 +609,12 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("tbody tr[style*='blue-light']")).toHaveCount(1);
     expect(todayCalls, "one read per opening").toBe(1);
     expect(registerCalls, "and the register waits for its click").toBe(0);
-    // Attendance keeps its own screen one tab over.
+    // The register keeps its own screen one tab over.
     await page.getByRole("button", { name: "Home" }).click();
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
       .toBe("/home");
-    await page.getByRole("button", { name: "Attendance" }).click();
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
       .toBe("/dashboard");
@@ -1361,7 +1361,7 @@ test.describe("the app's own data layer", () => {
     await page.goto("/dashboard");
     await signIn(page);
     // Sign-in lands on Home now; the cascade's selects live one tab over.
-    await page.getByRole("button", { name: "Attendance" }).click();
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
@@ -1390,7 +1390,7 @@ test.describe("the app's own data layer", () => {
     registerFails = false;
     optionsCalls = 0;
     await signIn(page);
-    await page.getByRole("button", { name: "Attendance" }).click();
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
@@ -1434,7 +1434,7 @@ test.describe("the app's own data layer", () => {
     await page.goto("/login");
     await page.evaluate(() => localStorage.removeItem("section-faculty"));
     await signIn(page);
-    await page.getByRole("button", { name: "Attendance" }).click();
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
