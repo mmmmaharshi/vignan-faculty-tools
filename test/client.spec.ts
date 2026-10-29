@@ -563,13 +563,15 @@ test.describe("the app's own data layer", () => {
     ).toHaveValue("2026-08-05", { timeout: 15_000 });
     expect(walkCalls, "no second walk for a known class").toBe(1);
   });
+  // `exact` on the tab's own name: the same screen's "Load register" answers
+  // to the substring, so an inexact locator is two buttons.
   test("the rail names the register screen Register", async ({ page }) => {
     await signInAndSettle(page);
     await expect(
       page.getByRole("button", { name: "Register", exact: true })
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "Attendance", exact: true }),
+      page.getByRole("button", { name: "Attendance" }),
       "the old name is gone, not duplicated"
     ).toHaveCount(0);
   });
@@ -755,6 +757,10 @@ test.describe("the app's own data layer", () => {
       page.getByRole("button", { name: "Show the navigation" })
     ).toHaveCount(0);
     const bar = page.locator(".mantine-AppShell-footer");
+    await expect(
+      bar.getByRole("button", { name: "Register" }),
+      "the bar carries the same name the rail does"
+    ).toHaveCount(1);
     await bar.getByRole("button", { name: "Profile" }).click();
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })
