@@ -38,8 +38,13 @@ import type { CascadeOutcome, CascadeSetup } from "./cascade";
 /** How often a session that is just sitting there is asked whether it still
  *  works. Not an expiry — the stored session's own `at` is thirty days of not
  *  using it — but the check that a session ECAP has dropped shows up while
- *  someone is working rather than at their next request. */
-export const SESSION_PROBE_MS = 5 * 60_000;
+ *  someone is working rather than at their next request.
+ *
+ *  A quarter of an hour, not five minutes: this is the one request an idle tab
+ *  makes, so its interval is the app's bill on a serverless host. A dead
+ *  session is still noticed a quarter-hour in, and the probe pauses while a
+ *  request is in flight or the sign-in screen is up. */
+export const SESSION_PROBE_MS = 15 * 60_000;
 const SESSION_PATH = "/api/session";
 const REGISTER_PATH = "/api/register";
 const STUDENT_PATH = "/api/student";
