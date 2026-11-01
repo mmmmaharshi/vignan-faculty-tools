@@ -43,6 +43,32 @@ const aroundNow = (at: number): string =>
  *  for so far. Reset for each test. */
 let signedIn = false;
 let sessionCalls = 0;
+/** When true, session reads are held for the test to answer: a probe already
+ *  in flight while the user signs out, whose answer lands after the clear. */
+let hangSession = false;
+let heldSession: { route: Route; wasIn: boolean } | null = null;
+/** The slid session an answer carries, the way the real server sends it. */
+const sessionAnswer = (
+  wasIn: boolean
+): { headers: Record<string, string>; body: string } => ({
+  headers: wasIn
+    ? {
+        [SESSION_HEADER]: Buffer.from(
+          JSON.stringify({
+            userId: "faculty",
+            password: "secret",
+            cookies: [["frmAuth", "ok"]],
+            at: Date.now(),
+          }),
+          "utf-8"
+        ).toString("base64url"),
+      }
+    : {},
+  body: JSON.stringify({
+    signedIn: wasIn,
+    userId: wasIn ? "faculty" : "",
+  }),
+});
 let optionsCalls = 0;
 /** The next that many `/api/options` calls answer 502, then answer again:
  *  consecutive portal failures, the way ECAP fails from the server. The loop
@@ -202,9 +228,21 @@ const stub = async (route: Route): Promise<void> => {
     });
   if (path === "/api/session") {
     sessionCalls += 1;
-    await json({
-      signedIn,
-      userId: signedIn ? "faculty" : "",
+    // Read now: a held answer belongs to the session that asked for it, not
+    // to whatever signed in or out while it was in flight.
+    const wasIn = signedIn;
+    if (hangSession) {
+      heldSession = { route, wasIn };
+      return;
+    }
+    // Like the real server, every answer carries the slid session back, so
+    // the browser stores it — including one that lands after a sign-out.
+    const answer = sessionAnswer(wasIn);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: answer.headers,
+      body: answer.body,
     });
     return;
   }
@@ -475,6 +513,8 @@ test.describe("the app's own data layer", () => {
   test.beforeEach(async ({ page }) => {
     signedIn = false;
     sessionCalls = 0;
+    hangSession = false;
+    heldSession = null;
     optionsCalls = 0;
     optionsFailCount = 0;
     optionsFailAfterFirst = false;
@@ -1448,6 +1488,52 @@ test.describe("the app's own data layer", () => {
     ).toHaveCount(0);
   });
 
+  test("a session answer landing after sign-out is dropped, not stored", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    // A probe already in flight while the user signs out.
+    hangSession = true;
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect
+      .poll(() => sessionCalls, { timeout: 15_000 })
+      .toBeGreaterThan(2);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+    expect(
+      await page.evaluate(
+        (key) => localStorage.getItem(key),
+        SESSION_STORE_KEY
+      ),
+      "sign-out clears what the probe has not yet answered"
+    ).toBeNull();
+    // The held answer lands now, carrying a session to store.
+    const held = heldSession;
+    heldSession = null;
+    hangSession = false;
+    const landed = page.waitForResponse("**/api/session", { timeout: 15_000 });
+    const answer = sessionAnswer(held?.wasIn ?? false);
+    await held?.route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: answer.headers,
+      body: answer.body,
+    });
+    await landed;
+    expect(
+      await page.evaluate(
+        (key) => localStorage.getItem(key),
+        SESSION_STORE_KEY
+      ),
+      "a response from before the sign-out must not resurrect it"
+    ).toBeNull();
+    await page.reload();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+  });
   test("the session is kept locally, and sign-out drops it", async ({
     page,
   }) => {

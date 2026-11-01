@@ -506,7 +506,11 @@ carries one also has its name in text.
   one; `signedOut` in `App.tsx` clears storage beside the cache sweep. There is
   no server-side eviction because there is nothing server-side to evict — a 401
   from signing in is about the password just typed, and any other 401 is about
-  the session the request carried.
+  the session the request carried. An answer only slides the session its own
+  request set out with: clearing bumps an epoch, so a response already in
+  flight across a sign-out lands on a stale epoch and is dropped instead of
+  logging the next visit back in. Reads are keyed under the same generation,
+  so a late body cannot reach a hook either.
 - **The ECAP password lives in localStorage in the clear.** Deliberate,
   user-accepted: it is what lets the server keep nothing and still revive a
   dead portal session without asking again. Anyone holding the browser's

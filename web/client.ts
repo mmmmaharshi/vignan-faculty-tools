@@ -100,8 +100,21 @@ const saveStoredSession = (encoded: string): void => {
     // request still works, the next visit signs in again.
   }
 };
+/** Rises every time the stored session is dropped, so a response that was
+ *  already in flight cannot store back a session the screen just ended. */
+let sessionEpoch = 0;
+/**
+ * Every server read is keyed under the session generation that asked for it:
+ * an answer landing after a sign-out populates a key no screen reads, so a
+ * stale body cannot reach a hook either. The generation rises with the
+ * storage clear, and every screen re-renders on the session flip beside it.
+ * Mutation keys stay bare: their state is reset in `signedOut`, and the
+ * options chain always re-asks rather than reading its cache.
+ */
+type ServerKey = [string, ...unknown[]];
 /** Drops the stored session. Signing out is this and the cache sweep. */
 export const clearStoredSession = (): void => {
+  sessionEpoch += 1;
   try {
     localStorage.removeItem(SESSION_STORE_KEY);
   } catch {
@@ -110,9 +123,12 @@ export const clearStoredSession = (): void => {
 };
 /** The server's own sentence for a request it refused, or the status when it
  *  sent no sentence with it. */
-async function read<T>(res: Response): Promise<T> {
+async function read<T>(res: Response, epoch: number): Promise<T> {
   const slid = res.headers.get(SESSION_HEADER);
-  if (slid) saveStoredSession(slid);
+  // Only the session this request set out with may slide: an answer that was
+  // in flight across a sign-out belongs to the ended session, not the empty
+  // shelf, and storing it would log the next visit back in.
+  if (slid && epoch === sessionEpoch) saveStoredSession(slid);
   if (res.status === 204) return {} as T;
   const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
@@ -131,10 +147,13 @@ const withSession = (init: RequestInit): RequestInit => {
     headers: { ...init.headers, [SESSION_HEADER]: stored },
   };
 };
-export const getJson = async <T>(path: string): Promise<T> =>
-  read<T>(await fetch(path, withSession({})));
-export const postJson = async <T>(path: string, body?: unknown): Promise<T> =>
-  read<T>(
+export const getJson = async <T>(path: string): Promise<T> => {
+  const epoch = sessionEpoch;
+  return read<T>(await fetch(path, withSession({})), epoch);
+};
+export const postJson = async <T>(path: string, body?: unknown): Promise<T> => {
+  const epoch = sessionEpoch;
+  return read<T>(
     await fetch(
       path,
       withSession(
@@ -146,8 +165,10 @@ export const postJson = async <T>(path: string, body?: unknown): Promise<T> =>
               body: JSON.stringify(body),
             }
       )
-    )
+    ),
+    epoch
   );
+};
 /**
  * The session, which is both "is anyone signed in" and "do they still work".
  *
@@ -157,22 +178,28 @@ export const postJson = async <T>(path: string, body?: unknown): Promise<T> =>
  * answer decides whether to show a form or a dashboard.
  */
 export function useSession(paused: boolean) {
-  return useSWR<SessionReply, ApiError>(SESSION_PATH, getJson, {
-    refreshInterval: paused ? 0 : SESSION_PROBE_MS,
-    revalidateOnFocus: !paused,
-    revalidateOnReconnect: !paused,
-    /* SWR measures its focus window from when the *key* last changed, and this
-       key never does — so the window would be measured from the mount. A deep
-       link to /dashboard mounts the hook signed out, with focus revalidation
-       already on, and would then swallow the first five seconds of probes. */
-    focusThrottleInterval: 0,
-    /** The interval is the retry; a failed read starts no second one behind it. */
-  });
+  return useSWR<SessionReply, ApiError>(
+    [SESSION_PATH, sessionEpoch],
+    ([path]: ServerKey) => getJson<SessionReply>(path as string),
+    {
+      refreshInterval: paused ? 0 : SESSION_PROBE_MS,
+      revalidateOnFocus: !paused,
+      revalidateOnReconnect: !paused,
+      /* SWR measures its focus window from when the *key* last changed, and
+         this key changes only on sign-out, while the hook is paused — so the
+         window is still measured from the mount in every case that probes. A
+         deep link to /dashboard mounts the hook signed out, with focus
+         revalidation already on, and would then swallow the first five
+         seconds of probes. */
+      focusThrottleInterval: 0,
+      /** The interval is the retry; a failed read starts no second one behind it. */
+    }
+  );
 }
 /** However the server has just described the session, this is what it said. Used
  *  after a sign-in, so the app never has to write the session down itself. */
 export const reloadSession = (): Promise<SessionReply | undefined> =>
-  mutate<SessionReply>(SESSION_PATH);
+  mutate<SessionReply>([SESSION_PATH, sessionEpoch]);
 /** One click on `Load register`: the request, and which click it was. */
 export type RegisterClick = { request: RegisterRequest; attempt: number };
 /**
@@ -187,9 +214,9 @@ export type RegisterClick = { request: RegisterRequest; attempt: number };
  */
 export function useRegisterLoad(click: RegisterClick | null) {
   return useSWRImmutable<RegisterReply, ApiError>(
-    click ? [REGISTER_PATH, click.request, click.attempt] : null,
-    ([, request]: [string, RegisterRequest]) =>
-      postJson<RegisterReply>(REGISTER_PATH, request)
+    click ? [REGISTER_PATH, click.request, click.attempt, sessionEpoch] : null,
+    ([, request]: ServerKey) =>
+      postJson<RegisterReply>(REGISTER_PATH, request as RegisterRequest)
   );
 }
 /**
@@ -208,9 +235,9 @@ export function useStudentProfile(asked: StudentRequest | null) {
   // behind the cached one. The globals already silence focus, reconnect and
   // retries, so only the dedupe window is local.
   return useSWR<StudentProfile, ApiError>(
-    asked ? [STUDENT_PATH, asked] : null,
-    ([, body]: [string, StudentRequest]) =>
-      postJson<StudentProfile>(STUDENT_PATH, body)
+    asked ? [STUDENT_PATH, asked, sessionEpoch] : null,
+    ([, body]: ServerKey) =>
+      postJson<StudentProfile>(STUDENT_PATH, body as StudentRequest)
   );
 }
 /**
@@ -227,8 +254,8 @@ export interface FindClick {
 }
 export function useStudentSearch(click: FindClick | null) {
   return useSWRImmutable<FindReply, ApiError>(
-    click ? [FIND_PATH, click.request, click.attempt] : null,
-    ([, body]: [string, FindRequest]) => postJson<FindReply>(FIND_PATH, body)
+    click ? [FIND_PATH, click.request, click.attempt, sessionEpoch] : null,
+    ([, body]: ServerKey) => postJson<FindReply>(FIND_PATH, body as FindRequest)
   );
 }
 /**
@@ -241,9 +268,9 @@ export function useStudentSearch(click: FindClick | null) {
  */
 export function useSemStart(request: SemStartRequest | null) {
   return useSWRImmutable<SemStartReply, ApiError>(
-    request ? [SEM_START_PATH, request] : null,
-    ([, body]: [string, SemStartRequest]) =>
-      postJson<SemStartReply>(SEM_START_PATH, body)
+    request ? [SEM_START_PATH, request, sessionEpoch] : null,
+    ([, body]: ServerKey) =>
+      postJson<SemStartReply>(SEM_START_PATH, body as SemStartRequest)
   );
 }
 /**
@@ -256,15 +283,16 @@ export function useSemStart(request: SemStartRequest | null) {
  */
 export function useSemAbsences(asked: SemAbsencesRequest | null) {
   return useSWRImmutable<SemAbsencesReply, ApiError>(
-    asked ? [SEM_ABSENCES_PATH, asked] : null,
-    ([, body]: [string, SemAbsencesRequest]) =>
-      postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body)
+    asked ? [SEM_ABSENCES_PATH, asked, sessionEpoch] : null,
+    ([, body]: ServerKey) =>
+      postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body as SemAbsencesRequest)
   );
 }
-/** A screen-opened read with no parameters: the key is the path, so sign-out
- *  sweeps it, and reopening refreshes it behind the cached answer. */
+/** A screen-opened read with no parameters: keyed under the path and the
+ *  session generation, so a late answer populates a key no screen reads and
+ *  reopening refreshes behind the cached answer. */
 function usePostOnOpen<T>(path: string, enabled: boolean) {
-  return useSWR<T, ApiError>(enabled ? path : null, () =>
+  return useSWR<T, ApiError>(enabled ? [path, sessionEpoch] : null, () =>
     postJson<T>(path, {})
   );
 }
