@@ -13,6 +13,7 @@ import {
   chosenFacts,
   chosenLevels,
   defaultRange,
+  partialOf,
   probeSubject,
   rememberRangeStart,
   resetFor,
@@ -146,6 +147,16 @@ const statedTail = (statedFrom: string, semStart?: string): ChosenFact[] => {
     facts.findIndex((fact) => fact.label.startsWith("Date Range"))
   );
 };
+/** The reply for a run whose first pass settles the course and nothing else:
+ *  every later pass fails, so the run must carry this on its error. */
+const courseOnlyReply = (): OptionsReply =>
+  reply({
+    course: ["1"],
+    semester: [],
+    branch: [],
+    section: [],
+    subject: [],
+  });
 /** The reply for a selection the Portal agrees with: every level offered. */
 const fullReply = (): OptionsReply =>
   reply({
@@ -1398,6 +1409,29 @@ test.describe("the cascade's option loop", () => {
       "the failed pass is re-asked, not the run restarted"
     ).toBe(2);
     expect(outcome?.sel).toEqual(SETTLED);
+  });
+  test("a run that fails after settling carries what arrived, on the error", async () => {
+    const runs: OptionsRequest[] = [];
+    const failure = await runCascade(
+      { seed: sel(), known: nothing },
+      // Async so the settled reply needs no Promise.resolve wrapper; the
+      // await is the tick that keeps it that way.
+      async (request) => {
+        runs.push(request);
+        await Promise.resolve();
+        if (runs.length > 1) {
+          throw new ApiError(502, "ECAP stumbled");
+        }
+        return courseOnlyReply();
+      }
+    ).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(ApiError);
+    const partial = partialOf(failure);
+    expect(
+      partial?.sel.course,
+      "the course that arrived stays chosen beside the error"
+    ).toBe("1");
+    expect(partial?.opts.course.map((o) => o.value)).toEqual(["1"]);
   });
   test("a pass that keeps stumbling fails the run after its retry", async () => {
     const runs: OptionsRequest[] = [];

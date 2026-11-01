@@ -205,6 +205,17 @@ export type CascadeSetup = {
  * rejects with an abort the caller would have to tell apart from a failure.
  */
 /**
+ * The progress a failed run had made when it failed, read off the error it
+ * threw. The screen shows what arrived beside the failure rather than five
+ * empty selects, and a retry settles from there. Null where the run failed
+ * before anything arrived — a first pass failing leaves nothing to keep,
+ * which is the old behaviour exactly.
+ */
+export function partialOf(error: unknown): CascadeOutcome | null {
+  if (typeof error !== "object" || error === null) return null;
+  return (error as { partial?: CascadeOutcome }).partial ?? null;
+}
+/**
  * Whether asking again could change the answer: anything but a judged
  * client error. A refused session (401) and its 4xx siblings were already
  * judged — re-asking cannot change the answer, and the 401 must reach the
@@ -243,35 +254,50 @@ export async function runCascade(
   let draft = { ...seed };
   let opts = known;
   const names = new Map<string, string>();
-  for (const _pass of LEVEL_KEYS) {
-    if (signal?.aborted) return null;
-    const semesterTitle = draft.semester
-      ? opts.semester.find((o) => String(o.value) === String(draft.semester))
-          ?.title
-      : undefined;
-    const before = draft;
-    const reply = await fetchWithOneRetry(
-      fetchOptions,
-      {
-        course: draft.course || undefined,
-        semester: draft.semester || undefined,
-        semesterTitle,
-        branch: draft.branch || undefined,
-        section: draft.section || undefined,
-      },
-      signal
-    );
-    if (signal?.aborted) return null;
-    for (const option of reply.subject) {
-      if (isAllSubjects(option)) continue;
-      names.set(
-        subjectNameKey(draft.section, String(option.value)),
-        option.label
+  try {
+    for (const _pass of LEVEL_KEYS) {
+      if (signal?.aborted) return null;
+      const semesterTitle = draft.semester
+        ? opts.semester.find((o) => String(o.value) === String(draft.semester))
+            ?.title
+        : undefined;
+      const before = draft;
+      const reply = await fetchWithOneRetry(
+        fetchOptions,
+        {
+          course: draft.course || undefined,
+          semester: draft.semester || undefined,
+          semesterTitle,
+          branch: draft.branch || undefined,
+          section: draft.section || undefined,
+        },
+        signal
       );
+      if (signal?.aborted) return null;
+      for (const option of reply.subject) {
+        if (isAllSubjects(option)) continue;
+        names.set(
+          subjectNameKey(draft.section, String(option.value)),
+          option.label
+        );
+      }
+      draft = applyOptions(draft, reply);
+      opts = reply;
+      if (!shouldContinue(draft, before, reply)) break;
     }
-    draft = applyOptions(draft, reply);
-    opts = reply;
-    if (!shouldContinue(draft, before, reply)) break;
+  } catch (error) {
+    // The same error the run would have thrown, carrying what arrived: its
+    // status and message still decide the sign-out sweep and the alert, so
+    // neither is wrapped nor renamed — the screen just keeps the settled
+    // levels beside the failure instead of discarding them with the run.
+    if (typeof error === "object" && error !== null) {
+      (error as { partial?: CascadeOutcome }).partial = {
+        sel: { ...draft },
+        opts,
+        names: new Map(names),
+      };
+    }
+    throw error;
   }
   return { sel: draft, opts, names };
 }

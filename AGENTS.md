@@ -685,7 +685,10 @@ fill is a rule bug, two requests racing is a loop bug.
   loop itself: one stumble per pass is asked again before the run fails,
   because one failed call used to fail all five passes behind it. A judged
   4xx is answered, never re-asked — the 401 still reaches the sign-out sweep
-  at once, and re-asking any judged request cannot change its answer.
+  at once, and re-asking any judged request cannot change its answer. A run
+  that fails after settling keeps what arrived on screen beside the error —
+  the course pass 1 fetched is not discarded with the failed branch pass —
+  and the retry settles from there.
 
 ## The data layer
 

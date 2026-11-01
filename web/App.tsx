@@ -27,6 +27,7 @@ import {
   isAllSubjects,
   chosenFacts,
   disabledLevels,
+  partialOf,
   rememberRangeStart,
   selectionAfter,
   startingRange,
@@ -423,7 +424,21 @@ const App = (): React.JSX.Element => {
         seed,
         known,
         signal: run.signal,
-      }).catch(() => null);
+      }).catch((error: unknown) => {
+        // A run that failed after settling keeps what arrived on screen
+        // beside the failure, so fetched courses are not discarded with the
+        // failed pass. The error itself still reaches the alert and the
+        // sign-out sweep unchanged.
+        const partial = partialOf(error);
+        if (partial && !run.signal.aborted) {
+          setSel(partial.sel);
+          setOpts(partial.opts);
+          setSubjectNames(
+            (previous) => new Map([...previous, ...partial.names])
+          );
+        }
+        return null;
+      });
       // A run the screen stopped wanting answers null, and a run that was
       // superseded while it settled is dropped here: the newer one is the one on
       // screen.

@@ -48,6 +48,10 @@ let optionsCalls = 0;
  *  consecutive portal failures, the way ECAP fails from the server. The loop
  *  re-asks one stumble per pass, so stranding the picker takes two. */
 let optionsFailCount = 0;
+/** When true, only passes after the first answer 502: the courses arrive but
+ *  the branch call fails, so the picker must keep the courses beside the
+ *  error instead of five empty selects. */
+let optionsFailAfterFirst = false;
 let registerCalls = 0;
 let registerFails = false;
 let statedFrom = "";
@@ -239,6 +243,19 @@ const stub = async (route: Route): Promise<void> => {
         502
       );
       return;
+    }
+    if (optionsFailAfterFirst) {
+      const asked = request.postDataJSON() as OptionsRequest;
+      if (asked.course) {
+        await json(
+          {
+            error:
+              "ECAP rejected the LoadBranchAndSemestersDropDown request (HTTP 500).",
+          },
+          502
+        );
+        return;
+      }
     }
     await json(optionsFor(request.postDataJSON() as OptionsRequest));
     return;
@@ -460,6 +477,7 @@ test.describe("the app's own data layer", () => {
     sessionCalls = 0;
     optionsCalls = 0;
     optionsFailCount = 0;
+    optionsFailAfterFirst = false;
     registerCalls = 0;
     registerFails = false;
     statedFrom = "";
@@ -524,6 +542,26 @@ test.describe("the app's own data layer", () => {
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
+  });
+  test("a branch read that fails keeps the courses on screen", async ({
+    page,
+  }) => {
+    optionsFailAfterFirst = true;
+    await page.goto("/login");
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect(
+      page.getByText("ECAP rejected the", { exact: false })
+    ).toBeVisible({ timeout: 15_000 });
+    expect(
+      await selectValue(page, "Course"),
+      "the courses arrived on pass 1 and stay beside the error"
+    ).toBe("B.Tech");
+    expect(
+      await selectValue(page, "Branch"),
+      "nothing below the failed pass is shown"
+    ).toBe("");
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   });
   test("the From input opens at the walked semester start, not the month", async ({
     page,
