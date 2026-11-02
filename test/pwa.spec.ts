@@ -21,6 +21,9 @@ test.describe("the installable shell", () => {
     };
     expect(manifest.name).toBeTruthy();
     expect(manifest.short_name).toBeTruthy();
+    // The launcher label is the short name: it must carry the full name,
+    // not an abbreviation, or the installed app menus read wrong.
+    expect(manifest.short_name).toBe("Vignan Faculty Tools");
     expect(manifest.start_url).toBe("/");
     expect(manifest.display).toBe("standalone");
     const sizes = (manifest.icons ?? []).map((icon) => icon.sizes);

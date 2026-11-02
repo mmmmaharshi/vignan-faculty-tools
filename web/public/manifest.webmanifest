@@ -1,6 +1,6 @@
 {
   "name": "Vignan Faculty Tools",
-  "short_name": "Faculty Tools",
+  "short_name": "Vignan Faculty Tools",
   "description": "Class attendance from the ECAP portal, early enough to act on.",
   "start_url": "/",
   "scope": "/",
