@@ -46,6 +46,7 @@ import {
 } from "../web/today-memory";
 import {
   carriesOverall,
+  displayName,
   emptyRegisterText,
   NO_FILTER,
   registerRows,
@@ -583,6 +584,14 @@ test.describe("the bands", () => {
   });
 });
 test.describe("the rows as shown", () => {
+  test("student names print capitalised, not as ECAP shouts them", () => {
+    // ECAP states names in all caps; the register prints them the way a
+    // person writes them. Lower-cased first, because CSS capitalise leaves
+    // all-caps input untouched.
+    expect(displayName("ADARI LASYA SHREE")).toBe("Adari Lasya Shree");
+    expect(displayName("A STUDENT")).toBe("A Student");
+    expect(displayName("")).toBe("");
+  });
   /* Descending attendance on purpose. A roster shaped this way is already the
    * wrong way round for a lowest-first sort, so a sort cannot pass by agreeing
    * with the Portal's order — which is the whole point of the check. */

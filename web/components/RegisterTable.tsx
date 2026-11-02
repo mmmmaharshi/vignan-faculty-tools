@@ -17,6 +17,7 @@ import type { ChosenFact } from "../cascade";
 import {
   badgeFor,
   carriesOverall,
+  displayName,
   FIGURE_STYLE,
   tintFor,
   emptyRegisterText,
@@ -208,9 +209,7 @@ export const RegisterTable = ({
                       </Text>
                     </Table.Td>
                     <Table.Td>
-                      <Text tt="uppercase" size="sm">
-                        {s.name}
-                      </Text>
+                      <Text size="sm">{displayName(s.name)}</Text>
                     </Table.Td>
                     {subjectColumns.map((code, i) => (
                       <Table.Td key={`${code}-${i}`} ta="center">

@@ -1346,6 +1346,10 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("columnheader", { name: "WT TEST" })
     ).toBeVisible();
+    await expect(
+      page.getByRole("cell", { name: "A Student", exact: true }),
+      "names print capitalised, not as ECAP shouts them"
+    ).toBeVisible();
     expect(
       await page
         .getByRole("columnheader", { name: "WT TEST" })

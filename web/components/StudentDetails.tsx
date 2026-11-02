@@ -14,7 +14,7 @@ import {
 
 import type { Student, StudentProfile } from "../../shared/api";
 import type { Note } from "../types";
-import { badgeFor, carriesOverall } from "../worklist";
+import { badgeFor, carriesOverall, displayName } from "../worklist";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */
@@ -176,8 +176,8 @@ export const StudentDetails = ({
                   <Text size="sm">Name</Text>
                 </Table.Td>
                 <Table.Td ta="right">
-                  <Text size="sm" fw={600} tt="uppercase">
-                    {student.name}
+                  <Text size="sm" fw={600}>
+                    {displayName(student.name)}
                   </Text>
                 </Table.Td>
               </Table.Tr>

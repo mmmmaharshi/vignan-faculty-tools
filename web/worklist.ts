@@ -25,6 +25,13 @@ export const badgeFor = (
   return { badge: "", color: "red" };
 };
 /**
+ * A student's name the way a reader writes it. ECAP states names in all
+ * caps, and CSS capitalise leaves all-caps input untouched — so the casing
+ * is done here, once, where every name on screen passes through.
+ */
+export const displayName = (name: string): string =>
+  name.toLowerCase().replaceAll(/(?:^|\s)\S/g, (c) => c.toUpperCase());
+/**
  * A row's background, and nothing else: only a **critical** student is tinted.
  *
  * The irregular band is deliberately not a tint. A class where a third of the
