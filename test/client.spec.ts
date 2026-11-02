@@ -217,6 +217,18 @@ const profileFor = (roll: string): StudentProfile => ({
   phones: roll === "21C" ? [] : [{ label: "Mobile.No", number: "9876543210" }],
   backlogs: backlogsFor(roll),
 });
+/** The stored session answers carry, built the way the real server sends it. */
+const storedSessionHeader = (): Record<string, string> => ({
+  [SESSION_HEADER]: Buffer.from(
+    JSON.stringify({
+      userId: "faculty",
+      password: "secret",
+      cookies: [["frmAuth", "ok"]],
+      at: Date.now(),
+    }),
+    "utf-8"
+  ).toString("base64url"),
+});
 const stub = async (route: Route): Promise<void> => {
   const request = route.request();
   const path = new URL(request.url()).pathname;
@@ -237,12 +249,10 @@ const stub = async (route: Route): Promise<void> => {
     }
     // Like the real server, every answer carries the slid session back, so
     // the browser stores it — including one that lands after a sign-out.
-    const answer = sessionAnswer(wasIn);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      headers: answer.headers,
-      body: answer.body,
+      ...sessionAnswer(wasIn),
     });
     return;
   }
@@ -252,17 +262,7 @@ const stub = async (route: Route): Promise<void> => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      headers: {
-        [SESSION_HEADER]: Buffer.from(
-          JSON.stringify({
-            userId: "faculty",
-            password: "secret",
-            cookies: [["frmAuth", "ok"]],
-            at: Date.now(),
-          }),
-          "utf-8"
-        ).toString("base64url"),
-      },
+      headers: storedSessionHeader(),
       body: JSON.stringify({ ok: true }),
     });
     return;

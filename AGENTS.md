@@ -510,7 +510,9 @@ carries one also has its name in text.
   request set out with: clearing bumps an epoch, so a response already in
   flight across a sign-out lands on a stale epoch and is dropped instead of
   logging the next visit back in. Reads are keyed under the same generation,
-  so a late body cannot reach a hook either.
+  so a late body cannot reach a hook either. The generation is per-tab
+  memory: a second open tab can still re-save after this tab signs out —
+  that half is out of scope, not a second bug.
 - **The ECAP password lives in localStorage in the clear.** Deliberate,
   user-accepted: it is what lets the server keep nothing and still revive a
   dead portal session without asking again. Anyone holding the browser's

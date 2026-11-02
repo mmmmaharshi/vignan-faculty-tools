@@ -111,7 +111,10 @@ let sessionEpoch = 0;
  * Mutation keys stay bare: their state is reset in `signedOut`, and the
  * options chain always re-asks rather than reading its cache.
  */
-type ServerKey = [string, ...unknown[]];
+const keyed = <T extends unknown[]>(
+  path: string,
+  ...parts: T
+): [string, ...T] => [path, ...parts];
 /** Drops the stored session. Signing out is this and the cache sweep. */
 export const clearStoredSession = (): void => {
   sessionEpoch += 1;
@@ -179,8 +182,8 @@ export const postJson = async <T>(path: string, body?: unknown): Promise<T> => {
  */
 export function useSession(paused: boolean) {
   return useSWR<SessionReply, ApiError>(
-    [SESSION_PATH, sessionEpoch],
-    ([path]: ServerKey) => getJson<SessionReply>(path as string),
+    keyed(SESSION_PATH, sessionEpoch),
+    ([path]: [string, number]) => getJson<SessionReply>(path),
     {
       refreshInterval: paused ? 0 : SESSION_PROBE_MS,
       revalidateOnFocus: !paused,
@@ -199,7 +202,7 @@ export function useSession(paused: boolean) {
 /** However the server has just described the session, this is what it said. Used
  *  after a sign-in, so the app never has to write the session down itself. */
 export const reloadSession = (): Promise<SessionReply | undefined> =>
-  mutate<SessionReply>([SESSION_PATH, sessionEpoch]);
+  mutate<SessionReply>(keyed(SESSION_PATH, sessionEpoch));
 /** One click on `Load register`: the request, and which click it was. */
 export type RegisterClick = { request: RegisterRequest; attempt: number };
 /**
@@ -214,9 +217,11 @@ export type RegisterClick = { request: RegisterRequest; attempt: number };
  */
 export function useRegisterLoad(click: RegisterClick | null) {
   return useSWRImmutable<RegisterReply, ApiError>(
-    click ? [REGISTER_PATH, click.request, click.attempt, sessionEpoch] : null,
-    ([, request]: ServerKey) =>
-      postJson<RegisterReply>(REGISTER_PATH, request as RegisterRequest)
+    click
+      ? keyed(REGISTER_PATH, click.request, click.attempt, sessionEpoch)
+      : null,
+    ([, request]: [string, RegisterRequest, number, number]) =>
+      postJson<RegisterReply>(REGISTER_PATH, request)
   );
 }
 /**
@@ -235,9 +240,9 @@ export function useStudentProfile(asked: StudentRequest | null) {
   // behind the cached one. The globals already silence focus, reconnect and
   // retries, so only the dedupe window is local.
   return useSWR<StudentProfile, ApiError>(
-    asked ? [STUDENT_PATH, asked, sessionEpoch] : null,
-    ([, body]: ServerKey) =>
-      postJson<StudentProfile>(STUDENT_PATH, body as StudentRequest)
+    asked ? keyed(STUDENT_PATH, asked, sessionEpoch) : null,
+    ([, body]: [string, StudentRequest, number]) =>
+      postJson<StudentProfile>(STUDENT_PATH, body)
   );
 }
 /**
@@ -254,8 +259,9 @@ export interface FindClick {
 }
 export function useStudentSearch(click: FindClick | null) {
   return useSWRImmutable<FindReply, ApiError>(
-    click ? [FIND_PATH, click.request, click.attempt, sessionEpoch] : null,
-    ([, body]: ServerKey) => postJson<FindReply>(FIND_PATH, body as FindRequest)
+    click ? keyed(FIND_PATH, click.request, click.attempt, sessionEpoch) : null,
+    ([, body]: [string, FindRequest, number, number]) =>
+      postJson<FindReply>(FIND_PATH, body)
   );
 }
 /**
@@ -268,9 +274,9 @@ export function useStudentSearch(click: FindClick | null) {
  */
 export function useSemStart(request: SemStartRequest | null) {
   return useSWRImmutable<SemStartReply, ApiError>(
-    request ? [SEM_START_PATH, request, sessionEpoch] : null,
-    ([, body]: ServerKey) =>
-      postJson<SemStartReply>(SEM_START_PATH, body as SemStartRequest)
+    request ? keyed(SEM_START_PATH, request, sessionEpoch) : null,
+    ([, body]: [string, SemStartRequest, number]) =>
+      postJson<SemStartReply>(SEM_START_PATH, body)
   );
 }
 /**
@@ -283,16 +289,16 @@ export function useSemStart(request: SemStartRequest | null) {
  */
 export function useSemAbsences(asked: SemAbsencesRequest | null) {
   return useSWRImmutable<SemAbsencesReply, ApiError>(
-    asked ? [SEM_ABSENCES_PATH, asked, sessionEpoch] : null,
-    ([, body]: ServerKey) =>
-      postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body as SemAbsencesRequest)
+    asked ? keyed(SEM_ABSENCES_PATH, asked, sessionEpoch) : null,
+    ([, body]: [string, SemAbsencesRequest, number]) =>
+      postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body)
   );
 }
 /** A screen-opened read with no parameters: keyed under the path and the
  *  session generation, so a late answer populates a key no screen reads and
  *  reopening refreshes behind the cached answer. */
 function usePostOnOpen<T>(path: string, enabled: boolean) {
-  return useSWR<T, ApiError>(enabled ? [path, sessionEpoch] : null, () =>
+  return useSWR<T, ApiError>(enabled ? keyed(path, sessionEpoch) : null, () =>
     postJson<T>(path, {})
   );
 }
