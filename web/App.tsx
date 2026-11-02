@@ -88,7 +88,7 @@ import type { SavedClass } from "./saved-classes";
 import { useSemStartSettle } from "./sem-start-settle";
 import { useTodayTable } from "./today-memory";
 import type { Note } from "./types";
-import { NO_FILTER, registerRows } from "./worklist";
+import { NO_FILTER, pruneSubjectBars, registerRows } from "./worklist";
 import type { RowFilter } from "./worklist";
 
 /** A request the server refused, in words — unless it refused the session,
@@ -231,7 +231,14 @@ const App = (): React.JSX.Element => {
   /* Only a load that actually succeeded re-scopes the screen: `overallMode` is
      the All-subjects path, and the reply carries no subject figure at all. */
   const overallMode = Boolean(result) && isAllSubjects(click?.request.subject);
-  const rows = result ? registerRows(result.students, filter, overallMode) : [];
+  const rows = result
+    ? registerRows(
+        result.students,
+        filter,
+        overallMode,
+        result.summary.subjectColumns
+      )
+    : [];
   const summary = result?.summary;
   /** The semester's probes, its remembered start, and every settle-time From
    *  snap — one hook, so the probes, the memory, and the snaps cannot drift
@@ -465,6 +472,19 @@ const App = (): React.JSX.Element => {
       setSel(outcome.sel);
       setOpts(outcome.opts);
       setSubjectNames((previous) => new Map([...previous, ...outcome.names]));
+      // A new settle is a new class context for the ticked subject bars too:
+      // a bar naming a subject this class does not offer would narrow a
+      // roster with no column on screen saying so.
+      setFilter((f) => {
+        if (!f.subjectBars.length) return f;
+        const offered = outcome.opts.subject
+          .filter((o) => !isAllSubjects(o))
+          .map((o) => o.label);
+        const kept = pruneSubjectBars(f.subjectBars, offered);
+        return kept.length === f.subjectBars.length
+          ? f
+          : { ...f, subjectBars: kept };
+      });
     },
     [triggerCascade]
   );

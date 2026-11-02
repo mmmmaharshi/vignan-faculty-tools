@@ -46,9 +46,12 @@ import {
 } from "../web/today-memory";
 import {
   carriesOverall,
+  cycleSubjectBar,
   displayName,
   emptyRegisterText,
+  isFiltering,
   NO_FILTER,
+  pruneSubjectBars,
   registerRows,
   tintFor,
   visibleStudents,
@@ -67,6 +70,11 @@ const opt = (value: string, label = `L${value}`, title = ""): Option => ({
   value,
   label,
   title,
+});
+/** A RowFilter with one subject-column threshold ticked. */
+const bar = (code: string, below: 75 | 65): RowFilter => ({
+  ...NO_FILTER,
+  subjectBars: [{ code, below }],
 });
 const reply = (perLevel: Record<Level, string[]>): OptionsReply => ({
   course: perLevel.course.map((v) => opt(v)),
@@ -701,6 +709,84 @@ test.describe("the rows as shown", () => {
     registerRows(input, NO_FILTER, false);
     registerRows(input, irregularOnly, false);
     expect(input.map((s) => s.roll)).toEqual(["A", "B", "C"]);
+  });
+});
+test.describe("one threshold per subject column", () => {
+  const cols = ["MFCS", "SE"];
+  const section = [
+    { ...student(90), sl: "1", roll: "A", name: "A", subjects: [90, 80] },
+    { ...student(70), sl: "2", roll: "B", name: "B", subjects: [70, null] },
+    { ...student(40), sl: "3", roll: "C", name: "C", subjects: [null, 50] },
+  ];
+  test("a ticked subject column keeps only rows under it", () => {
+    // A is healthy everywhere and B's MFCS is 70: the bar keeps the two
+    // rows the column states a low figure for, and C's dash is not one.
+    expect(
+      registerRows(section, bar("MFCS", 75), true, cols).map((s) => s.roll)
+    ).toEqual(["B"]);
+  });
+  test("ticked subject columns intersect, like the ticked bars", () => {
+    const both: RowFilter = {
+      ...NO_FILTER,
+      subjectBars: [
+        { code: "MFCS", below: 75 },
+        { code: "SE", below: 75 },
+      ],
+    };
+    // B clears SE but not MFCS, C clears neither: nobody clears both.
+    expect(registerRows(section, both, true, cols)).toEqual([]);
+  });
+  test("a dash clears no subject bar", () => {
+    // A missing figure is an absence, not a low one: B's blank SE and C's
+    // blank MFCS are kept out rather than counted in.
+    expect(
+      registerRows(section, bar("SE", 75), true, cols).map((s) => s.roll)
+    ).toEqual(["C"]);
+  });
+  test("a column the table does not show names no bar", () => {
+    const gone: RowFilter = {
+      ...NO_FILTER,
+      subjectBars: [{ code: "DBMS", below: 75 }],
+    };
+    expect(registerRows(section, gone, true, cols).map((s) => s.roll)).toEqual([
+      "A",
+      "B",
+      "C",
+    ]);
+    expect(
+      isFiltering(gone),
+      "the bar is still set, so the table stays a worklist"
+    ).toBe(true);
+  });
+  test("a subject bar makes the table a worklist with a name", () => {
+    expect(isFiltering(bar("MFCS", 75))).toBe(true);
+    expect(emptyRegisterText(bar("MFCS", 75), 75)).toBe(
+      "No students below 75% in MFCS."
+    );
+  });
+  test("a subject header cycles off, 75, 65, then off", () => {
+    expect(cycleSubjectBar([], "MFCS")).toEqual([{ code: "MFCS", below: 75 }]);
+    const once = cycleSubjectBar([], "MFCS");
+    expect(cycleSubjectBar(once, "MFCS")).toEqual([
+      { code: "MFCS", below: 65 },
+    ]);
+    expect(cycleSubjectBar(cycleSubjectBar(once, "MFCS"), "MFCS")).toEqual([]);
+    expect(cycleSubjectBar([{ code: "SE", below: 65 }], "MFCS")).toEqual([
+      { code: "SE", below: 65 },
+      { code: "MFCS", below: 75 },
+    ]);
+  });
+  test("settling a class drops bars for subjects it does not offer", () => {
+    expect(
+      pruneSubjectBars(
+        [
+          { code: "MFCS", below: 75 },
+          { code: "SE", below: 65 },
+        ],
+        ["MFCS", "UHV"]
+      )
+    ).toEqual([{ code: "MFCS", below: 75 }]);
+    expect(pruneSubjectBars([], ["MFCS"])).toEqual([]);
   });
 });
 

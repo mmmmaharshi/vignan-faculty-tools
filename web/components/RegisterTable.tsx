@@ -8,6 +8,7 @@ import {
   Table,
   Text,
   TextInput,
+  UnstyledButton,
 } from "@mantine/core";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
@@ -17,6 +18,7 @@ import type { ChosenFact } from "../cascade";
 import {
   badgeFor,
   carriesOverall,
+  cycleSubjectBar,
   displayName,
   FIGURE_STYLE,
   tintFor,
@@ -32,7 +34,8 @@ type RegisterTableProps = {
   summary: RegisterReply["summary"];
   filter: RowFilter;
   /** One setter for every control on the filter row: a checkbox sends its
-   *  boolean, the search box its text, and neither has to know about the other. */
+   *  boolean, a name its threshold, a subject code its column. The subject
+   *  headers call it with the next step of their own cycle. */
   onFilterChange: (patch: Partial<RowFilter>) => void;
   onShowDetails: (student: Student) => void;
   chosen: ChosenFact[];
@@ -149,9 +152,21 @@ export const RegisterTable = ({
         </>
       ) : null}
       {rows.length === 0 ? (
-        <Text c="dimmed" size="sm">
-          {emptyRegisterText(filter, summary.irregularBelow)}
-        </Text>
+        <>
+          <Text c="dimmed" size="sm">
+            {emptyRegisterText(filter, summary.irregularBelow)}
+          </Text>
+          {overallMode && filter.subjectBars.length > 0 && (
+            <Button
+              variant="subtle"
+              size="compact-sm"
+              mt="sm"
+              onClick={() => onFilterChange({ subjectBars: [] })}
+            >
+              Clear subject filters
+            </Button>
+          )}
+        </>
       ) : (
         <>
           <Table.ScrollContainer minWidth={980}>
@@ -173,11 +188,33 @@ export const RegisterTable = ({
                   <Table.Th>
                     <Head label="Student Name" />
                   </Table.Th>
-                  {subjectColumns.map((code, i) => (
-                    <Table.Th key={`${code}-${i}`} ta="center">
-                      <Head label={code} />
-                    </Table.Th>
-                  ))}
+                  {subjectColumns.map((code, i) => {
+                    const bar = filter.subjectBars.find(
+                      (b) => b.code === code
+                    )?.below;
+                    // The header is the bar's whole UI: one click ticks below
+                    // 75, the next tightens to 65, the next clears it. The
+                    // threshold rides in the label, so the name announces the
+                    // state it will leave behind on the next click.
+                    return (
+                      <Table.Th key={`${code}-${i}`} ta="center">
+                        <UnstyledButton
+                          onClick={() =>
+                            onFilterChange({
+                              subjectBars: cycleSubjectBar(
+                                filter.subjectBars,
+                                code
+                              ),
+                            })
+                          }
+                        >
+                          <Head
+                            label={bar == null ? code : `${code} <${bar}%`}
+                          />
+                        </UnstyledButton>
+                      </Table.Th>
+                    );
+                  })}
                   {!overallMode && (
                     <Table.Th ta="center">
                       <Head label="Attend / Held" />

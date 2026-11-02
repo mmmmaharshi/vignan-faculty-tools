@@ -64,21 +64,59 @@ const FIXED_BARS = [
   { key: "below75", below: 75 },
 ] as const;
 export type FixedBarKey = (typeof FIXED_BARS)[number]["key"];
+/** One threshold on one subject column, named by the column's own code:
+ *  the bar admits the rows under it in that subject. Absent codes are inert
+ *  rather than errors — the filter travels between classes, and a bar for a
+ *  column this table does not show must do nothing here rather than fail. */
+export type SubjectBar = { code: string; below: 75 | 65 };
+/**
+ * One subject column's threshold, cycled in place by its header: unset,
+ * below 75, below 65, then unset again. One control per column, so the
+ * header is the whole of the UI for it — no second place can disagree on
+ * what a click does. Absent where the row has no such column is handled by
+ * the caller dropping unknown codes, not here.
+ */
+export function cycleSubjectBar(
+  bars: readonly SubjectBar[],
+  code: string
+): SubjectBar[] {
+  const rest = bars.filter((b) => b.code !== code);
+  const current = bars.find((b) => b.code === code)?.below;
+  if (current === undefined) return [...rest, { code, below: 75 }];
+  if (current === 75) return [...rest, { code, below: 65 }];
+  return rest;
+}
+/**
+ * Keeps only the bars naming a subject the newly settled class offers. A bar
+ * for a column this class does not show must not travel with the selection:
+ * it would narrow a roster with nothing on screen saying so, and the way
+ * back — the column header — is not on screen either.
+ */
+export function pruneSubjectBars(
+  bars: readonly SubjectBar[],
+  offered: readonly string[]
+): SubjectBar[] {
+  return bars.filter((b) => offered.includes(b.code));
+}
 /**
  * Which worklist filters are ticked. Ticked bars intersect: a row must clear
  * every one, so ticking Below 65% beside Below 75% changes nothing — the
- * stricter bar already implies the other.
+ * stricter bar already implies the other. Subject bars join that intersection:
+ * a row must clear every ticked column threshold too, and a dash clears none.
  */
 export type RowFilter = {
   irregular: boolean;
   /** Free text matched against name and roll number. Blank means no search. */
   search: string;
+  /** Per-subject thresholds, in the order they were ticked. */
+  subjectBars: SubjectBar[];
 } & Record<FixedBarKey, boolean>;
 export const NO_FILTER: RowFilter = {
   irregular: false,
   below75: false,
   below65: false,
   search: "",
+  subjectBars: [],
 };
 /** Whether any bar is ticked or any search is typed: the table is a worklist
  *  then, sorted worst-first. */
@@ -87,6 +125,7 @@ export function isFiltering(filter: RowFilter): boolean {
     filter.irregular ||
     filter.below75 ||
     filter.below65 ||
+    filter.subjectBars.length > 0 ||
     filter.search.trim() !== ""
   );
 }
@@ -125,12 +164,18 @@ function figureFor(s: StudentRow, overallMode: boolean): number | null {
 export function visibleStudents(
   students: readonly StudentRow[],
   filter: RowFilter,
-  overallMode: boolean
+  overallMode: boolean,
+  subjectColumns: readonly string[] = []
 ): StudentRow[] {
   // Rolls are typed as remembered and names show upper-cased, so both halves
   // of the match read lower-cased: the match cannot care about case. A blank
   // needle matches every row, so a bare roster needs no early return here.
   const needle = filter.search.trim().toLowerCase();
+  // Subject bars name columns by code; one the table does not show is inert.
+  const bars = filter.subjectBars.flatMap(({ code, below }) => {
+    const at = subjectColumns.indexOf(code);
+    return at === -1 ? [] : [{ at, below }];
+  });
   return students.filter((s) => {
     if (
       !s.name.toLowerCase().includes(needle) &&
@@ -142,6 +187,10 @@ export function visibleStudents(
     const figure = figureFor(s, overallMode);
     for (const { key, below } of FIXED_BARS) {
       if (filter[key] && !(figure != null && figure < below)) return false;
+    }
+    for (const { at, below } of bars) {
+      const value = s.subjects[at];
+      if (!(value != null && value < below)) return false;
     }
     return true;
   });
@@ -173,9 +222,10 @@ export function visibleStudents(
 export function registerRows(
   students: readonly StudentRow[],
   filter: RowFilter,
-  overallMode: boolean
+  overallMode: boolean,
+  subjectColumns: readonly string[] = []
 ): StudentRow[] {
-  const shown = visibleStudents(students, filter, overallMode);
+  const shown = visibleStudents(students, filter, overallMode, subjectColumns);
   if (!isFiltering(filter)) return shown;
   return shown.toSorted((a, b) => {
     const left = figureFor(a, overallMode);
@@ -202,6 +252,9 @@ export function emptyRegisterText(
   // looking as if it had done nothing.
   const matching = needle === "" ? "" : ` matching "${needle}"`;
   if (bar) return `No students${matching} below ${bar.below}%.`;
+  const [subject] = filter.subjectBars;
+  if (subject)
+    return `No students${matching} below ${subject.below}% in ${subject.code}.`;
   if (filter.irregular)
     return needle === ""
       ? `No irregular students. Everyone is at or above ${irregularBelow}%.`

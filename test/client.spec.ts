@@ -174,7 +174,7 @@ const registerReply = (
       overallAttendedOfHeld: "44/148",
       overallIrregular: true,
       overallCritical: true,
-      subjects: overall ? [null, 50] : [],
+      subjects: overall ? [50, null] : [],
       absent: [],
     },
   ],
@@ -1403,6 +1403,50 @@ test.describe("the app's own data layer", () => {
       page.getByRole("columnheader", { name: "Subject Attendance %" }),
       "no subject figure on the section view"
     ).toHaveCount(0);
+  });
+  test("a subject header ticks a threshold for its own column", async ({
+    page,
+  }) => {
+    // Stub figures: A [90, 80], B [70, no SE], C [50, no SE].
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "MFCS", exact: true }).click();
+    await expect(
+      page.getByRole("columnheader", { name: "MFCS <75%", exact: true })
+    ).toBeVisible();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(2);
+    await page.getByRole("button", { name: "MFCS <75%", exact: true }).click();
+    await expect(
+      page.getByRole("columnheader", { name: "MFCS <65%", exact: true })
+    ).toBeVisible();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(1);
+    await page.getByRole("button", { name: "MFCS <65%", exact: true }).click();
+    await expect(
+      page.getByRole("columnheader", { name: "MFCS", exact: true })
+    ).toBeVisible();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
+  });
+  test("an empty subject worklist can still clear its bar", async ({
+    page,
+  }) => {
+    // WT TEST <75% keeps nobody: A is at 80, B and C state nothing for WT
+    // TEST. The table is gone with its headers, so the way back out sits
+    // beside the empty sentence rather than in a header that is no longer
+    // there.
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "WT TEST", exact: true }).click();
+    await expect(
+      page.getByText("No students below 75% in WT TEST.", { exact: true })
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Clear subject filters" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
   });
   test("the backlogs sit right after the GPA block", async ({ page }) => {
     await signInAndSettle(page);
