@@ -568,6 +568,13 @@ test.describe("all subjects", () => {
     expect(reply.summary.average).toBeNull();
     expect(reply.summary.irregular).toBe(0);
   });
+  test("the class report's subject columns travel with the register", async () => {
+    const { reader } = fake();
+    const reply = await handleRegister(reader, levels({ subject: ALL }));
+    // The one-subject classGrid fixture states AI with 37 attended.
+    expect(reply.summary.subjectColumns).toEqual(["AI"]);
+    expect(reply.students[0]?.subjects).toEqual(["37"]);
+  });
   test("the class report states no dates, so the all-subjects summary names none", async () => {
     const { reader } = fake({
       classAttendance: classGrid([["21CS001", "381\\481", "90"]]),

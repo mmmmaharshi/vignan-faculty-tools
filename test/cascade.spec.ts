@@ -521,6 +521,7 @@ const student = (pct: number | null): Student => ({
   overallAttendedOfHeld: "381\\481",
   overallIrregular: false,
   overallCritical: false,
+  subjects: [],
   absent: [],
 });
 test.describe("the bands", () => {

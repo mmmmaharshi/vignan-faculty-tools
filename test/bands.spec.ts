@@ -9,7 +9,7 @@ import {
   summarise,
   withBands,
 } from "../server/attendance-bands";
-import type { RegisterRow } from "../server/attendance-bands";
+import type { OverallFigure, RegisterRow } from "../server/attendance-bands";
 
 const row = (pct: number | null, roll = "21CS001"): RegisterRow => ({
   sl: "1",
@@ -17,6 +17,7 @@ const row = (pct: number | null, roll = "21CS001"): RegisterRow => ({
   name: "A Student",
   attendedOfHeld: "38/45",
   pct,
+  subjects: [],
   absent: [],
 });
 const named = (pct: number | null, roll: string): RegisterRow => ({
@@ -139,9 +140,10 @@ test.describe("where the register itself begins", () => {
     expect(statedStartDate(["nonsense"], { from: "", to: "" })).toBe(null);
   });
 });
-const figure = (pct: number | null, held = "381\\481") => ({
+const figure = (pct: number | null, held = "381\\481"): OverallFigure => ({
   attendedOfHeld: held,
   pct,
+  subjects: [],
 });
 test.describe("the overall bands sit where the subject bands do", () => {
   test("75 is regular and 74.99 is not, on the overall figure too", () => {
@@ -177,8 +179,8 @@ test.describe("the overall bands sit where the subject bands do", () => {
 test.describe("the overall counts come from the overall figure", () => {
   test("a student the portal gave no overall figure for is left out of the average", () => {
     const lookup = new Map([
-      ["A", { attendedOfHeld: "381\\481", pct: 90 }],
-      ["C", { attendedOfHeld: "100\\481", pct: 50 }],
+      ["A", { attendedOfHeld: "381\\481", pct: 90, subjects: [] }],
+      ["C", { attendedOfHeld: "100\\481", pct: 50, subjects: [] }],
     ]);
     const { summary } = summarise(
       [named(90, "A"), named(null, "B"), named(50, "C")],
@@ -190,9 +192,9 @@ test.describe("the overall counts come from the overall figure", () => {
   });
   test("overall flags are counted from the overall figure, not the subject one", () => {
     const lookup = new Map([
-      ["A", { attendedOfHeld: "", pct: 74 }],
-      ["B", { attendedOfHeld: "", pct: 59 }],
-      ["C", { attendedOfHeld: "", pct: 95 }],
+      ["A", { attendedOfHeld: "", pct: 74, subjects: [] }],
+      ["B", { attendedOfHeld: "", pct: 59, subjects: [] }],
+      ["C", { attendedOfHeld: "", pct: 95, subjects: [] }],
     ]);
     const { summary } = summarise(
       [named(90, "A"), named(45, "B"), named(90, "C")],
@@ -212,9 +214,9 @@ test.describe("the overall counts come from the overall figure", () => {
   });
   test("the overall average is rounded to one decimal, like the subject one", () => {
     const lookup = new Map([
-      ["A", { attendedOfHeld: "", pct: 79 }],
-      ["B", { attendedOfHeld: "", pct: 79 }],
-      ["C", { attendedOfHeld: "", pct: 80 }],
+      ["A", { attendedOfHeld: "", pct: 79, subjects: [] }],
+      ["B", { attendedOfHeld: "", pct: 79, subjects: [] }],
+      ["C", { attendedOfHeld: "", pct: 80, subjects: [] }],
     ]);
     const { summary } = summarise(
       [named(90, "A"), named(90, "B"), named(90, "C")],

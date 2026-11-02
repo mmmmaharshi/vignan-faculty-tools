@@ -89,6 +89,11 @@ export const RegisterTable = ({
   // worklist still judges the subject figure alone (see `worklist.ts`): the
   // overall is a second fact on the row, never the bar that admits it.
   const showOverall = rows.some(carriesOverall);
+  // The section-wide view states one attended count per subject the Portal
+  // offered, in the summary's column order: stated, never recomputed, so no
+  // badges and no band reads them — the overall figures stay the only ones
+  // judged. A report that states no subjects states no columns.
+  const subjectColumns = overallMode ? summary.subjectColumns : [];
   return (
     <Paper withBorder p="lg">
       <Group gap="md" mb="sm">
@@ -147,6 +152,11 @@ export const RegisterTable = ({
                   <Table.Th>Sl.No</Table.Th>
                   <Table.Th>Roll No</Table.Th>
                   <Table.Th>Student Name</Table.Th>
+                  {subjectColumns.map((code, i) => (
+                    <Table.Th key={`${code}-${i}`} ta="right">
+                      {code}
+                    </Table.Th>
+                  ))}
                   {!overallMode && (
                     <Table.Th ta="right">Attend / Held</Table.Th>
                   )}
@@ -176,6 +186,15 @@ export const RegisterTable = ({
                         {s.name}
                       </Text>
                     </Table.Td>
+                    {subjectColumns.map((code, i) => (
+                      <Table.Td key={`${code}-${i}`} ta="right">
+                        {s.subjects[i] ?? (
+                          <Text c="dimmed" size="sm">
+                            —
+                          </Text>
+                        )}
+                      </Table.Td>
+                    ))}
                     {!overallMode && (
                       <Table.Td ta="right">{s.attendedOfHeld}</Table.Td>
                     )}

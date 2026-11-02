@@ -24,6 +24,7 @@ import type { DayWorkRequest } from "./portal-conventions.js";
 import { courseVerdict } from "./portal-liveness.js";
 import {
   HttpError,
+  classReportSubjects,
   level,
   matchOption,
   parseClassAttendance,
@@ -149,23 +150,29 @@ export function requireLevels(
 async function readOverall(
   portal: PortalReader,
   p: Record<Level, Option> & { from: string; to: string }
-): Promise<{ rows: OverallRow[]; byRoll: OverallLookup }> {
+): Promise<{ rows: OverallRow[]; byRoll: OverallLookup; subjects: string[] }> {
   try {
-    const rows = parseClassAttendance(await portal.classAttendance(p));
+    const reply = await portal.classAttendance(p);
+    const rows = parseClassAttendance(reply);
     return {
       rows,
       byRoll: new Map(
         rows.map((row) => [
           row.roll,
-          { attendedOfHeld: row.attendedOfHeld, pct: row.pct },
+          {
+            attendedOfHeld: row.attendedOfHeld,
+            pct: row.pct,
+            subjects: row.subjects,
+          },
         ])
       ),
+      subjects: classReportSubjects(reply),
     };
   } catch (error) {
     // A dead session must stay a 401 or the client will not sign anyone out;
     // everything else is a report this screen can do without.
     if (error instanceof HttpError && error.status === 401) throw error;
-    return { rows: [], byRoll: new Map() };
+    return { rows: [], byRoll: new Map(), subjects: [] };
   }
 }
 export async function handleRegister(
@@ -179,7 +186,11 @@ export async function handleRegister(
   if (isAllSubjects(p.subject)) {
     // No subject was chosen, so the class report is the whole register and its
     // emptiness is a real failure rather than a report to render without.
-    const { rows, byRoll } = await readOverall(portal, { ...p, from, to });
+    const { rows, byRoll, subjects } = await readOverall(portal, {
+      ...p,
+      from,
+      to,
+    });
     if (!rows.length) {
       throw new HttpError(
         502,
@@ -193,10 +204,17 @@ export async function handleRegister(
         name: row.name,
         attendedOfHeld: "",
         pct: null,
+        // The All subjects register is the class report itself, so its
+        // subject columns ride the row rather than the overall lookup.
+        subjects: row.subjects,
         absent: [],
       })),
       range,
-      byRoll
+      byRoll,
+      null,
+      null,
+      [],
+      subjects
     );
   }
   const reply = await portal.register({ ...p, from, to });

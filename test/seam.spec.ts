@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 import {
+  classReportSubjects,
   level,
   looksLikeHtml,
   matchOption,
@@ -163,10 +164,34 @@ test.describe("portal replies", () => {
       name: "ADARI LASYA SHREE",
       attendedOfHeld: "381\\481",
       pct: 79.21,
+      subjects: ["37", null],
     });
     expect(rows[1]).toMatchObject({ roll: "24L31A1202", pct: 74.01 });
     expect(rows[2]?.pct).toBeNull();
     expect(rows[2]?.attendedOfHeld).toBe("20\\30");
+  });
+  test("the class report states each subject's attended count beside the overall pair", () => {
+    const html = `<table>
+      <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>AI</th><th>DWDM</th><th>Total</th><th>Percent</th></tr>
+      <tr><td>Batch-1</td><td>50</td><td>0</td><td>49</td><td>-</td><td></td><td></td></tr>
+      <tr><td>1</td><td>24L31A1201</td><td>ADARI LASYA SHREE</td><td>37</td><td>-</td><td>381\\481</td><td>79.21</td></tr>
+      <tr><td>2</td><td>24L31A1202</td><td>ANOTHER STUDENT</td><td>35</td><td>10</td><td>356\\481</td><td>74.01</td></tr>
+    </table>`;
+    const rows = parseClassAttendance(html);
+    // Read as stated: counts stay counts, never percentages. A dash or a
+    // blank is no figure, not a zero.
+    expect(rows[0]?.subjects).toEqual(["37", null]);
+    expect(rows[1]?.subjects).toEqual(["35", "10"]);
+    expect(classReportSubjects(html)).toEqual(["AI", "DWDM"]);
+  });
+  test("a class report with no subject columns states none", () => {
+    const html = `<table>
+      <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>Total</th><th>Percent</th></tr>
+      <tr><td>1</td><td>24L31A1201</td><td>ONLY STUDENT</td><td>381\\481</td><td>79.21</td></tr>
+    </table>`;
+    expect(parseClassAttendance(html)[0]?.subjects).toEqual([]);
+    expect(classReportSubjects(html)).toEqual([]);
+    expect(classReportSubjects(LOGIN_PAGE)).toEqual([]);
   });
   test("the class report's held band and title block are not students", () => {
     const html = `<table>

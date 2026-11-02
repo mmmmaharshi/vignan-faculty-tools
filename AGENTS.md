@@ -821,6 +821,8 @@ is an absence of evidence, and putting such a student at the top of a triage lis
 sends someone after them for the wrong reason. `registerRows` in `web/worklist.ts`
 owns all three rules, which is where they can be pinned without booting a server.
 
+**The All subjects table states one attended count per subject the report offered, in the report's own column order.** The cells are read as written — never recomputed into percentages, which the report does not state — so they carry no badges and change no band, tint, filter, or sort; the overall percentage stays the one figure that path judges by. A subject the report left blank shows a dash, not a zero.
+
 **A typed search is the one filter a new register clears.** A name or a roll was
 typed for the class in front of the reader, so carrying it into the next load hides
 every row of a register nobody searched — the failure looks like an empty class.

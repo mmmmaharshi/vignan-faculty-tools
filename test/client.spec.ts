@@ -142,6 +142,9 @@ const registerReply = (
       overallAttendedOfHeld: "120/148",
       overallIrregular: false,
       overallCritical: false,
+      // The section-wide report states one attended count per subject it
+      // offered; a subject register states none.
+      subjects: overall ? ["38", "12"] : [],
       absent: overall ? [] : ["12/10"],
     },
     {
@@ -156,6 +159,7 @@ const registerReply = (
       overallAttendedOfHeld: "77/148",
       overallIrregular: true,
       overallCritical: false,
+      subjects: overall ? ["20", "5"] : [],
       absent: overall ? [] : ["12/10"],
     },
     {
@@ -170,6 +174,7 @@ const registerReply = (
       overallAttendedOfHeld: "44/148",
       overallIrregular: true,
       overallCritical: true,
+      subjects: overall ? ["10", null] : [],
       absent: [],
     },
   ],
@@ -189,6 +194,7 @@ const registerReply = (
     // the stub states none on that path either — like the real portal.
     statedFrom: overall ? null : statedFrom || null,
     dates: [],
+    subjectColumns: overall ? ["MFCS", "SE"] : [],
   },
 });
 /** The backlogs section of each student's page: one with backlogs, one that says
@@ -1325,6 +1331,31 @@ test.describe("the app's own data layer", () => {
       panel.getByRole("row", { name: "Total backlogs 2" }),
       "and the page's own total, as it states it"
     ).toBeVisible();
+  });
+  test("the All subjects view states each subject's attended count", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await expect(
+      page.getByRole("columnheader", { name: "MFCS" })
+    ).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "SE" })).toBeVisible();
+    await expect(
+      page.getByRole("cell", { name: "38", exact: true }),
+      "A student's MFCS attended count, exactly as ECAP stated it"
+    ).toBeVisible();
+    await expect(
+      page.getByRole("cell", { name: "—", exact: true }),
+      "a subject the portal left blank is a dash, not a zero"
+    ).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Subject Attendance %" }),
+      "no subject figure on the section view"
+    ).toHaveCount(0);
   });
   test("the backlogs sit right after the GPA block", async ({ page }) => {
     await signInAndSettle(page);

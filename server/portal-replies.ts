@@ -227,6 +227,9 @@ export function parseRegister(html: string): RegisterRow[] {
       name: cells[2] ?? "",
       attendedOfHeld,
       pct: Number.isNaN(num) ? null : num,
+      // A subject register states one subject: its per-subject breakdown
+      // lives on the class report alone, read beside it.
+      subjects: [],
       absent: dates.filter((d) => cells[header.indexOf(d)] === "A"),
     });
   }
@@ -283,11 +286,31 @@ export interface OverallRow {
   name: string;
   attendedOfHeld: string;
   pct: number | null;
+  /** Each subject column's cell for this student, in the header's own order:
+   *  the Portal's attended counts, read never recomputed. A dash or a blank
+   *  is no figure, not a zero. */
+  subjects: (string | null)[];
+}
+/** The class attendance report's own header row, or empty when the reply is
+ *  not that report. The one place the report is told apart from the other
+ *  grids, so a Portal layout shift is fixed once rather than once per reader. */
+function classHeaderRow(grid: string[][] | null): string[] {
+  return grid?.find((row) => row.some((c) => ROLL_HEADER.test(c))) ?? [];
+}
+/**
+ * The subject columns the class attendance report states across its own
+ * header, in order — the names a per-subject breakdown is read under. Empty
+ * where the report aggregates without stating any, which is not a failure.
+ */
+export function classReportSubjects(html: string): string[] {
+  return classHeaderRow(anyHeaded(gridTables(html))).slice(3, -2);
 }
 export function parseClassAttendance(html: string): OverallRow[] {
   const rows: OverallRow[] = [];
   const grid = anyHeaded(gridTables(html));
   if (!grid) return rows;
+  const header = classHeaderRow(grid);
+  const subjectCount = Math.max(header.length - 5, 0);
   for (const cells of grid) {
     if (cells.length < 4) continue;
     const sl = cells[0] ?? "";
@@ -295,12 +318,18 @@ export function parseClassAttendance(html: string): OverallRow[] {
     if (!/^\d+$/.test(sl) || !roll) continue;
     const stated = (cells.at(-1) ?? "").replace("%", "").trim();
     const num = stated === "" ? Number.NaN : Number(stated);
+    const subjects: (string | null)[] = [];
+    for (let i = 0; i < subjectCount; i++) {
+      const raw = (cells[3 + i] ?? "").trim();
+      subjects.push(raw === "" || raw === "-" ? null : raw);
+    }
     rows.push({
       sl,
       roll,
       name: cells[2] ?? "",
       attendedOfHeld: cells.at(-2) ?? "",
       pct: Number.isNaN(num) ? null : num,
+      subjects,
     });
   }
   return rows;

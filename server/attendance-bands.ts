@@ -10,6 +10,9 @@ export const CRITICAL_BELOW = 65;
 export interface OverallFigure {
   attendedOfHeld: string;
   pct: number | null;
+  /** Each subject column's cell for this student, in the summary's
+   *  subjectColumns order — the Portal's attended counts, never recomputed. */
+  subjects: (string | null)[];
 }
 export type OverallLookup = ReadonlyMap<string, OverallFigure>;
 export type RegisterRow = Omit<
@@ -56,6 +59,7 @@ export function withBands(
     ...row,
     overallPct: overall?.pct ?? null,
     overallAttendedOfHeld: overall?.attendedOfHeld ?? "",
+    subjects: overall?.subjects ?? [],
     irregular: isBelow(subjectBand),
     critical: subjectBand === "Critical",
     overallIrregular: isBelow(overallBand),
@@ -95,7 +99,8 @@ export function summarise(
   overall: OverallLookup = new Map(),
   classesHeld: number | null = null,
   statedFrom: string | null = null,
-  dates: readonly string[] = []
+  dates: readonly string[] = [],
+  subjectColumns: readonly string[] = []
 ): { students: Student[]; summary: RegisterReply["summary"] } {
   const students: Student[] = [];
   let irregular = 0;
@@ -138,6 +143,7 @@ export function summarise(
       classesHeld,
       statedFrom,
       dates: [...dates],
+      subjectColumns: [...subjectColumns],
     },
   };
 }
