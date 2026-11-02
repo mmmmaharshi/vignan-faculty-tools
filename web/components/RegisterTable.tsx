@@ -182,12 +182,12 @@ export const RegisterTable = ({
                     </Table.Th>
                   )}
                   {overallMode && (
-                    <Table.Th ta="center">
+                    <Table.Th ta="center" bg="blue.0">
                       <Head label="Attended / Total" />
                     </Table.Th>
                   )}
                   {showOverall && (
-                    <Table.Th ta="center">
+                    <Table.Th ta="center" bg="blue.0">
                       <Head label="Overall Attendance %" />
                     </Table.Th>
                   )}
@@ -239,12 +239,12 @@ export const RegisterTable = ({
                       </Table.Td>
                     )}
                     {overallMode && (
-                      <Table.Td ta="center">
+                      <Table.Td ta="center" bg="blue.0">
                         {overallCellForDisplay(s.overallAttendedOfHeld) || "—"}
                       </Table.Td>
                     )}
                     {showOverall && (
-                      <Table.Td ta="center">
+                      <Table.Td ta="center" bg="blue.0">
                         {s.overallPct == null ? (
                           <Text c="dimmed" size="sm">
                             —

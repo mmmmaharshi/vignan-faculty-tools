@@ -1365,6 +1365,16 @@ test.describe("the app's own data layer", () => {
         .evaluate((el) => getComputedStyle(el).textAlign),
       "the overall header matches"
     ).toBe("center");
+    expect(
+      await page
+        .getByRole("columnheader", { name: "Overall Attendance %" })
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      "the overall columns sit on their own tint"
+    ).not.toBe(
+      await page
+        .getByRole("columnheader", { name: "MFCS" })
+        .evaluate((el) => getComputedStyle(el).backgroundColor)
+    );
     await expect(
       page.getByRole("cell", { name: "38", exact: true }),
       "A student's MFCS attended count, exactly as ECAP stated it"
