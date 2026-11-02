@@ -707,6 +707,20 @@ fill is a rule bug, two requests racing is a loop bug.
   the course pass 1 fetched is not discarded with the failed branch pass —
   and the retry settles from there.
 
+- **Independent portal reads go out together; dependent ones stay sequential.**
+  Reads that need nothing from each other — the register grid beside its
+  class report, the profile page beside the absent-dates grid, the class
+  report beside the subject listing, the profile's name/photo/designation/leave
+  calls beside each other — are asked in one `Promise.all` rather than one
+  after another, because a second ECAP round trip spent waiting is the whole
+  budget on a serverless function. Everything with a data dependency stays
+  sequential: branches after courses, sections after branches, the semester
+  walks month by month (each stops at the first dateless month), and the
+  section-by-section search keeps its early exit — parallelising that loop
+  would read every section on a search the first one already answers.
+  `test/routes.spec.ts` pins the parallel pairs by holding both reads at a
+  gate: a handler that asks one after the other never starts the second.
+
 ## The data layer
 
 **Every fetch goes through `web/client.ts`, and every read of server data is an

@@ -189,6 +189,28 @@ async function readOverall(
   }
 }
 /**
+ * The subject list the SUBJECT ATTENDANCE page offers for one class, or null
+ * where ECAP will not give it. Null is not an empty class: the caller still
+ * names the columns the class report states, and every cell stays a dash.
+ */
+async function listOfferedSubjects(
+  portal: PortalReader,
+  p: Record<Level, Option>
+): Promise<Option[] | null> {
+  try {
+    return realOptions(
+      await portal.subjectOptions(
+        p.course.value,
+        p.branch.value,
+        p.semester.value
+      )
+    );
+  } catch (error) {
+    rethrowExpired(error);
+    return null;
+  }
+}
+/**
  * One subject's stated percentages, keyed by roll: the All subjects view
  * names its columns from the class report, but the figures come from each
  * subject's own report, read in parallel. A column whose subject the
@@ -199,23 +221,12 @@ async function readOverall(
 async function readSubjectPercents(
   portal: PortalReader,
   p: Record<Level, Option> & { from: string; to: string },
-  columns: string[]
+  columns: string[],
+  offered: Option[] | null
 ): Promise<{
   labels: string[];
   byColumn: Map<string, Map<string, number | null>>;
 }> {
-  let offered: Option[] | null = null;
-  try {
-    offered = realOptions(
-      await portal.subjectOptions(
-        p.course.value,
-        p.branch.value,
-        p.semester.value
-      )
-    );
-  } catch (error) {
-    rethrowExpired(error);
-  }
   if (offered === null) {
     // The listing itself failed: name the columns the class report states,
     // with no figures rather than no columns — the same dash a failed
@@ -257,15 +268,12 @@ export async function handleRegister(
   if (isAllSubjects(p.subject)) {
     // No subject was chosen, so the class report is the whole register and its
     // emptiness is a real failure rather than a report to render without.
-    const {
-      rows,
-      byRoll,
-      subjects: columns,
-    } = await readOverall(portal, {
-      ...p,
-      from,
-      to,
-    });
+    // The report and the subject listing need nothing from each other, so
+    // they go out together; the per-subject reads wait for both.
+    const [{ rows, byRoll, subjects: columns }, offered] = await Promise.all([
+      readOverall(portal, { ...p, from, to }),
+      listOfferedSubjects(portal, p),
+    ]);
     if (!rows.length) {
       throw new HttpError(
         502,
@@ -275,7 +283,7 @@ export async function handleRegister(
     // Each column's percentages come from that subject's own report, read in
     // parallel: the class report states counts, never percentages.
     const { labels: subjectColumns, byColumn: pctByColumn } =
-      await readSubjectPercents(portal, { ...p, from, to }, columns);
+      await readSubjectPercents(portal, { ...p, from, to }, columns, offered);
     return summarise(
       rows.map((row) => ({
         sl: row.sl,
@@ -296,19 +304,29 @@ export async function handleRegister(
       subjectColumns
     );
   }
-  const reply = await portal.register({ ...p, from, to });
-  const rows = parseRegister(reply);
+  // The grid and the class-wide report need nothing from each other, so
+  // both go out together. An empty register still fails as an empty
+  // register even when the class report fails beside it, so the two answers
+  // are settled separately and read in the old order. A dead session still
+  // surfaces as a 401 either way.
+  const [registerSettled, overallSettled] = await Promise.allSettled([
+    portal.register({ ...p, from, to }),
+    readOverall(portal, { ...p, from, to }),
+  ]);
+  if (registerSettled.status === "rejected") throw registerSettled.reason;
+  const rows = parseRegister(registerSettled.value);
   if (!rows.length) {
     throw new HttpError(
       502,
       "The register came back empty. Either the subject has no classes in that date range, or ECAP's page layout has changed."
     );
   }
-  const { byRoll } = await readOverall(portal, { ...p, from, to });
+  if (overallSettled.status === "rejected") throw overallSettled.reason;
+  const { byRoll } = overallSettled.value;
   // The grid's own date columns are the working-days count: a grid that
   // states none leaves the summary bare rather than printing a zero. The
   // first one is where the figures begin, so the input can snap to it.
-  const dates = registerDates(reply);
+  const dates = registerDates(registerSettled.value);
   return summarise(
     rows,
     range,
@@ -475,14 +493,22 @@ export async function handleStudentProfile(
 ): Promise<StudentProfile> {
   const roll = b.roll?.trim();
   if (!roll) throw new HttpError(400, "Choose a student.");
-  const profile = parseStudentProfile(await portal.studentProfile(roll));
+  // The GPA page and the absent-dates read need nothing from each other —
+  // the roll, the name and the open register all arrive in the request — so
+  // both go out together. A 401 from either still ends the session, and a
+  // page that is not the profile still fails named instead of half-read.
+  const [page, absences] = await Promise.all([
+    portal.studentProfile(roll),
+    readAbsences(portal, roll, b),
+  ]);
+  const profile = parseStudentProfile(page);
   if (!profile) {
     throw new HttpError(
       502,
       "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
     );
   }
-  return { ...profile, ...(await readAbsences(portal, roll, b)) };
+  return { ...profile, ...absences };
 }
 /** Roman/Arabic numeral for a semester label: "III Semester" -> 3. */
 const ROMAN: Record<string, number> = {

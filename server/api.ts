@@ -4,6 +4,7 @@ import type {
   ErrorReply,
   FacultyProfile,
   FindRequest,
+  LeaveStatus,
   LoginRequest,
   OkReply,
   Option,
@@ -239,7 +240,9 @@ class Portal {
   }
   /** ECAP's main.aspx states the faculty member's name in the `lblUser` span and
    *  offers a photo path and a designation code through its proxy. None of it is
-   *  structured, so each piece is read and combined here. */
+   *  structured, so each piece is read and combined here. The three follow-up
+   *  reads are independent of each other — and of the name — so they go out
+   *  together rather than one after another. */
   async facultyProfile(): Promise<FacultyProfile> {
     const page = await portalRequest(this.jar, LOGIN_PAGE, {
       method: "GET",
@@ -247,28 +250,23 @@ class Portal {
     });
     const html = await page.text();
     const name = parseFacultyName(html);
-    const photo = await portalWebMethod(
-      this.jar,
-      MAIN_PHOTO_REMOTE,
-      "GetPhotoPath",
-      []
-    ).catch(() => "");
-    const designation = await portalWebMethod(
-      this.jar,
-      MAIN_DESIGNATION_REMOTE,
-      "CheckEmployeeDesignation",
-      []
-    ).catch(() => "-1");
-    // A status grid ECAP will not give is no leave figures, not a failed
-    // profile: the name and photo are still the answer the page came for.
-    const leaveStatus = await portalWebMethod(
-      this.jar,
-      LEAVE_STATUS_REMOTE,
-      "showLeaves",
-      []
-    )
-      .then(parseLeaveStatus)
-      .catch(() => []);
+    // Each answer carries its own fallback: a grid ECAP will not give is no
+    // leave figures, not a failed profile, and the same holds for the photo
+    // and the designation.
+    const [photo, designation, leaveStatus] = await Promise.all([
+      portalWebMethod(this.jar, MAIN_PHOTO_REMOTE, "GetPhotoPath", []).catch(
+        () => ""
+      ),
+      portalWebMethod(
+        this.jar,
+        MAIN_DESIGNATION_REMOTE,
+        "CheckEmployeeDesignation",
+        []
+      ).catch(() => "-1"),
+      portalWebMethod(this.jar, LEAVE_STATUS_REMOTE, "showLeaves", [])
+        .then(parseLeaveStatus)
+        .catch((): LeaveStatus[] => []),
+    ]);
     return {
       name,
       photo: photo.trim(),

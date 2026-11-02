@@ -16,9 +16,11 @@ import {
 import type { PortalReader } from "../server/server-routes";
 import type {
   Option,
+  RegisterReply,
   RegisterRequest,
   SemAbsencesRequest,
   SemStartRequest,
+  StudentProfile,
 } from "../shared/api";
 import { ALL_SUBJECTS } from "../shared/api";
 
@@ -34,6 +36,50 @@ const nth = <T>(list: readonly T[], n: number): T => {
     throw new Error(`expected at least ${n + 1} call(s), got ${list.length}`);
   }
   return hit;
+};
+/**
+ * Holds every wrapped read at a gate until the test releases it. A handler
+ * that asks two reads together starts both before either answers; one that
+ * asks in sequence never starts the second, so the started pair below fails
+ * the test without waiting on timing.
+ */
+const startedPair = (
+  reader: PortalReader,
+  run: (reader: PortalReader) => Promise<unknown>
+): { started: string[]; loaded: Promise<unknown>; release: () => void } => {
+  const started: string[] = [];
+  const gate = Promise.withResolvers<undefined>();
+  const held: PortalReader = {
+    ...reader,
+    register: (...args: Parameters<PortalReader["register"]>) => {
+      started.push("register");
+      return gate.promise.then(() => reader.register(...args));
+    },
+    classAttendance: (...args: Parameters<PortalReader["classAttendance"]>) => {
+      started.push("class");
+      return gate.promise.then(() => reader.classAttendance(...args));
+    },
+    subjectOptions: (...args: Parameters<PortalReader["subjectOptions"]>) => {
+      started.push("offered");
+      return gate.promise.then(() => reader.subjectOptions(...args));
+    },
+    studentProfile: (...args: Parameters<PortalReader["studentProfile"]>) => {
+      started.push("profile");
+      return gate.promise.then(() => reader.studentProfile(...args));
+    },
+    studentWise: (...args: Parameters<PortalReader["studentWise"]>) => {
+      started.push("wise");
+      return gate.promise.then(() => reader.studentWise(...args));
+    },
+  };
+  return { started, loaded: run(held), release: () => gate.resolve(undefined) };
+};
+const bothStarted = (
+  started: string[],
+  first: string,
+  second: string
+): void => {
+  expect(started.toSorted()).toEqual([first, second].toSorted());
 };
 type Calls = {
   courses: number;
@@ -1355,5 +1401,47 @@ test.describe("the unposted handler", () => {
       dayClassWork: () => Promise.reject(new HttpError(502, "down")),
     };
     await expect(handleUnposted(reader)).rejects.toThrow("down");
+  });
+});
+/**
+ * Independent portal reads go out together, never one after another. Each
+ * test holds every read in the pair at a gate: a handler that asks one
+ * after the other never starts the second, so the assertion on the started
+ * pair fails without waiting on timing.
+ */
+test.describe("independent portal reads go out together", () => {
+  test("a subject register reads its grid and its overall column together", async () => {
+    const { reader } = fake();
+    const { started, loaded, release } = startedPair(reader, (held) =>
+      handleRegister(held, levels({ from: "01/01/2026", to: "28/09/2026" }))
+    );
+    bothStarted(started, "register", "class");
+    release();
+    const reply = (await loaded) as RegisterReply;
+    expect(reply.students).toHaveLength(1);
+  });
+  test("an all-subjects load reads the report and the subject listing together", async () => {
+    const { reader } = fake();
+    const { started, loaded, release } = startedPair(reader, (held) =>
+      handleRegister(held, levels({ subject: ALL_SUBJECTS }))
+    );
+    bothStarted(started, "class", "offered");
+    release();
+    const reply = (await loaded) as RegisterReply;
+    expect(reply.summary.subjectColumns).toEqual(["AI"]);
+  });
+  test("a student panel reads the profile page and the absent grid together", async () => {
+    const { reader } = fake();
+    const { started, loaded, release } = startedPair(reader, (held) =>
+      handleStudentProfile(held, {
+        roll: "21CS001",
+        name: "A Student",
+        register: levels({ subject: ALL_SUBJECTS }),
+      })
+    );
+    bothStarted(started, "profile", "wise");
+    release();
+    const reply = (await loaded) as StudentProfile;
+    expect(reply.cgpa).toBe("5.61");
   });
 });
