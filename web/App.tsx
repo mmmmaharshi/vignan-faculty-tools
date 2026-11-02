@@ -1039,8 +1039,14 @@ const App = (): React.JSX.Element => {
       {/* Tabs, not buttons: icon over label, no fill, colour says which screen.
           An UnstyledButton is the one Mantine component that carries no button
           chrome. The footer grows by the safe-area inset and pads it away, so
-          the home indicator sits below the tabs rather than over them. */}
-      <AppShell.Footer hiddenFrom="sm" pb="env(safe-area-inset-bottom)">
+          the home indicator sits below the tabs rather than over them. Its own
+          background is what the phone shows in that gesture area, so it is
+          white on purpose rather than the theme default. */}
+      <AppShell.Footer
+        hiddenFrom="sm"
+        pb="env(safe-area-inset-bottom)"
+        bg="white"
+      >
         {screen === "app" ? (
           <BarNav active={activeTab(pathname)} onNavigate={navigate} />
         ) : null}

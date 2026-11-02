@@ -862,6 +862,12 @@ test.describe("the app's own data layer", () => {
       bar.getByRole("button", { name: "Register" }),
       "the bar carries the same name the rail does"
     ).toHaveCount(1);
+    expect(
+      await bar.evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      ),
+      "the bar and the gesture area below it paint white"
+    ).toBe("rgb(255, 255, 255)");
     await bar.getByRole("button", { name: "Profile" }).click();
     await expect
       .poll(() => new URL(page.url()).pathname, { timeout: 5000 })

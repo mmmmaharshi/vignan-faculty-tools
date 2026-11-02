@@ -189,6 +189,8 @@ control that names the class you picked was the one you could not read.
 - **The footer grows by the safe-area inset and pads it away**, and the main
   area pads by the same amount, so the home indicator sits under the tabs rather
   than over them. Both numbers are `env(safe-area-inset-bottom)`, not a guess.
+  The footer paints `white` on purpose: the gesture area below the tabs is the
+  footer's own padding, so its background is what the phone shows there.
 - **Sign out is on the rail above `sm` and on the Profile screen below it.** A
   phone has no drawer, so the screen about the signed-in user is where the way
   out has to be reachable; the Profile copy is `hiddenFrom="sm"` so the two never
