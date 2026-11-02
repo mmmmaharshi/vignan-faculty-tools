@@ -47,6 +47,10 @@ let sessionCalls = 0;
  *  in flight while the user signs out, whose answer lands after the clear. */
 let hangSession = false;
 let heldSession: { route: Route; wasIn: boolean } | null = null;
+/** When true, settle-time semester walks hang for the test to answer: the
+ *  term start ECAP has not named yet while the picker is already settled. */
+let hangWalk = false;
+let heldWalk: Route | null = null;
 /** The slid session an answer carries, the way the real server sends it. */
 const sessionAnswer = (
   wasIn: boolean
@@ -80,6 +84,9 @@ let optionsFailCount = 0;
 let optionsFailAfterFirst = false;
 let registerCalls = 0;
 let registerFails = false;
+/** The window the last register load asked for, in the Portal's own shape. */
+let lastRegisterFrom = "";
+
 let statedFrom = "";
 /** How often the open panel asked for the wider, full-semester window — sent
  *  only when it starts before the register on screen. */
@@ -307,6 +314,8 @@ const stub = async (route: Route): Promise<void> => {
     // A subject register states its class days in its own grid; the
     // section-wide report aggregates by subject and states none.
     const asked = request.postDataJSON() as RegisterRequest;
+    lastRegisterFrom = asked.from;
+
     const overall = asked.subject?.value === ALL_SUBJECTS.value;
     await json(registerReply(overall ? null : 6, overall));
     return;
@@ -315,6 +324,10 @@ const stub = async (route: Route): Promise<void> => {
     const walked = (request.postDataJSON() as { walkBack?: number }).walkBack;
     if (walked) {
       walkCalls += 1;
+      if (hangWalk) {
+        heldWalk = route;
+        return;
+      }
       await json({ statedFrom: semStartWalkFrom });
       return;
     }
@@ -515,6 +528,10 @@ test.describe("the app's own data layer", () => {
     sessionCalls = 0;
     hangSession = false;
     heldSession = null;
+    hangWalk = false;
+    heldWalk = null;
+    lastRegisterFrom = "";
+
     optionsCalls = 0;
     optionsFailCount = 0;
     optionsFailAfterFirst = false;
@@ -1532,6 +1549,118 @@ test.describe("the app's own data layer", () => {
     await page.reload();
     await expect(page.getByLabel("ECAP user name")).toBeVisible({
       timeout: 15_000,
+    });
+  });
+  test("Load register waits for the settle-time walk, so the first load is Till Now", async ({
+    page,
+  }) => {
+    hangWalk = true;
+    semStartWalkFrom = "05/08/2026";
+    await page.goto("/login");
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    // The month window is still on screen, but Load must not take it: the
+    // semester start has not answered yet.
+    await expect(
+      page.getByText("Finding the semester start", { exact: false })
+    ).toBeVisible({ timeout: 15_000 });
+    await page
+      .getByRole("button", { name: "Load register" })
+      .click({ force: true });
+    expect(
+      registerCalls,
+      "no register goes out before the start is known"
+    ).toBe(0);
+    const held = heldWalk;
+    heldWalk = null;
+    hangWalk = false;
+    expect(held, "the walk was asked").not.toBeNull();
+    await held?.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ statedFrom: semStartWalkFrom }),
+    });
+    await expect(page.getByLabel("From")).toHaveValue("2026-08-05", {
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    expect(lastRegisterFrom, "the load opens at the walked start").toBe(
+      "05/08/2026"
+    );
+  });
+  test("a hand-typed range loads at once, without waiting for the walk", async ({
+    page,
+  }) => {
+    hangWalk = true;
+    semStartWalkFrom = "05/08/2026";
+    await page.goto("/login");
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await expect(
+      page.getByText("Finding the semester start", { exact: false })
+    ).toBeVisible({ timeout: 15_000 });
+    // The typed range needs no probe: the gate lifts for it at once.
+    await page.getByLabel("From").fill("2026-09-01");
+    await expect(
+      page.getByText("Finding the semester start", { exact: false })
+    ).toHaveCount(0);
+    // The typed range lifted the gate: a normal click loads it at once.
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    expect(lastRegisterFrom, "the typed range wins over the walk").toBe(
+      "01/09/2026"
+    );
+    const held = heldWalk;
+    heldWalk = null;
+    hangWalk = false;
+    expect(held, "the walk was asked").not.toBeNull();
+    await held?.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ statedFrom: semStartWalkFrom }),
+    });
+  });
+  test("editing only To keeps the gate: From is still unsettled", async ({
+    page,
+  }) => {
+    hangWalk = true;
+    semStartWalkFrom = "05/08/2026";
+    await page.goto("/login");
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await expect(
+      page.getByText("Finding the semester start", { exact: false })
+    ).toBeVisible({ timeout: 15_000 });
+    await page.getByLabel("To").fill("2026-08-31");
+    await page
+      .getByRole("button", { name: "Load register" })
+      .click({ force: true });
+    expect(
+      registerCalls,
+      "a typed To alone must not take the unsettled From"
+    ).toBe(0);
+    const held = heldWalk;
+    heldWalk = null;
+    hangWalk = false;
+    expect(held, "the walk was asked").not.toBeNull();
+    await held?.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ statedFrom: semStartWalkFrom }),
     });
   });
   test("the session is kept locally, and sign-out drops it", async ({

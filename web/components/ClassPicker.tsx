@@ -23,6 +23,10 @@ type ClassPickerProps = {
   range: Range;
   busy: boolean;
   loadNote: string;
+  /** While the semester start is still being found: Load stays disabled with
+   *  the note beside it, and the inputs stay live so a typed range can lift
+   *  the wait at once. */
+  loadWaiting?: boolean;
   filterNote: Note | null;
   onSelect: (key: CascadeLevel, value: string) => void;
   onRange: (part: "from" | "to", value: string) => void;
@@ -52,6 +56,7 @@ export const ClassPicker = ({
   range,
   busy,
   loadNote,
+  loadWaiting = false,
   filterNote,
   onSelect,
   onRange,
@@ -94,7 +99,7 @@ export const ClassPicker = ({
       </SimpleGrid>
       <Group justify="space-between">
         <Group gap="sm">
-          <Button onClick={onLoad} loading={busy}>
+          <Button onClick={onLoad} loading={busy} disabled={loadWaiting}>
             Load register
           </Button>
           {loadNote && (

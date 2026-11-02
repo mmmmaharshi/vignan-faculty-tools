@@ -178,7 +178,12 @@ const App = (): React.JSX.Element => {
   /** Set true when a register load is initiated, consumed by the snap effect so
    *  a manual range edit cannot be overridden by a stale register. */
   const justLoaded = useRef(false);
-  const rangeEdited = useRef(false);
+  /** Which end of the range on screen was typed by hand, if either: a typed
+   *  range wins over the settle-time snaps and needs no semester-start probe
+   *  to load. State, not a ref, because the Load gate reads it while
+   *  rendering. Only a typed From lifts the gate — a typed To alone still
+   *  leaves From on the unproven month start. */
+  const [rangeEdited, setRangeEdited] = useState<"" | "from" | "to">("");
   /** Every fetch the app makes, through its own key. See `web/client.ts`. */
   const register = useRegisterLoad(click);
   /* The two callbacks are stable and the state is not, so they are taken apart:
@@ -232,16 +237,19 @@ const App = (): React.JSX.Element => {
    *  snap — one hook, so the probes, the memory, and the snaps cannot drift
    *  apart. App keeps the range they snap, the register they follow, and the
    *  just-loaded snap that owns a register already on screen. */
-  const { semStart, preSemStart, semStartShown } = useSemStartSettle({
-    opts,
-    sel,
-    range,
-    setRange,
-    rangeEdited,
-    result,
-    overallMode,
-    click,
-  });
+  const { semStart, preSemStart, semStartShown, rememberedStart } =
+    useSemStartSettle({
+      opts,
+      sel,
+      range,
+      setRange,
+      // A typed From is the user's own Till Now and needs no probe; a typed
+      // To still leaves From for the snaps to settle.
+      rangeEdited: rangeEdited !== "",
+      result,
+      overallMode,
+      click,
+    });
   /** Whether the window starts after the remembered start: only then is the
    *  wider read worth asking for. When they coincide the window's own list
    *  already is the full semester's, so the panel shows it as the one list. */
@@ -304,11 +312,22 @@ const App = (): React.JSX.Element => {
     lastSavedRegister.current = register.data;
     rememberCurrentClass();
   }, [userId, classChosen, register.data, rememberCurrentClass]);
+  /** Till Now is the standing window: while the settle-time walk is still
+   *  naming this class's semester start — and no load has remembered one —
+   *  Load register stays disabled so the first click cannot take the month
+   *  window still on screen. The inputs stay live: a typed From lifts the
+   *  gate at once, since it needs no probe — a typed To alone does not, as
+   *  From is still unsettled. A failed walk lifts the gate too; the month
+   *  window is the fallback then, not a silent one. */
+  const waitingForStart =
+    preSemStart.isLoading && !rememberedStart && rangeEdited !== "from";
   let loadNote = "";
   if (optionsLoading) {
     loadNote = "Loading options...";
   } else if (register.isLoading) {
     loadNote = "Reading the register from ECAP...";
+  } else if (waitingForStart) {
+    loadNote = "Finding the semester start...";
   }
   const failure =
     optionsError ??
@@ -418,7 +437,7 @@ const App = (): React.JSX.Element => {
       cascadeRun.current = run;
       // A new settle is a new class context: a range typed for the last one
       // no longer guards From against the settle-time snap.
-      rangeEdited.current = false;
+      setRangeEdited("");
       setFormNote(null);
       const outcome = await triggerCascade({
         seed,
@@ -475,6 +494,9 @@ const App = (): React.JSX.Element => {
     }
   };
   const loadRegister = () => {
+    // The button is busy while the gate holds, so this is unreachable through
+    // it; it stays as the rule's second half for any other caller.
+    if (waitingForStart) return;
     justLoaded.current = true;
     setFormNote(null);
     if (!range.from || !range.to) {
@@ -670,7 +692,7 @@ const App = (): React.JSX.Element => {
     // Either way the selection moved on, so a range typed for the last one no
     // longer guards From against the settle-time snaps.
     if (key === "subject") {
-      rangeEdited.current = false;
+      setRangeEdited("");
       setSel(changed);
       return;
     }
@@ -680,7 +702,7 @@ const App = (): React.JSX.Element => {
   };
   const onRangeChange = (part: "from" | "to", value: string) => {
     justLoaded.current = false;
-    rangeEdited.current = true;
+    setRangeEdited(part);
     setRange((r) => ({ ...r, [part]: value }));
   };
   const saveClass = () => {
@@ -731,6 +753,7 @@ const App = (): React.JSX.Element => {
       range={range}
       busy={busy}
       loadNote={loadNote}
+      loadWaiting={waitingForStart}
       filterNote={filterNote}
       onSelect={onSelectLevel}
       onRange={onRangeChange}

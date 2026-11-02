@@ -42,7 +42,7 @@ export function useSemStartSettle(setup: {
   sel: Sel;
   range: Range;
   setRange: Dispatch<SetStateAction<Range>>;
-  rangeEdited: { current: boolean };
+  rangeEdited: boolean;
   result: RegisterReply | null;
   overallMode: boolean;
   click: RegisterClick | null;
@@ -50,6 +50,9 @@ export function useSemStartSettle(setup: {
   semStart: ReturnType<typeof useSemStart>;
   preSemStart: ReturnType<typeof useSemStart>;
   semStartShown: string | null;
+  /** The start remembered for the settled class, if any load ever taught it:
+   *  the screen snaps to it with no probe, so no load ever waits for it. */
+  rememberedStart: string | null;
 } {
   const {
     opts,
@@ -171,11 +174,11 @@ export function useSemStartSettle(setup: {
     };
     if (snappedSelection.current !== selKey) {
       snappedSelection.current = selKey;
-      if (rememberedStart && !rangeEdited.current) {
+      if (rememberedStart && !rangeEdited) {
         snap(`memory|${selKey}`, rememberedStart);
       }
     }
-    if (preSemStart.data?.statedFrom && preKey && !rangeEdited.current) {
+    if (preSemStart.data?.statedFrom && preKey && !rangeEdited) {
       snap(`probe|${preKey}`, preSemStart.data.statedFrom);
     }
     if (semStart.data?.statedFrom) {
@@ -205,5 +208,5 @@ export function useSemStartSettle(setup: {
     });
   }, [semKey, semSeen]);
   /* oxlint-enable react/set-state-in-effect */
-  return { semStart, preSemStart, semStartShown };
+  return { semStart, preSemStart, semStartShown, rememberedStart };
 }

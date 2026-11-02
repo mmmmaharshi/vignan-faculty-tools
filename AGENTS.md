@@ -413,7 +413,14 @@ carries one also has its name in text.
   range typed by hand wins over a probe that lands after it; a probe that
   fails changes nothing, except a 401, which still signs out. `Load register`
   stays the only caller of `/api/register`: the walk reads through
-  `/api/sem-start`, the same endpoint the row above already calls.
+  `/api/sem-start`, the same endpoint the row above already calls. While the
+  walk is in flight for a class with no remembered start, Load register stays
+  disabled under a "Finding the semester start…" note — while the inputs stay
+  live — so the first click cannot take the month window still on screen.
+  Till Now is the standing window, not just the opening one. Typing From
+  lifts the gate at once: it needs no probe, while a typed To alone leaves
+  From unsettled. A failed walk lifts it too; the month window is the
+  fallback then.
 
 - **A panel shows one absent list: the full semester's.** The Portal states only
   the days inside the window, so the panel reads the **same** read again over
