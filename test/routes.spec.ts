@@ -48,6 +48,8 @@ type Calls = {
   studentWiseWindows: { from: string; to: string }[];
   /** What each day-class-work read was asked for. */
   dayWork: DayWorkRequest[];
+  /** The subject ids each subject report was asked for. */
+  subjectReports: string[];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
@@ -63,6 +65,16 @@ const classGrid = (rows: [string, string, string][]): string =>
       .map(
         ([roll, total, pct], i) =>
           `<tr><td>${i + 1}</td><td>${roll}</td><td>Name ${i + 1}</td><td>37</td><td>${total}</td><td>${pct}</td></tr>`
+      )
+      .join("")}
+  </table>`;
+const subjectGrid = (subject: string, rows: [string, string][]): string =>
+  `<table>
+    <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>${subject}</th><th>Percent</th></tr>
+    ${rows
+      .map(
+        ([roll, pct], i) =>
+          `<tr><td>${i + 1}</td><td>${roll}</td><td>Name ${i + 1}</td><td>1</td><td>${pct}</td></tr>`
       )
       .join("")}
   </table>`;
@@ -92,6 +104,16 @@ const fake = (
     classFails?: boolean;
     studentProfile?: string;
     studentWise?: string;
+    /** The subjects the SUBJECT ATTENDANCE page offers for the class. */
+    offeredSubjects?: Option[];
+    /** When true the offered-subject listing itself fails with a 502. */
+    offeredFails?: boolean;
+    /** One subject report grid per offered subject value. A missing subject
+     *  answers an empty grid. Listed here by value because the class report
+     *  only states labels. */
+    subjectReports?: Record<string, string>;
+    /** Subject values whose report ECAP refuses with a 502. */
+    subjectFails?: string[];
     /** The dashboard's schedule fragment for today. */
     today?: string;
     /** The day-class-work report's fragment for the branch and date. */
@@ -114,6 +136,7 @@ const fake = (
     studentWise: [],
     studentWiseWindows: [],
     dayWork: [],
+    subjectReports: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -134,6 +157,20 @@ const fake = (
     subjects: (c, b, s) => {
       calls.subjects.push([c, b, s]);
       return resolved(answers.subject ?? [opt("57", "MFCS")]);
+    },
+    subjectOptions: () => {
+      if (answers.offeredFails) {
+        return Promise.reject(new HttpError(502, "subject list unavailable"));
+      }
+      return resolved(answers.offeredSubjects ?? [opt("9", "AI")]);
+    },
+    subjectReport: (p, subject) => {
+      calls.subjectReports.push(String(subject.value));
+      if (answers.subjectFails?.includes(String(subject.value))) {
+        return Promise.reject(new HttpError(502, "subject report unavailable"));
+      }
+      const html = answers.subjectReports?.[String(subject.value)];
+      return resolved(html ?? subjectGrid(String(subject.label), []));
     },
     register: (p) => {
       calls.register.push(p as RegisterRequest & Record<string, unknown>);
@@ -568,12 +605,79 @@ test.describe("all subjects", () => {
     expect(reply.summary.average).toBeNull();
     expect(reply.summary.irregular).toBe(0);
   });
-  test("the class report's subject columns travel with the register", async () => {
-    const { reader } = fake();
+  test("each subject column shows that subject's stated percentage", async () => {
+    const offered = [opt("9", "AI"), opt("11", "DWDM")];
+    const { reader, calls } = fake({
+      classAttendance: `<table>
+        <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>AI</th><th>DWDM</th><th>Total</th><th>Percent</th></tr>
+        <tr><td>1</td><td>21CS001</td><td>Name 1</td><td>37</td><td>10</td><td>381\\481</td><td>79.21</td></tr>
+        <tr><td>2</td><td>21CS002</td><td>Name 2</td><td>35</td><td>10</td><td>356\\481</td><td>74.01</td></tr>
+      </table>`,
+      offeredSubjects: offered,
+      subjectReports: {
+        "9": subjectGrid("AI", [
+          ["21CS001", "90"],
+          ["21CS002", "80"],
+        ]),
+        "11": subjectGrid("DWDM", [
+          ["21CS001", "70"],
+          ["21CS002", "60"],
+        ]),
+      },
+    });
     const reply = await handleRegister(reader, levels({ subject: ALL }));
-    // The one-subject classGrid fixture states AI with 37 attended.
+    expect(
+      calls.subjectReports.toSorted(),
+      "one report read per offered subject, in one parallel fan-out"
+    ).toEqual(["11", "9"]);
+    expect(reply.summary.subjectColumns).toEqual(["AI", "DWDM"]);
+    expect(reply.students[0]?.subjects).toEqual([90, 70]);
+    expect(reply.students[1]?.subjects).toEqual([80, 60]);
+  });
+  test("a subject the portal's own list does not offer names no column", async () => {
+    const { reader } = fake({
+      classAttendance: `<table>
+        <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>AI</th><th>VAC</th><th>Total</th><th>Percent</th></tr>
+        <tr><td>1</td><td>21CS001</td><td>Name 1</td><td>37</td><td>1</td><td>381\\481</td><td>79.21</td></tr>
+      </table>`,
+      offeredSubjects: [opt("9", "AI")],
+      subjectReports: { "9": subjectGrid("AI", [["21CS001", "90"]]) },
+    });
+    const reply = await handleRegister(reader, levels({ subject: ALL }));
     expect(reply.summary.subjectColumns).toEqual(["AI"]);
-    expect(reply.students[0]?.subjects).toEqual(["37"]);
+    expect(reply.students[0]?.subjects).toEqual([90]);
+  });
+  test("a subject report ECAP will not give leaves dashes, not a failed register", async () => {
+    const { reader } = fake({
+      offeredSubjects: [opt("9", "AI")],
+      subjectFails: ["9"],
+    });
+    const reply = await handleRegister(reader, levels({ subject: ALL }));
+    expect(reply.summary.subjectColumns).toEqual(["AI"]);
+    expect(reply.students[0]?.subjects).toEqual([null]);
+  });
+  test("a subject listing ECAP will not give still names its columns", async () => {
+    const { reader } = fake({
+      offeredFails: true,
+    });
+    const reply = await handleRegister(reader, levels({ subject: ALL }));
+    // The class report did state AI: the column stays, only its figures are
+    // unknown — the same dash a failed subject report earns.
+    expect(reply.summary.subjectColumns).toEqual(["AI"]);
+    expect(reply.students[0]?.subjects).toEqual([null]);
+    expect(reply.summary.total).toBe(1);
+  });
+  test("a dead session during a subject read still signs out", async () => {
+    const { reader: base } = fake();
+    const reader: PortalReader = {
+      ...base,
+      subjectReport: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleRegister(
+      reader,
+      levels({ subject: ALL })
+    ).catch((error: unknown) => error);
+    expect((failure as HttpError).status).toBe(401);
   });
   test("the class report states no dates, so the all-subjects summary names none", async () => {
     const { reader } = fake({

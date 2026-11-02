@@ -132,6 +132,29 @@ export function classPairs(
     ["excludeothersubjects", "false"],
   ];
 }
+/**
+ * One subject's attendance report: the same thirteen values would be wrong
+ * here — the proxy declares ten, in this order, proved against the live
+ * page 2026-11-02. The subject's own page answers per-student attended and
+ * percent; the class report's subject columns are only ever headers.
+ */
+export function subjectReportPairs(
+  p: Record<CascadeLevel, Option> & { from: string; to: string },
+  subject: Option
+): [string, string | number][] {
+  return [
+    ["courseId", p.course.value],
+    ["branchId", p.branch.value],
+    ["semesterId", p.semester.value],
+    ["sectionId", p.section.value],
+    ["subjectId", subject.value],
+    ["fromDate", p.from],
+    ["toDate", p.to],
+    ["course", p.course.label],
+    ["branch", p.branch.label],
+    ["semester", p.semester.label],
+  ];
+}
 export class CookieJar {
   readonly entries = new Map<string, string>();
   get signedIn(): boolean {

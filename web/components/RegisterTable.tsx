@@ -213,10 +213,12 @@ export const RegisterTable = ({
                     </Table.Td>
                     {subjectColumns.map((code, i) => (
                       <Table.Td key={`${code}-${i}`} ta="center">
-                        {s.subjects[i] ?? (
+                        {s.subjects[i] == null ? (
                           <Text c="dimmed" size="sm">
                             —
                           </Text>
+                        ) : (
+                          `${s.subjects[i].toFixed(2)}%`
                         )}
                       </Table.Td>
                     ))}

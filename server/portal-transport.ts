@@ -16,6 +16,15 @@ export const LOGIN_PAGE = `${BASE}/vignanit/main.aspx`;
 export const LOGIN_POST = `${BASE}/vignanit/Default.aspx?ReturnUrl=%2fvignanit%2fmain.aspx`;
 const JQ = `${BASE}/vignanit/jqmethods.aspx`;
 export const REGISTER_PAGE_URL = `${BASE}/vignanit/ACADEMICS/AcademicRegister.aspx?scrid=335`;
+/** The SUBJECT ATTENDANCE page's own proxy, proved live 2026-11-02: its
+ *  FillSubjects fills the subject dropdown, and ShowSubjectAttendance answers
+ *  one student's attended count and percent per subject over any range — the
+ *  same `no` session marker as the register and class report proxies. */
+export const SUBJECT_ATTENDANCE_REMOTE: Remote = {
+  proxy: `${BASE}/vignanit/ajax/Academics_attendancerpt_subject,App_Web_attendancerpt_subject.aspx.a2a1b31c.ashx`,
+  referer: `${BASE}/vignanit/ACADEMICS/attendancerpt_subject.aspx?scrid=322`,
+  session: "no",
+};
 /** The APPLY-SELF page's leave-status grid. The menu reaches it through
  *  CheckAuthentication, but the `showLeaves` method itself reads the signed-in
  *  user's own counts from the session and takes no parameters. The proxy

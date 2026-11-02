@@ -32,6 +32,7 @@ import {
   parseStudentAbsences,
   parseStudentClass,
   parseStudentProfile,
+  parseSubjectReport,
   parseTodayClasses,
   parseDayClassWork,
   realOptions,
@@ -60,6 +61,17 @@ export type PortalReader = {
   ) => Promise<string>;
   classAttendance: (
     p: Record<Level, Option> & { from: string; to: string }
+  ) => Promise<string>;
+  /** The subjects the SUBJECT ATTENDANCE page offers for one class. */
+  subjectOptions: (
+    courseId: string | number,
+    branchId: string | number,
+    semesterId: string | number
+  ) => Promise<Option[]>;
+  /** One subject's attendance report for the whole section. */
+  subjectReport: (
+    p: Record<Level, Option> & { from: string; to: string },
+    subject: Option
   ) => Promise<string>;
   /** The StudentProfile page's markup for one roll number. */
   studentProfile: (roll: string) => Promise<string>;
@@ -142,6 +154,13 @@ export function requireLevels(
   };
 }
 /**
+ * A dead ECAP session must stay a 401 so the client signs out; every other
+ * portal failure is the caller's to interpret. The one place that rule lives,
+ * so the readers below cannot drift apart on it. */
+function rethrowExpired(error: unknown): void {
+  if (error instanceof HttpError && error.status === 401) throw error;
+}
+/**
  * The class-wide report is a second Portal screen. If it fails, or its layout
  * has moved, the register that already worked must still render, so nothing here
  * is allowed to throw on the subject path. See
@@ -159,21 +178,73 @@ async function readOverall(
       byRoll: new Map(
         rows.map((row) => [
           row.roll,
-          {
-            attendedOfHeld: row.attendedOfHeld,
-            pct: row.pct,
-            subjects: row.subjects,
-          },
+          { attendedOfHeld: row.attendedOfHeld, pct: row.pct },
         ])
       ),
       subjects: classReportSubjects(reply),
     };
   } catch (error) {
-    // A dead session must stay a 401 or the client will not sign anyone out;
-    // everything else is a report this screen can do without.
-    if (error instanceof HttpError && error.status === 401) throw error;
+    rethrowExpired(error);
     return { rows: [], byRoll: new Map(), subjects: [] };
   }
+}
+/**
+ * One subject's stated percentages, keyed by roll: the All subjects view
+ * names its columns from the class report, but the figures come from each
+ * subject's own report, read in parallel. A column whose subject the
+ * Portal's own subject list does not offer is dropped rather than guessed;
+ * a subject ECAP will not answer leaves dashes rather than failing the
+ * register; a dead session still signs out.
+ */
+async function readSubjectPercents(
+  portal: PortalReader,
+  p: Record<Level, Option> & { from: string; to: string },
+  columns: string[]
+): Promise<{
+  labels: string[];
+  byColumn: Map<string, Map<string, number | null>>;
+}> {
+  let offered: Option[] | null = null;
+  try {
+    offered = realOptions(
+      await portal.subjectOptions(
+        p.course.value,
+        p.branch.value,
+        p.semester.value
+      )
+    );
+  } catch (error) {
+    rethrowExpired(error);
+  }
+  if (offered === null) {
+    // The listing itself failed: name the columns the class report states,
+    // with no figures rather than no columns — the same dash a failed
+    // subject report earns.
+    return { labels: columns, byColumn: new Map() };
+  }
+  const pairs = columns
+    .map((label) => ({ label, subject: matchOption(label, offered) }))
+    .filter(
+      (pair): pair is { label: string; subject: Option } =>
+        pair.subject !== null
+    );
+  const byColumn = new Map<string, Map<string, number | null>>();
+  await Promise.all(
+    pairs.map(async ({ label, subject }) => {
+      try {
+        const grid = parseSubjectReport(
+          await portal.subjectReport({ ...p, from: p.from, to: p.to }, subject)
+        );
+        byColumn.set(
+          label,
+          new Map(grid.map((row) => [row.roll, row.pct] as const))
+        );
+      } catch (error) {
+        rethrowExpired(error);
+      }
+    })
+  );
+  return { labels: pairs.map((pair) => pair.label), byColumn };
 }
 export async function handleRegister(
   portal: PortalReader,
@@ -186,7 +257,11 @@ export async function handleRegister(
   if (isAllSubjects(p.subject)) {
     // No subject was chosen, so the class report is the whole register and its
     // emptiness is a real failure rather than a report to render without.
-    const { rows, byRoll, subjects } = await readOverall(portal, {
+    const {
+      rows,
+      byRoll,
+      subjects: columns,
+    } = await readOverall(portal, {
       ...p,
       from,
       to,
@@ -197,6 +272,10 @@ export async function handleRegister(
         "The class attendance report came back empty. Either the section has no classes in that date range, or ECAP's page layout has changed."
       );
     }
+    // Each column's percentages come from that subject's own report, read in
+    // parallel: the class report states counts, never percentages.
+    const { labels: subjectColumns, byColumn: pctByColumn } =
+      await readSubjectPercents(portal, { ...p, from, to }, columns);
     return summarise(
       rows.map((row) => ({
         sl: row.sl,
@@ -204,9 +283,9 @@ export async function handleRegister(
         name: row.name,
         attendedOfHeld: "",
         pct: null,
-        // The All subjects register is the class report itself, so its
-        // subject columns ride the row rather than the overall lookup.
-        subjects: row.subjects,
+        subjects: subjectColumns.map(
+          (column) => pctByColumn.get(column)?.get(row.roll) ?? null
+        ),
         absent: [],
       })),
       range,
@@ -214,7 +293,7 @@ export async function handleRegister(
       null,
       null,
       [],
-      subjects
+      subjectColumns
     );
   }
   const reply = await portal.register({ ...p, from, to });
@@ -249,12 +328,6 @@ export async function handleRegister(
  * A report ECAP will not give changes nothing else: the panel's GPA and numbers
  * are the main read, and a 401 still ends the session.
  */
-/** A dead ECAP session must stay a 401 so the client signs out; every other
- *  portal failure is the caller's to interpret. The one place that rule lives,
- *  so the three readers below cannot drift apart on it. */
-function rethrowExpired(error: unknown): void {
-  if (error instanceof HttpError && error.status === 401) throw error;
-}
 /** One student's absent days from their own day-wise grid, over the window
  *  given. Absent where the grid states none — which is not a clean sheet. A
  *  failure throws; the callers decide what a failure means for them. */

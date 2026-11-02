@@ -74,11 +74,11 @@ export interface Student {
   overallAttendedOfHeld: string;
   overallIrregular: boolean;
   overallCritical: boolean;
-  /** Each subject column's cell for this student, in the summary's
-   *  subjectColumns order: the Portal's attended counts, read from the class
-   *  report, never recomputed. A dash or a blank is no figure, not a zero.
-   *  Empty on a subject register, whose own grid states one subject. */
-  subjects: (string | null)[];
+  /** Each subject's stated percentage for this student, in the summary's
+   *  subjectColumns order — read from ECAP's own subject reports, never
+   *  recomputed. Null is no figure, never a zero. Empty on a subject
+   *  register, whose own figure the register grid already states. */
+  subjects: (number | null)[];
   /** Dates (dd/mm) the register states "A" for this student. Read from the
    *  register's own grid — no extra Portal call. */
   absent: string[];

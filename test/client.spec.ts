@@ -144,7 +144,7 @@ const registerReply = (
       overallCritical: false,
       // The section-wide report states one attended count per subject it
       // offered; a subject register states none.
-      subjects: overall ? ["38", "12"] : [],
+      subjects: overall ? [90, 80] : [],
       absent: overall ? [] : ["12/10"],
     },
     {
@@ -159,7 +159,7 @@ const registerReply = (
       overallAttendedOfHeld: "77/148",
       overallIrregular: true,
       overallCritical: false,
-      subjects: overall ? ["20", "5"] : [],
+      subjects: overall ? [70, null] : [],
       absent: overall ? [] : ["12/10"],
     },
     {
@@ -174,7 +174,7 @@ const registerReply = (
       overallAttendedOfHeld: "44/148",
       overallIrregular: true,
       overallCritical: true,
-      subjects: overall ? ["10", null] : [],
+      subjects: overall ? [null, 50] : [],
       absent: [],
     },
   ],
@@ -1332,7 +1332,7 @@ test.describe("the app's own data layer", () => {
       "and the page's own total, as it states it"
     ).toBeVisible();
   });
-  test("the All subjects view states each subject's attended count", async ({
+  test("the All subjects view states each subject's own percentage", async ({
     page,
   }) => {
     await signInAndSettle(page);
@@ -1380,19 +1380,19 @@ test.describe("the app's own data layer", () => {
         .evaluate((el) => getComputedStyle(el).backgroundColor)
     );
     await expect(
-      page.getByRole("cell", { name: "38", exact: true }),
-      "A student's MFCS attended count, exactly as ECAP stated it"
+      page.getByRole("cell", { name: "90.00%", exact: true }),
+      "A student's MFCS percentage, exactly as ECAP stated it"
     ).toBeVisible();
     expect(
       await page
-        .getByRole("cell", { name: "38", exact: true })
+        .getByRole("cell", { name: "90.00%", exact: true })
         .evaluate((el) => getComputedStyle(el).textAlign),
       "figure cells are centered"
     ).toBe("center");
     await expect(
       page.getByRole("cell", { name: "—", exact: true }),
       "a subject the portal left blank is a dash, not a zero"
-    ).toBeVisible();
+    ).toHaveCount(2, { timeout: 15_000 });
     await expect(
       page.getByRole("columnheader", { name: "Subject Attendance %" }),
       "no subject figure on the section view"

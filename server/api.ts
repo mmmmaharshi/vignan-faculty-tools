@@ -22,6 +22,7 @@ import {
   dayWorkPairs,
   portalEncrypt,
   studentPairs,
+  subjectReportPairs,
 } from "./portal-conventions.js";
 import type { DayWorkRequest } from "./portal-conventions.js";
 import { liveness } from "./portal-liveness.js";
@@ -50,6 +51,7 @@ import {
   PROFILE_REMOTE,
   REGISTER_PAGE_URL,
   REGISTER_REMOTE,
+  SUBJECT_ATTENDANCE_REMOTE,
   UA,
 } from "./portal-transport.js";
 import {
@@ -191,6 +193,39 @@ class Portal {
       CLASS_REMOTE,
       "ShowAllAttendance",
       classPairs(p)
+    );
+  }
+  /** The subjects the SUBJECT ATTENDANCE page offers for one class — the only
+   *  subject ids ShowSubjectAttendance accepts, read from the same page. */
+  async subjectOptions(
+    courseId: string | number,
+    branchId: string | number,
+    semesterId: string | number
+  ): Promise<Option[]> {
+    return options(
+      await portalWebMethod(
+        this.jar,
+        SUBJECT_ATTENDANCE_REMOTE,
+        "FillSubjects",
+        [
+          ["CourseId", courseId],
+          ["BranchId", branchId],
+          ["SemesterId", semesterId],
+        ]
+      )
+    );
+  }
+  /** One subject's attendance report: every student in the section with that
+   *  subject's stated attended count and percent. Proved live 2026-11-02. */
+  subjectReport(
+    p: Record<Level, Option> & { from: string; to: string },
+    subject: Option
+  ): Promise<string> {
+    return portalWebMethod(
+      this.jar,
+      SUBJECT_ATTENDANCE_REMOTE,
+      "ShowSubjectAttendance",
+      subjectReportPairs(p, subject)
     );
   }
   /** The register page is this method's referer because that is the referer the

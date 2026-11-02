@@ -286,10 +286,6 @@ export interface OverallRow {
   name: string;
   attendedOfHeld: string;
   pct: number | null;
-  /** Each subject column's cell for this student, in the header's own order:
-   *  the Portal's attended counts, read never recomputed. A dash or a blank
-   *  is no figure, not a zero. */
-  subjects: (string | null)[];
 }
 /** The class attendance report's own header row, or empty when the reply is
  *  not that report. The one place the report is told apart from the other
@@ -309,8 +305,6 @@ export function parseClassAttendance(html: string): OverallRow[] {
   const rows: OverallRow[] = [];
   const grid = anyHeaded(gridTables(html));
   if (!grid) return rows;
-  const header = classHeaderRow(grid);
-  const subjectCount = Math.max(header.length - 5, 0);
   for (const cells of grid) {
     if (cells.length < 4) continue;
     const sl = cells[0] ?? "";
@@ -318,19 +312,37 @@ export function parseClassAttendance(html: string): OverallRow[] {
     if (!/^\d+$/.test(sl) || !roll) continue;
     const stated = (cells.at(-1) ?? "").replace("%", "").trim();
     const num = stated === "" ? Number.NaN : Number(stated);
-    const subjects: (string | null)[] = [];
-    for (let i = 0; i < subjectCount; i++) {
-      const raw = (cells[3 + i] ?? "").trim();
-      subjects.push(raw === "" || raw === "-" ? null : raw);
-    }
     rows.push({
       sl,
       roll,
       name: cells[2] ?? "",
       attendedOfHeld: cells.at(-2) ?? "",
       pct: Number.isNaN(num) ? null : num,
-      subjects,
     });
+  }
+  return rows;
+}
+/**
+ * One student's stated percentage for one subject, out of that subject's own
+ * report: Sl.No, Roll.No, name, the subject's attended, then its percent.
+ * Read as stated, never recomputed — like the overall figure beside it.
+ */
+export interface SubjectRow {
+  roll: string;
+  pct: number | null;
+}
+export function parseSubjectReport(html: string): SubjectRow[] {
+  const rows: SubjectRow[] = [];
+  const grid = anyHeaded(gridTables(html));
+  if (!grid) return rows;
+  for (const cells of grid) {
+    if (cells.length < 4) continue;
+    const sl = cells[0] ?? "";
+    const roll = cells[1] ?? "";
+    if (!/^\d+$/.test(sl) || !roll) continue;
+    const stated = (cells.at(-1) ?? "").replace("%", "").trim();
+    const num = stated === "" ? Number.NaN : Number(stated);
+    rows.push({ roll, pct: Number.isNaN(num) ? null : num });
   }
   return rows;
 }
