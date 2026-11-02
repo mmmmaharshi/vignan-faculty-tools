@@ -1389,6 +1389,12 @@ test.describe("the app's own data layer", () => {
         .evaluate((el) => getComputedStyle(el).textAlign),
       "figure cells are centered"
     ).toBe("center");
+    expect(
+      await page
+        .getByRole("cell", { name: "90.00%", exact: true })
+        .evaluate((el) => getComputedStyle(el).borderLeftWidth),
+      "columns are divided by full borders"
+    ).not.toBe("0px");
     await expect(
       page.getByRole("cell", { name: "—", exact: true }),
       "a subject the portal left blank is a dash, not a zero"

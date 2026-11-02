@@ -155,7 +155,13 @@ export const RegisterTable = ({
       ) : (
         <>
           <Table.ScrollContainer minWidth={980}>
-            <Table striped highlightOnHover withTableBorder tabularNums>
+            <Table
+              striped
+              highlightOnHover
+              withTableBorder
+              withColumnBorders
+              tabularNums
+            >
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th ta="center">
