@@ -19,6 +19,7 @@ import {
 import type { Range, Sel } from "./cascade";
 import { useSemStart } from "./client";
 import type { RegisterClick } from "./client";
+import type { RangeEdited } from "./load-gate";
 import {
   noteSemStart,
   readSemStarts,
@@ -42,7 +43,7 @@ export function useSemStartSettle(setup: {
   sel: Sel;
   range: Range;
   setRange: Dispatch<SetStateAction<Range>>;
-  rangeEdited: boolean;
+  rangeEdited: RangeEdited;
   result: RegisterReply | null;
   overallMode: boolean;
   click: RegisterClick | null;
@@ -174,11 +175,11 @@ export function useSemStartSettle(setup: {
     };
     if (snappedSelection.current !== selKey) {
       snappedSelection.current = selKey;
-      if (rememberedStart && !rangeEdited) {
+      if (rememberedStart && rangeEdited !== "from") {
         snap(`memory|${selKey}`, rememberedStart);
       }
     }
-    if (preSemStart.data?.statedFrom && preKey && !rangeEdited) {
+    if (preSemStart.data?.statedFrom && preKey && rangeEdited !== "from") {
       snap(`probe|${preKey}`, preSemStart.data.statedFrom);
     }
     if (semStart.data?.statedFrom) {

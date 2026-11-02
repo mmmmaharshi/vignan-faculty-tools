@@ -20,6 +20,11 @@
     // tsconfig.json. web/cascade.ts is deliberately free of both, which is what
     // lets the same file compile in both projects.
     "web/cascade.ts",
+    "web/panel-state.ts",
+    "web/load-gate.ts",
+    "web/paths.ts",
+    "web/route-guard.ts",
+    "server/session-verdict.ts",
     "playwright.config.ts",
     "vite.config.ts"
   ]

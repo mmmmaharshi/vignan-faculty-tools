@@ -707,6 +707,34 @@ fill is a rule bug, two requests racing is a loop bug.
   the course pass 1 fetched is not discarded with the failed branch pass —
   and the retry settles from there.
 
+- **The panel is one state, not two booleans.** `web/panel-state.ts` holds
+  `open | closing | closed` with the student inside: `closing` is the ~200ms
+  slide-out that still draws its row, and only `open` fires the wider
+  absent-dates read. `detail` + `detailOpen` was the same fact apart, and a
+  read gated on one but not the other fired for a panel already leaving.
+- **The Load gate is one state, not three guards.** `web/load-gate.ts` answers
+  `ready | loading-options | reading-register | finding-start` from the same
+  inputs the button and the note read, so the two cannot disagree. A typed
+  From lifts it; a typed To alone does not — while the walk is in flight for
+  an unremembered class, the first click cannot take the month window still
+  on screen.
+- **The URL has one steady-state writer.** `web/route-guard.ts` (`nextRoute`)
+  decides every redirect once the session is known; the back-button effect
+  delegates to it. The boot effect keeps its own landing-screen rule (a
+  restored session opens Home, and an unknown deep link lands there too) —
+  `nextRoute` returns null before boot, so it never competes. `web/paths.ts`
+  holds the five strings with no JSX, so the guard and the test harness can
+  import them — `NavTabs.tsx` re-exports them, and the tabs remain the only
+  other place they appear.
+- **A typed To no longer blocks the From snap.** `useSemStartSettle` takes the
+  `"" | "from" | "to"` union, not a boolean: only `"from"` suppresses the
+  settle-time snaps, so a probe that lands after a typed To still settles
+  From. The boolean before it treated both ends as a manual range and dropped
+  the answer.
+- **`/api/session` is one decision.** `server/session-verdict.ts` maps the
+  liveness probe plus the re-auth failure to `alive | dead | unknown`: only a
+  401 evicts, a 502 stays unknown (ADR 0019). `portal-liveness.ts` still owns
+  the probe itself; the verdict owns what the probe plus the re-auth mean.
 - **Independent portal reads go out together; dependent ones stay sequential.**
   Reads that need nothing from each other — the register grid beside its
   class report, the profile page beside the absent-dates grid, the class

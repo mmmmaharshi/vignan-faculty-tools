@@ -78,6 +78,16 @@ import { SavedClasses } from "./components/SavedClasses";
 import { SignInPanel } from "./components/SignInPanel";
 import { StudentDetails } from "./components/StudentDetails";
 import { UnpostedPanel } from "./components/UnpostedPanel";
+import { loadGate, loadNote as gateNote } from "./load-gate";
+import {
+  CLOSED_PANEL,
+  closePanel,
+  finishClose,
+  isPanelOpen,
+  openPanel,
+} from "./panel-state";
+import type { PanelState } from "./panel-state";
+import { nextRoute } from "./route-guard";
 import {
   abbreviate,
   rememberClass,
@@ -139,17 +149,13 @@ const App = (): React.JSX.Element => {
   /** A header refresh in flight. Held here, not in the header, because the
    *  header is presentational and keeps none. */
   const [refreshing, setRefreshing] = useState(false);
-  /** The row whose panel is open. Held here, not in the table, because the table
-   *  is a presentational module with no state of its own. */
-  const [detail, setDetail] = useState<Student | null>(null);
-  /** Whether that panel is showing. Two facts, not one, because the drawer slides
-   *  out for ~200ms after `opened` goes false: `detail` is what it draws with
-   *  while it leaves, and it is dropped only when the slide-out ends. Held here
-   *  for the same reason as `detail`. */
-  const [detailOpen, setDetailOpen] = useState(false);
+  /** The row whose panel is open, as one state: open, closing (the ~200ms
+   *  slide-out that still draws the student), or closed. Two facts before —
+   *  `detail` plus `detailOpen` — and a read gated on one but not the other
+   *  fired for a panel already leaving. */
+  const [panel, setPanel] = useState<PanelState>(CLOSED_PANEL);
   const showDetails = (student: Student) => {
-    setDetail(student);
-    setDetailOpen(true);
+    setPanel(openPanel(student));
   };
   /** Every subject name this session has been offered, by section and value.
    *
@@ -203,8 +209,12 @@ const App = (): React.JSX.Element => {
   const login = useSignIn();
   const logout = useSignOut();
   const profile = useStudentProfile(
-    detail
-      ? { roll: detail.roll, name: detail.name, register: click?.request }
+    panel.student
+      ? {
+          roll: panel.student.roll,
+          name: panel.student.name,
+          register: click?.request,
+        }
       : null
   );
   const facultyProfile = useFacultyProfile(Boolean(onProfile));
@@ -262,7 +272,7 @@ const App = (): React.JSX.Element => {
       setRange,
       // A typed From is the user's own Till Now and needs no probe; a typed
       // To still leaves From for the snaps to settle.
-      rangeEdited: rangeEdited !== "",
+      rangeEdited,
       result,
       overallMode,
       click,
@@ -275,14 +285,18 @@ const App = (): React.JSX.Element => {
   );
   /** The full-semester absent list for the open panel: the same read that fed
    *  the window's own list, asked again over the remembered start. Gated on the
-   *  drawer being open, not just on a student being set: `detail` survives the
+   *  panel being open, not just on a student being set: `closing` survives the
    *  ~200ms slide-out by design, and a register loaded in that window must not
    *  read for a panel that is already leaving. */
   const semAbsences = useSemAbsences(
-    detailOpen && detail && click?.request && startBeforeWindow && semStartShown
+    isPanelOpen(panel) &&
+      panel.student &&
+      click?.request &&
+      startBeforeWindow &&
+      semStartShown
       ? {
-          roll: detail.roll,
-          name: detail.name,
+          roll: panel.student.roll,
+          name: panel.student.name,
           register: click.request,
           from: semStartShown,
         }
@@ -293,8 +307,8 @@ const App = (): React.JSX.Element => {
    *  cells where it has them, otherwise the Student Wise report the panel
    *  reads for this student. Null where neither has anything to show. */
   const windowAbsences =
-    detail && detail.absent.length > 0
-      ? detail.absent
+    panel.student && panel.student.absent.length > 0
+      ? panel.student.absent
       : (profile.data?.absent ?? []);
   const fullAbsencesShown =
     semAbsences.data?.absent ??
@@ -329,23 +343,17 @@ const App = (): React.JSX.Element => {
     lastSavedRegister.current = register.data;
     rememberCurrentClass();
   }, [userId, classChosen, register.data, rememberCurrentClass]);
-  /** Till Now is the standing window: while the settle-time walk is still
-   *  naming this class's semester start — and no load has remembered one —
-   *  Load register stays disabled so the first click cannot take the month
-   *  window still on screen. The inputs stay live: a typed From lifts the
-   *  gate at once, since it needs no probe — a typed To alone does not, as
-   *  From is still unsettled. A failed walk lifts the gate too; the month
-   *  window is the fallback then, not a silent one. */
-  const waitingForStart =
-    preSemStart.isLoading && !rememberedStart && rangeEdited !== "from";
-  let loadNote = "";
-  if (optionsLoading) {
-    loadNote = "Loading options...";
-  } else if (register.isLoading) {
-    loadNote = "Reading the register from ECAP...";
-  } else if (waitingForStart) {
-    loadNote = "Finding the semester start...";
-  }
+  /** Till Now is the standing window: one gate decides whether Load register
+   *  may fire, and the note names the same state. See `web/load-gate.ts`. */
+  const gateInput = {
+    optionsLoading,
+    registerLoading: register.isLoading,
+    preLoading: preSemStart.isLoading,
+    rememberedStart,
+    rangeEdited,
+  };
+  const gate = loadGate(gateInput);
+  const loadNote = gateNote(gateInput);
   const failure =
     optionsError ??
     register.error ??
@@ -433,7 +441,7 @@ const App = (): React.JSX.Element => {
       setSel(EMPTY_SEL);
       setOpts(EMPTY_OPTS);
       setFilter(NO_FILTER);
-      setDetail(null);
+      setPanel(CLOSED_PANEL);
       setUnpostedBranch(null);
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
@@ -526,7 +534,7 @@ const App = (): React.JSX.Element => {
   const loadRegister = () => {
     // The button is busy while the gate holds, so this is unreachable through
     // it; it stays as the rule's second half for any other caller.
-    if (waitingForStart) return;
+    if (gate === "finding-start") return;
     justLoaded.current = true;
     setFormNote(null);
     if (!range.from || !range.to) {
@@ -549,7 +557,7 @@ const App = (): React.JSX.Element => {
     // A new register replaces the table, so a panel opened from the old one goes:
     // it would otherwise show one student's numbers beside a table they need not
     // be in.
-    setDetail(null);
+    setPanel(CLOSED_PANEL);
     // A name or roll typed for the last class does not belong to this one: it
     // would hide every row of the new register behind a search nobody typed for
     // it. The ticked bars stay — they are a standing intent about attendance.
@@ -696,10 +704,13 @@ const App = (): React.JSX.Element => {
   }, [register.data, range]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
-    if (booted && signedIn && onLogin) {
-      navigate(HOME_PATH, { replace: true });
+    // A signed-in user lands on /login only via Back: the first effect runs
+    // once, so this is the writer that sends them back to the landing screen.
+    const target = nextRoute(pathname, { booted, signedIn });
+    if (target && pathname === LOGIN_PATH) {
+      navigate(target, { replace: true });
     }
-  }, [booted, signedIn, onLogin, navigate]);
+  }, [booted, signedIn, pathname, navigate]);
   const disabled = disabledLevels(sel);
   // No sort: the rows are the Portal's own roster order, which the Sl.No column
   // carries. Reordering them by attendance made the numbers read as a ranking
@@ -783,7 +794,7 @@ const App = (): React.JSX.Element => {
       range={range}
       busy={busy}
       loadNote={loadNote}
-      loadWaiting={waitingForStart}
+      loadWaiting={gate === "finding-start"}
       filterNote={filterNote}
       onSelect={onSelectLevel}
       onRange={onRangeChange}
@@ -936,10 +947,10 @@ const App = (): React.JSX.Element => {
               />
             ) : null}
             <StudentDetails
-              student={detail}
-              opened={detailOpen}
-              onClose={() => setDetailOpen(false)}
-              onExitTransitionEnd={() => setDetail(null)}
+              student={panel.student}
+              opened={isPanelOpen(panel)}
+              onClose={() => setPanel(closePanel(panel))}
+              onExitTransitionEnd={() => setPanel(finishClose(panel))}
               profile={profile.data ?? null}
               busy={profile.isLoading}
               note={profileNote ?? semAbsencesNote}

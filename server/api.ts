@@ -67,6 +67,7 @@ import {
   handleUnposted,
 } from "./server-routes.js";
 import type { PortalReader } from "./server-routes.js";
+import { sessionVerdict } from "./session-verdict.js";
 
 type Level = CascadeLevel;
 /** Thirty days of *not using it*, after ADR 0013. The browser carries `at`
@@ -488,18 +489,18 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       if (path === "/api/session") {
         const s = readSession(req);
         if (!s) return json(signedOutReply(), 200);
-        if ((await liveness(s.portal)) === "dead") {
-          const failure: unknown = await reauthenticate(s).catch(
-            (error: unknown) => error
-          );
-          // Only a 401 says the credential is dead; a 502 is `unknown`, and
-          // ADR 0019 forbids evicting on ambiguity. The next request asks again.
-          // Either way there is nothing server-side to evict: the browser
-          // drops a refused session itself.
-          if (failure instanceof HttpError && failure.status === 401) {
-            return json(signedOutReply(), 200);
-          }
-        }
+        // One decision, not nested ifs: only a 401 evicts, a 502 stays
+        // `unknown` (ADR 0019). Either way nothing is evicted server-side.
+        const probe = await liveness(s.portal);
+        const failure: unknown =
+          probe === "dead"
+            ? await reauthenticate(s).catch((error: unknown) => error)
+            : null;
+        const verdict = sessionVerdict(
+          probe,
+          failure instanceof HttpError ? failure : null
+        );
+        if (verdict === "dead") return json(signedOutReply(), 200);
         return json(
           {
             signedIn: s.portal.signedIn,
