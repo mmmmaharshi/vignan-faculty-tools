@@ -24,6 +24,7 @@
     "web/load-gate.ts",
     "web/paths.ts",
     "web/route-guard.ts",
+    "web/sw-update.ts",
     "server/session-verdict.ts",
     "playwright.config.ts",
     "vite.config.ts"

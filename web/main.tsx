@@ -7,6 +7,7 @@ import { BrowserRouter, Route, Routes } from "react-router";
 import { SWRConfig } from "swr";
 
 import App from "./App";
+import { watchForUpdates } from "./sw-update";
 
 if (import.meta.env.DEV) void import("react-grab");
 
@@ -17,7 +18,21 @@ if (import.meta.env.DEV) void import("react-grab");
 /** Best-effort: without a worker this stays an ordinary web app. */
 async function registerWorker(): Promise<void> {
   try {
-    await navigator.serviceWorker.register("/sw.js");
+    const registration = await navigator.serviceWorker.register("/sw.js");
+    // A new shell version installed while the app runs: ask natively, and
+    // reload onto it on yes. A first install has no controller to update
+    // from, so it stays silent.
+    watchForUpdates(registration, {
+      hasController: () => navigator.serviceWorker.controller !== null,
+      confirmUpdate: () =>
+        // Native dialog on purpose: one blocking question, and the app
+        // holds no custom dialog chrome for it (Mantine-only, no CSS).
+        // oxlint-disable-next-line no-alert -- native confirm is the requested update prompt
+        window.confirm(
+          "A new version of Vignan Faculty Tools is available. Update now?"
+        ),
+      applyUpdate: () => window.location.reload(),
+    });
   } catch {
     // Registration failed; the app works uninstalled.
   }

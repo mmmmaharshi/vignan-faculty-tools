@@ -109,7 +109,9 @@ web/public/manifest.webmanifest  the install prompt's facts: names, start URL,
                      display mode, and the three icons below
 web/public/sw.js     the service worker: shell-only cache, /api/* never
                      intercepted; plain JS, so tsc skips it and node --check
-                     is the syntax gate
+                     is the syntax gate. An installed update is offered through
+                     the native confirm (`web/sw-update.ts`, wired in
+                     `web/main.tsx`); yes reloads onto the new shell.
 web/public/icons/    the three install icons, rasterized from one SVG tile by
                      a throwaway Playwright script (kept out of the repo)
 web/App.tsx          state, the three modes, and the session's own facts
