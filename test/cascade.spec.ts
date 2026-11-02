@@ -45,6 +45,7 @@ import {
   writeTodayMemory,
 } from "../web/today-memory";
 import {
+  barCounts,
   carriesOverall,
   cycleSubjectBar,
   displayName,
@@ -709,6 +710,47 @@ test.describe("the rows as shown", () => {
     registerRows(input, NO_FILTER, false);
     registerRows(input, irregularOnly, false);
     expect(input.map((s) => s.roll)).toEqual(["A", "B", "C"]);
+  });
+  test("each ticked bar names how many rows it alone would keep", () => {
+    // B is irregular on the subject figure but healthy overall; C is the
+    // reverse. Counting per bar through the path's own figure keeps the two
+    // views distinct instead of agreeing by accident.
+    const mixed = [
+      { ...student(90), sl: "1", roll: "A", name: "A" },
+      {
+        ...student(70),
+        sl: "2",
+        roll: "B",
+        name: "B",
+        overallPct: 80,
+        overallIrregular: false,
+        overallCritical: false,
+      },
+      {
+        ...student(40),
+        sl: "3",
+        roll: "C",
+        name: "C",
+        overallPct: 30,
+        overallIrregular: true,
+        overallCritical: true,
+      },
+    ];
+    expect(barCounts(mixed, "", true)).toEqual({
+      irregular: 1,
+      below75: 1,
+      below65: 1,
+    });
+    expect(barCounts(mixed, "", false)).toEqual({
+      irregular: 2,
+      below75: 2,
+      below65: 1,
+    });
+    expect(barCounts(mixed, "c", true)).toEqual({
+      irregular: 1,
+      below75: 1,
+      below65: 1,
+    });
   });
 });
 test.describe("one threshold per subject column", () => {

@@ -815,7 +815,10 @@ the numbers read as a league table and stopped `Sl.No` running down the page.
 With any filter ticked — *All irregular students*, *Below 75%*,
 *Below 65%* — the table is a worklist rather than a roster, so it sorts
 worst-first: that is the one thing the checkboxes are for. Ticked bars
-intersect, so the strictest one wins. **The
+intersect, so the strictest one wins. Each checkbox names how many rows it
+alone would keep, under the current search but ignoring the other ticked
+bars: ticking one box never moves another box's count. Subject-bar filters
+narrow beneath them without changing the numbers. **The
 figure read is the one the path judges by**: the overall percentage on All subjects,
 the Subject's own on a subject register — where the overall figure is not read as
 a fallback even though it rides the row beside the subject one, and a row admitted

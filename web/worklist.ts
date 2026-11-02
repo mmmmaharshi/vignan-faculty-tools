@@ -262,3 +262,31 @@ export function emptyRegisterText(
   if (needle !== "") return `No students match "${needle}".`;
   return "No students in this register.";
 }
+/**
+ * How many rows each ticked bar alone would keep, under the current search
+ * but ignoring the other ticked bars: ticking one box never moves another
+ * box's count, so the numbers stay put while the table narrows. Subject-bar
+ * filters are deliberately not part of the bargain: the boxes name the
+ * section-wide bars, and a column threshold narrows beneath them.
+ */
+export type BarCounts = { irregular: number; below75: number; below65: number };
+export function barCounts(
+  students: readonly StudentRow[],
+  search: string,
+  overallMode: boolean
+): BarCounts {
+  const base: RowFilter = {
+    irregular: false,
+    below75: false,
+    below65: false,
+    search,
+    subjectBars: [],
+  };
+  const count = (patch: Partial<RowFilter>): number =>
+    visibleStudents(students, { ...base, ...patch }, overallMode, []).length;
+  return {
+    irregular: count({ irregular: true }),
+    below75: count({ below75: true }),
+    below65: count({ below65: true }),
+  };
+}

@@ -88,7 +88,12 @@ import type { SavedClass } from "./saved-classes";
 import { useSemStartSettle } from "./sem-start-settle";
 import { useTodayTable } from "./today-memory";
 import type { Note } from "./types";
-import { NO_FILTER, pruneSubjectBars, registerRows } from "./worklist";
+import {
+  NO_FILTER,
+  barCounts,
+  pruneSubjectBars,
+  registerRows,
+} from "./worklist";
 import type { RowFilter } from "./worklist";
 
 /** A request the server refused, in words — unless it refused the session,
@@ -240,6 +245,11 @@ const App = (): React.JSX.Element => {
       )
     : [];
   const summary = result?.summary;
+  /** How many rows each ticked bar alone would keep: shown beside its
+   *  checkbox, so the reader sees what a tick is worth before ticking it. */
+  const counts = result
+    ? barCounts(result.students, filter.search, overallMode)
+    : null;
   /** The semester's probes, its remembered start, and every settle-time From
    *  snap — one hook, so the probes, the memory, and the snaps cannot drift
    *  apart. App keeps the range they snap, the register they follow, and the
@@ -918,6 +928,7 @@ const App = (): React.JSX.Element => {
                 total={result?.students.length ?? 0}
                 summary={summary}
                 filter={filter}
+                counts={counts}
                 onFilterChange={applyFilter}
                 onShowDetails={showDetails}
                 chosen={registerFacts}

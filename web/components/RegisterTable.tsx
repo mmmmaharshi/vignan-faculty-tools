@@ -25,7 +25,7 @@ import {
   emptyRegisterText,
   isFiltering,
 } from "../worklist";
-import type { FigureKind, RowFilter } from "../worklist";
+import type { FigureKind, RowFilter, BarCounts } from "../worklist";
 import { FactsTable } from "./FactsTable";
 
 type RegisterTableProps = {
@@ -33,6 +33,11 @@ type RegisterTableProps = {
   total: number;
   summary: RegisterReply["summary"];
   filter: RowFilter;
+  /** How many rows each ticked bar alone would keep, under the current
+   *  search: shown beside its checkbox so the reader sees what a tick is
+   *  worth before ticking it. Null before any register loads, when there
+   *  is nothing to count yet. */
+  counts: BarCounts | null;
   /** One setter for every control on the filter row: a checkbox sends its
    *  boolean, a name its threshold, a subject code its column. The subject
    *  headers call it with the next step of their own cycle. */
@@ -88,6 +93,7 @@ export const RegisterTable = ({
   total,
   summary,
   filter,
+  counts,
   onFilterChange,
   onShowDetails,
   chosen,
@@ -111,21 +117,21 @@ export const RegisterTable = ({
       <Group gap="md" mb="sm">
         <Group gap="md">
           <Checkbox
-            label="All irregular students"
+            label={`All irregular students${counts ? ` (${counts.irregular})` : ""}`}
             checked={filter.irregular}
             onChange={(e) =>
               onFilterChange({ irregular: e.currentTarget.checked })
             }
           />
           <Checkbox
-            label="Below 75%"
+            label={`Below 75%${counts ? ` (${counts.below75})` : ""}`}
             checked={filter.below75}
             onChange={(e) =>
               onFilterChange({ below75: e.currentTarget.checked })
             }
           />
           <Checkbox
-            label="Below 65%"
+            label={`Below 65%${counts ? ` (${counts.below65})` : ""}`}
             checked={filter.below65}
             onChange={(e) =>
               onFilterChange({ below65: e.currentTarget.checked })

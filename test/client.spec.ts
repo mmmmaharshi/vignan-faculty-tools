@@ -1341,6 +1341,15 @@ test.describe("the app's own data layer", () => {
       timeout: 15_000,
     });
     await expect(
+      page.getByRole("checkbox", { name: "All irregular students (2)" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: "Below 75% (2)" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("checkbox", { name: "Below 65% (2)" })
+    ).toBeVisible();
+    await expect(
       page.getByRole("columnheader", { name: "MFCS" })
     ).toBeVisible();
     await expect(
