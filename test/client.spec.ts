@@ -194,7 +194,7 @@ const registerReply = (
     // the stub states none on that path either — like the real portal.
     statedFrom: overall ? null : statedFrom || null,
     dates: [],
-    subjectColumns: overall ? ["MFCS", "SE"] : [],
+    subjectColumns: overall ? ["MFCS", "WT TEST"] : [],
   },
 });
 /** The backlogs section of each student's page: one with backlogs, one that says
@@ -1343,7 +1343,16 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("columnheader", { name: "MFCS" })
     ).toBeVisible();
-    await expect(page.getByRole("columnheader", { name: "SE" })).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "WT TEST" })
+    ).toBeVisible();
+    expect(
+      await page
+        .getByRole("columnheader", { name: "WT TEST" })
+        .locator("span")
+        .evaluate((el) => getComputedStyle(el).whiteSpace),
+      "subject headers never wrap onto a second line"
+    ).toBe("nowrap");
     await expect(
       page.getByRole("cell", { name: "38", exact: true }),
       "A student's MFCS attended count, exactly as ECAP stated it"

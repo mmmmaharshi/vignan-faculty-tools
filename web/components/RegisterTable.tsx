@@ -71,6 +71,14 @@ const Figure = ({
     </Group>
   );
 };
+/** One header label that never wraps onto a second line: the table scrolls
+ *  horizontally instead, so a long code like "WT TEST" stays readable
+ *  whole. Mantine-only — truncate carries the no-wrap. */
+const Head = ({ label }: { label: string }): React.JSX.Element => (
+  <Text span truncate inherit>
+    {label}
+  </Text>
+);
 export const RegisterTable = ({
   rows,
   total,
@@ -149,27 +157,43 @@ export const RegisterTable = ({
             <Table striped highlightOnHover withTableBorder tabularNums>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>Sl.No</Table.Th>
-                  <Table.Th>Roll No</Table.Th>
-                  <Table.Th>Student Name</Table.Th>
+                  <Table.Th>
+                    <Head label="Sl.No" />
+                  </Table.Th>
+                  <Table.Th>
+                    <Head label="Roll No" />
+                  </Table.Th>
+                  <Table.Th>
+                    <Head label="Student Name" />
+                  </Table.Th>
                   {subjectColumns.map((code, i) => (
                     <Table.Th key={`${code}-${i}`} ta="right">
-                      {code}
+                      <Head label={code} />
                     </Table.Th>
                   ))}
                   {!overallMode && (
-                    <Table.Th ta="right">Attend / Held</Table.Th>
+                    <Table.Th ta="right">
+                      <Head label="Attend / Held" />
+                    </Table.Th>
                   )}
                   {!overallMode && (
-                    <Table.Th ta="right">Subject Attendance %</Table.Th>
+                    <Table.Th ta="right">
+                      <Head label="Subject Attendance %" />
+                    </Table.Th>
                   )}
                   {overallMode && (
-                    <Table.Th ta="center">Attended / Total</Table.Th>
+                    <Table.Th ta="center">
+                      <Head label="Attended / Total" />
+                    </Table.Th>
                   )}
                   {showOverall && (
-                    <Table.Th ta="right">Overall Attendance %</Table.Th>
+                    <Table.Th ta="right">
+                      <Head label="Overall Attendance %" />
+                    </Table.Th>
                   )}
-                  <Table.Th ta="center">Details</Table.Th>
+                  <Table.Th ta="center">
+                    <Head label="Details" />
+                  </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
