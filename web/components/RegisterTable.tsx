@@ -59,7 +59,7 @@ const Figure = ({
 }: CellProps): React.JSX.Element => {
   const { badge, color } = badgeFor(critical, irregular, kind);
   return (
-    <Group gap={6} justify="flex-end" wrap="nowrap">
+    <Group gap={6} justify="center" wrap="nowrap">
       <Text fw={FIGURE_STYLE[kind].weight} size="sm">
         {pct.toFixed(2)}%
       </Text>
@@ -157,7 +157,7 @@ export const RegisterTable = ({
             <Table striped highlightOnHover withTableBorder tabularNums>
               <Table.Thead>
                 <Table.Tr>
-                  <Table.Th>
+                  <Table.Th ta="center">
                     <Head label="Sl.No" />
                   </Table.Th>
                   <Table.Th>
@@ -167,17 +167,17 @@ export const RegisterTable = ({
                     <Head label="Student Name" />
                   </Table.Th>
                   {subjectColumns.map((code, i) => (
-                    <Table.Th key={`${code}-${i}`} ta="right">
+                    <Table.Th key={`${code}-${i}`} ta="center">
                       <Head label={code} />
                     </Table.Th>
                   ))}
                   {!overallMode && (
-                    <Table.Th ta="right">
+                    <Table.Th ta="center">
                       <Head label="Attend / Held" />
                     </Table.Th>
                   )}
                   {!overallMode && (
-                    <Table.Th ta="right">
+                    <Table.Th ta="center">
                       <Head label="Subject Attendance %" />
                     </Table.Th>
                   )}
@@ -187,7 +187,7 @@ export const RegisterTable = ({
                     </Table.Th>
                   )}
                   {showOverall && (
-                    <Table.Th ta="right">
+                    <Table.Th ta="center">
                       <Head label="Overall Attendance %" />
                     </Table.Th>
                   )}
@@ -199,7 +199,9 @@ export const RegisterTable = ({
               <Table.Tbody>
                 {rows.map((s) => (
                   <Table.Tr key={s.roll} bg={tintFor(s, overallMode)}>
-                    <Table.Td c="dimmed">{s.sl}</Table.Td>
+                    <Table.Td c="dimmed" ta="center">
+                      {s.sl}
+                    </Table.Td>
                     <Table.Td>
                       <Text ff="monospace" size="sm">
                         {s.roll}
@@ -211,7 +213,7 @@ export const RegisterTable = ({
                       </Text>
                     </Table.Td>
                     {subjectColumns.map((code, i) => (
-                      <Table.Td key={`${code}-${i}`} ta="right">
+                      <Table.Td key={`${code}-${i}`} ta="center">
                         {s.subjects[i] ?? (
                           <Text c="dimmed" size="sm">
                             —
@@ -220,10 +222,10 @@ export const RegisterTable = ({
                       </Table.Td>
                     ))}
                     {!overallMode && (
-                      <Table.Td ta="right">{s.attendedOfHeld}</Table.Td>
+                      <Table.Td ta="center">{s.attendedOfHeld}</Table.Td>
                     )}
                     {!overallMode && (
-                      <Table.Td ta="right">
+                      <Table.Td ta="center">
                         {s.pct == null ? (
                           "—"
                         ) : (
@@ -242,7 +244,7 @@ export const RegisterTable = ({
                       </Table.Td>
                     )}
                     {showOverall && (
-                      <Table.Td ta="right">
+                      <Table.Td ta="center">
                         {s.overallPct == null ? (
                           <Text c="dimmed" size="sm">
                             —

@@ -1353,10 +1353,28 @@ test.describe("the app's own data layer", () => {
         .evaluate((el) => getComputedStyle(el).whiteSpace),
       "subject headers never wrap onto a second line"
     ).toBe("nowrap");
+    expect(
+      await page
+        .getByRole("columnheader", { name: "WT TEST" })
+        .evaluate((el) => getComputedStyle(el).textAlign),
+      "figure headers are centered"
+    ).toBe("center");
+    expect(
+      await page
+        .getByRole("columnheader", { name: "Overall Attendance %" })
+        .evaluate((el) => getComputedStyle(el).textAlign),
+      "the overall header matches"
+    ).toBe("center");
     await expect(
       page.getByRole("cell", { name: "38", exact: true }),
       "A student's MFCS attended count, exactly as ECAP stated it"
     ).toBeVisible();
+    expect(
+      await page
+        .getByRole("cell", { name: "38", exact: true })
+        .evaluate((el) => getComputedStyle(el).textAlign),
+      "figure cells are centered"
+    ).toBe("center");
     await expect(
       page.getByRole("cell", { name: "—", exact: true }),
       "a subject the portal left blank is a dash, not a zero"

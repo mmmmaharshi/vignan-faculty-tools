@@ -600,7 +600,11 @@ carries one also has its name in text.
   it is the only step that writes anything, and it does not fail on a type error,
   so building first meant `dist/` was written from code already known to be
   wrong — and `bunx playwright test` skipped the build entirely and tested
-  whatever was on disk. See ADR 0002 and 0012.
+  whatever was on disk. See ADR 0002 and 0012. The one exception: a
+  visual-only diff — no logic, no types, no data flow, only presentation —
+  verifies with lint, typecheck, a fresh build, and the directly affected
+  spec file (`--config=playwright.fast.config.ts`), instead of the full
+  suite. A one-prop alignment change cannot break a seam it does not touch.
 - **Nothing in the cascade reads state from a closure any more, and that is the
   fix.** `runRefresh` used to be memoised with `[]`, so it closed over render 1
   and anything reading `sel` or `opts` had to go through `selRef` / `optsRef`;
