@@ -700,21 +700,20 @@ fill is a rule bug, two requests racing is a loop bug.
   the picker in its alert. `Try again` re-runs `runRefresh` from the selection
   on screen, which settles the same way a fresh run does; the button shows
   only while an options error sits, and a run that then starts clears it.
-  There is deliberately no server-side retry of a 502 behind this — the
-  single portal timeout is already 60s against a serverless budget, and
-  `test/api.spec.ts` pins "a 502 is not retried". What retries is the cascade
-  loop itself: one stumble per pass is asked again before the run fails,
-  because one failed call used to fail all five passes behind it. A judged
-  4xx is answered, never re-asked — the 401 still reaches the sign-out sweep
-  at once, and re-asking any judged request cannot change its answer. The
-  exceptions are the Home and register reads: a 502 that may mean a stale
-  session is retried once over a fresh sign-in — on Home keyed by the unknown
-  course verdict (`unpostedWithRevival`), on register keyed by a course probe
-  that must read non-alive (`registerWithRevival` in `server/api.ts`). A live
-  probe means ECAP itself hiccuped, or the range is genuinely empty, so the
-  refusal stands with no revival spent. A 401 from either revival still signs
-  out, and a second failure still answers 502 — `test/api.spec.ts` pins every
-  half. A run
+  There is deliberately no blind server-side retry of a 502 behind this —
+  the single portal timeout is already 60s against a serverless budget, and
+  `test/api.spec.ts` pins "a 502 is not retried" for a live session. What
+  retries is the cascade loop itself: one stumble per pass is asked again
+  before the run fails, because one failed call used to fail all five passes
+  behind it. A judged 4xx is answered, never re-asked — the 401 still reaches
+  the sign-out sweep at once, and re-asking any judged request cannot change
+  its answer. The one exception is a stale-looking session: every data read
+  shares one retry rule (`withRevival` in `server/api.ts`) — a 401 signs in
+  again once and retries, and a 502 is retried once only when a course probe
+  on the same portal reads non-alive. An alive probe means ECAP itself
+  hiccuped, or the ask was genuinely empty, so the refusal stands with no
+  revival spent. A 401 from a revival still signs out, and a second failure
+  still answers as-is — `test/api.spec.ts` pins every half. A run
   that fails after settling keeps what arrived on screen beside the error —
   the course pass 1 fetched is not discarded with the failed branch pass —
   and the retry settles from there.

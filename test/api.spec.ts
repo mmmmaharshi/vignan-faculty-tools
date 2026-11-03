@@ -267,6 +267,59 @@ test.describe("handleApi", () => {
     expect(revivals.count).toBe(1);
     expect(res.headers.get(SESSION_HEADER)).toBe(null);
   });
+  test("every data read shares the revival: today retries once when stale", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      todayClasses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    const good = readerWith({
+      todayClasses: () => Promise.resolve("</table>"),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? flaky : good, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/today", {}, session);
+    expect(res.status).toBe(200);
+    expect(revivals.count).toBe(1);
+  });
+  test("every data read shares the revival: faculty-profile retries once when stale", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      facultyProfile: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? flaky : readerWith(), revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/faculty-profile", {}, session);
+    expect(res.status).toBe(200);
+    expect(revivals.count).toBe(1);
+  });
+  test("every data read shares the revival: options retries once when stale", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? flaky : readerWith(), revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/options", { course: "1" }, session);
+    expect(res.status).toBe(200);
+    expect(((await res.json()) as OptionsReply).course[0]?.label).toBe(
+      "B.Tech"
+    );
+    expect(revivals.count).toBe(1);
+  });
   test("a stale-looking register 502 is retried once over a fresh sign-in", async () => {
     const revivals = { count: 0 };
     const flaky = readerWith({

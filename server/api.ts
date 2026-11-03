@@ -9,13 +9,11 @@ import type {
   OkReply,
   Option,
   OptionsRequest,
-  RegisterReply,
   RegisterRequest,
   SemAbsencesRequest,
   SessionReply,
   SemStartRequest,
   StudentRequest,
-  UnpostedReply,
 } from "../shared/api.js";
 import { SESSION_HEADER } from "../shared/api.js";
 import {
@@ -67,7 +65,6 @@ import {
   handleStudentProfile,
   handleTodayClasses,
   handleUnposted,
-  isUnknownCoursesError,
 } from "./server-routes.js";
 import type { PortalReader } from "./server-routes.js";
 import { sessionVerdict } from "./session-verdict.js";
@@ -447,59 +444,31 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
     s.portal = portal;
   }
   /**
-   * Runs a portal operation, and if it 401s because ECAP dropped the session,
-   * signs in again once and retries. A 502 stays `unknown` and is not retried.
+   * Runs a portal operation over a connection ECAP may have dropped. A 401
+   * means the session is gone, so it signs in again once and retries; a 502
+   * is retried once too, but only when the course probe says the session
+   * looks stale — an alive probe means ECAP itself hiccuped, or the ask was
+   * genuinely empty, and re-asking cannot cure that. Every retry runs the
+   * same read on the fresh portal directly, so a second failure signs out
+   * or answers as-is instead of buying another revival.
    */
-  async function withPortal<T>(
+  async function withRevival<T>(
     s: Session,
     run: (portal: PortalPort) => Promise<T>
   ): Promise<T> {
     try {
       return await run(s.portal);
     } catch (error) {
-      if (!(error instanceof HttpError && error.status === 401)) throw error;
-      await reauthenticate(s);
-      return await run(s.portal);
-    }
-  }
-  /**
-   * The register read over a connection ECAP may have dropped without
-   * judging: a 502 is retried once over a fresh sign-in, but only when the
-   * course probe says the session looks stale. An alive probe means ECAP
-   * itself hiccuped — or the range is genuinely empty — and re-asking cannot
-   * cure that, so the refusal stands with no revival spent. The retry runs
-   * on the fresh portal directly, so a second failure signs out or answers
-   * 502 at once instead of buying another revival.
-   */
-  async function registerWithRevival(
-    s: Session,
-    body: Partial<RegisterRequest>
-  ): Promise<RegisterReply> {
-    try {
-      return await withPortal(s, (p) => handleRegister(p.reader, body));
-    } catch (error) {
-      if (!(error instanceof HttpError) || error.status !== 502) throw error;
+      if (!(error instanceof HttpError)) throw error;
+      if (error.status === 401) {
+        await reauthenticate(s);
+        return await run(s.portal);
+      }
+      if (error.status !== 502) throw error;
       const { verdict } = await courseVerdict(s.portal.reader);
       if (verdict === "alive") throw error;
       await reauthenticate(s);
-      return await handleRegister(s.portal.reader, body);
-    }
-  }
-  /**
-   * The Home read over a connection ECAP may have dropped without judging:
-   * an unknown course verdict is retried once over a fresh sign-in, so one
-   * stale server-side session does not fail the whole Home screen. The retry
-   * runs on the fresh portal directly — not through `withPortal` again — so
-   * a 401 there signs out at once instead of buying a second revival.
-   * Anything else answers as before.
-   */
-  async function unpostedWithRevival(s: Session): Promise<UnpostedReply> {
-    try {
-      return await withPortal(s, (p) => handleUnposted(p.reader));
-    } catch (error) {
-      if (!isUnknownCoursesError(error)) throw error;
-      await reauthenticate(s);
-      return await handleUnposted(s.portal.reader);
+      return await run(s.portal);
     }
   }
   /** Answers every `/api/*` request. Shared by `server.ts` (prod) and the Vite dev plugin. */
@@ -557,19 +526,23 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       if (req.method === "POST" && path === "/api/options") {
         const body = await readJson<OptionsRequest>(req);
         return json(
-          await withPortal(s, (p) => handleOptions(p.reader, body)),
+          await withRevival(s, (p) => handleOptions(p.reader, body)),
           200,
           sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/register") {
         const body = await readJson<RegisterRequest>(req);
-        return json(await registerWithRevival(s, body), 200, sessionHeader(s));
+        return json(
+          await withRevival(s, (p) => handleRegister(p.reader, body)),
+          200,
+          sessionHeader(s)
+        );
       }
       if (req.method === "POST" && path === "/api/sem-start") {
         const body = await readJson<SemStartRequest>(req);
         return json(
-          await withPortal(s, (p) => handleSemStart(p.reader, body)),
+          await withRevival(s, (p) => handleSemStart(p.reader, body)),
           200,
           sessionHeader(s)
         );
@@ -577,7 +550,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       if (req.method === "POST" && path === "/api/student") {
         const body = await readJson<StudentRequest>(req);
         return json(
-          await withPortal(s, (p) => handleStudentProfile(p.reader, body)),
+          await withRevival(s, (p) => handleStudentProfile(p.reader, body)),
           200,
           sessionHeader(s)
         );
@@ -585,32 +558,36 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       if (req.method === "POST" && path === "/api/find") {
         const body = await readJson<FindRequest>(req);
         return json(
-          await withPortal(s, (p) => handleFind(p.reader, body)),
+          await withRevival(s, (p) => handleFind(p.reader, body)),
           200,
           sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/faculty-profile") {
         return json(
-          await withPortal(s, (p) => handleFacultyProfile(p.reader)),
+          await withRevival(s, (p) => handleFacultyProfile(p.reader)),
           200,
           sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/today") {
         return json(
-          await withPortal(s, (p) => handleTodayClasses(p.reader)),
+          await withRevival(s, (p) => handleTodayClasses(p.reader)),
           200,
           sessionHeader(s)
         );
       }
       if (req.method === "POST" && path === "/api/unposted") {
-        return json(await unpostedWithRevival(s), 200, sessionHeader(s));
+        return json(
+          await withRevival(s, (p) => handleUnposted(p.reader)),
+          200,
+          sessionHeader(s)
+        );
       }
       if (req.method === "POST" && path === "/api/sem-absences") {
         const body = await readJson<SemAbsencesRequest>(req);
         return json(
-          await withPortal(s, (p) => handleSemAbsences(p.reader, body)),
+          await withRevival(s, (p) => handleSemAbsences(p.reader, body)),
           200,
           sessionHeader(s)
         );
