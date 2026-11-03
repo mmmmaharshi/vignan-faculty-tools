@@ -31,6 +31,15 @@ const DAYWORK = `<b>Course:</b>&nbsp;B.Tech<div><b>Branch:</b>&nbsp;Information 
 <table><tr><td>Period</td><td>Subject</td><td>Name of the staff</td><td>Unit.No</td><td>Topics Covered</td><td>Present</td><td>Absent</td><td>Rolls</td></tr>
 <tr><td>1</td><td>MFCS</td><td>Some One</td><td>-</td><td>-</td><td>30</td><td>5</td><td>21B</td></tr>
 <tr><td>2</td><td>SE</td><td>Other Two</td><td>-</td><td>-</td><td></td><td></td><td></td></tr></table>`;
+/** One register row with the grid's own geometry, and one class-report row. */
+const ONE_ROW = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
+<tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
+const ONE_CLASS_ROW = `<table>
+    <tr><td>ATTENDANCE REPORT FOR THE PERIOD OF</td></tr>
+    <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>AI</th><th>Total</th><th>Percent</th></tr>
+    <tr><td>Batch-1</td><td>50</td><td>0</td><td>49</td><td></td><td></td></tr>
+    <tr><td>1</td><td>21CS001</td><td>Name 1</td><td>37</td><td>381\\481</td><td>79.21</td></tr>
+  </table>`;
 /** A browser-stored session, as `/api/login` answers it. */
 function stored(over: Partial<ClientSession> = {}): string {
   const full: ClientSession = {
@@ -254,6 +263,108 @@ test.describe("handleApi", () => {
     const session = await signIn(api);
     revivals.count = 0;
     const res = await post(api, "/api/unposted", {}, session);
+    expect(res.status).toBe(401);
+    expect(revivals.count).toBe(1);
+    expect(res.headers.get(SESSION_HEADER)).toBe(null);
+  });
+  test("a stale-looking register 502 is retried once over a fresh sign-in", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      register: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    const good = readerWith({
+      register: () => Promise.resolve(ONE_ROW),
+      classAttendance: () => Promise.resolve(ONE_CLASS_ROW),
+    });
+    let built = 0;
+    const api = createApi({
+      // Login builds flaky (its sign-in succeeds regardless); the request's
+      // own build is flaky too, and only the revival builds fresh.
+      connect: () => portalOf(built++ < 2 ? flaky : good, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/register", REGISTER, session);
+    expect(res.status).toBe(200);
+    expect(revivals.count).toBe(1);
+  });
+  test("an empty register under a live session answers at once, probe only", async () => {
+    const revivals = { count: 0 };
+    const calls = { courses: 0 };
+    const api = createApi({
+      connect: () =>
+        portalOf(
+          readerWith({
+            register: () => Promise.resolve(""),
+            courses: () => {
+              calls.courses += 1;
+              return Promise.resolve([opt("1", "B.Tech")]);
+            },
+          }),
+          revivals
+        ),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/register", REGISTER, session);
+    expect(res.status).toBe(502);
+    // Genuine emptiness costs one probe, never a sign-in: the session is
+    // fine, so there is nothing a revival could cure.
+    expect(revivals.count).toBe(0);
+    expect(calls.courses).toBe(1);
+  });
+  test("a register 502 under a live session is answered, never re-asked", async () => {
+    const revivals = { count: 0 };
+    const api = createApi({
+      connect: () =>
+        portalOf(
+          readerWith({
+            register: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+          }),
+          revivals
+        ),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/register", REGISTER, session);
+    expect(res.status).toBe(502);
+    expect(revivals.count).toBe(0);
+  });
+  test("a still-stale register after the revival answers 502, never a third try", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      register: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    const api = createApi({ connect: () => portalOf(flaky, revivals) });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/register", REGISTER, session);
+    expect(res.status).toBe(502);
+    expect(revivals.count).toBe(1);
+  });
+  test("a 401 from the register revival signs out at once", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      register: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => {
+        const n = built++;
+        return portalOf(
+          flaky,
+          revivals,
+          // The revival's own sign-in is refused: the credential is dead.
+          n >= 2 ? new HttpError(401, "bad password") : undefined
+        );
+      },
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/register", REGISTER, session);
     expect(res.status).toBe(401);
     expect(revivals.count).toBe(1);
     expect(res.headers.get(SESSION_HEADER)).toBe(null);

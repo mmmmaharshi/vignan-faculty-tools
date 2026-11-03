@@ -9,6 +9,7 @@ import type {
   OkReply,
   Option,
   OptionsRequest,
+  RegisterReply,
   RegisterRequest,
   SemAbsencesRequest,
   SessionReply,
@@ -27,7 +28,7 @@ import {
   subjectReportPairs,
 } from "./portal-conventions.js";
 import type { DayWorkRequest } from "./portal-conventions.js";
-import { liveness } from "./portal-liveness.js";
+import { courseVerdict, liveness } from "./portal-liveness.js";
 import type { CourseReader } from "./portal-liveness.js";
 import {
   hiddenValue,
@@ -462,6 +463,29 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
     }
   }
   /**
+   * The register read over a connection ECAP may have dropped without
+   * judging: a 502 is retried once over a fresh sign-in, but only when the
+   * course probe says the session looks stale. An alive probe means ECAP
+   * itself hiccuped — or the range is genuinely empty — and re-asking cannot
+   * cure that, so the refusal stands with no revival spent. The retry runs
+   * on the fresh portal directly, so a second failure signs out or answers
+   * 502 at once instead of buying another revival.
+   */
+  async function registerWithRevival(
+    s: Session,
+    body: Partial<RegisterRequest>
+  ): Promise<RegisterReply> {
+    try {
+      return await withPortal(s, (p) => handleRegister(p.reader, body));
+    } catch (error) {
+      if (!(error instanceof HttpError) || error.status !== 502) throw error;
+      const { verdict } = await courseVerdict(s.portal.reader);
+      if (verdict === "alive") throw error;
+      await reauthenticate(s);
+      return await handleRegister(s.portal.reader, body);
+    }
+  }
+  /**
    * The Home read over a connection ECAP may have dropped without judging:
    * an unknown course verdict is retried once over a fresh sign-in, so one
    * stale server-side session does not fail the whole Home screen. The retry
@@ -540,11 +564,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       }
       if (req.method === "POST" && path === "/api/register") {
         const body = await readJson<RegisterRequest>(req);
-        return json(
-          await withPortal(s, (p) => handleRegister(p.reader, body)),
-          200,
-          sessionHeader(s)
-        );
+        return json(await registerWithRevival(s, body), 200, sessionHeader(s));
       }
       if (req.method === "POST" && path === "/api/sem-start") {
         const body = await readJson<SemStartRequest>(req);

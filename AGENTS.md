@@ -706,12 +706,15 @@ fill is a rule bug, two requests racing is a loop bug.
   loop itself: one stumble per pass is asked again before the run fails,
   because one failed call used to fail all five passes behind it. A judged
   4xx is answered, never re-asked — the 401 still reaches the sign-out sweep
-  at once, and re-asking any judged request cannot change its answer. The one
-  exception is the Home read: an *unknown* course verdict ("ECAP offered no
-  courses") is retried once over a fresh sign-in (`unpostedWithRevival` in
-  `server/api.ts`), because a lapsed server-side session is the common cause
-  and a new one cures it. A 401 from the revival still signs out, and a second
-  unknown still answers 502 — `test/api.spec.ts` pins both halves. A run
+  at once, and re-asking any judged request cannot change its answer. The
+  exceptions are the Home and register reads: a 502 that may mean a stale
+  session is retried once over a fresh sign-in — on Home keyed by the unknown
+  course verdict (`unpostedWithRevival`), on register keyed by a course probe
+  that must read non-alive (`registerWithRevival` in `server/api.ts`). A live
+  probe means ECAP itself hiccuped, or the range is genuinely empty, so the
+  refusal stands with no revival spent. A 401 from either revival still signs
+  out, and a second failure still answers 502 — `test/api.spec.ts` pins every
+  half. A run
   that fails after settling keeps what arrived on screen beside the error —
   the course pass 1 fetched is not discarded with the failed branch pass —
   and the retry settles from there.
