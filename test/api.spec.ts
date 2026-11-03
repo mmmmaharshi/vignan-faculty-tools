@@ -190,6 +190,36 @@ test.describe("handleApi", () => {
       signedIn: true,
     });
   });
+  test("the named unknown verdict revives without a second probe", async () => {
+    const revivals = { count: 0 };
+    const calls = { courses: 0 };
+    const flaky = readerWith({
+      courses: () => {
+        calls.courses += 1;
+        return Promise.reject(new HttpError(502, "proxy hiccup"));
+      },
+    });
+    const good = readerWith({
+      branchesAndSemesters: () =>
+        Promise.resolve([
+          [{ value: "6", label: "Information Technology", title: "IT" }],
+          [{ value: "2", label: "III Semester", title: "2025" }],
+        ]),
+      dayClassWork: () => Promise.resolve(DAYWORK),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? flaky : good, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/unposted", {}, session);
+    expect(res.status).toBe(200);
+    // The refusal already names the unknown verdict: the request's own
+    // probe is the only courses call before the revival.
+    expect(calls.courses).toBe(1);
+    expect(revivals.count).toBe(1);
+  });
   test("an unknown course verdict on unposted is retried once over a fresh sign-in", async () => {
     const revivals = { count: 0 };
     const flaky = readerWith({

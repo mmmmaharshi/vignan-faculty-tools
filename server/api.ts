@@ -65,6 +65,7 @@ import {
   handleStudentProfile,
   handleTodayClasses,
   handleUnposted,
+  isUnknownCoursesError,
 } from "./server-routes.js";
 import type { PortalReader } from "./server-routes.js";
 import { sessionVerdict } from "./session-verdict.js";
@@ -444,13 +445,14 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
     s.portal = portal;
   }
   /**
-   * Runs a portal operation over a connection ECAP may have dropped. A 401
-   * means the session is gone, so it signs in again once and retries; a 502
-   * is retried once too, but only when the course probe says the session
-   * looks stale — an alive probe means ECAP itself hiccuped, or the ask was
-   * genuinely empty, and re-asking cannot cure that. Every retry runs the
-   * same read on the fresh portal directly, so a second failure signs out
-   * or answers as-is instead of buying another revival.
+   * Every data read over a connection ECAP may have dropped. A 401 signs in
+   * again once and retries. A 502 naming the unknown verdict revives at once
+   * — its verdict is already known, so no second probe is spent. Any other
+   * 502 is retried once only when a course probe on the same portal reads
+   * non-alive: an alive probe means ECAP itself hiccuped, or the ask was
+   * genuinely empty, so the refusal stands with no revival spent. The retry
+   * runs the same read on the fresh portal directly, so a second failure
+   * signs out or answers as-is instead of buying another revival.
    */
   async function withRevival<T>(
     s: Session,
@@ -465,8 +467,10 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         return await run(s.portal);
       }
       if (error.status !== 502) throw error;
-      const { verdict } = await courseVerdict(s.portal.reader);
-      if (verdict === "alive") throw error;
+      if (!isUnknownCoursesError(error)) {
+        const { verdict } = await courseVerdict(s.portal.reader);
+        if (verdict === "alive") throw error;
+      }
       await reauthenticate(s);
       return await run(s.portal);
     }

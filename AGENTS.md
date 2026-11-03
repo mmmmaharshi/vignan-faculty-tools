@@ -709,11 +709,15 @@ fill is a rule bug, two requests racing is a loop bug.
   the sign-out sweep at once, and re-asking any judged request cannot change
   its answer. The one exception is a stale-looking session: every data read
   shares one retry rule (`withRevival` in `server/api.ts`) — a 401 signs in
-  again once and retries, and a 502 is retried once only when a course probe
-  on the same portal reads non-alive. An alive probe means ECAP itself
-  hiccuped, or the ask was genuinely empty, so the refusal stands with no
-  revival spent. A 401 from a revival still signs out, and a second failure
-  still answers as-is — `test/api.spec.ts` pins every half. A run
+  again once and retries; a 502 naming the unknown verdict revives at once,
+  and any other 502 is retried once only when a course probe on the same
+  portal reads non-alive. An alive probe means ECAP itself hiccuped, or the
+  ask was genuinely empty, so the refusal stands with no revival spent. An
+  unknown probe cannot tell a stale session from ECAP being down, so a
+  genuine outage also spends one revival and re-read; that is bounded to
+  the failure path and never signs anyone out. A 401 from a revival still
+  signs out, and a second failure still answers as-is — `test/api.spec.ts`
+  pins every half. A run
   that fails after settling keeps what arrived on screen beside the error —
   the course pass 1 fetched is not discarded with the failed branch pass —
   and the retry settles from there.
