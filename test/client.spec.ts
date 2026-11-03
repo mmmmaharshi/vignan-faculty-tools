@@ -951,12 +951,22 @@ test.describe("the app's own data layer", () => {
     ).toBe("sticky");
     // Opaque, in the row's own colour: the first body row is an odd row,
     // so its stuck cell carries the table's stripe, and sliding columns
-    // hide beneath it instead of ghosting through.
+    // hide beneath it instead of ghosting through. The row itself is the
+    // second witness: it must paint the same stripe, which is what proves
+    // the parity is Mantine's own rendering, not just code agreeing
+    // with test.
     expect(
       await firstRoll.evaluate(
         (element) => getComputedStyle(element).backgroundColor
       ),
       "first row's stuck cell paints the stripe"
+    ).toBe("rgb(248, 249, 250)");
+    expect(
+      await page
+        .locator("thead ~ tbody tr")
+        .first()
+        .evaluate((element) => getComputedStyle(element).backgroundColor),
+      "the row itself stripes the same colour"
     ).toBe("rgb(248, 249, 250)");
     const scrolled = await heads.nth(1).evaluate((cell) => {
       // The true scroller is Mantine's ScrollArea viewport: an overflow
@@ -1348,8 +1358,23 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     await expect(
       page.getByRole("columnheader", { name: "Overall Attendance %" }),
-      "the overall column rides beside the subject one"
+      "on a subject register the overall column reads beside the name too"
     ).toBeVisible();
+    const heads = page.locator("thead th");
+    expect(
+      await heads.evaluateAll((elements) =>
+        elements.map((element) => element.textContent?.trim())
+      ),
+      "Name, Overall, then the subject's own columns"
+    ).toEqual([
+      "Sl.No",
+      "Roll No",
+      "Student Name",
+      "Overall Attendance %",
+      "Attend / Held",
+      "Subject Attendance %",
+      "Details",
+    ]);
     await expect(
       page.getByText("52.00%", { exact: true }),
       "B student's overall beside their 44.40% subject figure"
