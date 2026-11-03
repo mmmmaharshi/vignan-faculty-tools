@@ -912,6 +912,78 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
     expect(optionsCalls, "and the click asked for no options").toBe(5);
   });
+  test("the overall column sits next to the name, and the roll column sticks", async ({
+    page,
+  }) => {
+    // Narrow enough that the subject columns overflow: stickiness only
+    // means anything once there is somewhere to scroll to.
+    await page.setViewportSize({ width: 500, height: 800 });
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    const heads = page.locator("thead th");
+    expect(await heads.nth(1).innerText(), "second column").toBe("Roll No");
+    expect(await heads.nth(2).innerText(), "third column").toBe("Student Name");
+    // The overall figure is the triage number: it reads beside the name,
+    // not after every subject column.
+    expect(await heads.nth(3).innerText(), "fourth column").toBe(
+      "Overall Attendance %"
+    );
+    // The roll column stays put while the subjects scroll away beneath it.
+    const sticky = await heads.nth(1).evaluate((element) => {
+      const css = getComputedStyle(element);
+      return { position: css.position, left: css.left };
+    });
+    expect(sticky, "Roll No header sticks to the scroll edge").toEqual({
+      position: "sticky",
+      left: "0px",
+    });
+    const firstRoll = page
+      .locator("thead ~ tbody tr")
+      .first()
+      .locator("td")
+      .nth(1);
+    expect(
+      await firstRoll.evaluate((element) => getComputedStyle(element).position),
+      "Roll No cells stick with their header"
+    ).toBe("sticky");
+    // Opaque, in the row's own colour: the first body row is an odd row,
+    // so its stuck cell carries the table's stripe, and sliding columns
+    // hide beneath it instead of ghosting through.
+    expect(
+      await firstRoll.evaluate(
+        (element) => getComputedStyle(element).backgroundColor
+      ),
+      "first row's stuck cell paints the stripe"
+    ).toBe("rgb(248, 249, 250)");
+    const scrolled = await heads.nth(1).evaluate((cell) => {
+      // The true scroller is Mantine's ScrollArea viewport: an overflow
+      // ancestor with scrolling enabled, not merely an overflowing box
+      // (the content div overflows but never scrolls).
+      let scroller: HTMLElement | null = cell.parentElement;
+      while (scroller) {
+        const horizontal = getComputedStyle(scroller).overflowX;
+        if (
+          (horizontal === "auto" || horizontal === "scroll") &&
+          scroller.scrollWidth > scroller.clientWidth + 1
+        ) {
+          break;
+        }
+        scroller = scroller.parentElement;
+      }
+      if (!scroller) return null;
+      scroller.scrollLeft = scroller.scrollWidth;
+      const cellLeft = cell.getBoundingClientRect().left;
+      const edgeLeft = scroller.getBoundingClientRect().left;
+      return Math.abs(cellLeft - edgeLeft);
+    });
+    expect(
+      scrolled,
+      "Roll No stays at the scroll edge after scrolling away"
+    ).toBeLessThan(3);
+  });
   test("typing in the search box narrows the register to matches", async ({
     page,
   }) => {

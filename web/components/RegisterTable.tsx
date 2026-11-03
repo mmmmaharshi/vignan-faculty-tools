@@ -101,11 +101,13 @@ export const RegisterTable = ({
 }: RegisterTableProps): React.JSX.Element => {
   // Both figures ride the table: the subject register shows its own columns
   // and the overall column beside them, so a row's triage figure and its
-  // semester figure explain each other. The column shows whenever any row
-  // carries an overall — a report that failed leaves every figure absent, and
-  // showing a column of dashes would read as "nobody has an overall". The
-  // worklist still judges the subject figure alone (see `worklist.ts`): the
-  // overall is a second fact on the row, never the bar that admits it.
+  // semester figure explain each other. The overall reads beside the name
+  // rather than after every subject column, because it is the triage number.
+  // The column shows whenever any row carries an overall — a report that failed
+  // leaves every figure absent, and showing a column of dashes would read as
+  // "nobody has an overall". The worklist still judges the subject figure alone
+  // (see `worklist.ts`): the overall is a second fact on the row, never the
+  // bar that admits it.
   const showOverall = rows.some(carriesOverall);
   // The section-wide view states one attended count per subject the Portal
   // offered, in the summary's column order: stated, never recomputed, so no
@@ -188,12 +190,24 @@ export const RegisterTable = ({
                   <Table.Th ta="center">
                     <Head label="Sl.No" />
                   </Table.Th>
-                  <Table.Th>
+                  {/* The roll column sticks to the scroll edge while the subject
+                      columns scroll away beneath it: positioned beats static,
+                      so no z-index prop is needed. The stuck cells are opaque
+                      in the row's own colour — the tint where one is set, else
+                      the table's own odd-row stripe — or the sliding Sl.No
+                      ghosts through the text. The header names its white
+                      explicitly, because the head row carries no stripe. */}
+                  <Table.Th pos="sticky" left={0} bg="white">
                     <Head label="Roll No" />
                   </Table.Th>
                   <Table.Th>
                     <Head label="Student Name" />
                   </Table.Th>
+                  {showOverall && (
+                    <Table.Th ta="center" bg="blue.0">
+                      <Head label="Overall Attendance %" />
+                    </Table.Th>
+                  )}
                   {subjectColumns.map((code, i) => {
                     const bar = filter.subjectBars.find(
                       (b) => b.code === code
@@ -236,23 +250,25 @@ export const RegisterTable = ({
                       <Head label="Attended / Total" />
                     </Table.Th>
                   )}
-                  {showOverall && (
-                    <Table.Th ta="center" bg="blue.0">
-                      <Head label="Overall Attendance %" />
-                    </Table.Th>
-                  )}
                   <Table.Th ta="center">
                     <Head label="Details" />
                   </Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {rows.map((s) => (
+                {rows.map((s, rowIndex) => (
                   <Table.Tr key={s.roll} bg={tintFor(s, overallMode)}>
                     <Table.Td c="dimmed" ta="center">
                       {s.sl}
                     </Table.Td>
-                    <Table.Td>
+                    <Table.Td
+                      pos="sticky"
+                      left={0}
+                      bg={
+                        tintFor(s, overallMode) ??
+                        (rowIndex % 2 === 0 ? "gray.0" : "white")
+                      }
+                    >
                       <Text ff="monospace" size="sm">
                         {s.roll}
                       </Text>
@@ -260,6 +276,25 @@ export const RegisterTable = ({
                     <Table.Td>
                       <Text size="sm">{displayName(s.name)}</Text>
                     </Table.Td>
+                    {showOverall && (
+                      <Table.Td ta="center" bg="blue.0">
+                        {s.overallPct == null ? (
+                          <Text c="dimmed" size="sm">
+                            —
+                          </Text>
+                        ) : (
+                          // Each figure badges its own band: the subject cell its
+                          // subject band below, this one the overall band —
+                          // and the irregular filter reads the path's own band.
+                          <Figure
+                            pct={s.overallPct}
+                            kind="overall"
+                            critical={s.overallCritical}
+                            irregular={s.overallIrregular}
+                          />
+                        )}
+                      </Table.Td>
+                    )}
                     {subjectColumns.map((code, i) => (
                       <Table.Td key={`${code}-${i}`} ta="center">
                         {s.subjects[i] == null ? (
@@ -291,25 +326,6 @@ export const RegisterTable = ({
                     {overallMode && (
                       <Table.Td ta="center" bg="blue.0">
                         {overallCellForDisplay(s.overallAttendedOfHeld) || "—"}
-                      </Table.Td>
-                    )}
-                    {showOverall && (
-                      <Table.Td ta="center" bg="blue.0">
-                        {s.overallPct == null ? (
-                          <Text c="dimmed" size="sm">
-                            —
-                          </Text>
-                        ) : (
-                          // Each figure badges its own band: the subject cell its
-                          // subject band above, this one the overall band —
-                          // and the irregular filter reads the path's own band.
-                          <Figure
-                            pct={s.overallPct}
-                            kind="overall"
-                            critical={s.overallCritical}
-                            irregular={s.overallIrregular}
-                          />
-                        )}
                       </Table.Td>
                     )}
                     <Table.Td ta="center">
