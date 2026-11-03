@@ -166,7 +166,7 @@ test.describe("handleApi", () => {
     expect(res.status).toBe(401);
     expect(revivals.count).toBe(1);
   });
-  test("a 502 is not retried, and does not sign anyone out", async () => {
+  test("a 502 is retried once, and does not sign anyone out", async () => {
     const revivals = { count: 0 };
     const api = createApi({
       connect: () =>
@@ -182,43 +182,13 @@ test.describe("handleApi", () => {
     revivals.count = 0;
     const failed = await post(api, "/api/register", REGISTER, session);
     expect(failed.status).toBe(502);
-    expect(revivals.count).toBe(0);
+    expect(revivals.count).toBe(1);
     const after = await call(api, "/api/session", {
       headers: { [SESSION_HEADER]: session },
     });
     expect((await after.json()) as SessionReply).toMatchObject({
       signedIn: true,
     });
-  });
-  test("the named unknown verdict revives without a second probe", async () => {
-    const revivals = { count: 0 };
-    const calls = { courses: 0 };
-    const flaky = readerWith({
-      courses: () => {
-        calls.courses += 1;
-        return Promise.reject(new HttpError(502, "proxy hiccup"));
-      },
-    });
-    const good = readerWith({
-      branchesAndSemesters: () =>
-        Promise.resolve([
-          [{ value: "6", label: "Information Technology", title: "IT" }],
-          [{ value: "2", label: "III Semester", title: "2025" }],
-        ]),
-      dayClassWork: () => Promise.resolve(DAYWORK),
-    });
-    let built = 0;
-    const api = createApi({
-      connect: () => portalOf(built++ < 2 ? flaky : good, revivals),
-    });
-    const session = await signIn(api);
-    revivals.count = 0;
-    const res = await post(api, "/api/unposted", {}, session);
-    expect(res.status).toBe(200);
-    // The refusal already names the unknown verdict: the request's own
-    // probe is the only courses call before the revival.
-    expect(calls.courses).toBe(1);
-    expect(revivals.count).toBe(1);
   });
   test("an unknown course verdict on unposted is retried once over a fresh sign-in", async () => {
     const revivals = { count: 0 };
@@ -372,18 +342,13 @@ test.describe("handleApi", () => {
     expect(res.status).toBe(200);
     expect(revivals.count).toBe(1);
   });
-  test("an empty register under a live session answers at once, probe only", async () => {
+  test("an empty register under a live session spends one revival, then answers 502", async () => {
     const revivals = { count: 0 };
-    const calls = { courses: 0 };
     const api = createApi({
       connect: () =>
         portalOf(
           readerWith({
             register: () => Promise.resolve(""),
-            courses: () => {
-              calls.courses += 1;
-              return Promise.resolve([opt("1", "B.Tech")]);
-            },
           }),
           revivals
         ),
@@ -392,27 +357,7 @@ test.describe("handleApi", () => {
     revivals.count = 0;
     const res = await post(api, "/api/register", REGISTER, session);
     expect(res.status).toBe(502);
-    // Genuine emptiness costs one probe, never a sign-in: the session is
-    // fine, so there is nothing a revival could cure.
-    expect(revivals.count).toBe(0);
-    expect(calls.courses).toBe(1);
-  });
-  test("a register 502 under a live session is answered, never re-asked", async () => {
-    const revivals = { count: 0 };
-    const api = createApi({
-      connect: () =>
-        portalOf(
-          readerWith({
-            register: () => Promise.reject(new HttpError(502, "proxy hiccup")),
-          }),
-          revivals
-        ),
-    });
-    const session = await signIn(api);
-    revivals.count = 0;
-    const res = await post(api, "/api/register", REGISTER, session);
-    expect(res.status).toBe(502);
-    expect(revivals.count).toBe(0);
+    expect(revivals.count).toBe(1);
   });
   test("a still-stale register after the revival answers 502, never a third try", async () => {
     const revivals = { count: 0 };

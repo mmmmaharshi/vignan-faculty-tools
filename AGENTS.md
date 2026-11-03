@@ -700,24 +700,20 @@ fill is a rule bug, two requests racing is a loop bug.
   the picker in its alert. `Try again` re-runs `runRefresh` from the selection
   on screen, which settles the same way a fresh run does; the button shows
   only while an options error sits, and a run that then starts clears it.
-  There is deliberately no blind server-side retry of a 502 behind this —
-  the single portal timeout is already 60s against a serverless budget, and
-  `test/api.spec.ts` pins "a 502 is not retried" for a live session. What
+  There is deliberately no blind server-side retry of a judged refusal — the
+  single portal timeout is already 60s against a serverless budget. What
   retries is the cascade loop itself: one stumble per pass is asked again
   before the run fails, because one failed call used to fail all five passes
   behind it. A judged 4xx is answered, never re-asked — the 401 still reaches
   the sign-out sweep at once, and re-asking any judged request cannot change
-  its answer. The one exception is a stale-looking session: every data read
-  shares one retry rule (`withRevival` in `server/api.ts`) — a 401 signs in
-  again once and retries; a 502 naming the unknown verdict revives at once,
-  and any other 502 is retried once only when a course probe on the same
-  portal reads non-alive. An alive probe means ECAP itself hiccuped, or the
-  ask was genuinely empty, so the refusal stands with no revival spent. An
-  unknown probe cannot tell a stale session from ECAP being down, so a
-  genuine outage also spends one revival and re-read; that is bounded to
-  the failure path and never signs anyone out. A 401 from a revival still
-  signs out, and a second failure still answers as-is — `test/api.spec.ts`
-  pins every half. A run
+  its answer. The one exception is a dropped connection: every data read
+  shares one retry rule (`withRevival` in `server/api.ts`) — a 401 or a 502
+  signs in again once and retries the same read on the fresh portal. A second
+  failure signs out or answers as-is instead of buying another revival, and
+  a revival never signs anyone out on ambiguity — `test/api.spec.ts` pins
+  every half. That single revival is spent even where it cannot cure: a
+  genuine ECAP outage or a genuinely empty range answers the same refusal
+  after one wasted sign-in and re-read, bounded to the failure path. A run
   that fails after settling keeps what arrived on screen beside the error —
   the course pass 1 fetched is not discarded with the failed branch pass —
   and the retry settles from there.

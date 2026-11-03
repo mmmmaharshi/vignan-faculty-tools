@@ -852,15 +852,6 @@ export async function handleTodayClasses(
 /** The unknown verdict's refusal sentence, shared by its two throw sites so
  *  they cannot drift apart. */
 const NO_COURSES = "ECAP offered no courses.";
-/** Whether this is the named unknown-verdict refusal above. Its verdict is
- *  already known, so a revival needs no second probe to decide. */
-export function isUnknownCoursesError(error: unknown): boolean {
-  return (
-    error instanceof HttpError &&
-    error.status === 502 &&
-    error.message === NO_COURSES
-  );
-}
 export async function handleUnposted(
   portal: PortalReader
 ): Promise<UnpostedReply> {

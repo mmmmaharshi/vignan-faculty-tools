@@ -26,7 +26,7 @@ import {
   subjectReportPairs,
 } from "./portal-conventions.js";
 import type { DayWorkRequest } from "./portal-conventions.js";
-import { courseVerdict, liveness } from "./portal-liveness.js";
+import { liveness } from "./portal-liveness.js";
 import type { CourseReader } from "./portal-liveness.js";
 import {
   hiddenValue,
@@ -65,7 +65,6 @@ import {
   handleStudentProfile,
   handleTodayClasses,
   handleUnposted,
-  isUnknownCoursesError,
 } from "./server-routes.js";
 import type { PortalReader } from "./server-routes.js";
 import { sessionVerdict } from "./session-verdict.js";
@@ -445,14 +444,11 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
     s.portal = portal;
   }
   /**
-   * Every data read over a connection ECAP may have dropped. A 401 signs in
-   * again once and retries. A 502 naming the unknown verdict revives at once
-   * — its verdict is already known, so no second probe is spent. Any other
-   * 502 is retried once only when a course probe on the same portal reads
-   * non-alive: an alive probe means ECAP itself hiccuped, or the ask was
-   * genuinely empty, so the refusal stands with no revival spent. The retry
-   * runs the same read on the fresh portal directly, so a second failure
-   * signs out or answers as-is instead of buying another revival.
+   * Every data read over a connection ECAP may have dropped: a 401 or a
+   * 502 signs in again once and retries the same read on the fresh portal.
+   * A second failure signs out or answers as-is instead of buying another
+   * revival. One revival per failure, failure-path only, and it never
+   * signs anyone out on ambiguity.
    */
   async function withRevival<T>(
     s: Session,
@@ -462,15 +458,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       return await run(s.portal);
     } catch (error) {
       if (!(error instanceof HttpError)) throw error;
-      if (error.status === 401) {
-        await reauthenticate(s);
-        return await run(s.portal);
-      }
-      if (error.status !== 502) throw error;
-      if (!isUnknownCoursesError(error)) {
-        const { verdict } = await courseVerdict(s.portal.reader);
-        if (verdict === "alive") throw error;
-      }
+      if (error.status !== 401 && error.status !== 502) throw error;
       await reauthenticate(s);
       return await run(s.portal);
     }
