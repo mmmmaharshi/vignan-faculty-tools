@@ -26,6 +26,11 @@ const REGISTER: RegisterRequest = {
   from: "01/07/2026",
   to: "15/07/2026",
 };
+/** One day-class-work section block with the report's own geometry. */
+const DAYWORK = `<b>Course:</b>&nbsp;B.Tech<div><b>Branch:</b>&nbsp;Information Technology</div><div><b>Semester:</b>&nbsp;III Semester</div><div><b>Section:</b>&nbsp;B</div>
+<table><tr><td>Period</td><td>Subject</td><td>Name of the staff</td><td>Unit.No</td><td>Topics Covered</td><td>Present</td><td>Absent</td><td>Rolls</td></tr>
+<tr><td>1</td><td>MFCS</td><td>Some One</td><td>-</td><td>-</td><td>30</td><td>5</td><td>21B</td></tr>
+<tr><td>2</td><td>SE</td><td>Other Two</td><td>-</td><td>-</td><td></td><td></td><td></td></tr></table>`;
 /** A browser-stored session, as `/api/login` answers it. */
 function stored(over: Partial<ClientSession> = {}): string {
   const full: ClientSession = {
@@ -175,6 +180,83 @@ test.describe("handleApi", () => {
     expect((await after.json()) as SessionReply).toMatchObject({
       signedIn: true,
     });
+  });
+  test("an unknown course verdict on unposted is retried once over a fresh sign-in", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    const good = readerWith({
+      branchesAndSemesters: () =>
+        Promise.resolve([
+          [{ value: "6", label: "Information Technology", title: "IT" }],
+          [{ value: "2", label: "III Semester", title: "2025" }],
+        ]),
+      dayClassWork: () => Promise.resolve(DAYWORK),
+    });
+    let built = 0;
+    const api = createApi({
+      // Login builds flaky (its sign-in succeeds regardless); the request's
+      // own build is flaky too, and only the revival builds fresh.
+      connect: () => portalOf(built++ < 2 ? flaky : good, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/unposted", {}, session);
+    expect(res.status).toBe(200);
+    expect(revivals.count).toBe(1);
+  });
+  test("a still-unknown verdict after the revival answers 502, never a third try", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    const api = createApi({ connect: () => portalOf(flaky, revivals) });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/unposted", {}, session);
+    expect(res.status).toBe(502);
+    expect(revivals.count).toBe(1);
+  });
+  test("a dead session behind the unknown answers 401 with no second revival", async () => {
+    const revivals = { count: 0 };
+    let coursesCalls = 0;
+    const reader = readerWith({
+      courses: () =>
+        coursesCalls++ === 0
+          ? Promise.reject(new HttpError(502, "proxy hiccup"))
+          : Promise.reject(new HttpError(401, "expired")),
+    });
+    const api = createApi({ connect: () => portalOf(reader, revivals) });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/unposted", {}, session);
+    expect(res.status).toBe(401);
+    expect(revivals.count).toBe(1);
+  });
+  test("a 401 from the revival signs out at once, and answers nothing to store", async () => {
+    const revivals = { count: 0 };
+    const flaky = readerWith({
+      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => {
+        const n = built++;
+        return portalOf(
+          flaky,
+          revivals,
+          // The revival's own sign-in is refused: the credential is dead.
+          n >= 2 ? new HttpError(401, "bad password") : undefined
+        );
+      },
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+    const res = await post(api, "/api/unposted", {}, session);
+    expect(res.status).toBe(401);
+    expect(revivals.count).toBe(1);
+    expect(res.headers.get(SESSION_HEADER)).toBe(null);
   });
   test("a session stored without a credential is signed out, not signed in again", async () => {
     const revivals = { count: 0 };

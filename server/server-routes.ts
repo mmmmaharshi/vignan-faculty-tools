@@ -849,6 +849,20 @@ export async function handleTodayClasses(
  *  report's own page skips title-less ones the same way. A refusal throws
  *  before the parser is reached, so it says the read failed rather than
  *  passing for all posted. */
+/** The unknown-verdict refusal: the course probe failed without judging the
+ *  session, so ECAP's side may just be stale. One constant, so the revival
+ *  that retries it and the throws that raise it cannot drift apart. */
+const NO_COURSES = "ECAP offered no courses.";
+/** Whether this is the unknown-verdict refusal above — the one failure a
+ *  fresh sign-in may cure. Anything else (a 401, a judged refusal, another
+ *  502) is answered, never re-asked. */
+export function isUnknownCoursesError(error: unknown): boolean {
+  return (
+    error instanceof HttpError &&
+    error.status === 502 &&
+    error.message === NO_COURSES
+  );
+}
 export async function handleUnposted(
   portal: PortalReader
 ): Promise<UnpostedReply> {
@@ -861,12 +875,12 @@ export async function handleUnposted(
     );
   }
   if (verdict === "unknown") {
-    throw new HttpError(502, "ECAP offered no courses.");
+    throw new HttpError(502, NO_COURSES);
   }
   const courses = realOptions(courseOptions);
   const course = matchOption("B.Tech", courses) ?? courses[0];
   if (!course) {
-    throw new HttpError(502, "ECAP offered no courses.");
+    throw new HttpError(502, NO_COURSES);
   }
   const [offered, semesters] = await portal.branchesAndSemesters(course.value);
   const branches = realOptions(offered);

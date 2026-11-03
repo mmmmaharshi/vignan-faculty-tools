@@ -14,6 +14,7 @@ import type {
   SessionReply,
   SemStartRequest,
   StudentRequest,
+  UnpostedReply,
 } from "../shared/api.js";
 import { SESSION_HEADER } from "../shared/api.js";
 import {
@@ -65,6 +66,7 @@ import {
   handleStudentProfile,
   handleTodayClasses,
   handleUnposted,
+  isUnknownCoursesError,
 } from "./server-routes.js";
 import type { PortalReader } from "./server-routes.js";
 import { sessionVerdict } from "./session-verdict.js";
@@ -459,6 +461,23 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       return await run(s.portal);
     }
   }
+  /**
+   * The Home read over a connection ECAP may have dropped without judging:
+   * an unknown course verdict is retried once over a fresh sign-in, so one
+   * stale server-side session does not fail the whole Home screen. The retry
+   * runs on the fresh portal directly — not through `withPortal` again — so
+   * a 401 there signs out at once instead of buying a second revival.
+   * Anything else answers as before.
+   */
+  async function unpostedWithRevival(s: Session): Promise<UnpostedReply> {
+    try {
+      return await withPortal(s, (p) => handleUnposted(p.reader));
+    } catch (error) {
+      if (!isUnknownCoursesError(error)) throw error;
+      await reauthenticate(s);
+      return await handleUnposted(s.portal.reader);
+    }
+  }
   /** Answers every `/api/*` request. Shared by `server.ts` (prod) and the Vite dev plugin. */
   async function handleApi(req: Request): Promise<Response> {
     const path = new URL(req.url).pathname;
@@ -566,11 +585,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         );
       }
       if (req.method === "POST" && path === "/api/unposted") {
-        return json(
-          await withPortal(s, (p) => handleUnposted(p.reader)),
-          200,
-          sessionHeader(s)
-        );
+        return json(await unpostedWithRevival(s), 200, sessionHeader(s));
       }
       if (req.method === "POST" && path === "/api/sem-absences") {
         const body = await readJson<SemAbsencesRequest>(req);
