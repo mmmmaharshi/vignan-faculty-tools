@@ -20,6 +20,13 @@ dist/
 .DS_Store
 *.log
 
+# Captured output from a one-off debugging redirect (`… > out.txt 2>&1`).
+# Root only: a real file with these names belongs somewhere in the tree.
+/out*.txt
+/app_*.txt
+/appcheck*.txt
+/*.out
+
 # Dev session store (plaintext, dev only). See session-store.ts.
 /.dev-sessions.json
 
