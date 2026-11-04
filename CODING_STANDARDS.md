@@ -1,37 +1,37 @@
 # CODING_STANDARDS
 
-- **YAGNI** : Build only what current requirements need. Avoid speculative features, abstractions, and flexibility.
-- **KISS** : Choose the simplest implementation that fully meets the requirements. Prefer concise solutions when they remain clear.
-- **No Backward Compatibility** : Remove obsolete code paths. Allow breaking changes when the requirements permit them. Do not add compatibility layers, fallbacks, or migrations unless explicitly required.
-- **Dependency Management** : Prefer established, maintained libraries. Check existing dependencies, documentation, and types before implementing functionality or adding packages. Add dependencies only when their benefits justify their maintenance, security, and complexity costs.
-- **Incremental Development** : Implement and verify changes in small, working steps. Keep the system functional throughout development, and validate each step before building on it.
-- **Separation of Concerns** : Keep components modular. Give each component a clear responsibility and separate unrelated concerns.
-- **Architectural Integrity** : Make maintainable design decisions without introducing speculative abstractions or complexity. Prefer the simplest design that meets current requirements and supports foreseeable needs.
-- **Rationale Comments** : Avoid unnecessary comments. Add rationale comments only to explain non-obvious decisions, constraints, trade-offs, or workarounds. Do not narrate code.
-- **Atomic Commits** : Keep each commit focused on one logical change.
+> **Before you claim done**: name the rules this diff touches and say how it satisfies each. A rule you did not check is not satisfied.
+
+- **YAGNI** : Build only what the current requirement needs, and let every abstraction pay for itself now.
+- **KISS** : Choose the simplest implementation that fully meets the requirement, and keep it readable while it stays short.
+- **No Backward Compatibility** : Delete an obsolete code path in the change that retires it. One shape per behaviour, with compatibility layers, fallbacks, and migrations appearing only when the requirement names them.
+- **Dependency Management** : Use the libraries already in the tree, and read their types and docs before reaching past them. Add a package when its benefit outstrips the maintenance, security, and complexity it brings.
+- **Incremental Development** : Land small, verified steps, and keep the system working at every one.
+- **Separation of Concerns (SRP)** : Give each module, function, and component one clear responsibility, and keep unrelated concerns in separate places.
+- **Rationale Comments** : Comment the why the code cannot show: a non-obvious decision, a constraint, a trade-off, a workaround. The code carries the what.
+- **Atomic Commits** : One logical change per commit, with no unrelated refactoring or formatting.
 - **Conventional Commits** : Use a consistent commit message format that follows the Conventional Commits specification.
-- **Behavioral Testing** : Test observable behavior, not implementation details. Avoid tautological tests, duplicated logic, and assertions that only mirror production code. Each test must detect a distinct failure.
-- **Acceptance Criteria** : Write tests for cases required by the specification or acceptance criteria. Keep existing tests passing unless a change explicitly requires updating them.
-- **Evidence-Based Verification** : Verify acceptance criteria through execution. Reproduce bugs before fixing them, confirm fixes, and use real workflows, screenshots, or measurements when relevant. Do not claim success without evidence.
-- **DRY (Don't Repeat Yourself)** : Avoid duplicating business logic or knowledge. Extract shared logic only when it improves clarity and maintainability.
-- **Single Responsibility Principle (SRP)** : Give each module, function, and component one clear responsibility.
-- **Explicit over Implicit** : Prefer clear, explicit behavior over hidden side effects, implicit dependencies, and surprising defaults.
-- **Fail Fast** : Validate inputs and detect invalid states early. Report errors close to their source.
-- **Least Surprise** : Make behavior consistent with established conventions and user expectations.
+- **Behavioral Testing** : Test what a caller can observe, and give each test a failure reason of its own that no sibling test shares.
+- **Acceptance Criteria** : Cover the cases the specification names, and keep existing tests green unless the change requires updating them.
+- **Evidence-Based Verification** : Reproduce the bug before fixing it, then confirm the fix through a real workflow, screenshot, or measurement. Claim success with the evidence in hand.
+- **DRY (Don't Repeat Yourself)** : Keep each piece of business knowledge in one place, and extract shared logic where it improves clarity and maintainability.
+- **Explicit over Implicit** : Make behaviour, dependencies, and defaults visible at the call site.
+- **Fail Fast** : Validate inputs at the boundary and detect invalid states early, reporting the error where it originated.
+- **Least Surprise** : Follow established conventions, so behaviour matches what the reader already expects.
 - **Minimal Surface Area** : Expose only the APIs, configuration, and interfaces that callers need.
-- **Type Safety** : Use the type system to prevent invalid states and avoid unnecessary type assertions, casts, and untyped values.
-- **Error Handling** : Handle errors at the appropriate boundary. Do not silently swallow errors or hide failures with broad fallbacks.
-- **Security by Default** : Validate untrusted input, enforce access controls, and avoid exposing secrets or sensitive data.
-- **Observability** : Add logs, metrics, or traces when they help diagnose real operational problems. Avoid noisy or redundant instrumentation.
-- **Deterministic Testing** : Make tests repeatable. Avoid dependence on execution order, uncontrolled external services, or arbitrary delays.
-- **Regression Testing** : Add a focused test for a fixed bug when it protects against the same failure returning.
-- **Scope Discipline** : Change only what is needed to meet the requirements. Avoid unrelated refactoring and formatting changes.
-- **No Silent Failure** : Never report success when an operation has failed or when its result has not been verified.
-- **Documentation Accuracy** : Update documentation when a change makes existing instructions, contracts, or examples incorrect.
-- **Principle Precedence** : Prioritize correctness, security, and explicit requirements over simplicity or other design principles. When principles conflict, choose the solution that best meets the requirements with the least unnecessary complexity.
-- **Evidence-Based Performance Optimization** : Measure real user journeys, identify the highest-impact bottleneck, form an evidence-based hypothesis, and make the smallest safe change. Benchmark before and after each change, retain only measurable improvements, add regression guardrails, and repeat until the performance target is met.
-- **Structured Concurrency** : Prefer structured concurrency for independent I/O only after measurement shows it is the top bottleneck. Preserve error and ordering semantics.
-- **No Implicit State Machines** : Do not encode lifecycle or status in scattered booleans, strings, or phase checks. Model them as explicit state machines with unrepresentable illegal states and explicit transitions.
+- **Stable Function Signatures** : Keep signatures stable so a change does not churn every caller. Prefer a named option over a boolean flag, and break a signature deliberately when the requirement demands it.
+- **Command-Query Separation** : A function either changes state and returns nothing, or answers a question and changes nothing.
+- **Type Safety** : Let the type system carry the contract, and keep casts, assertions, and untyped values out of the code.
+- **Error Handling** : Handle an error at the boundary that can act on it, and report success only for an operation that succeeded and was verified.
+- **Security by Default** : Validate untrusted input, enforce access controls, and keep secrets and sensitive data out of logs and client code.
+- **Observability** : Log, measure, or trace where it diagnoses a real operational problem, and keep the signal free of redundant noise.
+- **Deterministic Testing** : Make tests repeatable: no dependence on execution order, live external services, or arbitrary delays.
+- **Regression Testing** : Fix a bug with a focused test that fails before the fix and guards the same failure afterwards.
+- **Documentation Accuracy** : Update documentation in the same change that makes it wrong.
+- **Principle Precedence** : Correctness, security, and explicit requirements outrank simplicity. When principles conflict, choose the solution that meets the requirement with the least unnecessary complexity.
+- **Evidence-Based Performance Optimization** : Measure real user journeys, identify the highest-impact bottleneck, form a hypothesis, and make the smallest safe change. Benchmark before and after, retain only measurable improvements, add a guardrail for each, and repeat until the target is met.
+- **Defer Concurrency Until Measured** : Parallelise independent I/O when measurement shows it is the bottleneck, preserving error and ordering semantics.
+- **Make Illegal States Unrepresentable** : Model lifecycle and status as explicit states with no illegal combination and a clear transition table, in place of scattered booleans, strings, or phase checks.
 
 # Codebase Slop Indicators / Anti-patterns
 
