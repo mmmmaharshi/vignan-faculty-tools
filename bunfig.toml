@@ -1,0 +1,5 @@
+# A package published in the last three days is refused, so a compromised
+# release cannot be installed before the ecosystem notices it. Raise this if a
+# security fix is ever blocked; the excludes list takes one release at a time.
+[install]
+minimumReleaseAge = "3d"
