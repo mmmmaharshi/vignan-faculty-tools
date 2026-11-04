@@ -1,5 +1,11 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "experimental": {
+    "background_compaction": true,
+    "portable_shell_scanner": true,
+    "subagent_depth": 2,
+    "todo": true
+  },
   "mcp": {
     "mantine": {
       "type": "local",

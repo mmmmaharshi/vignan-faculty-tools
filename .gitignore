@@ -38,5 +38,10 @@ dist/
 !.scratch/**/*.md
 /.opencode/
 /.commandcode/
+# Installed agent skills: fetched per machine from the sources skills-lock.json
+# records, so they are tooling rather than source. AGENTS.md names the ones this
+# repo relies on; `bunx skills install` restores them.
+/.agents/
+/.claude/
 
 .vercel
