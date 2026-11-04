@@ -128,9 +128,6 @@ const isPlaceholder = (o: Option): boolean =>
   o.value === "0" || PLACEHOLDER.test(o.label);
 export const realOptions = (list: Option[]): Option[] =>
   list.filter((o) => !isPlaceholder(o));
-export function level(list: Option[]): { choices: Option[]; empty: boolean } {
-  return { choices: list, empty: list.length === 0 };
-}
 function cellText(html: string): string {
   return html
     .replaceAll(TAG, " ")

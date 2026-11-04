@@ -26,7 +26,6 @@ import { courseVerdict } from "./portal-liveness.js";
 import {
   HttpError,
   classReportSubjects,
-  level,
   matchOption,
   parseClassAttendance,
   parseRegister,
@@ -111,9 +110,9 @@ export async function handleOptions(
     emptyLevels,
   };
   const take = (key: Level, list: Option[]): void => {
-    const { choices, empty } = level(realOptions(list));
+    const choices = realOptions(list);
     out[key] = choices;
-    if (empty) emptyLevels.push(key);
+    if (!choices.length) emptyLevels.push(key);
   };
   const { verdict, courses: courseOptions } = await courseVerdict(portal);
   if (verdict === "dead") {

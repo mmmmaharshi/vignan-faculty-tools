@@ -96,6 +96,8 @@ import {
 } from "./saved-classes";
 import type { SavedClass } from "./saved-classes";
 import { useSemStartSettle } from "./sem-start-settle";
+import { isBooted, isSignedIn } from "./session-view";
+import type { SessionView } from "./session-view";
 import { useTodayTable } from "./today-memory";
 import type { Note } from "./types";
 import {
@@ -125,8 +127,11 @@ const App = (): React.JSX.Element => {
    *  body, so the default lives once in `activeTab`, not in a second
    *  negation of the named paths here. */
   const onDashboard = activeTab(pathname) === DASHBOARD_PATH;
-  const [booted, setBooted] = useState(false);
-  const [signedIn, setSignedIn] = useState(false);
+  const [view, setView] = useState<SessionView>("booting");
+  /** The two facts the rest of the file reads, derived from the one state so
+   *  they cannot disagree or be set out of order. */
+  const booted = isBooted(view);
+  const signedIn = isSignedIn(view);
   const [userId, setUserId] = useState("");
   const [password, setPassword] = useState("");
   const [loginNote, setLoginNote] = useState<Note | null>(null);
@@ -441,7 +446,7 @@ const App = (): React.JSX.Element => {
       setClick(null);
       setUserId("");
       setPassword("");
-      setSignedIn(false);
+      setView("signedOut");
       setLoginNote(why ? { kind: "warning", text: why } : null);
       setFormNote(null);
       setSel(EMPTY_SEL);
@@ -605,8 +610,7 @@ const App = (): React.JSX.Element => {
       if (!started?.signedIn) {
         throw new Error("The session did not start. Sign in again.");
       }
-      setBooted(true);
-      setSignedIn(true);
+      setView("signedIn");
       noteUserId(started.userId || name);
       navigate(HOME_PATH, { replace: true });
       await runRefresh(EMPTY_SEL, EMPTY_OPTS);
@@ -655,9 +659,8 @@ const App = (): React.JSX.Element => {
   /** The boot check: whether there is a session at all, and what it says. */
   useEffect(() => {
     if (booted || session.isLoading) return;
-    setBooted(true);
     const alive = Boolean(session.data?.signedIn);
-    setSignedIn(alive);
+    setView(alive ? "signedIn" : "signedOut");
     if (!alive) {
       if (!onLogin) navigate(LOGIN_PATH, { replace: true });
       return;

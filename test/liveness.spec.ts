@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { liveness } from "../server/portal-liveness";
+import { courseVerdict } from "../server/portal-liveness";
 import { HttpError } from "../server/portal-replies";
 import type { Option } from "../shared/api";
 
@@ -18,24 +18,31 @@ const reader = (
     return Promise.resolve(value);
   },
 });
+/** The verdict alone: what `/api/session` asks. */
+const verdictOf = async (portal: {
+  courses: () => Promise<Option[]>;
+}): Promise<string> => {
+  const answer = await courseVerdict(portal);
+  return answer.verdict;
+};
 test.describe("is this session alive?", () => {
   test("a real course means the portal is serving this session", async () => {
-    expect(await liveness(reader([course("1", "B.Tech")]))).toBe("alive");
+    expect(await verdictOf(reader([course("1", "B.Tech")]))).toBe("alive");
   });
   test("an empty course list is a dead session, not a layout change", async () => {
-    expect(await liveness(reader([]))).toBe("dead");
+    expect(await verdictOf(reader([]))).toBe("dead");
   });
   test("the placeholder on its own is still an empty list", async () => {
-    expect(await liveness(reader([course("0", "-Select-")]))).toBe("dead");
+    expect(await verdictOf(reader([course("0", "-Select-")]))).toBe("dead");
     expect(
-      await liveness(reader([course("0", "-Select-"), course("1", "B.Tech")]))
+      await verdictOf(reader([course("0", "-Select-"), course("1", "B.Tech")]))
     ).toBe("alive");
   });
   test("a 401 is a dead session", async () => {
-    expect(await liveness(reader(new HttpError(401, "no")))).toBe("dead");
+    expect(await verdictOf(reader(new HttpError(401, "no")))).toBe("dead");
   });
   test("a 502 is unknown, and unknown must not read as dead", async () => {
-    expect(await liveness(reader(new HttpError(502, "unreadable")))).toBe(
+    expect(await verdictOf(reader(new HttpError(502, "unreadable")))).toBe(
       "unknown"
     );
   });
@@ -47,14 +54,14 @@ test.describe("is this session alive?", () => {
       new TypeError("x is not a function"),
     ]) {
       expect(
-        await liveness(reader(error)),
+        await verdictOf(reader(error)),
         `${error.name}: ${error.message}`
       ).toBe("unknown");
     }
   });
   test("it never throws, because a caller asking liveness owes no catch", async () => {
     await expect(
-      liveness(reader(new Error("something nobody planned for")))
+      verdictOf(reader(new Error("something nobody planned for")))
     ).resolves.toBe("unknown");
   });
   test("a reader that throws synchronously is unknown, not a crash", async () => {
@@ -63,6 +70,6 @@ test.describe("is this session alive?", () => {
         throw new Error("threw before returning a promise");
       },
     };
-    expect(await liveness(rude)).toBe("unknown");
+    expect(await verdictOf(rude)).toBe("unknown");
   });
 });

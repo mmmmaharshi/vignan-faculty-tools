@@ -21,10 +21,6 @@ async function askPortal(
     return { verdict: "unknown", courses: [] };
   }
 }
-export async function liveness(portal: CourseReader): Promise<Liveness> {
-  const { verdict } = await askPortal(portal);
-  return verdict;
-}
 export function courseVerdict(
   portal: CourseReader
 ): Promise<{ verdict: Liveness; courses: Option[] }> {

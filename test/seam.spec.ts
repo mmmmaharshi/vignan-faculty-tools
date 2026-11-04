@@ -2,7 +2,6 @@ import { test, expect } from "@playwright/test";
 
 import {
   classReportSubjects,
-  level,
   looksLikeHtml,
   matchOption,
   options,
@@ -85,17 +84,12 @@ test.describe("portal replies", () => {
     expect(options(null)).toEqual([]);
     expect(options("<p>no selects here</p>")).toEqual([]);
   });
-  test("level reports an empty list instead of blocking on it", () => {
+  test("realOptions drops the placeholder and nothing else", () => {
     const real = realOptions(options(SELECT));
-    const ok = level(real);
-    expect(ok.empty).toBe(false);
-    expect(ok.choices).toBe(real);
-    const empty = level([]);
-    expect(empty.empty).toBe(true);
-    expect(empty.choices).toEqual([]);
-    expect(level(realOptions(options(SELECT_ONLY_PLACEHOLDER))).empty).toBe(
-      true
-    );
+    expect(real.length).toBeGreaterThan(0);
+    // The placeholder alone empties the list, which is what makes an empty
+    // level readable as "ECAP offered nothing" rather than "one choice".
+    expect(realOptions(options(SELECT_ONLY_PLACEHOLDER))).toEqual([]);
   });
   test("parseRegister keeps a student whose percentage will not parse", () => {
     const html = `<table>

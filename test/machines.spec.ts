@@ -10,6 +10,7 @@ import {
   openPanel,
 } from "../web/panel-state";
 import { nextRoute } from "../web/route-guard";
+import { isBooted, isSignedIn } from "../web/session-view";
 
 const student = (roll: string): Student => ({
   sl: "1",
@@ -28,6 +29,14 @@ const student = (roll: string): Student => ({
 });
 
 test.describe("explicit state machines", () => {
+  test("session view: the boot check and the sign-in are one state", () => {
+    expect(isBooted("booting"), "nothing asked yet").toBe(false);
+    expect(isSignedIn("booting")).toBe(false);
+    expect(isBooted("signedOut")).toBe(true);
+    expect(isSignedIn("signedOut")).toBe(false);
+    expect(isBooted("signedIn")).toBe(true);
+    expect(isSignedIn("signedIn")).toBe(true);
+  });
   test("panel: open survives close until the slide-out finishes", () => {
     const opened = openPanel(student("1"));
     expect(isPanelOpen(opened)).toBe(true);

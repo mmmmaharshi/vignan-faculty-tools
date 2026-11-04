@@ -26,7 +26,7 @@ import {
   subjectReportPairs,
 } from "./portal-conventions.js";
 import type { DayWorkRequest } from "./portal-conventions.js";
-import { liveness } from "./portal-liveness.js";
+import { courseVerdict } from "./portal-liveness.js";
 import type { CourseReader } from "./portal-liveness.js";
 import {
   hiddenValue,
@@ -511,7 +511,8 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         if (!s) return json(signedOutReply(), 200);
         // One decision, not nested ifs: only a 401 evicts, a 502 stays
         // `unknown` (ADR 0019). Either way nothing is evicted server-side.
-        const probe = await liveness(s.portal);
+        const verdictOfPortal = await courseVerdict(s.portal);
+        const probe = verdictOfPortal.verdict;
         const failure: unknown =
           probe === "dead"
             ? await reauthenticate(s).catch((error: unknown) => error)
