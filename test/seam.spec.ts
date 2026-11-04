@@ -32,7 +32,7 @@ const SELECT = `<select id="ddlcourse">
 const LOGIN_PAGE = `<!DOCTYPE html><html><head><title>ECAP</title></head><body>Sign in</body></html>`;
 const SELECT_ONLY_PLACEHOLDER = `<select><option value="-Select-">-Select-</option></select>`;
 /** The Student Wise report's grid: one row per subject, one mark per period inside
- *  a cell. Deliberately not `routes.spec.ts`'s fixture — it carries a third
+ *  a cell. Deliberately not `support/routes-fake.ts`'s fixture — it carries a third
  *  subject, because the union across rows is what this test reads. */
 const STUDENT_WISE_GRID = `<table>
   <tr><th>Sl.No</th><th>Subject</th><th>05/08</th><th>06/08</th><th>07/08</th><th>Atted/Held</th><th>%</th></tr>

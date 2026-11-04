@@ -141,11 +141,22 @@ playwright.config.ts test runner config
 test/seam.spec.ts    portal-replies over fixture markup
 test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
 test/bands.spec.ts   where the attendance lines sit
-test/routes.spec.ts  the options ladder and the register handler, over a fake portal
+test/routes.*.spec.ts  split by topic: the options ladder, the register handler,
+                     the student profile and find, the semester-start walks, and
+                     the today/unposted handlers - over a fake portal
 test/api.spec.ts     handleApi over a header-carried session and a fake portal:
                      what a dead session does, and what a 502 must never do
-test/cascade.spec.ts the cascade's rules, and its option loop over a fake fetcher
-test/client.spec.ts  the data layer, over a stub API in the browser
+test/cascade.*.spec.ts  split by topic: the selection rules, the option loop over
+                     a fake fetcher, the worklist and its filters, the range
+                     dates, and the saved classes
+test/client.*.spec.ts   split by topic: the session and its probe, the register
+                     and its filters, the student panel and search, the dates a
+                     load settles, and the home screen - over a stub API in the
+                     browser
+test/support/        the three families' shared harness: the stub API and the
+                     mutable `state` the browser tests drive (`client-stub.ts`),
+                     the fixture builders (`cascade-harness.ts`), and the fake
+                     portal (`routes-fake.ts`)
 test/smoke.spec.ts   one end-to-end pass against the live portal
 vercel.json          build to dist/, /api/* to the function, the rest to index.html
 tsconfig*.json       three projects, split so web/ has DOM and server/ does not
@@ -206,7 +217,7 @@ control that names the class you picked was the one you could not read.
   `getByRole("button", { name: "Profile" })` ambiguous. `UnstyledButton` is the
   one Mantine component with no button chrome; the rail's `variant` swap has no
   meaning there, which is why the two surfaces are written differently.
-  `test/client.spec.ts` pins the single-navigation property.
+  `test/client.home.spec.ts` pins the single-navigation property.
 - **The footer grows by the safe-area inset and pads it away**, and the main
   area pads by the same amount, so the home indicator sits under the tabs rather
   than over them. Both numbers are `env(safe-area-inset-bottom)`, not a guess.
@@ -790,7 +801,7 @@ fill is a rule bug, two requests racing is a loop bug.
   walks month by month (each stops at the first dateless month), and the
   section-by-section search keeps its early exit — parallelising that loop
   would read every section on a search the first one already answers.
-  `test/routes.spec.ts` pins the parallel pairs by holding both reads at a
+  `test/routes.today.spec.ts` pins the parallel pairs by holding both reads at a
   gate: a handler that asks one after the other never starts the second.
 
 ## The data layer
@@ -839,7 +850,7 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   its window from when the *key* last changed, and `/api/session` never changes,
   so the window is measured from the mount — and a deep link to `/dashboard`
   mounts the hook with focus revalidation already on, which is the case that would
-  swallow the probe. `test/client.spec.ts` enters that way on purpose.
+  swallow the probe. `test/client.session.spec.ts` enters that way on purpose.
 - **A mutation's callbacks are stable and its state is not, so they are taken
   apart at the call site.** `{ trigger, reset }` are `useCallback(..., [])`; the
   object holding them is rebuilt every render. A dependency on the object re-runs
@@ -869,7 +880,7 @@ the retry rules over a fake portal — runs with `bunx playwright test` and no
 environment at all, in seconds.
 
 **A stub API can vouch for the app's own data layer, but never for the Portal's.**
-`test/client.spec.ts` serves the built app and answers `/api/*` in the browser, so
+`test/client.*.spec.ts` serve the built app and answer `/api/*` in the browser, so
 the keys, the click-only register, the probe and the sweep on sign-out are
 exercised where SWR actually runs; the shapes it answers with are the app's own
 contract, which is all it is testing. What the *Portal* sends is `smoke.spec.ts`'s
@@ -890,7 +901,7 @@ smoke test, the unfiltered rows are in the Portal's own `Sl.No` order, the
 flagged-row count equals the stat card, and the register on screen is named. Each
 breaks for its own distinct reason. A probe that passes under the mutation is
 not a near miss — it is a test that was never testing anything, and the first
-version of `client.spec.ts`'s probe test was exactly that: it mounted the app on
+version of `client.session.spec.ts`'s probe test was exactly that: it mounted the app on
 `/login`, where the session hook is paused, and so could not see the focus
 throttle it was written to pin.
 
@@ -921,7 +932,7 @@ typed for the class in front of the reader, so carrying it into the next load hi
 every row of a register nobody searched — the failure looks like an empty class.
 The ticked bars stay, because "show me who is below 75%" is a standing intent that
 travels between classes. `loadRegister` in `App.tsx` clears the search and nothing
-else, and `test/client.spec.ts` pins it.
+else, and `test/client.register.spec.ts` pins it.
 
 The smoke test drives the real portal because a DOM stub is not sufficient: one
 was tried against the previous build and it passed code broken in a real
@@ -938,7 +949,7 @@ Use a Playwright config without `globalSetup` for the probe, because the lint
 gate refuses the deliberate breakage first.
 
 Two traps in that probe, both hit the hard way. **Anything that drives the app
-in a browser — the smoke test, and `client.spec.ts` — drives `dist/`, not the
+in a browser — the smoke test, and `client.*.spec.ts` — drives `dist/`, not the
 source**, so a mutation to `web/` needs `bun run build` before it
 will be observed — without the rebuild, four mutations "passed". And **a test that
 signs in again after `page.goto` cannot see leaked state at all**, because a
