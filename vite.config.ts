@@ -96,7 +96,10 @@ const NOT_SOURCE = ["**/*.md", ".agents/**"];
 
 export default defineConfig({
   staged: {
-    "**/*": "vp check --fix",
+    // Lint and format the staged files, then type-check every project: the
+    // formatter does not read types, so a type error would otherwise reach a
+    // commit the moment nobody ran the suite.
+    "**/*": ["vp check --fix", "bun scripts/typecheck-staged.ts"],
   },
   fmt: {
     ...oxfmt,

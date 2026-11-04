@@ -127,6 +127,13 @@ web/components/      eleven presentational modules; only HomePanel holds state,
                      and only its ticking clock — and UnpostedPanel, only which
                      period box stands open — the memories live in App
 web/types.ts         Note, the one shape three modules share
+docs/portal-wire.md  the Portal's per-method contracts: proxy, session marker,
+                     parameters in declared order, reply shape, and the traps
+                     measured against each. Read it before writing any ECAP call
+scripts/portal-probe.ts  one Portal call, measured: prints the signed-in proxy's
+                     own declarations, so a parameter name is never guessed
+scripts/typecheck-staged.ts  the commit hook's typecheck, swallowing the filenames
+                     lint-staged appends
 shared/api.ts        the server/client contract; both sides import it
 vite.config.ts       build, lint and fmt config; both blocks come from the
                      Ultracite preset, 15 rules off, markdown excluded
@@ -302,6 +309,15 @@ carries one also has its name in text.
 - **`Bun.fetch` does not store `Set-Cookie`.** Redirects have to be followed by
   hand or the auth cookie is dropped mid-flow and a successful sign-in looks
   like a failure.
+- **The Portal's per-method contracts live in `docs/portal-wire.md`.** Reach for
+  it before writing any ECAP call: proxy, method, `_session` marker, parameter
+  names in declared order, reply shape, and the traps measured against each.
+  `bun scripts/portal-probe.ts [method]` prints the signed-in proxy's own
+  declarations, which is the only place a contract exists — so a name is
+  measured, never guessed. Two conventions exist: **generated-proxy**
+  (`?._method=` + a `key=value` body) and **jQuery** (`jqmethods.aspx/<Method>`),
+  and reaching a proxy-only method through jQuery answers a generic 500 while
+  other methods on that endpoint still work.
 - **There are two calling conventions, and a third trap inside the second one.**
   `ShowAcademicCalendar` (Academic Register) and `ShowAllAttendance` (Class
   attendance report) are both invoked through the **generated-proxy** convention:
@@ -648,13 +664,16 @@ carries one also has its name in text.
 - **Never `git push` without the user's explicit permission.** Commit freely when
   asked, but the push — which publishes and, now that Vercel builds from git,
   deploys — waits for a yes every time.
-- **The commit hook is `vp check --fix`, so it does not typecheck.** `staged` maps
-  `**/*` to `vp check --fix` and nothing else, which means format and lint only.
-  Type checking happens in `test/global-setup.ts` and nowhere in the commit path,
-  so a type error is found by `vp run test`, not by `git commit`. Do not add
-  `tsc` to the `staged` block: ADR 0012 rejected a second copy of the gate for
-  exactly this reason, and the array form of `staged` runs each entry as its own
-  command, so `["tsc", "-p", "tsconfig.json"]` would execute `-p` on its own.
+- **The commit hook lints, formats, then type-checks.** `staged` maps `**/*` to
+  two commands: `vp check --fix` (format and lint, staged files only) and
+  `bun scripts/typecheck-staged.ts`, which runs the project's own `typecheck`.
+  A type error therefore stops the commit rather than reaching history — the
+  gap this closed was that `vp check` never read types and the suite was the
+  only other `tsc`. The array form of `staged` runs each entry as its own
+  command, so the wrapper exists to swallow the filenames lint-staged appends
+  (`tsc` rejects them: "Option 'project' cannot be mixed"); it never narrows the
+  check to the staged files, because a type error in one file is usually a
+  contract change in another.
 - **`"**/*"` in the `staged` block, not `"*"` and not a file-type list.** The
   unanchored `*` happens to reach subdirectories today, but only because
   lint-staged matches on basename; `**/*` says what is meant. It also leaves the
