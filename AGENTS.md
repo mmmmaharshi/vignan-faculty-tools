@@ -3,8 +3,8 @@
 A local, read-only faculty copilot. It reads what the ECAP Portal states about
 one faculty member's Sections, and it answers the questions a working day asks:
 who is in trouble, which periods have no attendance, what the Portal states
-about one student, and when the semester started. The Register is one screen of
-it, not the whole.
+about one student, and when the semester started. The Register is one of its
+screens, not the whole.
 
 ## Standards
 
