@@ -1,6 +1,5 @@
 # Vignan Faculty Tools
 
-The ECAP portal is confusing and outdated. This app gets the same faculty work
-done faster.
+The ECAP portal is confusing and outdated. We fixed the part we could.
 
 [Live app](https://vignanfacultytools.maharshi.work/)
