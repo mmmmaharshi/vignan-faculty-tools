@@ -1,8 +1,8 @@
 # Vignan Faculty Tools
 
-The language of reading a class's attendance out of the ECAP portal, and acting on
-it. Terms here are the ones the code and the portal both use; prefer them over
-synonyms in issues, tests and commit messages.
+The language of a faculty copilot: reading what the ECAP Portal states about a
+Section, and acting on it. Terms here are the ones the code and the portal both
+use; prefer them over synonyms in issues, tests and commit messages.
 
 ## The portal
 

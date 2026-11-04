@@ -1,13 +1,13 @@
 # Vignan Faculty Tools
 
-A local web app for faculty. Sign in with your own ECAP credentials, pick a
-course / semester / branch / section / subject and a date range, and get the class
-roster with per-student attendance — sorted worst-first, so irregular students are
-the first thing you see.
+A local web app that works like a faculty copilot. Sign in with your own ECAP
+credentials. The app shows today's classes, the periods with no attendance, the
+Register for one Section and date range, and one student's full profile. It also
+finds the semester start for you.
 
-Built for the case that prompted it: knowing *who* is drifting in a class early
-enough to do something about it, without manually exporting and eyeballing a
-register each time.
+Built for the case that prompted it: knowing *who* is drifting in a Section
+early enough to do something about it, without manually exporting and eyeballing
+a register each time.
 
 ## Run it
 
