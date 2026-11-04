@@ -7,7 +7,12 @@ import {
 } from "@phosphor-icons/react";
 import type { Icon } from "@phosphor-icons/react";
 
-import { DASHBOARD_PATH, HOME_PATH, PROFILE_PATH, SEARCH_PATH } from "../paths";
+import {
+  DASHBOARD_PATH,
+  HOME_PATH,
+  PROFILE_PATH,
+  SEARCH_PATH,
+} from "../app/paths";
 
 export {
   DASHBOARD_PATH,
@@ -15,7 +20,7 @@ export {
   LOGIN_PATH,
   PROFILE_PATH,
   SEARCH_PATH,
-} from "../paths";
+} from "../app/paths";
 /** Every screen the navigation can name, in the order both surfaces show
  *  them. One array, so an icon or label change cannot land on the rail and
  *  miss the bar: the two surfaces differ only in chrome, never in content. */

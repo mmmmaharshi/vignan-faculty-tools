@@ -13,8 +13,8 @@ import {
 } from "@mantine/core";
 
 import type { Student, StudentProfile } from "../../shared/api";
-import type { Note } from "../types";
-import { badgeFor, carriesOverall, displayName } from "../worklist";
+import type { Note } from "../app/types";
+import { badgeFor, carriesOverall, displayName } from "../register/worklist";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */

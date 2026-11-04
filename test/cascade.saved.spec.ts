@@ -7,14 +7,14 @@ import {
   selKeyOf,
   semesterTitleOf,
   subjectNameKey,
-} from "../web/cascade";
-import type { Sel } from "../web/cascade";
+} from "../web/register/cascade";
+import type { Sel } from "../web/register/cascade";
 import {
   abbreviate,
   forgetClass,
   rememberClass,
   savedClasses,
-} from "../web/saved-classes";
+} from "../web/register/saved-classes";
 import { CLASS_A, opt, reply, saved, sel } from "./support/cascade-harness";
 
 test.describe("a branch name on a card", () => {

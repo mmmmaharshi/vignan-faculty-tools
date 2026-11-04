@@ -1,6 +1,6 @@
 import { Table, Text } from "@mantine/core";
 
-import type { ChosenFact } from "../cascade";
+import type { ChosenFact } from "../register/cascade";
 
 /** The register's own naming — course through period, one fact per row, for the
  *  card above the register. It stays headless on purpose: the specs count

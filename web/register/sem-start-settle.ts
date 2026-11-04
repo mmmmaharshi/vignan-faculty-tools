@@ -5,8 +5,11 @@ import type {
   OptionsReply,
   RegisterReply,
   SemStartRequest,
-} from "../shared/api";
-import { SEM_START_WALK_MONTHS } from "../shared/api";
+} from "../../shared/api";
+import { SEM_START_WALK_MONTHS } from "../../shared/api";
+import type { RangeEdited } from "../app/load-gate";
+import { useSemStart } from "../data/client";
+import type { RegisterClick } from "../data/client";
 import {
   chosenLevels,
   probeSubject,
@@ -17,9 +20,6 @@ import {
   rememberRangeStart,
 } from "./cascade";
 import type { Range, Sel } from "./cascade";
-import { useSemStart } from "./client";
-import type { RegisterClick } from "./client";
-import type { RangeEdited } from "./load-gate";
 import {
   noteSemStart,
   readSemStarts,

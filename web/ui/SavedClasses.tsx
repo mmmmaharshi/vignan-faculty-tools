@@ -2,7 +2,7 @@ import { Button, Group, Paper, SimpleGrid, Text, Title } from "@mantine/core";
 import { ArrowCounterClockwise, Trash } from "@phosphor-icons/react";
 import React from "react";
 
-import type { Sel } from "../cascade";
+import type { Sel } from "../register/cascade";
 
 /**
  * One saved class. The Subject leads because that is what tells one card from

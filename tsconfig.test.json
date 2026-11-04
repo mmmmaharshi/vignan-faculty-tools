@@ -17,15 +17,15 @@
     "server/server-routes.ts",
     // The cascade's rules. Listed file by file rather than as "web", because
     // web/ is the DOM+React project and this harness is not - see
-    // tsconfig.json. web/cascade.ts is deliberately free of both, which is what
+    // tsconfig.json. web/register/cascade.ts is deliberately free of both, which is what
     // lets the same file compile in both projects.
-    "web/cascade.ts",
-    "web/panel-state.ts",
-    "web/load-gate.ts",
-    "web/paths.ts",
-    "web/route-guard.ts",
-    "web/session-view.ts",
-    "web/sw-update.ts",
+    "web/register/cascade.ts",
+    "web/app/panel-state.ts",
+    "web/app/load-gate.ts",
+    "web/app/paths.ts",
+    "web/app/route-guard.ts",
+    "web/app/session-view.ts",
+    "web/data/sw-update.ts",
     "server/session-verdict.ts",
     "playwright.config.ts",
     "vite.config.ts"

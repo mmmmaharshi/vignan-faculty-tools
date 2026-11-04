@@ -4,10 +4,10 @@ import type {
   Student,
   TodayClass,
 } from "../../shared/api";
-import { chosenFacts } from "../../web/cascade";
-import type { ChosenFact, Level, Sel } from "../../web/cascade";
-import { NO_FILTER } from "../../web/worklist";
-import type { RowFilter } from "../../web/worklist";
+import { chosenFacts } from "../../web/register/cascade";
+import type { ChosenFact, Level, Sel } from "../../web/register/cascade";
+import { NO_FILTER } from "../../web/register/worklist";
+import type { RowFilter } from "../../web/register/worklist";
 
 /** One grid row: hours stated, or none at all once ECAP clears the day. */
 export const slot = (period: string, time: string): TodayClass => ({

@@ -11,7 +11,7 @@ import {
 } from "@mantine/core";
 import type { FormEvent } from "react";
 
-import type { Note } from "../types";
+import type { Note } from "../app/types";
 
 type SignInPanelProps = {
   userId: string;

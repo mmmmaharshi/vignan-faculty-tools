@@ -14,7 +14,7 @@ import { MagnifyingGlass } from "@phosphor-icons/react";
 
 import { overallCellForDisplay } from "../../server/attendance-bands";
 import type { RegisterReply, Student } from "../../shared/api";
-import type { ChosenFact } from "../cascade";
+import type { ChosenFact } from "../register/cascade";
 import {
   badgeFor,
   carriesOverall,
@@ -24,8 +24,8 @@ import {
   tintFor,
   emptyRegisterText,
   isFiltering,
-} from "../worklist";
-import type { FigureKind, RowFilter, BarCounts } from "../worklist";
+} from "../register/worklist";
+import type { FigureKind, RowFilter, BarCounts } from "../register/worklist";
 import { FactsTable } from "./FactsTable";
 
 type RegisterTableProps = {

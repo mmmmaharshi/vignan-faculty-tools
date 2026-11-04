@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 import { ALL_SUBJECTS } from "../shared/api";
+import { notePeriodTimes } from "../web/home/period-times";
 import {
   applyOptions,
   chosenFacts,
@@ -9,9 +10,8 @@ import {
   isReady,
   resetFor,
   shouldContinue,
-} from "../web/cascade";
-import { notePeriodTimes } from "../web/period-times";
-import { noteSemStart, semStartKey } from "../web/sem-starts";
+} from "../web/register/cascade";
+import { noteSemStart, semStartKey } from "../web/register/sem-starts";
 import {
   CLASS_A,
   dateRangeTail,

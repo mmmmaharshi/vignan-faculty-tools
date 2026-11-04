@@ -2,14 +2,14 @@ import { expect, test } from "@playwright/test";
 
 import { ALL_SUBJECTS } from "../shared/api";
 import type { OptionsRequest } from "../shared/api";
+import { ApiError } from "../web/data/client";
 import {
   partialOf,
   runCascade,
   selectionAfter,
   subjectNameKey,
-} from "../web/cascade";
-import type { Sel } from "../web/cascade";
-import { ApiError } from "../web/client";
+} from "../web/register/cascade";
+import type { Sel } from "../web/register/cascade";
 import {
   courseOnlyReply,
   fullReply,

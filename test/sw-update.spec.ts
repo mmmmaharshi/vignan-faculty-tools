@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 
-import { watchForUpdates } from "../web/sw-update";
+import { watchForUpdates } from "../web/data/sw-update";
 
 /** A fake installing worker the test drives through states by hand. */
 const fakeWorker = () => {

@@ -21,10 +21,10 @@ import type {
   StudentRequest,
   TodayClassesReply,
   UnpostedReply,
-} from "../shared/api";
-import { SESSION_HEADER, SESSION_STORE_KEY } from "../shared/api";
-import { runCascade } from "./cascade";
-import type { CascadeOutcome, CascadeSetup } from "./cascade";
+} from "../../shared/api";
+import { SESSION_HEADER, SESSION_STORE_KEY } from "../../shared/api";
+import { runCascade } from "../register/cascade";
+import type { CascadeOutcome, CascadeSetup } from "../register/cascade";
 /**
  * The app's whole way of talking to its own server: one JSON wrapper, and the
  * SWR hooks every screen reads through. Nothing else in `web/` calls `fetch`.

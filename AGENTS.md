@@ -110,23 +110,28 @@ web/public/manifest.webmanifest  the install prompt's facts: names, start URL,
 web/public/sw.js     the service worker: shell-only cache, /api/* never
                      intercepted; plain JS, so tsc skips it and node --check
                      is the syntax gate. An installed update is offered through
-                     the native confirm (`web/sw-update.ts`, wired in
+                     the native confirm (`web/data/sw-update.ts`, wired in
                      `web/main.tsx`); yes reloads onto the new shell.
 web/public/icons/    the three install icons, rasterized from one SVG tile by
                      a throwaway Playwright script (kept out of the repo)
-web/App.tsx          state, the three modes, and the session's own facts
-web/client.ts        every fetch the app makes: one JSON wrapper, and the SWR
-                     hooks and keys each screen reads through
-web/cascade.ts       the cascade's rules: what auto-fills, when to keep looping,
-                     what a change clears, and the loop that settles a selection
-web/saved-classes.ts the saved classes in storage, and the branch initialism
-                     on their cards
-web/worklist.ts      the register worklist: which rows show, their order, the
-                     row tint, and the badge words both surfaces share
-web/components/      eleven presentational modules; only HomePanel holds state,
+web/app/             the shell and the session: App.tsx (state, the three modes,
+                     and the session's own facts), session-view, route-guard,
+                     paths, panel-state, load-gate, types.ts (Note, the one
+                     shape three modules share)
+web/register/        the cascade and its storage: cascade.ts (what auto-fills,
+                     when to keep looping, what a change clears, and the loop
+                     that settles a selection), worklist.ts (which rows show,
+                     their order, the row tint, and the badge words both
+                     surfaces share), saved-classes.ts, sem-start-settle.ts,
+                     sem-starts.ts, string-map-store.ts
+web/home/            the timetable's memory: today-memory.ts, period-times.ts
+web/data/            the fetch layer and its browser service worker: client.ts
+                     (every fetch the app makes: one JSON wrapper, and the SWR
+                     hooks and keys each screen reads through), sw-update.ts,
+                     format.ts
+web/ui/              eleven presentational modules; only HomePanel holds state,
                      and only its ticking clock — and UnpostedPanel, only which
                      period box stands open — the memories live in App
-web/types.ts         Note, the one shape three modules share
 docs/portal-wire.md  the Portal's per-method contracts: proxy, session marker,
                      parameters in declared order, reply shape, and the traps
                      measured against each. Read it before writing any ECAP call
@@ -196,7 +201,7 @@ control that names the class you picked was the one you could not read.
 - **Layout is `AppShell.Section` plus `Stack`, never margin.** The first section
   takes `grow` so the second sits on the bottom of the rail; `Stack gap="xs"` is
   the gap between the buttons. Mantine already provides both mechanisms.
-- **The tabs live once, in `web/components/NavTabs.tsx`, and both surfaces map
+- **The tabs live once, in `web/ui/NavTabs.tsx`, and both surfaces map
   over them.** `TABS` names every screen's path, label and icon in tab order;
   `RailNav` maps them to stock `Button`s, `BarNav` to `UnstyledButton`s. An icon
   or label change that lands on the rail and misses the bar is a diff that
@@ -554,7 +559,7 @@ carries one also has its name in text.
   drops the stored session, and so does an **empty course list** — see the next
   rule. A 502 drops nothing, because that one really is ambiguous. ADR 0013.
 - **A refusal carries no session header, and the browser drops what it holds.**
-  `read()` in `web/client.ts` saves the session only when an answer carries
+  `read()` in `web/data/client.ts` saves the session only when an answer carries
   one; `signedOut` in `App.tsx` clears storage beside the cache sweep. There is
   no server-side eviction because there is nothing server-side to evict — a 401
   from signing in is about the password just typed, and any other 401 is about
@@ -708,7 +713,8 @@ carries one also has its name in text.
 Five dependent levels: course → semester → branch → section → subject. It was
 wrong three separate times before it was right, and every failure was structural
 rather than cosmetic, so the rules are load-bearing. **The loop lives in
-`web/cascade.ts`, the worklist in `web/worklist.ts`** — `runCascade` asks for
+`web/register/cascade.ts`, the worklist in `web/register/worklist.ts`** —
+`runCascade` asks for
 options until a pass gains nothing and no level below a chosen one is still
 empty, and `App.tsx` only decides *when* to run it. A dropdown that will not
 fill is a rule bug, two requests racing is a loop bug.
@@ -762,22 +768,22 @@ fill is a rule bug, two requests racing is a loop bug.
   the course pass 1 fetched is not discarded with the failed branch pass —
   and the retry settles from there.
 
-- **The panel is one state, not two booleans.** `web/panel-state.ts` holds
+- **The panel is one state, not two booleans.** `web/app/panel-state.ts` holds
   `open | closing | closed` with the student inside: `closing` is the ~200ms
   slide-out that still draws its row, and only `open` fires the wider
   absent-dates read. `detail` + `detailOpen` was the same fact apart, and a
   read gated on one but not the other fired for a panel already leaving.
-- **The Load gate is one state, not three guards.** `web/load-gate.ts` answers
+- **The Load gate is one state, not three guards.** `web/app/load-gate.ts` answers
   `ready | loading-options | reading-register | finding-start` from the same
   inputs the button and the note read, so the two cannot disagree. A typed
   From lifts it; a typed To alone does not — while the walk is in flight for
   an unremembered class, the first click cannot take the month window still
   on screen.
-- **The URL has one steady-state writer.** `web/route-guard.ts` (`nextRoute`)
+- **The URL has one steady-state writer.** `web/app/route-guard.ts` (`nextRoute`)
   decides every redirect once the session is known; the back-button effect
   delegates to it. The boot effect keeps its own landing-screen rule (a
   restored session opens Home, and an unknown deep link lands there too) —
-  `nextRoute` returns null before boot, so it never competes. `web/paths.ts`
+  `nextRoute` returns null before boot, so it never competes. `web/app/paths.ts`
   holds the five strings with no JSX, so the guard and the test harness can
   import them — `NavTabs.tsx` re-exports them, and the tabs remain the only
   other place they appear.
@@ -806,9 +812,9 @@ fill is a rule bug, two requests racing is a loop bug.
 
 ## The data layer
 
-**Every fetch goes through `web/client.ts`, and every read of server data is an
-SWR key.** Nothing else in `web/` calls `fetch`. Six endpoints were hand-rolled
-effects before this; they are now one wrapper (`getJson` / `postJson`, which turn
+**Every fetch goes through `web/data/client.ts`, and every read of server data
+is an SWR key.** Nothing else in `web/` calls `fetch`. Six endpoints were
+hand-rolled effects before this; they are now one wrapper (`getJson` / `postJson`, which turn
 a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
 
 - **A key is a cache entry, so anything the user must ask for again on purpose
@@ -922,7 +928,8 @@ a fallback even though it rides the row beside the subject one, and a row admitt
 or ordered by one would answer a question nobody asked. **A missing percentage sorts
 last**, never first — `null`
 is an absence of evidence, and putting such a student at the top of a triage list
-sends someone after them for the wrong reason. `registerRows` in `web/worklist.ts`
+sends someone after them for the wrong reason. `registerRows` in
+`web/register/worklist.ts`
 owns all three rules, which is where they can be pinned without booting a server.
 
 **The All subjects table states one percentage per subject, read from that subject's own report.** The class report states attended counts, never percentages, so each column's figures come from one `ShowSubjectAttendance` read per offered subject, in parallel beside the class report — still one `/api/register` call on the wire. A column whose subject the Portal's own subject list does not offer is dropped rather than guessed; a subject ECAP will not give leaves dashes rather than failing the register; a dead session still signs out, through the same retry the register already has. The cells are read as written — a blank is no figure, never a zero — and they carry no badges and change no band, tint, filter, or sort; the overall percentage stays the one figure that path judges by. Every head label renders on one line; the table scrolls instead of wrapping. Each subject header ticks a threshold for its own column — off, below 75, below 65, then off — and ticked columns intersect like the ticked bars, with a dash clearing none; an empty table names its bar and offers to clear it, since the headers it would be unticked from are gone with it. Settling a class drops bars for subjects it does not offer, so no invisible filter travels with the selection. The Overall column reads beside the name in both modes — it is the triage number — and the Roll No column sticks to the scroll edge (`pos="sticky" left={0}`, both Mantine props): positioned beats static, so no z-index exists to set, and the stuck body cells paint the row's own tint or stripe colour so sliding columns hide beneath them instead of ghosting through.

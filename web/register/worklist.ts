@@ -1,4 +1,4 @@
-import type { RegisterReply } from "../shared/api";
+import type { RegisterReply } from "../../shared/api";
 
 /** One student row out of a register reply, subject figures and overall ones. */
 export type StudentRow = RegisterReply["students"][number];

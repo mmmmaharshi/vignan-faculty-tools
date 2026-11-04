@@ -2,15 +2,15 @@ import { test, expect } from "@playwright/test";
 
 import { sessionVerdict } from "../server/session-verdict";
 import type { Student } from "../shared/api";
-import { loadGate, loadNote } from "../web/load-gate";
+import { loadGate, loadNote } from "../web/app/load-gate";
 import {
   closePanel,
   finishClose,
   isPanelOpen,
   openPanel,
-} from "../web/panel-state";
-import { nextRoute } from "../web/route-guard";
-import { isBooted, isSignedIn } from "../web/session-view";
+} from "../web/app/panel-state";
+import { nextRoute } from "../web/app/route-guard";
+import { isBooted, isSignedIn } from "../web/app/session-view";
 
 const student = (roll: string): Student => ({
   sl: "1",

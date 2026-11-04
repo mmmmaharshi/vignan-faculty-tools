@@ -1,5 +1,5 @@
-import type { TodayClass } from "../shared/api";
-import { readStringMap, writeStringMap } from "./string-map-store";
+import type { TodayClass } from "../../shared/api";
+import { readStringMap, writeStringMap } from "../register/string-map-store";
 
 /** How many periods an ECAP day holds. The timetable and the pending-postings
  *  boxes both name every slot of this length, so the count lives once. */

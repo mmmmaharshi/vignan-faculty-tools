@@ -11,15 +11,15 @@ import {
 import React, { useEffect, useMemo, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
-import { capitalCase, pillsOf, splitSubject } from "../format";
+import type { Note } from "../app/types";
+import { capitalCase, pillsOf, splitSubject } from "../data/format";
 import {
   notePeriodTimes,
   readPeriodTimes,
   writePeriodTimes,
   PERIOD_COUNT,
-} from "../period-times";
-import type { PeriodTimes } from "../period-times";
-import type { Note } from "../types";
+} from "../home/period-times";
+import type { PeriodTimes } from "../home/period-times";
 
 export type HomePanelProps = {
   /** Today's periods in the grid's own order. Null while unread. */

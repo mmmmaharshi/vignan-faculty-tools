@@ -7,7 +7,7 @@ import {
   displayName,
   registerRows,
   tintFor,
-} from "../web/worklist";
+} from "../web/register/worklist";
 import { irregularOnly, student } from "./support/cascade-harness";
 
 test.describe("the bands", () => {

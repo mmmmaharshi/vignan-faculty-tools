@@ -6,8 +6,8 @@ import { createRoot } from "react-dom/client";
 import { BrowserRouter, Route, Routes } from "react-router";
 import { SWRConfig } from "swr";
 
-import App from "./App";
-import { watchForUpdates } from "./sw-update";
+import App from "./app/App";
+import { watchForUpdates } from "./data/sw-update";
 
 if (import.meta.env.DEV) void import("react-grab");
 

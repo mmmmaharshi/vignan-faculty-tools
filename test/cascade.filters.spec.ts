@@ -8,8 +8,8 @@ import {
   pruneSubjectBars,
   registerRows,
   visibleStudents,
-} from "../web/worklist";
-import type { RowFilter } from "../web/worklist";
+} from "../web/register/worklist";
+import type { RowFilter } from "../web/register/worklist";
 import { bar, irregularOnly, student } from "./support/cascade-harness";
 
 test.describe("one threshold per subject column", () => {

@@ -1,12 +1,12 @@
-import { isAllSubjects } from "../shared/api";
+import { isAllSubjects } from "../../shared/api";
 import type {
   CascadeLevel,
   Option,
   OptionsReply,
   OptionsRequest,
-} from "../shared/api";
+} from "../../shared/api";
 
-export { isAllSubjects } from "../shared/api";
+export { isAllSubjects } from "../../shared/api";
 
 export type Level = CascadeLevel;
 export type Sel = Record<Level, string>;

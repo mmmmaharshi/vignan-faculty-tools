@@ -15,8 +15,8 @@ import {
 import React, { useState } from "react";
 
 import type { DayWorkCell, DayWorkSection } from "../../shared/api";
-import { PERIODS } from "../period-times";
-import type { Note } from "../types";
+import type { Note } from "../app/types";
+import { PERIODS } from "../home/period-times";
 import { FactsTable } from "./FactsTable";
 
 export type UnpostedPanelProps = {

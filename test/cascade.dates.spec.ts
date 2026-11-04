@@ -1,17 +1,17 @@
 import { expect, test } from "@playwright/test";
 
 import {
-  defaultRange,
-  rememberRangeStart,
-  startingRange,
-  toPortalDate,
-} from "../web/cascade";
-import {
   noteTodayMemory,
   readTodayMemory,
   shownToday,
   writeTodayMemory,
-} from "../web/today-memory";
+} from "../web/home/today-memory";
+import {
+  defaultRange,
+  rememberRangeStart,
+  startingRange,
+  toPortalDate,
+} from "../web/register/cascade";
 import { saved, slot } from "./support/cascade-harness";
 
 test.describe("dates", () => {

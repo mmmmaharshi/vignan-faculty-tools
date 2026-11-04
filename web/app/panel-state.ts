@@ -1,4 +1,4 @@
-import type { Student } from "../shared/api";
+import type { Student } from "../../shared/api";
 
 /**
  * The student panel as one state, not two booleans: open, closing (the

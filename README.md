@@ -196,11 +196,13 @@ server/portal-replies.ts pure string -> data functions, and the seam guards
 server/attendance-bands.ts the Regular / Irregular / Critical rule, and the summary
 web/index.html        Vite entry point
 web/main.tsx          React root + MantineProvider
-web/App.tsx           state, the routes, and the refresh loop
-web/cascade.ts        the cascade's rules: what auto-fills, when to keep looping
-web/saved-classes.ts  saved classes, and the branch initialism on their cards
-web/worklist.ts       the register worklist: rows, order, tint, badge words
-web/components/       eight presentational modules; none of them holds state
+web/app/App.tsx       state, the routes, and the refresh loop
+web/register/         the cascade and its storage: cascade.ts, saved-classes.ts,
+                      worklist.ts, sem-start-settle.ts, sem-starts.ts,
+                      string-map-store.ts
+web/home/             today-memory.ts, period-times.ts
+web/data/             client.ts, sw-update.ts, format.ts
+web/ui/               eight presentational modules; none of them holds state
 shared/api.ts         the server/client contract; both sides import it
 vite.config.ts        build, lint and format config (Vite+; Ultracite presets)
 playwright.config.ts  test runner config

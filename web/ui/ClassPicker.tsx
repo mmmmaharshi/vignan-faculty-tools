@@ -12,8 +12,8 @@ import {
 } from "@mantine/core";
 
 import type { CascadeLevel, Option, OptionsReply } from "../../shared/api";
-import type { Level, Range, Sel } from "../cascade";
-import type { Note } from "../types";
+import type { Note } from "../app/types";
+import type { Level, Range, Sel } from "../register/cascade";
 
 type ClassPickerProps = {
   levels: readonly (readonly [Level, string])[];

@@ -20,26 +20,8 @@ import type {
   RegisterReply,
   RegisterRequest,
   Student,
-} from "../shared/api";
-import { todayIST } from "../shared/api";
-import {
-  chosenLevels,
-  isAllSubjects,
-  chosenFacts,
-  disabledLevels,
-  partialOf,
-  rememberRangeStart,
-  selectionAfter,
-  startingRange,
-  EMPTY_OPTS,
-  EMPTY_SEL,
-  LEVELS,
-  subjectNameKey,
-  toPortalDate,
-  toInputDate,
-  statedStartDate,
-} from "./cascade";
-import type { Level, Range, Sel } from "./cascade";
+} from "../../shared/api";
+import { todayIST } from "../../shared/api";
 import {
   clearStoredSession,
   forgetServerData,
@@ -57,10 +39,44 @@ import {
   useFacultyProfile,
   useSemAbsences,
   useUnposted,
-} from "./client";
-import type { RegisterClick, FindClick, ApiError } from "./client";
-import { ClassPicker } from "./components/ClassPicker";
-import { HomePanel } from "./components/HomePanel";
+} from "../data/client";
+import type { RegisterClick, FindClick, ApiError } from "../data/client";
+import { useTodayTable } from "../home/today-memory";
+import {
+  chosenLevels,
+  isAllSubjects,
+  chosenFacts,
+  disabledLevels,
+  partialOf,
+  rememberRangeStart,
+  selectionAfter,
+  startingRange,
+  EMPTY_OPTS,
+  EMPTY_SEL,
+  LEVELS,
+  subjectNameKey,
+  toPortalDate,
+  toInputDate,
+  statedStartDate,
+} from "../register/cascade";
+import type { Level, Range, Sel } from "../register/cascade";
+import {
+  abbreviate,
+  rememberClass,
+  savedClasses,
+  forgetClass,
+} from "../register/saved-classes";
+import type { SavedClass } from "../register/saved-classes";
+import { useSemStartSettle } from "../register/sem-start-settle";
+import {
+  NO_FILTER,
+  barCounts,
+  pruneSubjectBars,
+  registerRows,
+} from "../register/worklist";
+import type { RowFilter } from "../register/worklist";
+import { ClassPicker } from "../ui/ClassPicker";
+import { HomePanel } from "../ui/HomePanel";
 import {
   BarNav,
   DASHBOARD_PATH,
@@ -70,14 +86,14 @@ import {
   RailNav,
   SEARCH_PATH,
   activeTab,
-} from "./components/NavTabs";
-import { ProfilePanel } from "./components/ProfilePanel";
-import { RegisterSummary } from "./components/RegisterSummary";
-import { RegisterTable } from "./components/RegisterTable";
-import { SavedClasses } from "./components/SavedClasses";
-import { SignInPanel } from "./components/SignInPanel";
-import { StudentDetails } from "./components/StudentDetails";
-import { UnpostedPanel } from "./components/UnpostedPanel";
+} from "../ui/NavTabs";
+import { ProfilePanel } from "../ui/ProfilePanel";
+import { RegisterSummary } from "../ui/RegisterSummary";
+import { RegisterTable } from "../ui/RegisterTable";
+import { SavedClasses } from "../ui/SavedClasses";
+import { SignInPanel } from "../ui/SignInPanel";
+import { StudentDetails } from "../ui/StudentDetails";
+import { UnpostedPanel } from "../ui/UnpostedPanel";
 import { loadGate, loadNote as gateNote } from "./load-gate";
 import {
   CLOSED_PANEL,
@@ -88,25 +104,9 @@ import {
 } from "./panel-state";
 import type { PanelState } from "./panel-state";
 import { nextRoute } from "./route-guard";
-import {
-  abbreviate,
-  rememberClass,
-  savedClasses,
-  forgetClass,
-} from "./saved-classes";
-import type { SavedClass } from "./saved-classes";
-import { useSemStartSettle } from "./sem-start-settle";
 import { isBooted, isSignedIn } from "./session-view";
 import type { SessionView } from "./session-view";
-import { useTodayTable } from "./today-memory";
 import type { Note } from "./types";
-import {
-  NO_FILTER,
-  barCounts,
-  pruneSubjectBars,
-  registerRows,
-} from "./worklist";
-import type { RowFilter } from "./worklist";
 
 /** A request the server refused, in words — unless it refused the session,
  *  which the shared failure sweep already ended. One helper, so the fifth
@@ -200,7 +200,7 @@ const App = (): React.JSX.Element => {
    *  rendering. Only a typed From lifts the gate — a typed To alone still
    *  leaves From on the unproven month start. */
   const [rangeEdited, setRangeEdited] = useState<"" | "from" | "to">("");
-  /** Every fetch the app makes, through its own key. See `web/client.ts`. */
+  /** Every fetch the app makes, through its own key. See `web/data/client.ts`. */
   const register = useRegisterLoad(click);
   /* The two callbacks are stable and the state is not, so they are taken apart:
      a callback in a dependency list that changes every render would re-run every
@@ -355,7 +355,7 @@ const App = (): React.JSX.Element => {
     rememberCurrentClass();
   }, [userId, classChosen, register.data, rememberCurrentClass]);
   /** Till Now is the standing window: one gate decides whether Load register
-   *  may fire, and the note names the same state. See `web/load-gate.ts`. */
+   *  may fire, and the note names the same state. See `web/app/load-gate.ts`. */
   const gateInput = {
     optionsLoading,
     registerLoading: register.isLoading,
