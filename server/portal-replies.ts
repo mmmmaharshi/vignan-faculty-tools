@@ -7,6 +7,7 @@ import type {
   StudentPhone,
   StudentProfile,
   StudentSgpa,
+  StudentTotals,
   TodayClass,
   DayWorkCell,
   DayWorkSection,
@@ -269,6 +270,68 @@ export function parseStudentAbsences(html: string): string[] | null {
     }
   }
   return absent;
+}
+/** The Cumulative student-wise register's own marks, by the colour the reply
+ *  paints on each cell. The reply states that legend above its grid, so the
+ *  mapping is read rather than assumed; a reply with no legend is refused
+ *  instead of guessed. */
+const CUMULATIVE_LEGEND =
+  /background-color:\s*(?<colour>[A-Za-z#0-9]+)[\s\S]{0,240}?reportData2[^>]*>(?<label>[\s\S]{0,40}?)</gi;
+const CELL_COLOUR = /background-color:\s*(?<colour>[^;'"]*)/i;
+/** A colour that marks nothing: an attended cell carries none. */
+const NO_COLOUR = /^(?:|white|transparent|#fff(?:fff)?)$/i;
+/**
+ * The held / attended / absent counts from ECAP's Cumulative student-wise
+ * register — the numbers that screen prints above its day grid. Held counts the
+ * periods that actually ran: attended, absent and not-entered cells. A holiday
+ * or a no-class-work cell never ran, so it is not held.
+ *
+ * Every cell is classified by the legend the reply itself carries. A colour
+ * the legend does not name — or no legend at all — is refused rather than
+ * counted as attended, because a shifted legend would otherwise print a clean
+ * 100% as fact. `null` is also the answer for a reply that is not this register
+ * (no dated grid), which is not the same as three zeroes.
+ */
+export function parseCumulativeTotals(html: string): StudentTotals | null {
+  const legend = new Map<string, string>();
+  for (const m of html.matchAll(CUMULATIVE_LEGEND)) {
+    const label = cellText(m.groups?.label ?? "");
+    if (label) legend.set((m.groups?.colour ?? "").toLowerCase(), label);
+  }
+  if (!legend.size) return null;
+  let present = 0;
+  let absent = 0;
+  let notEntered = 0;
+  let dated = 0;
+  for (const row of html.matchAll(ROW)) {
+    const cells = [...row[0].matchAll(CELL)];
+    if (!DATE_CELL.test(cellText(cells[0]?.groups?.cell ?? ""))) continue;
+    dated += 1;
+    for (const cell of cells.slice(1)) {
+      const text = cellText(cell.groups?.cell ?? "");
+      const colour = (cell[0].match(CELL_COLOUR)?.groups?.colour ?? "").trim();
+      if (NO_COLOUR.test(colour)) {
+        // An unmarked cell is an attended period; an unmarked empty cell is no
+        // period at all.
+        if (text) present += 1;
+        continue;
+      }
+      const label = legend.get(colour.toLowerCase()) ?? "";
+      if (!label) return null;
+      if (/holiday|no class/i.test(label)) continue;
+      // The two held-but-not-attended marks count even when ECAP leaves the
+      // cell's text empty, which is exactly what "not entered" looks like.
+      if (/absent/i.test(label)) {
+        absent += 1;
+      } else if (/not entered/i.test(label)) {
+        notEntered += 1;
+      } else {
+        present += 1;
+      }
+    }
+  }
+  if (!dated) return null;
+  return { held: present + absent + notEntered, attend: present, absent };
 }
 /** The meeting days a Student Wise grid states across its own header, in the
  *  grid's order — the section's days, not one student's absences. The month

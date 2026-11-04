@@ -156,6 +156,17 @@ export interface StudentBacklogs {
    *  backlogs") — an answer, not an empty table. Empty where it said nothing. */
   note: string;
 }
+/** The three totals ECAP's Cumulative student-wise register prints above its
+ *  day grid — the screen a faculty reaches with Student-wise + Cumulative.
+ *  The reply ships them empty and the page fills them client-side, so they are
+ *  counted from the grid's own colour-coded marks: an uncoloured cell is
+ *  attended, yellow is absent, red is not-entered, and green (holiday) and
+ *  purple (no class work) are not held at all. */
+export interface StudentTotals {
+  held: number;
+  attend: number;
+  absent: number;
+}
 /**
  * What ECAP's StudentProfile page states about one student. Read, never
  * computed: `cgpaPercent` is the figure the page prints beside the CGPA, and a
@@ -175,6 +186,9 @@ export interface StudentProfile {
    *  subjects view, whose own report aggregates by subject and states no dates.
    *  Left out when ECAP would not give it, which is not a clean sheet. */
   absent?: string[];
+  /** The semester's held / attended / absent class counts, from the Cumulative
+   *  student-wise register. Left out when ECAP would not give that reply. */
+  totals?: StudentTotals;
 }
 /** One student's absent days over a wider window than the register on screen —
  *  asked with the remembered semester start so the panel can name a full-sem
@@ -312,6 +326,12 @@ export interface StudentRequest {
    *  that one student's own grid over the same range. The subject path needs no
    *  such call: its register rows already state the dates. */
   register?: RegisterRequest;
+  /** dd/mm/yyyy start of the semester, when the app knows it: the totals are
+   *  asked from here to today, which is the window the Academic Register's own
+   *  Cumulative screen uses. Absent where no start is known, and then no totals
+   *  are asked for — a guessed window would print figures for a period nobody
+   *  chose. */
+  semStart?: string;
 }
 /**
  * One student looked up by roll number alone, from the Student Search tab. The

@@ -15,6 +15,7 @@ import type {
   SemStartRequest,
   StudentProfile,
   StudentRequest,
+  StudentTotals,
   TodayClassesReply,
   UnpostedReply,
 } from "../shared/api.js";
@@ -34,6 +35,7 @@ import {
   parseStudentProfile,
   parseSubjectReport,
   parseTodayClasses,
+  parseCumulativeTotals,
   parseDayClassWork,
   realOptions,
   registerDates,
@@ -79,6 +81,13 @@ export type PortalReader = {
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. */
   studentWise: (
+    roll: string,
+    name: string,
+    p: Record<Level, Option> & { from: string; to: string }
+  ) => Promise<string>;
+  /** The Cumulative student-wise register, whose day grid carries the held /
+   *  attended / absent marks the panel's totals are counted from. */
+  studentCumulative: (
     roll: string,
     name: string,
     p: Record<Level, Option> & { from: string; to: string }
@@ -485,21 +494,56 @@ async function readFullSemesterAbsences(
  * The register states neither, so the Portal is asked about a single student here
  * and nowhere else — except on the All subjects path, where `readAbsences` asks
  * for one more thing, that student's own grid, because the report on screen states
- * no dates at all.
+ * no dates at all — and on every path, where `readTotals` asks for the
+ * semester's class counts.
  */
+/**
+ * The semester's held / attended / absent counts, from the Cumulative
+ * student-wise register — asked over the semester start through today, the same
+ * window that screen uses. Only when the start is known: a guessed window would
+ * print figures for a period nobody chose. A reply ECAP will not give is no
+ * totals, not a failed panel, and a 401 still ends the session.
+ *
+ * This is the one place a figure is counted rather than read: ECAP states the
+ * three totals as empty spans and fills them in the page, so the grid's own
+ * colour-coded marks are the only copy of them a server can reach. ADR 0026
+ * records why that exception is narrow to this screen.
+ */
+async function readTotals(
+  portal: PortalReader,
+  roll: string,
+  b: Partial<StudentRequest>
+): Promise<{ totals?: StudentTotals }> {
+  const { register, semStart } = b;
+  if (!register || !semStart) return {};
+  try {
+    const html = await portal.studentCumulative(roll, b.name ?? "", {
+      ...requireLevels(register),
+      from: semStart,
+      to: todayIST(),
+    });
+    const totals = parseCumulativeTotals(html);
+    return totals ? { totals } : {};
+  } catch (error) {
+    rethrowExpired(error);
+    return {};
+  }
+}
 export async function handleStudentProfile(
   portal: PortalReader,
   b: Partial<StudentRequest>
 ): Promise<StudentProfile> {
   const roll = b.roll?.trim();
   if (!roll) throw new HttpError(400, "Choose a student.");
-  // The GPA page and the absent-dates read need nothing from each other —
-  // the roll, the name and the open register all arrive in the request — so
-  // both go out together. A 401 from either still ends the session, and a
-  // page that is not the profile still fails named instead of half-read.
-  const [page, absences] = await Promise.all([
+  // The GPA page, the absent-dates read and the semester's totals need nothing
+  // from each other — the roll, the name and the open register all arrive in
+  // the request — so they go out together. A 401 from any still ends the
+  // session, and a page that is not the profile still fails named instead of
+  // half-read.
+  const [page, absences, totals] = await Promise.all([
     portal.studentProfile(roll),
     readAbsences(portal, roll, b),
+    readTotals(portal, roll, b),
   ]);
   const profile = parseStudentProfile(page);
   if (!profile) {
@@ -508,7 +552,7 @@ export async function handleStudentProfile(
       "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
     );
   }
-  return { ...profile, ...absences };
+  return { ...profile, ...absences, ...totals };
 }
 /** Roman/Arabic numeral for a semester label: "III Semester" -> 3. */
 const ROMAN: Record<string, number> = {
@@ -687,8 +731,16 @@ export async function handleFind(
         student.name,
         gridRequest
       );
+      // The semester's class counts, over the same start the absent walk found —
+      // the window ECAP's Cumulative screen uses. The Search screen has no
+      // register picker, so this is the only place its panel can get them.
+      const totals = await readTotals(portal, roll, {
+        name: student.name,
+        register: gridRequest,
+        semStart: full.range?.from ?? window.from,
+      });
       return {
-        profile,
+        profile: { ...profile, ...totals },
         class: {
           ...found.levels,
           section,

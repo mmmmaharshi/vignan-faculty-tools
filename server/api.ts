@@ -292,6 +292,22 @@ class Portal {
       dayWorkPairs(p)
     );
   }
+  /** The Cumulative student-wise register: the same twelve values, same order,
+   *  on the register's own proxy — the screen a faculty reaches with Student-
+   *  wise + Cumulative. Its reply carries the day grid whose marks the totals
+   *  are counted from. */
+  studentCumulative(
+    roll: string,
+    name: string,
+    p: Record<Level, Option> & { from: string; to: string }
+  ): Promise<string> {
+    return portalWebMethod(
+      this.jar,
+      REGISTER_REMOTE,
+      "ShowAcademicCalendar_StudentWise_Cumulative",
+      studentPairs(roll, name, p)
+    );
+  }
   /** The Student Wise report: one student's grid, every subject, one column per
    *  day the section met. It lives on the register's own proxy and wants the
    *  same `no` session marker as the register it sits beside. */

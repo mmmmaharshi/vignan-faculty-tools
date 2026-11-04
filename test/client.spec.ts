@@ -110,6 +110,8 @@ let todayEmpty = false;
 /** Whether the panel asked for a student's own day-wise grid — sent only when
  *  the register on screen states no dates of its own (the All subjects view). */
 let absentAsked = false;
+/** The semester starts each student panel asked its totals over. */
+const totalsAsked: string[] = [];
 /** The chain, level by level: each pass answers with the level the request has
  *  unlocked. Fixed options, so a settled selection is a known one. */
 const optionsFor = (request: OptionsRequest): OptionsReply => ({
@@ -347,8 +349,10 @@ const stub = async (route: Route): Promise<void> => {
     return;
   }
   if (path === "/api/student") {
-    const { roll, register } = request.postDataJSON() as StudentRequest;
+    const { roll, register, semStart } =
+      request.postDataJSON() as StudentRequest;
     profileRolls.push(roll);
+    if (semStart) totalsAsked.push(semStart);
     // The All subjects report states no dates, so the panel asks for this
     // student's own grid over the same range; the stub answers as that report
     // would. A subject register's rows already carry their dates, so nothing is
@@ -358,6 +362,8 @@ const stub = async (route: Route): Promise<void> => {
     await json({
       ...profileFor(roll),
       ...(allSubjects ? { absent: ["02/09"] } : {}),
+      // The semester's counts, as the Cumulative register states them.
+      ...(semStart ? { totals: { held: 21, attend: 21, absent: 0 } } : {}),
     });
     return;
   }
@@ -994,6 +1000,38 @@ test.describe("the app's own data layer", () => {
       "Roll No stays at the scroll edge after scrolling away"
     ).toBeLessThan(3);
   });
+  test("a student panel states the semester's held, attended and absent classes", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page
+      .getByRole("button", { name: /Show details for/ })
+      .first()
+      .click();
+    const panel = page.getByRole("dialog");
+    await expect(
+      panel.getByText("Semester classes", { exact: true }),
+      "the counts sit under their own heading"
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(
+      panel.getByRole("row", { name: /Total Held\s*21/ })
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("row", { name: /Total Attend\s*21/ })
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("row", { name: /Total Absent\s*0/ })
+    ).toBeVisible();
+    expect(
+      totalsAsked,
+      "asked from the semester start, never from the window"
+    ).not.toEqual([]);
+  });
+
   test("typing in the search box narrows the register to matches", async ({
     page,
   }) => {

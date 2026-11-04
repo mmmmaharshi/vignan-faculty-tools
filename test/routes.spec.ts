@@ -22,7 +22,7 @@ import type {
   SemStartRequest,
   StudentProfile,
 } from "../shared/api";
-import { ALL_SUBJECTS } from "../shared/api";
+import { ALL_SUBJECTS, todayIST } from "../shared/api";
 
 const opt = (value: string, label = `L${value}`, title = ""): Option => ({
   value,
@@ -96,6 +96,8 @@ type Calls = {
   dayWork: DayWorkRequest[];
   /** The subject ids each subject report was asked for. */
   subjectReports: string[];
+  /** Each Cumulative read: roll, name, and the window asked. */
+  studentCumulative: [string, string, string, string][];
 };
 const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
@@ -125,9 +127,26 @@ const subjectGrid = (subject: string, rows: [string, string][]): string =>
       .join("")}
   </table>`;
 const ONE_CLASS_ROW = classGrid([["21CS001", "381\\481", "79.21"]]);
+/** The Cumulative student-wise register, shaped as ECAP sends it: the reply's
+ *  own legend (colour -> words), then one row per day with a period per cell.
+ *  Green is a holiday and carries no text; a cell with a subject and no colour
+ *  was attended. Three days of seven periods is 21 held, 21 attended — the
+ *  figure the screen prints for a clean window. */
+const CUMULATIVE_GRID = `<table><tr><td>
+<div style='width:30px;height:15px;background-color:Green;float:left'></div><div class='reportData2'>&nbsp;Holiday</div>
+<div style='width:30px;height:15px;background-color:Yellow;float:left'></div><div class='reportData2'>&nbsp;Absent</div>
+<div style='width:30px;height:15px;background-color:Red;float:left'></div><div class='reportData2'>&nbsp;Not Entered</div>
+<div style='width:30px;height:15px;background-color:Purple;float:left'></div><div class='reportData2'>&nbsp;No Class Work</div>
+</td></tr></table>
+<table>
+<tr><td>Date</td><td>1 Hour</td><td>2 Hour</td><td>3 Hour</td><td>4 Hour</td><td>5 Hour</td><td>6 Hour</td><td>7 Hour</td></tr>
+<tr><td align='center' class='cellBorder'>01/11/2026</td><td class='cellBorder' style='background-color:Green'></td><td class='cellBorder' style='background-color:Green'></td><td class='cellBorder' style='background-color:Green'></td><td class='cellBorder' style='background-color:Green'></td><td class='cellBorder' style='background-color:Green'></td><td class='cellBorder' style='background-color:Green'></td><td class='cellBorder' style='background-color:Green'></td></tr>
+<tr><td align='center' class='cellBorder'>02/11/2026</td><td class='cellBorder' style='background-color:'>JP</td><td class='cellBorder' style='background-color:'>MFCS</td><td class='cellBorder' style='background-color:'>SE</td><td class='cellBorder' style='background-color:'>DL&amp;CO</td><td class='cellBorder' style='background-color:'>SE</td><td class='cellBorder' style='background-color:'>LCS</td><td class='cellBorder' style='background-color:'>LCS</td></tr>
+<tr><td align='center' class='cellBorder'>03/11/2026</td><td class='cellBorder' style='background-color:'>MFCS</td><td class='cellBorder' style='background-color:'>DL&amp;CO</td><td class='cellBorder' style='background-color:'>SE</td><td class='cellBorder' style='background-color:'>SE</td><td class='cellBorder' style='background-color:'>UHV</td><td class='cellBorder' style='background-color:'>PP Lab</td><td class='cellBorder' style='background-color:'>PP Lab</td></tr>
+<tr><td align='center' class='cellBorder'>04/11/2026</td><td class='cellBorder' style='background-color:'>WT TEST</td><td class='cellBorder' style='background-color:'>WT TEST</td><td class='cellBorder' style='background-color:'>DL&amp;CO</td><td class='cellBorder' style='background-color:'>MFCS</td><td class='cellBorder' style='background-color:'>SE</td><td class='cellBorder' style='background-color:'>DTI</td><td class='cellBorder' style='background-color:'>DTI</td></tr>
+</table>`;
 /** Enough of the StudentProfile page for the handler: parsing is covered where
- *  the parser is, over the real page. */
-const PROFILE_PAGE = `<div id='divProfile_BioData'><table>
+ *  the parser is, over the real page. */ const PROFILE_PAGE = `<div id='divProfile_BioData'><table>
 <tr><td>Mobile.No</td><td>:</td><td>7661864881</td></tr></table>
 <center><span>CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;&nbsp;48.55&nbsp;%</span></center></div>`;
 /** A Student Wise report: one row per subject, one column per day the section
@@ -150,6 +169,8 @@ const fake = (
     classFails?: boolean;
     studentProfile?: string;
     studentWise?: string;
+    /** The Cumulative register's reply, whose grid the totals are counted from. */
+    studentCumulative?: string;
     /** The subjects the SUBJECT ATTENDANCE page offers for the class. */
     offeredSubjects?: Option[];
     /** When true the offered-subject listing itself fails with a 502. */
@@ -183,6 +204,7 @@ const fake = (
     studentWiseWindows: [],
     dayWork: [],
     subjectReports: [],
+    studentCumulative: [],
   };
   const reader: PortalReader = {
     courses: () => {
@@ -246,6 +268,13 @@ const fake = (
           answers.studentWise ??
           STUDENT_GRID
       );
+    },
+    studentCumulative: (roll, name, p) => {
+      calls.studentCumulative.push([roll, name, p.from, p.to]);
+      if (answers.studentFails) {
+        return Promise.reject(new HttpError(502, "student report unavailable"));
+      }
+      return resolved(answers.studentCumulative ?? CUMULATIVE_GRID);
     },
     facultyProfile: () =>
       resolved({
@@ -800,6 +829,29 @@ test.describe("the student profile handler", () => {
       backlogs: { rows: [], total: null, note: "" },
     });
   });
+  test("the semester's totals are asked from the start to today, and only when the start is known", async () => {
+    const { reader, calls } = fake();
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      name: "A Student",
+      register: levels(),
+      semStart: "05/08/2026",
+    });
+    expect(reply.totals).toEqual({ held: 21, attend: 21, absent: 0 });
+    expect(calls.studentCumulative, "one read, over start to today").toEqual([
+      ["21CS001", "A Student", "05/08/2026", todayIST()],
+    ]);
+
+    // No start: nothing is asked, because a guessed window would count a
+    // period nobody chose.
+    const second = fake();
+    const noStart = await handleStudentProfile(second.reader, {
+      roll: "21CS001",
+      register: levels(),
+    });
+    expect(noStart.totals).toBeUndefined();
+    expect(second.calls.studentCumulative).toEqual([]);
+  });
   test("a dead session stays a 401, so the client signs out", async () => {
     const { reader } = fake();
     const dead: PortalReader = {
@@ -810,6 +862,16 @@ test.describe("the student profile handler", () => {
       (error: unknown) => error
     );
     expect((failure as HttpError).status).toBe(401);
+  });
+  test("a totals read ECAP refuses leaves the panel's other answers alone", async () => {
+    const { reader } = fake({ studentFails: true });
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels(),
+      semStart: "05/08/2026",
+    });
+    expect(reply.totals).toBeUndefined();
+    expect(reply.cgpa, "the profile still answers").toBe("5.61");
   });
   test("the All subjects register gets the student's own absent dates, once", async () => {
     const { reader, calls } = fake();
@@ -1084,6 +1146,26 @@ test.describe("a roll number searched on its own", () => {
     // The semester start comes off the section's own grid, month by month —
     // never a subject register over a wide range, which ECAP answers empty.
     expect(calls.register).toEqual([]);
+  });
+  test("a Search result states the semester's class counts beside the profile", async () => {
+    const { reader, calls } = fake({
+      studentProfile: CLASS_PAGE,
+      studentWiseMonths: {
+        "01/10/2025": monthGrid("01/10"),
+        "01/09/2025": monthGrid("15/09"),
+      },
+    });
+    const reply = await handleFind(reader, { roll: "21CS001", ...ask });
+    expect(reply.profile.totals, "counted from the same grid").toEqual({
+      held: 21,
+      attend: 21,
+      absent: 0,
+    });
+    // Asked from the semester start the walk settled on, not the month asked
+    // for: the totals are a semester figure.
+    expect(calls.studentCumulative.map((call) => call[2])).toEqual([
+      reply.fullRange?.from,
+    ]);
   });
   test("the full-semester list walks back month by month to the first held day", async () => {
     const { reader, calls } = fake({

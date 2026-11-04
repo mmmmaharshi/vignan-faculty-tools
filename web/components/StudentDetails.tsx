@@ -157,6 +157,7 @@ export const StudentDetails = ({
   const cgpaPercent = profile?.cgpaPercent ?? "";
   const sgpa = profile?.sgpa ?? [];
   const backlogs = profile?.backlogs.rows ?? [];
+  const totals = profile?.totals ?? null;
   const backlogTotal = profile?.backlogs.total ?? null;
   const backlogNote = profile?.backlogs.note ?? "";
   const cgpaShown = Boolean(cgpa || credits);
@@ -244,6 +245,37 @@ export const StudentDetails = ({
               </Table.Tbody>
             </Table>
           ) : null}
+        </>
+      ) : null}
+      {/* The semester's own class counts, from the Cumulative student-wise
+          register: only when that reply was given. Held is the periods that
+          ran, so attend and absent are its two parts and not-entered the
+          third. */}
+      {totals ? (
+        <>
+          <Text c="dimmed" size="xs" tt="uppercase">
+            Semester classes
+          </Text>
+          <Table striped withTableBorder tabularNums>
+            <Table.Tbody>
+              {[
+                { label: "Total Held", value: totals.held },
+                { label: "Total Attend", value: totals.attend },
+                { label: "Total Absent", value: totals.absent },
+              ].map(({ label, value }) => (
+                <Table.Tr key={label}>
+                  <Table.Td c="dimmed">
+                    <Text size="sm">{label}</Text>
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <Text size="sm" fw={600}>
+                      {value}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ))}
+            </Table.Tbody>
+          </Table>
         </>
       ) : null}
       {/* The student's absences over the whole semester, five to a row. No

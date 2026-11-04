@@ -9,6 +9,7 @@ import {
   parseClassAttendance,
   parseLeaveStatus,
   parseRegister,
+  parseCumulativeTotals,
   parseStudentAbsences,
   parseStudentBacklogs,
   parseDayClassWork,
@@ -43,6 +44,13 @@ const STUDENT_WISE_GRID = `<table>
 /** The dashboard's GetToDayClasses fragment, read live 2026-10-24: the shape
  *  every teaching-day assertion is pinned against. */
 const TODAY_GRID = `<table width='100%' cellspacing='0' cellpadding='2' class='table'><tr class='card-header bg-info text-white'><td align='left' colspan='2'>TODAY CLASS WORK</td></tr><tr><td valign='top'><table width='100%' cellpadding='2' cellspacing='0' id='tblschedule'><tr><td align='left' >Period-1<br/>08:45 AM- 09:35 AM</td><td align='center' >FLUTER LAB (CSE (AI))<br/>B.Tech V Semester, Sec-B</td></tr><tr><td align='left' >Period-2<br/>09:35 AM- 10:25 AM</td><td align='center' >FLUTER LAB (CSE (AI))<br/>B.Tech V Semester, Sec-B</td></tr><tr><td align='left' >Period-3<br/>10:50 AM- 11:40 AM</td><td align='center' >FLUTER LAB (CSE (AI))<br/>B.Tech V Semester, Sec-B</td></tr><tr><td align='left' >Period-4<br/>11:40 AM- 12:30 PM</td><td align='center' >AI (IT)<br/>B.Tech V Semester, Sec-C</td></tr><tr><td align='left' >Period-5<br/>12:30 PM- 01:20 PM</td><td align='center' ></td></tr><tr><td align='left' >Period-6<br/>02:20 PM- 03:10 PM</td><td align='center' >JAVA PROGR (CSE (AI))<br/>B.Tech III Semester, Sec-D</td></tr><tr><td align='left' >Period-7<br/>03:10 PM- 04:00 PM</td><td align='center' >LIB/SPORTS (CSE (AI))<br/>B.Tech III Semester, Sec-D<hr/>ADDON (CSE (AI))<br/>B.Tech III Semester, Sec-B</td></tr></table></td></tr><tr><td>&nbsp;</td></tr></table>`;
+const CUMULATIVE = (header: string, cells: string): string => `<table>
+  <tr><td><div style="background-color:Yellow"></div><div class="reportData2">&nbsp;Absent</div></td></tr>
+  <tr><td><div style="background-color:Green"></div><div class="reportData2">&nbsp;Holiday</div></td></tr>
+  <tr><td><div style="background-color:Purple"></div><div class="reportData2">&nbsp;No Class Work</div></td></tr>
+  <tr><td>${header}</td><td>1 Hour</td><td>2 Hour</td></tr>
+  ${cells}
+</table>`;
 test.describe("portal replies", () => {
   test("a dead session's markup is told apart from real data", () => {
     expect(looksLikeHtml(LOGIN_PAGE)).toBe(true);
@@ -212,6 +220,46 @@ test.describe("portal replies", () => {
       parseClassAttendance("<table><tr><th>Subject</th></tr></table>")
     ).toEqual([]);
     expect(parseClassAttendance("")).toEqual([]);
+  });
+  test("the cumulative register's marks count the semester's classes", () => {
+    // The reply's own legend says which colour is what, so the counts follow
+    // the words rather than a colour name: green holiday and purple no-class
+    // never ran, yellow absent did run, and an uncoloured cell was attended.
+    // 04/11: two periods attended. 03/11: one absent, one attended. 02/11:
+    // a holiday cell and a no-class-work cell, which are not held at all.
+    const cells = [
+      `<tr><td>04/11/2026</td><td style="background-color:">JP</td><td style="background-color:">MFCS</td></tr>`,
+      `<tr><td>03/11/2026</td><td style="background-color:Yellow">SE</td><td style="background-color:">SE</td></tr>`,
+      `<tr><td>02/11/2026</td><td style="background-color:Green"></td><td style="background-color:Purple">SE</td></tr>`,
+    ].join("");
+    expect(
+      parseCumulativeTotals(CUMULATIVE(`Date`, cells)),
+      "two held days of two periods each, one of them missed"
+    ).toEqual({ held: 4, attend: 3, absent: 1 });
+    // A not-entered period counts as held even with no text in the cell, which
+    // is exactly what "not entered" looks like.
+    expect(
+      parseCumulativeTotals(
+        CUMULATIVE(
+          `Date`,
+          `<tr><td>04/11/2026</td><td style="background-color:Red"></td><td style="background-color:">JP</td></tr>`
+        ).replace(
+          `<div class="reportData2">&nbsp;Holiday</div>`,
+          `<div class="reportData2">&nbsp;Holiday</div>
+           <div style="background-color:Red"></div><div class="reportData2">&nbsp;Not Entered</div>`
+        )
+      )
+    ).toEqual({ held: 2, attend: 1, absent: 0 });
+    // A reply with no legend is refused, never counted as a clean sheet.
+    expect(
+      parseCumulativeTotals(
+        `<table><tr><td>Date</td><td>1 Hour</td></tr>
+        <tr><td>04/11/2026</td><td style="background-color:Pink">JP</td></tr></table>`
+      ),
+      "an unnameable colour is no answer"
+    ).toBeNull();
+    // Not that report at all: null, never three zeroes.
+    expect(parseCumulativeTotals(LOGIN_PAGE)).toBeNull();
   });
   test("a student's own grid states their absences across every subject", () => {
     // One row per subject, one mark per period inside a cell, so a date is

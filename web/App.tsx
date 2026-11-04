@@ -208,15 +208,6 @@ const App = (): React.JSX.Element => {
   } = useOptionsChain();
   const login = useSignIn();
   const logout = useSignOut();
-  const profile = useStudentProfile(
-    panel.student
-      ? {
-          roll: panel.student.roll,
-          name: panel.student.name,
-          register: click?.request,
-        }
-      : null
-  );
   const facultyProfile = useFacultyProfile(Boolean(onProfile));
   /** Home's timetable with its own memory: read when Home is opened, refreshed
    *  behind the cached answer on return, and the cleared evening shows the
@@ -277,6 +268,21 @@ const App = (): React.JSX.Element => {
       overallMode,
       click,
     });
+  /** The student panel's read: profile, absences and semester totals. It needs
+   *  the settled semester start, which is why it sits below the settle hook. */
+  const profile = useStudentProfile(
+    panel.student
+      ? {
+          roll: panel.student.roll,
+          name: panel.student.name,
+          register: click?.request,
+          // Totals are asked from the semester start to today, the window
+          // ECAP's own Cumulative screen uses. Unknown start means no totals:
+          // a guessed window would count a period nobody chose.
+          semStart: semStartShown ?? undefined,
+        }
+      : null
+  );
   /** Whether the window starts after the remembered start: only then is the
    *  wider read worth asking for. When they coincide the window's own list
    *  already is the full semester's, so the panel shows it as the one list. */

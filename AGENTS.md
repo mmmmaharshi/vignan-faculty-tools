@@ -150,6 +150,8 @@ Anything with a decision in it therefore lives in a file importable without
 one, and `server/server.ts` is HTTP plumbing only. A network call in any of
 those files makes the credential-free suite unreachable.
 
+- **The semester's class counts come from the Cumulative student-wise register.** The panel's Total Held / Total Attend / Total Absent are the numbers ECAP's Academic Register prints for Student-wise + Cumulative over the semester start through today — the same window that screen uses, and only when the start is known (`studentCumulative` in `server/api.ts`, `readTotals` in `server-routes.ts`). ECAP states those three totals as **empty spans** and fills them in the page, so they are counted from the grid the reply does state: one row per day, one cell per period, and a legend the reply carries with it — green Holiday, yellow Absent, red Not Entered, purple No Class Work, and an uncoloured cell attended. Held counts attended + absent + not-entered; a holiday or no-class-work period never ran. The mapping is read from that legend, never assumed: a colour it does not name — or a reply with no legend — leaves the totals absent rather than counting the cell as attended (`parseCumulativeTotals`). This is the one counted figure in the app, and ADR 0026 records why it is narrow; every percentage stays read (ADR 0017). A reply ECAP will not give is no totals, not a failed panel.
+
 ## The rail
 
 The sidebar holds navigation, the signed-in user's name, and **Sign out**. The
