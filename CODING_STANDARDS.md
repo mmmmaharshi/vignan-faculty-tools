@@ -1,13 +1,46 @@
-## CODING_STANDARDS
+# CODING_STANDARDS
 
-- Follow YAGNI principles. You Aren't Gonna Need it. Don't add features, abstractions, or flexibility until they are actually needed. Prefer one-liner solutions over multi-line implementations when they are equally clear.
-- Do not preserve backward compatibility. Remove obsolete paths instead of adding compatibility layers, fallbacks, or migrations.
-- Choose the simplest implementation that fully meets the current requirements. Avoid speculative abstractions, configuration, and indirection.
-- Grow the system in layers. Start from the smallest version that works end to end, and add each new capability on top of a product that already works. Never trade a working product for unfinished complexity.
-- Keep components modular and concerns clearly separated.
-- Prefer established, well-maintained libraries when they reduce overall complexity or improve reliability. Do not reimplement common functionality without a clear reason.
-- Lean on the dependencies already in the project before writing your own implementation or adding packages. Do not assume a library lacks a capability without checking its documentation and types.
-- Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
-- Always make atomic commits with conventional commits style.
-- Tautological tests are considered harmful. A test that only restates what the code does (e.g. asserting the implementation against itself, duplicating logic, or only checking happy-path outputs that mirror the production code) provides no value and gives false confidence. Every test must fail for a real, distinct reason if the production code is wrong.
-- Output raw source code only. Omit all inline explanations, block comments, and conversational text.
+- **YAGNI** : Build only what current requirements need. Avoid speculative features, abstractions, and flexibility.
+- **KISS** : Choose the simplest implementation that fully meets the requirements. Prefer concise solutions when they remain clear.
+- **No Backward Compatibility** : Remove obsolete code paths. Allow breaking changes when the requirements permit them. Do not add compatibility layers, fallbacks, or migrations unless explicitly required.
+- **Dependency Management** : Prefer established, maintained libraries. Check existing dependencies, documentation, and types before implementing functionality or adding packages. Add dependencies only when their benefits justify their maintenance, security, and complexity costs.
+- **Incremental Development** : Implement and verify changes in small, working steps. Keep the system functional throughout development, and validate each step before building on it.
+- **Separation of Concerns** : Keep components modular. Give each component a clear responsibility and separate unrelated concerns.
+- **Architectural Integrity** : Make maintainable design decisions without introducing speculative abstractions or complexity. Prefer the simplest design that meets current requirements and supports foreseeable needs.
+- **Rationale Comments** : Avoid unnecessary comments. Add rationale comments only to explain non-obvious decisions, constraints, trade-offs, or workarounds. Do not narrate code.
+- **Atomic Commits** : Keep each commit focused on one logical change.
+- **Conventional Commits** : Use a consistent commit message format that follows the Conventional Commits specification.
+- **Behavioral Testing** : Test observable behavior, not implementation details. Avoid tautological tests, duplicated logic, and assertions that only mirror production code. Each test must detect a distinct failure.
+- **Acceptance Criteria** : Write tests for cases required by the specification or acceptance criteria. Keep existing tests passing unless a change explicitly requires updating them.
+- **Evidence-Based Verification** : Verify acceptance criteria through execution. Reproduce bugs before fixing them, confirm fixes, and use real workflows, screenshots, or measurements when relevant. Do not claim success without evidence.
+- **DRY (Don't Repeat Yourself)** : Avoid duplicating business logic or knowledge. Extract shared logic only when it improves clarity and maintainability.
+- **Single Responsibility Principle (SRP)** : Give each module, function, and component one clear responsibility.
+- **Explicit over Implicit** : Prefer clear, explicit behavior over hidden side effects, implicit dependencies, and surprising defaults.
+- **Fail Fast** : Validate inputs and detect invalid states early. Report errors close to their source.
+- **Least Surprise** : Make behavior consistent with established conventions and user expectations.
+- **Minimal Surface Area** : Expose only the APIs, configuration, and interfaces that callers need.
+- **Type Safety** : Use the type system to prevent invalid states and avoid unnecessary type assertions, casts, and untyped values.
+- **Error Handling** : Handle errors at the appropriate boundary. Do not silently swallow errors or hide failures with broad fallbacks.
+- **Security by Default** : Validate untrusted input, enforce access controls, and avoid exposing secrets or sensitive data.
+- **Observability** : Add logs, metrics, or traces when they help diagnose real operational problems. Avoid noisy or redundant instrumentation.
+- **Deterministic Testing** : Make tests repeatable. Avoid dependence on execution order, uncontrolled external services, or arbitrary delays.
+- **Regression Testing** : Add a focused test for a fixed bug when it protects against the same failure returning.
+- **Scope Discipline** : Change only what is needed to meet the requirements. Avoid unrelated refactoring and formatting changes.
+- **No Silent Failure** : Never report success when an operation has failed or when its result has not been verified.
+- **Documentation Accuracy** : Update documentation when a change makes existing instructions, contracts, or examples incorrect.
+- **Principle Precedence** : Prioritize correctness, security, and explicit requirements over simplicity or other design principles. When principles conflict, choose the solution that best meets the requirements with the least unnecessary complexity.
+- **Evidence-Based Performance Optimization** : Measure real user journeys, identify the highest-impact bottleneck, form an evidence-based hypothesis, and make the smallest safe change. Benchmark before and after each change, retain only measurable improvements, add regression guardrails, and repeat until the performance target is met.
+- **Structured Concurrency** : Prefer structured concurrency for independent I/O only after measurement shows it is the top bottleneck. Preserve error and ordering semantics.
+- **No Implicit State Machines** : Do not encode lifecycle or status in scattered booleans, strings, or phase checks. Model them as explicit state machines with unrepresentable illegal states and explicit transitions.
+
+# Codebase Slop Indicators / Anti-patterns
+
+- implicit coupling
+- layer-first folders
+- duplication
+- representable illegal states
+- god files
+- shotgun surgery
+- layering violations
+- pass-through wrappers
+- errors / validation not at the boundary
