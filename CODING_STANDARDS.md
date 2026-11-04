@@ -12,6 +12,7 @@
 - **Atomic Commits** : One logical change per commit, with no unrelated refactoring or formatting.
 - **Conventional Commits** : Use a consistent commit message format that follows the Conventional Commits specification.
 - **Behavioral Testing** : Test what a caller can observe, and give each test a failure reason of its own that no sibling test shares.
+- **No Change Detector Tests** : A test fails when behaviour breaks, not when the code moves. Assert what a caller sees, never the calls made inside, their order, or a snapshot of internals.
 - **Acceptance Criteria** : Cover the cases the specification names, and keep existing tests green unless the change requires updating them.
 - **Evidence-Based Verification** : Reproduce the bug before fixing it, then confirm the fix through a real workflow, screenshot, or measurement. Claim success with the evidence in hand.
 - **DRY (Don't Repeat Yourself)** : Keep each piece of business knowledge in one place, and extract shared logic where it improves clarity and maintainability.
@@ -44,3 +45,4 @@
 - layering violations
 - pass-through wrappers
 - errors / validation not at the boundary
+- change detector tests
