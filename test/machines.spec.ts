@@ -11,6 +11,11 @@ import {
 } from "../web/app/panel-state";
 import { nextRoute } from "../web/app/route-guard";
 import { isBooted, isSignedIn } from "../web/app/session-view";
+import {
+  fullAbsenceList,
+  windowAbsenceList,
+} from "../web/register/absence-list";
+import { searchScope } from "../web/register/search-scope";
 
 const student = (roll: string): Student => ({
   sl: "1",
@@ -36,6 +41,91 @@ test.describe("explicit state machines", () => {
     expect(isSignedIn("signedOut")).toBe(false);
     expect(isBooted("signedIn")).toBe(true);
     expect(isSignedIn("signedIn")).toBe(true);
+  });
+  test("the panel shows one absent list, and never a window passed off as the semester", () => {
+    const window = ["02/09"];
+    // The wider read answered: it is the one list, window dates and all.
+    expect(
+      fullAbsenceList({
+        wider: ["02/09", "15/07"],
+        semesterStart: "01/07/2026",
+        windowStartsAfterStart: true,
+        window,
+      })
+    ).toEqual(["02/09", "15/07"]);
+    // No wider read, the window is the whole semester: its dates stand.
+    expect(
+      fullAbsenceList({
+        wider: undefined,
+        semesterStart: "01/09/2026",
+        windowStartsAfterStart: false,
+        window,
+      })
+    ).toEqual(window);
+    // No wider read and the window starts after the semester: nothing is
+    // claimed, because those dates are not the semester's.
+    expect(
+      fullAbsenceList({
+        wider: undefined,
+        semesterStart: "01/07/2026",
+        windowStartsAfterStart: true,
+        window,
+      })
+    ).toBeNull();
+    // No start known: nothing is claimed either.
+    expect(
+      fullAbsenceList({
+        wider: undefined,
+        semesterStart: null,
+        windowStartsAfterStart: false,
+        window,
+      })
+    ).toBeNull();
+    // The window's own list prefers the register row's cells when it has any,
+    // then the panel's own read.
+    expect(
+      windowAbsenceList({ ...student("1"), absent: ["05/09"] }, ["03/09"])
+    ).toEqual(["05/09"]);
+    expect(windowAbsenceList(student("1"), ["03/09"])).toEqual(["03/09"]);
+    expect(windowAbsenceList(null, ["03/09"])).toEqual(["03/09"]);
+    expect(windowAbsenceList(null, undefined)).toEqual([]);
+  });
+  test("a searched figure carries the class and window it belongs to", () => {
+    expect(searchScope(null), "no class, nothing to scope").toBeUndefined();
+    const scope = searchScope({
+      profile: {
+        cgpa: "",
+        credits: "",
+        cgpaPercent: "",
+        sgpa: [],
+        phones: [],
+        backlogs: { rows: [], total: null, note: "" },
+      },
+      class: {
+        course: { value: "1", label: "B.Tech", title: "" },
+        semester: { value: "1", label: "I Semester", title: "2025" },
+        branch: { value: "1", label: "IT", title: "" },
+        section: null,
+        semesterInferred: true,
+      },
+      window: { from: "01/07/2026", to: "31/07/2026" },
+      student: null,
+      fullAbsent: null,
+      fullRange: null,
+      note: "",
+    });
+    expect(scope, "an inferred semester says so").toContainEqual({
+      label: "Semester",
+      value: "I Semester (inferred)",
+    });
+    expect(scope, "the window travels with the figure").toContainEqual({
+      label: "Window",
+      value: "01/07/2026 to 31/07/2026",
+    });
+    expect(
+      scope?.some((row) => row.label === "Section"),
+      "a class with no section states no section row"
+    ).toBe(false);
   });
   test("panel: open survives close until the slide-out finishes", () => {
     const opened = openPanel(student("1"));

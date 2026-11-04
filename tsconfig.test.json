@@ -20,6 +20,10 @@
     // tsconfig.json. web/register/cascade.ts is deliberately free of both, which is what
     // lets the same file compile in both projects.
     "web/register/cascade.ts",
+    // Pure register derivations: the panel's one absent list, and the class a
+    // searched figure belongs to. Both are decisions with edges worth pinning.
+    "web/register/absence-list.ts",
+    "web/register/search-scope.ts",
     "web/app/panel-state.ts",
     "web/app/load-gate.ts",
     "web/app/paths.ts",

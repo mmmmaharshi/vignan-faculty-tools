@@ -52,6 +52,9 @@ export function chosenLevels(
   opts: OptionsReply,
   sel: Sel
 ): { ok: true; levels: Record<Level, Option> } | { ok: false; label: string } {
+  // One cast, and the loop is what earns it: every level is checked before any
+  // is returned, so `levels` is total by the time it leaves. Building
+  // `Record<Level, Option>` five times by hand would restate LEVELS.
   const levels = {} as Record<Level, Option>;
   for (const [key, label] of LEVELS) {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));

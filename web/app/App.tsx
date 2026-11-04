@@ -15,12 +15,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 
-import type {
-  OptionsReply,
-  RegisterReply,
-  RegisterRequest,
-  Student,
-} from "../../shared/api";
+import type { OptionsReply, RegisterRequest, Student } from "../../shared/api";
 import { todayIST } from "../../shared/api";
 import {
   clearStoredSession,
@@ -42,6 +37,7 @@ import {
 } from "../data/client";
 import type { RegisterClick, FindClick, ApiError } from "../data/client";
 import { useTodayTable } from "../home/today-memory";
+import { fullAbsenceList, windowAbsenceList } from "../register/absence-list";
 import {
   chosenLevels,
   isAllSubjects,
@@ -54,20 +50,16 @@ import {
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVELS,
-  subjectNameKey,
   toPortalDate,
   toInputDate,
   statedStartDate,
 } from "../register/cascade";
 import type { Level, Range, Sel } from "../register/cascade";
-import {
-  abbreviate,
-  rememberClass,
-  savedClasses,
-  forgetClass,
-} from "../register/saved-classes";
+import { savedClasses } from "../register/saved-classes";
 import type { SavedClass } from "../register/saved-classes";
+import { searchScope } from "../register/search-scope";
 import { useSemStartSettle } from "../register/sem-start-settle";
+import { useSavedClasses } from "../register/use-saved-classes";
 import {
   NO_FILTER,
   barCounts,
@@ -317,43 +309,13 @@ const App = (): React.JSX.Element => {
    *  the remembered start, else the window's own list — the register row's
    *  cells where it has them, otherwise the Student Wise report the panel
    *  reads for this student. Null where neither has anything to show. */
-  const windowAbsences =
-    panel.student && panel.student.absent.length > 0
-      ? panel.student.absent
-      : (profile.data?.absent ?? []);
-  const fullAbsencesShown =
-    semAbsences.data?.absent ??
-    (semStartShown && !startBeforeWindow && windowAbsences.length
-      ? windowAbsences
-      : null);
-  const classChosen =
-    Boolean(sel.course) &&
-    Boolean(sel.semester) &&
-    Boolean(sel.branch) &&
-    Boolean(sel.section) &&
-    // ALL SUBJECTS is not a subject, so it cannot be the one a card reopens.
-    Boolean(sel.subject) &&
-    !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
-  const rememberCurrentClass = useCallback(() => {
-    if (!userId || !classChosen) return;
-    rememberClass(
-      userId,
-      sel,
-      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
-    );
-    setSaved({ userId, list: savedClasses(userId) });
-  }, [userId, classChosen, sel, opts]);
-  /** Persist the class only once its register has actually loaded, so a failed
-   *  or ambiguous request never saves a card and "Load register stays a decision"
-   *  (ADR 0016). rememberClass dedupes, so re-loading the same class just moves
-   *  it to the front. */
-  const lastSavedRegister = useRef<RegisterReply | null>(null);
-  useEffect(() => {
-    if (!userId || !classChosen || !register.data) return;
-    if (register.data === lastSavedRegister.current) return;
-    lastSavedRegister.current = register.data;
-    rememberCurrentClass();
-  }, [userId, classChosen, register.data, rememberCurrentClass]);
+  const windowAbsences = windowAbsenceList(panel.student, profile.data?.absent);
+  const fullAbsencesShown = fullAbsenceList({
+    wider: semAbsences.data?.absent,
+    semesterStart: semStartShown,
+    windowStartsAfterStart: startBeforeWindow,
+    window: windowAbsences,
+  });
   /** Till Now is the standing window: one gate decides whether Load register
    *  may fire, and the note names the same state. See `web/app/load-gate.ts`. */
   const gateInput = {
@@ -406,25 +368,8 @@ const App = (): React.JSX.Element => {
   /** The class and window a searched figure belongs to, named on the panel: a
    *  percentage with no period under it invites being read as a semester's. An
    *  inferred semester is marked as one, so a guess never prints as a fact. */
-  const searchScope = found?.class
-    ? [
-        { label: "Course", value: found.class.course.label },
-        {
-          label: "Semester",
-          value: found.class.semesterInferred
-            ? `${found.class.semester.label} (inferred)`
-            : found.class.semester.label,
-        },
-        { label: "Branch", value: found.class.branch.label },
-        ...(found.class.section
-          ? [{ label: "Section", value: found.class.section.label }]
-          : []),
-        {
-          label: "Window",
-          value: `${found.window.from} to ${found.window.to}`,
-        },
-      ]
-    : undefined; /** The name arriving is also the moment the saved classes become readable, so
+  const scopeRows = searchScope(found);
+  /** The name arriving is also the moment the saved classes become readable, so
    *  both are set together: a restore never went through the sign-in form. The
    *  stored values are not applied to the cascade here — filling the form is the
    *  saved class being opened, and nothing else. */
@@ -524,6 +469,20 @@ const App = (): React.JSX.Element => {
   const retryOptions = useCallback(() => {
     void runRefresh(sel, opts);
   }, [runRefresh, sel, opts]);
+  /** The saved classes: the cards above the class form, and the three actions
+   *  on them. App keeps the list itself, because signing out clears it. */
+  const savedClassesView = useSavedClasses({
+    userId,
+    sel,
+    opts,
+    savedList,
+    subjectNames,
+    registerData: register.data ?? null,
+    setSaved,
+    setSel,
+    runRefresh,
+  });
+  const { classChosen, cards: savedClassCards } = savedClassesView;
   /** Re-reads the screen in place: server data revalidates, and the dashboard
    *  re-settles its cascade too — the selection stays, so unlike a reload
    *  nothing the picker holds is lost. The register is never re-read here:
@@ -756,42 +715,16 @@ const App = (): React.JSX.Element => {
     setRange((r) => ({ ...r, [part]: value }));
   };
   const saveClass = () => {
-    rememberCurrentClass();
+    savedClassesView.save();
   };
   const clearSavedClass = (target: Sel) => {
-    forgetClass(userId, target);
-    setSaved({ userId, list: savedClasses(userId) });
+    savedClassesView.clear(target);
   };
   /** Opening a saved class fills all five levels and nothing else: no register
    *  is fetched, and Load register stays a decision. */
   const applySavedClass = (target: Sel) => {
-    setSel(target);
-    void runRefresh(selectionAfter(target, "section", target), opts);
+    savedClassesView.apply(target);
   };
-  /** Each card's names come from the cascade wherever this session has offered them,
-   *  falling back to the label cached at save time for the cards it has not. The
-   *  Subject leads, because that is what tells one saved class from another in the
-   *  same section, and the levels above it say which class it belongs to. */
-  const savedClassCards =
-    savedList?.map((s) => {
-      const labelOf = (key: Level): string =>
-        opts[key].find((o) => String(o.value) === String(s[key]))?.label ?? "";
-      return {
-        sel: s,
-        subject:
-          subjectNames.get(subjectNameKey(s.section, s.subject)) ??
-          s.label ??
-          "",
-        sectionName: labelOf("section") || s.section,
-        course: [
-          labelOf("course"),
-          labelOf("semester"),
-          abbreviate(labelOf("branch")),
-        ]
-          .filter(Boolean)
-          .join(" · "),
-      };
-    }) ?? [];
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
   const picker = (
@@ -919,7 +852,7 @@ const App = (): React.JSX.Element => {
               profile={found?.profile ?? null}
               busy={search.isLoading}
               note={searchNote}
-              scope={searchScope}
+              scope={scopeRows}
               fullAbsent={found?.fullAbsent ?? null}
               fullTitle="Absent — full semester"
             />

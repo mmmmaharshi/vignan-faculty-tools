@@ -122,8 +122,12 @@ web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      when to keep looping, what a change clears, and the loop
                      that settles a selection), worklist.ts (which rows show,
                      their order, the row tint, and the badge words both
-                     surfaces share), saved-classes.ts, sem-start-settle.ts,
-                     sem-starts.ts, string-map-store.ts
+                     surfaces share), saved-classes.ts,
+                     use-saved-classes.ts (the cards and their three actions,
+                     out of App so it stays under the god-file line),
+                     absence-list.ts (the panel's one absent list),
+                     search-scope.ts (the class a searched figure belongs to),
+                     sem-start-settle.ts, sem-starts.ts, string-map-store.ts
 web/home/            the timetable's memory: today-memory.ts, period-times.ts
 web/data/            the fetch layer and its browser service worker: client.ts
                      (every fetch the app makes: one JSON wrapper, and the SWR

@@ -144,17 +144,14 @@ export function useSemStartSettle(setup: {
   const semSeen =
     result?.summary.statedFrom ?? semStart.data?.statedFrom ?? null;
   const semStartShown = (semKey && (semStarts[semKey] ?? semSeen)) || null;
-  /** One `${source}|${iso}` stamp per applied From snap, plus the selection
-   *  mark below: an answer already on screen never asks again. Both guard
-   *  effects and must never render. */
-  const snapApplied = useRef<string | null>(null);
-  /** The selection the memory snap already ran for, as the raw five values:
-   *  ALL SUBJECTS and its first subject resolve to one memory key, but they
-   *  are different selections — keying here keeps the switch between them a
-   *  fresh snap. A load that teaches the memory keeps the selection, so it
-   *  never re-snaps the window it loaded. Unlike the answer stamps above,
-   *  this one guards a selection, hence the different name. */
-  const snappedSelection = useRef<string | null>(null);
+  /** The stamps that stop an effect asking twice: the last applied From snap
+   *  (`source|iso`), and the selection the memory snap already ran for. Both
+   *  guard effects and must never render, so they are one ref and one rule
+   *  rather than two flags to keep in step. */
+  const snapMarks = useRef<{ stamp: string | null; selection: string | null }>({
+    stamp: null,
+    selection: null,
+  });
   /** One writer for every settle-time From snap, in precedence order: the
    *  remembered start first (no ECAP call), then the walked probe, then the
    *  post-load probe that names the All subjects start the register cannot
@@ -168,13 +165,13 @@ export function useSemStartSettle(setup: {
       const iso = stated ? toInputDate(stated) : "";
       if (!iso || iso === range.from) return;
       const stamp = `${source}|${iso}`;
-      if (stamp === snapApplied.current) return;
-      snapApplied.current = stamp;
+      if (stamp === snapMarks.current.stamp) return;
+      snapMarks.current.stamp = stamp;
       rememberRangeStart(iso);
       setRange((r) => ({ ...r, from: iso }));
     };
-    if (snappedSelection.current !== selKey) {
-      snappedSelection.current = selKey;
+    if (snapMarks.current.selection !== selKey) {
+      snapMarks.current.selection = selKey;
       if (rememberedStart && rangeEdited !== "from") {
         snap(`memory|${selKey}`, rememberedStart);
       }
