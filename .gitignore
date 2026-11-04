@@ -1,8 +1,20 @@
+# OS and editor droppings
+.DS_Store
+Thumbs.db
+*.swp
+*~
+
+# Dependencies
 node_modules/
 
 # Build output. Regenerate with `bun run build`; server.ts answers 503 with
 # instructions if it is missing.
 dist/
+
+# Local environment. A committed `.env.example` is the one file that belongs.
+.env
+.env.*
+!.env.example
 
 # Playwright
 /test-results/
@@ -10,38 +22,37 @@ dist/
 /blob-report/
 /playwright/.cache/
 
-# Git hooks installed by `vp hooks enable`. Per-clone state: a fresh clone runs
-# that once rather than inheriting this directory.
+# Tool state, per clone or per machine rather than per project.
+# Git hooks installed by `vp hooks enable`; a fresh clone runs that once.
 /.vite-hooks/
+# Agent and editor state. The installed skills under `.agents/` are fetched from
+# the sources `skills-lock.json` records, so they are tooling, not source.
+/.opencode/
+/.commandcode/
+/.freebuff/
+/.agents/
+/.claude/
+# Python cache left by a tool that used ruff here; nothing in this repo runs it.
+/.ruff_cache/
+.vercel
 
-# Local env / editor
-.env
-.env.local
-.DS_Store
-*.log
+# Local data: the dev session store is plaintext and dev-only (session-store.ts).
+/.dev-sessions.json
 
-# Captured output from a one-off debugging redirect (`… > out.txt 2>&1`).
-# Root only: a real file with these names belongs somewhere in the tree.
+# Captured output from a one-off debugging redirect (`… > out.txt 2>&1`). Root
+# only: a real file with these names belongs somewhere in the tree.
 /out*.txt
 /app_*.txt
 /appcheck*.txt
 /*.out
 
-# Dev session store (plaintext, dev only). See session-store.ts.
-/.dev-sessions.json
-
-# Agent scratch and tool state: probe scripts, captured portal responses, and
-# session data. Not source, and not for review. The issue files and spec.md that
-# live in .scratch/ stay tracked, which is why markdown is let back through.
-.scratch/**
-!.scratch/**/
-!.scratch/**/*.md
-/.opencode/
-/.commandcode/
-# Installed agent skills: fetched per machine from the sources skills-lock.json
-# records, so they are tooling rather than source. AGENTS.md names the ones this
-# repo relies on; `bunx skills install` restores them.
-/.agents/
-/.claude/
-
-.vercel
+# Agent scratch: captured portal responses and throwaway probe scripts. Two
+# shapes stay tracked, because they are the record a feature is reviewed
+# against: `<feature>/spec.md` and `<feature>/issues/*.md`. Everything else,
+# including a captured folder's own notes, is scratch.
+/.scratch/*
+!/.scratch/*/
+/.scratch/*/*
+!/.scratch/*/spec.md
+/.scratch/*/issues/*
+!/.scratch/*/issues/*.md
