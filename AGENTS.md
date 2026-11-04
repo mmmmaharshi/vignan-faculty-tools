@@ -191,6 +191,21 @@ those files makes the credential-free suite unreachable.
   take it as its own change with the full suite — it bumped `vite-plus` 1.0.0 →
   1.3.0 here, and the `vite` alias above had to move with it.
 
+- **Properties guard the rules examples cannot reach.** Three spec files hold the
+  invariants that used to live only in prose: `test/property.state.spec.ts`
+  (the redirect guard converges in two hops, a dropped session generation can
+  never write again, the load gate never contradicts itself, the panel has no
+  illegal transition), `test/property.parse.spec.ts` (a dash is never a figure,
+  a blank is never a zero, an impossible percentage is no figure, the cumulative
+  counts add up, dates round-trip, the default range is local), and
+  `test/property.worklist.spec.ts` (a worklist is a subset of the roster, a
+  missing figure sorts last, a bar never admits a row, the cascade keeps what it
+  settled). They run on `fast-check`, inside the same Playwright files, so the
+  gate is unchanged. Each was mutation-probed: break the rule and the named
+  property goes red. The blank-percentage property found a real bug on its first
+  run — `Number("")` is `0`, so an unstated figure printed as a failing one, and
+  the two register parsers disagreed; they now share `statedPercent`.
+
 ## The rail
 
 The sidebar holds navigation, the signed-in user's name, and **Sign out**. The

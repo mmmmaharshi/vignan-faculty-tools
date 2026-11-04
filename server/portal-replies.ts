@@ -205,6 +205,20 @@ export function registerDates(html: string): string[] {
       .map((c) => c.split("/").slice(0, 2).join("/")) ?? []
   );
 }
+/**
+ * A stated percentage, or null where ECAP stated no number.
+ *
+ * The one rule both register parsers share, because they disagreed once: a
+ * blank cell is absence of evidence, and `Number("")` is `0`, which is how a
+ * missing figure read as a failing student. A value outside 0–100 is not a
+ * percentage either, so it is no figure rather than a figure to print.
+ */
+function statedPercent(cell: string): number | null {
+  const stated = cell.replace("%", "").trim();
+  if (!/^\d+(?:\.\d+)?$/.test(stated)) return null;
+  const num = Number(stated);
+  return num <= 100 ? num : null;
+}
 export function parseRegister(html: string): RegisterRow[] {
   const grid = firstHeaded(gridTables(html));
   if (!grid) return [];
@@ -218,13 +232,12 @@ export function parseRegister(html: string): RegisterRow[] {
     if (!roll) continue;
     const attendedOfHeld = cells.at(-2) ?? "";
     const pct = cells.at(-1) ?? "";
-    const num = Number(String(pct).replace("%", ""));
     rows.push({
       sl: cells[0] ?? "",
       roll,
       name: cells[2] ?? "",
       attendedOfHeld,
-      pct: Number.isNaN(num) ? null : num,
+      pct: statedPercent(pct),
       // A subject register states one subject: its per-subject breakdown
       // lives on the class report alone, read beside it.
       subjects: [],
@@ -370,14 +383,13 @@ export function parseClassAttendance(html: string): OverallRow[] {
     const sl = cells[0] ?? "";
     const roll = cells[1] ?? "";
     if (!/^\d+$/.test(sl) || !roll) continue;
-    const stated = (cells.at(-1) ?? "").replace("%", "").trim();
-    const num = stated === "" ? Number.NaN : Number(stated);
+    const stated = cells.at(-1) ?? "";
     rows.push({
       sl,
       roll,
       name: cells[2] ?? "",
       attendedOfHeld: cells.at(-2) ?? "",
-      pct: Number.isNaN(num) ? null : num,
+      pct: statedPercent(stated),
     });
   }
   return rows;

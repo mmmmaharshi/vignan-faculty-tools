@@ -25,6 +25,7 @@ import type {
 import { SESSION_HEADER, SESSION_STORE_KEY } from "../../shared/api";
 import { runCascade } from "../register/cascade";
 import type { CascadeOutcome, CascadeSetup } from "../register/cascade";
+import { createEpoch } from "./session-epoch";
 /**
  * The app's whole way of talking to its own server: one JSON wrapper, and the
  * SWR hooks every screen reads through. Nothing else in `web/` calls `fetch`.
@@ -102,7 +103,7 @@ const saveStoredSession = (encoded: string): void => {
 };
 /** Rises every time the stored session is dropped, so a response that was
  *  already in flight cannot store back a session the screen just ended. */
-let sessionEpoch = 0;
+const epoch = createEpoch();
 /**
  * Every server read is keyed under the session generation that asked for it:
  * an answer landing after a sign-out populates a key no screen reads, so a
@@ -117,7 +118,7 @@ const keyed = <T extends unknown[]>(
 ): [string, ...T] => [path, ...parts];
 /** Drops the stored session. Signing out is this and the cache sweep. */
 export const clearStoredSession = (): void => {
-  sessionEpoch += 1;
+  epoch.bump();
   try {
     localStorage.removeItem(SESSION_STORE_KEY);
   } catch {
@@ -126,12 +127,12 @@ export const clearStoredSession = (): void => {
 };
 /** The server's own sentence for a request it refused, or the status when it
  *  sent no sentence with it. */
-async function read<T>(res: Response, epoch: number): Promise<T> {
+async function read<T>(res: Response, sent: number): Promise<T> {
   const slid = res.headers.get(SESSION_HEADER);
   // Only the session this request set out with may slide: an answer that was
   // in flight across a sign-out belongs to the ended session, not the empty
   // shelf, and storing it would log the next visit back in.
-  if (slid && epoch === sessionEpoch) saveStoredSession(slid);
+  if (slid && epoch.admits(sent)) saveStoredSession(slid);
   if (res.status === 204) return {} as T;
   const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
@@ -151,11 +152,11 @@ const withSession = (init: RequestInit): RequestInit => {
   };
 };
 export const getJson = async <T>(path: string): Promise<T> => {
-  const epoch = sessionEpoch;
-  return read<T>(await fetch(path, withSession({})), epoch);
+  const sent = epoch.current();
+  return read<T>(await fetch(path, withSession({})), sent);
 };
 export const postJson = async <T>(path: string, body?: unknown): Promise<T> => {
-  const epoch = sessionEpoch;
+  const sent = epoch.current();
   return read<T>(
     await fetch(
       path,
@@ -169,7 +170,7 @@ export const postJson = async <T>(path: string, body?: unknown): Promise<T> => {
             }
       )
     ),
-    epoch
+    sent
   );
 };
 /**
@@ -182,7 +183,7 @@ export const postJson = async <T>(path: string, body?: unknown): Promise<T> => {
  */
 export function useSession(paused: boolean) {
   return useSWR<SessionReply, ApiError>(
-    keyed(SESSION_PATH, sessionEpoch),
+    keyed(SESSION_PATH, epoch.current()),
     ([path]: [string, number]) => getJson<SessionReply>(path),
     {
       refreshInterval: paused ? 0 : SESSION_PROBE_MS,
@@ -202,7 +203,7 @@ export function useSession(paused: boolean) {
 /** However the server has just described the session, this is what it said. Used
  *  after a sign-in, so the app never has to write the session down itself. */
 export const reloadSession = (): Promise<SessionReply | undefined> =>
-  mutate<SessionReply>(keyed(SESSION_PATH, sessionEpoch));
+  mutate<SessionReply>(keyed(SESSION_PATH, epoch.current()));
 /** One click on `Load register`: the request, and which click it was. */
 export type RegisterClick = { request: RegisterRequest; attempt: number };
 /**
@@ -218,7 +219,7 @@ export type RegisterClick = { request: RegisterRequest; attempt: number };
 export function useRegisterLoad(click: RegisterClick | null) {
   return useSWRImmutable<RegisterReply, ApiError>(
     click
-      ? keyed(REGISTER_PATH, click.request, click.attempt, sessionEpoch)
+      ? keyed(REGISTER_PATH, click.request, click.attempt, epoch.current())
       : null,
     ([, request]: [string, RegisterRequest, number, number]) =>
       postJson<RegisterReply>(REGISTER_PATH, request)
@@ -240,7 +241,7 @@ export function useStudentProfile(asked: StudentRequest | null) {
   // behind the cached one. The globals already silence focus, reconnect and
   // retries, so only the dedupe window is local.
   return useSWR<StudentProfile, ApiError>(
-    asked ? keyed(STUDENT_PATH, asked, sessionEpoch) : null,
+    asked ? keyed(STUDENT_PATH, asked, epoch.current()) : null,
     ([, body]: [string, StudentRequest, number]) =>
       postJson<StudentProfile>(STUDENT_PATH, body)
   );
@@ -259,7 +260,9 @@ export interface FindClick {
 }
 export function useStudentSearch(click: FindClick | null) {
   return useSWRImmutable<FindReply, ApiError>(
-    click ? keyed(FIND_PATH, click.request, click.attempt, sessionEpoch) : null,
+    click
+      ? keyed(FIND_PATH, click.request, click.attempt, epoch.current())
+      : null,
     ([, body]: [string, FindRequest, number, number]) =>
       postJson<FindReply>(FIND_PATH, body)
   );
@@ -274,7 +277,7 @@ export function useStudentSearch(click: FindClick | null) {
  */
 export function useSemStart(request: SemStartRequest | null) {
   return useSWRImmutable<SemStartReply, ApiError>(
-    request ? keyed(SEM_START_PATH, request, sessionEpoch) : null,
+    request ? keyed(SEM_START_PATH, request, epoch.current()) : null,
     ([, body]: [string, SemStartRequest, number]) =>
       postJson<SemStartReply>(SEM_START_PATH, body)
   );
@@ -289,7 +292,7 @@ export function useSemStart(request: SemStartRequest | null) {
  */
 export function useSemAbsences(asked: SemAbsencesRequest | null) {
   return useSWRImmutable<SemAbsencesReply, ApiError>(
-    asked ? keyed(SEM_ABSENCES_PATH, asked, sessionEpoch) : null,
+    asked ? keyed(SEM_ABSENCES_PATH, asked, epoch.current()) : null,
     ([, body]: [string, SemAbsencesRequest, number]) =>
       postJson<SemAbsencesReply>(SEM_ABSENCES_PATH, body)
   );
@@ -298,8 +301,9 @@ export function useSemAbsences(asked: SemAbsencesRequest | null) {
  *  session generation, so a late answer populates a key no screen reads and
  *  reopening refreshes behind the cached answer. */
 function usePostOnOpen<T>(path: string, enabled: boolean) {
-  return useSWR<T, ApiError>(enabled ? keyed(path, sessionEpoch) : null, () =>
-    postJson<T>(path, {})
+  return useSWR<T, ApiError>(
+    enabled ? keyed(path, epoch.current()) : null,
+    () => postJson<T>(path, {})
   );
 }
 /** The faculty member's own details from ECAP's main.aspx: name, photo URL, and
