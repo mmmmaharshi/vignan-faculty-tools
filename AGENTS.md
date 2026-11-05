@@ -11,6 +11,12 @@ screens, not the whole.
 **Always follow [CODING_STANDARDS.md](./CODING_STANDARDS.md).** Read it before
 writing code here. It is binding, and it wins over anything else in this file.
 
+**Maintainer-facing prose is about the code, never about how we arrived at it.**
+Our conversation, the prompt, and the iteration history stay out of code comments,
+commit bodies, pull-request descriptions, ADRs, and any other prose a maintainer
+reads. A comment explains the code that is present; it does not narrate the
+session that produced it, and it does not quote what a model said.
+
 ## Communication
 
 **Always respond in `/i-have-adhd` style.** Load the skill and follow it: lead
