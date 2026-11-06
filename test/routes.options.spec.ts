@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-import { HttpError } from "../server/portal-replies";
+import { HttpError } from "../server/http-error";
+import type { PortalReader } from "../server/portal-reader";
 import { handleOptions, requireLevels } from "../server/server-routes";
-import type { PortalReader } from "../server/server-routes";
 import { fake, levels, nth, opt } from "./support/routes-fake";
 
 test.describe("the options ladder", () => {

@@ -1,6 +1,10 @@
-import { ALL_SUBJECTS, isAllSubjects, todayIST } from "../shared/api.js";
+import {
+  ALL_SUBJECTS,
+  isAllSubjects,
+  statedStartDate,
+  todayIST,
+} from "../shared/api.js";
 import type {
-  CascadeLevel,
   FacultyProfile,
   FindReply,
   FindRequest,
@@ -20,82 +24,26 @@ import type {
   UnpostedReply,
 } from "../shared/api.js";
 import type { OverallLookup } from "./attendance-bands.js";
-import { statedStartDate, summarise } from "./attendance-bands.js";
-import type { DayWorkRequest } from "./portal-conventions.js";
-import { courseVerdict } from "./portal-liveness.js";
+import { summarise } from "./attendance-bands.js";
+import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";
+import { parseDayClassWork, parseTodayClasses } from "./portal-daywork.js";
+import { requireCourses } from "./portal-liveness.js";
+import { matchOption, realOptions } from "./portal-options.js";
+import type { Level, PortalReader } from "./portal-reader.js";
 import {
-  HttpError,
   classReportSubjects,
-  matchOption,
   parseClassAttendance,
+  parseCumulativeTotals,
   parseRegister,
   parseStudentAbsences,
-  parseStudentClass,
-  parseStudentProfile,
   parseSubjectReport,
-  parseTodayClasses,
-  parseCumulativeTotals,
-  parseDayClassWork,
-  realOptions,
   registerDates,
   studentWiseDates,
-} from "./portal-replies.js";
-import type { OverallRow, StatedClass } from "./portal-replies.js";
+} from "./portal-register.js";
+import type { OverallRow } from "./portal-register.js";
+import { parseStudentClass, parseStudentProfile } from "./portal-student.js";
+import { resolveClass } from "./student-class.js";
 
-type Level = CascadeLevel;
-export type PortalReader = {
-  courses: () => Promise<Option[]>;
-  branchesAndSemesters: (courseId: string) => Promise<[Option[], Option[]]>;
-  sections: (
-    courseId: string,
-    branchId: string,
-    semester: string,
-    semesterTitle?: string
-  ) => Promise<Option[]>;
-  subjects: (
-    courseId: string,
-    branchId: string,
-    semesterId: string
-  ) => Promise<Option[]>;
-  register: (
-    p: Record<Level, Option> & { from: string; to: string }
-  ) => Promise<string>;
-  classAttendance: (
-    p: Record<Level, Option> & { from: string; to: string }
-  ) => Promise<string>;
-  /** The subjects the SUBJECT ATTENDANCE page offers for one class. */
-  subjectOptions: (
-    courseId: string | number,
-    branchId: string | number,
-    semesterId: string | number
-  ) => Promise<Option[]>;
-  /** One subject's attendance report for the whole section. */
-  subjectReport: (
-    p: Record<Level, Option> & { from: string; to: string },
-    subject: Option
-  ) => Promise<string>;
-  /** The StudentProfile page's markup for one roll number. */
-  studentProfile: (roll: string) => Promise<string>;
-  facultyProfile: () => Promise<FacultyProfile>;
-  /** The Student Wise report: one student's grid, every subject, one column per
-   *  day the section met. */
-  studentWise: (
-    roll: string,
-    name: string,
-    p: Record<Level, Option> & { from: string; to: string }
-  ) => Promise<string>;
-  /** The Cumulative student-wise register, whose day grid carries the held /
-   *  attended / absent marks the panel's totals are counted from. */
-  studentCumulative: (
-    roll: string,
-    name: string,
-    p: Record<Level, Option> & { from: string; to: string }
-  ) => Promise<string>;
-  /** The faculty dashboard's schedule fragment for today. */
-  todayClasses: () => Promise<string>;
-  /** The day-class-work report's fragment for the asked branches and date. */
-  dayClassWork: (p: DayWorkRequest) => Promise<string>;
-};
 export async function handleOptions(
   portal: PortalReader,
   b: OptionsRequest
@@ -114,17 +62,7 @@ export async function handleOptions(
     out[key] = choices;
     if (!choices.length) emptyLevels.push(key);
   };
-  const { verdict, courses: courseOptions } = await courseVerdict(portal);
-  if (verdict === "dead") {
-    throw new HttpError(
-      401,
-      "Your ECAP session expired. Please sign in again."
-    );
-  }
-  if (verdict === "unknown") {
-    throw new HttpError(502, "ECAP did not answer the course list. Try again.");
-  }
-  take("course", courseOptions);
+  take("course", await requireCourses(portal));
   if (b.course) {
     const [branches, semesters] = await portal.branchesAndSemesters(b.course);
     take("branch", branches);
@@ -160,13 +98,6 @@ export function requireLevels(
     section: chosenLevel(b, "section"),
     subject: chosenLevel(b, "subject"),
   };
-}
-/**
- * A dead ECAP session must stay a 401 so the client signs out; every other
- * portal failure is the caller's to interpret. The one place that rule lives,
- * so the readers below cannot drift apart on it. */
-function rethrowExpired(error: unknown): void {
-  if (error instanceof HttpError && error.status === 401) throw error;
 }
 /**
  * The class-wide report is a second Portal screen. If it fails, or its layout
@@ -251,9 +182,7 @@ async function readSubjectPercents(
   await Promise.all(
     pairs.map(async ({ label, subject }) => {
       try {
-        const grid = parseSubjectReport(
-          await portal.subjectReport({ ...p, from: p.from, to: p.to }, subject)
-        );
+        const grid = parseSubjectReport(await portal.subjectReport(p, subject));
         byColumn.set(
           label,
           new Map(grid.map((row) => [row.roll, row.pct] as const))
@@ -344,16 +273,6 @@ export async function handleRegister(
     dates
   );
 }
-/**
- * The dates this student missed, across every subject, but only when the register
- * on screen is the **All subjects** view: its report aggregates by subject and
- * states no dates, so this student's own grid is the only place they exist. A
- * subject register already states them, and one Portal call per panel open is the
- * budget (ADR 0018), so nothing is asked for on that path.
- *
- * A report ECAP will not give changes nothing else: the panel's GPA and numbers
- * are the main read, and a 401 still ends the session.
- */
 /** One student's absent days from their own day-wise grid, over the window
  *  given. Absent where the grid states none — which is not a clean sheet. A
  *  failure throws; the callers decide what a failure means for them. */
@@ -366,6 +285,16 @@ async function studentWiseAbsent(
   const absent = parseStudentAbsences(await portal.studentWise(roll, name, p));
   return absent ? { absent } : {};
 }
+/**
+ * The dates this student missed, across every subject, but only when the register
+ * on screen is the **All subjects** view: its report aggregates by subject and
+ * states no dates, so this student's own grid is the only place they exist. A
+ * subject register already states them, and one Portal call per panel open is the
+ * budget (ADR 0018), so nothing is asked for on that path.
+ *
+ * A report ECAP will not give changes nothing else: the panel's GPA and numbers
+ * are the main read, and a 401 still ends the session.
+ */
 async function readAbsences(
   portal: PortalReader,
   roll: string,
@@ -384,6 +313,11 @@ async function readAbsences(
     return {};
   }
 }
+/** How many months back a semester walk reads before it gives up: the asked
+ *  month plus this many before it, each a month-shaped read — the only shape
+ *  ECAP reliably answers. Both walks share the number so their reach cannot
+ *  drift apart. */
+const MONTH_WALK_CAP = 12;
 /** One calendar month as a portal window, dd/mm/yyyy both ends. Month shapes
  *  are the only range ECAP reliably answers — live runs show wide registers
  *  come back empty — so both walks below read month by month. */
@@ -457,7 +391,7 @@ async function readFullSemesterAbsences(
   let stoppedEarly = false;
   let year = ty;
   let month = tm;
-  for (let step = 0; step < 12; step++) {
+  for (let step = 0; step < MONTH_WALK_CAP; step++) {
     const window = monthWindow(year, month);
     let grid: string;
     try {
@@ -488,14 +422,6 @@ async function readFullSemesterAbsences(
       : "ECAP kept stating meeting days twelve months back, so the semester may have started earlier than shown.",
   };
 }
-/**
- * One student's GPA and phone numbers, read on demand when their row is opened.
- * The register states neither, so the Portal is asked about a single student here
- * and nowhere else — except on the All subjects path, where `readAbsences` asks
- * for one more thing, that student's own grid, because the report on screen states
- * no dates at all — and on every path, where `readTotals` asks for the
- * semester's class counts.
- */
 /**
  * The semester's held / attended / absent counts, from the Cumulative
  * student-wise register — asked over the semester start through today, the same
@@ -528,6 +454,14 @@ async function readTotals(
     return {};
   }
 }
+/**
+ * One student's GPA and phone numbers, read on demand when their row is opened.
+ * The register states neither, so the Portal is asked about a single student here
+ * and nowhere else — except on the All subjects path, where `readAbsences` asks
+ * for one more thing, that student's own grid, because the report on screen states
+ * no dates at all — and on every path, where `readTotals` asks for the
+ * semester's class counts.
+ */
 export async function handleStudentProfile(
   portal: PortalReader,
   b: Partial<StudentRequest>
@@ -546,109 +480,9 @@ export async function handleStudentProfile(
   ]);
   const profile = parseStudentProfile(page);
   if (!profile) {
-    throw new HttpError(
-      502,
-      "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
-    );
+    throw unreadablePage("student profile page");
   }
   return { ...profile, ...absences, ...totals };
-}
-/** Roman/Arabic numeral for a semester label: "III Semester" -> 3. */
-const ROMAN: Record<string, number> = {
-  I: 1,
-  II: 2,
-  III: 3,
-  IV: 4,
-  V: 5,
-  VI: 6,
-  VII: 7,
-  VIII: 8,
-};
-function semesterNumber(text: string): number | null {
-  const t = text.trim().toUpperCase();
-  const roman = t.match(/^(?<r>[IVX]+)\b/);
-  if (roman?.groups?.r) {
-    const { r } = roman.groups;
-    if (ROMAN[r] !== undefined) return ROMAN[r];
-  }
-  const arabic = t.match(/(?<n>\d+)/);
-  if (arabic?.groups?.n) return Number(arabic.groups.n);
-  return null;
-}
-/** The semester the student is in now, guessed from the SGPAs the page
- *  states: the highest completed, plus one. Null when the page states no
- *  usable SGPA list — with nothing completed to count from, even the first
- *  semester would be a guess, so the caller refuses instead. A guess, and it
- *  can be wrong for a repeater — see ADR 0025. */
-function inferSemester(profile: StudentProfile): number | null {
-  const done = profile.sgpa
-    .map((s) => semesterNumber(s.semester))
-    .filter((n): n is number => n !== null);
-  if (!done.length) return null;
-  return Math.max(...done) + 1;
-}
-/** The class a student's own page puts them in, matched to the Portal's own
- *  option values, and the sections that class offers. A page that states a
- *  section names one section; one that states none names all of them, and the
- *  search reads each until the roll turns up. */
-type StudentClass = {
-  levels: Record<"course" | "semester" | "branch", Option>;
-  sections: Option[];
-  label: string;
-  /** True when the semester came from the SGPA guess rather than the page. */
-  semesterInferred: boolean;
-};
-const unstated = (what: string, stated: string): string =>
-  stated
-    ? `ECAP's profile page states the ${what} "${stated}", which the Portal's own list does not offer.`
-    : `ECAP's profile page does not state a ${what}, so no class register can be read for this student.`;
-async function resolveClass(
-  portal: PortalReader,
-  stated: StatedClass,
-  profile: StudentProfile
-): Promise<StudentClass | string> {
-  const course = matchOption(stated.course, await portal.courses());
-  if (!course) return unstated("course", stated.course);
-  const [branches, semesters] = await portal.branchesAndSemesters(course.value);
-  const branch = matchOption(stated.branch, branches);
-  if (!branch) return unstated("branch", stated.branch);
-  let semester: Option | null;
-  let semesterInferred = false;
-  if (stated.semester) {
-    semester = matchOption(stated.semester, semesters);
-    if (!semester) return unstated("semester", stated.semester);
-  } else {
-    // The page states no semester; infer the current one from the SGPAs it
-    // does state — the highest completed, plus one. A guess, and it can be
-    // wrong for a repeater; the only way to be sure is to ask (option 3).
-    const inferred = inferSemester(profile);
-    if (inferred === null) {
-      return "ECAP's profile page does not state a semester, and its SGPA list states no completed semester to infer one from.";
-    }
-    semester =
-      semesters.find((o) => semesterNumber(o.label) === inferred) ?? null;
-    if (!semester) {
-      return `ECAP's profile page does not state a semester, and the one inferred from its SGPA list (${inferred}) is not one the Portal offers.`;
-    }
-    semesterInferred = true;
-  }
-  const listed = await portal.sections(
-    course.value,
-    branch.value,
-    semester.value,
-    semester.title
-  );
-  const section = matchOption(stated.section, listed);
-  const sections = section ? [section] : listed;
-  if (!sections.length) {
-    return `ECAP lists no sections for ${branch.label}, ${semester.label}, so there is no register to read.`;
-  }
-  return {
-    levels: { course, semester, branch },
-    sections,
-    label: `${course.label} · ${semester.label} · ${branch.label}`,
-    semesterInferred,
-  };
 }
 /**
  * One roll number in, the student's class and attendance figure out.
@@ -671,10 +505,7 @@ export async function handleFind(
   const html = await portal.studentProfile(roll);
   const profile = parseStudentProfile(html);
   if (!profile) {
-    throw new HttpError(
-      502,
-      "ECAP's student profile page came back in an unexpected shape, so its GPA and phone numbers could not be read."
-    );
+    throw unreadablePage("student profile page");
   }
   const found = await resolveClass(portal, parseStudentClass(html), profile);
   if (typeof found === "string") {
@@ -825,7 +656,10 @@ export async function handleSemStart(
 ): Promise<SemStartReply> {
   if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
   const p = requireLevels(b);
-  const steps = Math.min(Math.max(Math.floor(b.walkBack ?? 0), 0), 12);
+  const steps = Math.min(
+    Math.max(Math.floor(b.walkBack ?? 0), 0),
+    MONTH_WALK_CAP
+  );
   if (!steps) {
     const dates = registerDates(
       await portal.register({ ...p, from: b.from, to: b.to })
@@ -900,27 +734,14 @@ export async function handleTodayClasses(
  *  report's own page skips title-less ones the same way. A refusal throws
  *  before the parser is reached, so it says the read failed rather than
  *  passing for all posted. */
-/** The unknown verdict's refusal sentence, shared by its two throw sites so
- *  they cannot drift apart. */
-const NO_COURSES = "ECAP offered no courses.";
 export async function handleUnposted(
   portal: PortalReader
 ): Promise<UnpostedReply> {
   const date = todayIST();
-  const { verdict, courses: courseOptions } = await courseVerdict(portal);
-  if (verdict === "dead") {
-    throw new HttpError(
-      401,
-      "Your ECAP session expired. Please sign in again."
-    );
-  }
-  if (verdict === "unknown") {
-    throw new HttpError(502, NO_COURSES);
-  }
-  const courses = realOptions(courseOptions);
+  const courses = realOptions(await requireCourses(portal));
   const course = matchOption("B.Tech", courses) ?? courses[0];
   if (!course) {
-    throw new HttpError(502, NO_COURSES);
+    throw new HttpError(502, "ECAP offered no courses.");
   }
   const [offered, semesters] = await portal.branchesAndSemesters(course.value);
   const branches = realOptions(offered);

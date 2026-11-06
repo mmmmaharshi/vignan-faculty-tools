@@ -11,7 +11,7 @@ import {
   rememberRangeStart,
   startingRange,
   toPortalDate,
-} from "../web/register/cascade";
+} from "../web/register/range";
 import { saved, slot } from "./support/cascade-harness";
 
 test.describe("dates", () => {

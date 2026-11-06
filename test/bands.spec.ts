@@ -1,15 +1,13 @@
 import { test, expect } from "@playwright/test";
 
+import { band, summarise, withBands } from "../server/attendance-bands";
+import type { OverallFigure, RegisterRow } from "../server/attendance-bands";
 import {
-  band,
   CRITICAL_BELOW,
   IRREGULAR_BELOW,
   overallCellForDisplay,
   statedStartDate,
-  summarise,
-  withBands,
-} from "../server/attendance-bands";
-import type { OverallFigure, RegisterRow } from "../server/attendance-bands";
+} from "../shared/api";
 
 const row = (pct: number | null, roll = "21CS001"): RegisterRow => ({
   sl: "1",

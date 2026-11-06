@@ -1,4 +1,5 @@
 import type { RegisterReply } from "../../shared/api";
+import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../shared/api";
 
 /** One student row out of a register reply, subject figures and overall ones. */
 export type StudentRow = RegisterReply["students"][number];
@@ -54,39 +55,43 @@ export function tintFor(
   return critical ? "var(--mantine-color-red-light)" : undefined;
 }
 /**
- * Fixed percentage bars, strictest first. One entry is the bar's key in the
- * filter, its threshold, and its place in the empty-register sentence — the
- * array order decides which ticked bar wins that sentence, so a third bar is
- * one line here rather than branches in three functions.
+ * The two section-wide bars, in the order the checkboxes read them. One entry is
+ * the bar's key in the filter, and the threshold it admits — read from the same
+ * two constants the server bands every figure with, so a checkbox can never say
+ * 75 while the summary counts 70. A third bar is one line here plus the table's
+ * own map over it, rather than branches in three functions.
  */
-const FIXED_BARS = [
-  { key: "below65", below: 65 },
-  { key: "below75", below: 75 },
+export const BARS = [
+  { key: "below75", below: IRREGULAR_BELOW },
+  { key: "below65", below: CRITICAL_BELOW },
 ] as const;
-export type FixedBarKey = (typeof FIXED_BARS)[number]["key"];
+export type FixedBarKey = (typeof BARS)[number]["key"];
+export type BarBelow = (typeof BARS)[number]["below"];
 /** One threshold on one subject column, named by the column's own code:
  *  the bar admits the rows under it in that subject. Absent codes are inert
  *  rather than errors — the filter travels between classes, and a bar for a
  *  column this table does not show must do nothing here rather than fail. */
-export type SubjectBar = { code: string; below: 75 | 65 };
+export type SubjectBar = { code: string; below: BarBelow };
 /**
- * One subject column's threshold, cycled in place by its header: unset,
- * below 75, below 65, then unset again. One control per column, so the
- * header is the whole of the UI for it — no second place can disagree on
- * what a click does. Absent where the row has no such column is handled by
- * the caller dropping unknown codes, not here.
+ * One subject column's threshold, cycled in place by its header: unset, then a
+ * step down the `BARS` list, then unset again. One control per column, so the
+ * header is the whole of the UI for it — no second place can disagree on what
+ * a click does. Absent where the row has no such column is handled by the
+ * caller dropping unknown codes, not here.
  */
 export function cycleSubjectBar(
   bars: readonly SubjectBar[],
   code: string
 ): SubjectBar[] {
   const rest = bars.filter((b) => b.code !== code);
-  const current = bars.find((b) => b.code === code)?.below;
-  if (current === undefined) return [...rest, { code, below: 75 }];
-  if (current === 75) return [...rest, { code, below: 65 }];
-  return rest;
-}
-/**
+  const current = bars.findIndex((b) => b.code === code);
+  if (current === -1 || bars[current] === undefined) {
+    return [...rest, { code, below: BARS[0].below }];
+  }
+  const at = BARS.findIndex((b) => b.below === bars[current]?.below);
+  const next = BARS[at + 1];
+  return next ? [...rest, { code, below: next.below }] : rest;
+} /**
  * Keeps only the bars naming a subject the newly settled class offers. A bar
  * for a column this class does not show must not travel with the selection:
  * it would narrow a roster with nothing on screen saying so, and the way
@@ -185,7 +190,7 @@ export function visibleStudents(
     if (filter.irregular && !(overallMode ? s.overallIrregular : s.irregular))
       return false;
     const figure = figureFor(s, overallMode);
-    for (const { key, below } of FIXED_BARS) {
+    for (const { key, below } of BARS) {
       if (filter[key] && !(figure != null && figure < below)) return false;
     }
     for (const { at, below } of bars) {
@@ -238,15 +243,18 @@ export function registerRows(
 /**
  * What an empty register says: the bar the reader set, so an empty worklist
  * reads as "nobody is under the bar" rather than "the register failed". The
- * strictest fixed bar wins the sentence; the irregular one keeps its own,
- * which points at the Portal's threshold instead of a number.
+ * strictest ticked bar wins the sentence — picked by its number, not by its
+ * place in `BARS`, which reads in checkbox order; the irregular one keeps its
+ * own, which points at the Portal's threshold instead of a number.
  */
 export function emptyRegisterText(
   filter: RowFilter,
   irregularBelow: number
 ): string {
   const needle = filter.search.trim();
-  const bar = FIXED_BARS.find(({ key }) => filter[key]);
+  const [bar] = BARS.filter(({ key }) => filter[key]).toSorted(
+    (a, b) => a.below - b.below
+  );
   // The search and the bars are one question between them, so a row that clears
   // neither is explained by both: naming only the search would leave a ticked bar
   // looking as if it had done nothing.

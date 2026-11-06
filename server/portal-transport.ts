@@ -1,3 +1,4 @@
+import { HttpError, sessionExpired } from "./http-error.js";
 import {
   absorbResponse,
   jqBody,
@@ -5,7 +6,7 @@ import {
   webMethodBody,
 } from "./portal-conventions.js";
 import type { CookieJar } from "./portal-conventions.js";
-import { HttpError, looksLikeHtml, unquoteJs } from "./portal-replies.js";
+import { looksLikeHtml, unquoteJs } from "./portal-html.js";
 
 export const BASE = "https://webprosindia.com";
 export const UA =
@@ -194,10 +195,7 @@ export async function portalWebMethod(
   if (!res.ok)
     throw new HttpError(502, `ECAP rejected ${name} (HTTP ${res.status}).`);
   if (looksLikeHtml(text)) {
-    throw new HttpError(
-      401,
-      "Your ECAP session expired. Please sign in again."
-    );
+    throw sessionExpired();
   }
   return unquoteJs(text);
 }

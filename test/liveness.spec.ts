@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
+import { HttpError } from "../server/http-error";
 import { courseVerdict } from "../server/portal-liveness";
-import { HttpError } from "../server/portal-replies";
 import type { Option } from "../shared/api";
 
 const course = (value: string, label: string): Option => ({

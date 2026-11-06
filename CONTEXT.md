@@ -89,8 +89,9 @@ Attendance below 65%. Needs intervention now.
 _Avoid_: Severe, failing, urgent
 
 The three bands are the app's own thresholds, stated once in
-`attendance-bands.ts` as `IRREGULAR_BELOW` and `CRITICAL_BELOW` and applied by
-`band(pct)` in that same module. Both are "below", so there is no overlap and no
+`shared/api.ts` as `IRREGULAR_BELOW` and `CRITICAL_BELOW` — both halves of the
+app judge by them — and applied by `band(pct)` in `attendance-bands.ts`. Both
+are "below", so there is no overlap and no
 gap: 75 is Regular, 74.99 is Irregular, 65 is Irregular, 64.99 is Critical. Do not
 introduce a fourth band without an ADR.
 

@@ -14,19 +14,14 @@ import {
 } from "fast-check";
 import type { Arbitrary } from "fast-check";
 
+import { options, realOptions } from "../server/portal-options";
 import {
   parseClassAttendance,
   parseCumulativeTotals,
   parseRegister,
-  options,
-  realOptions,
-} from "../server/portal-replies";
-import {
-  defaultRange,
-  statedStartDate,
-  toInputDate,
-  toPortalDate,
-} from "../web/register/cascade";
+} from "../server/portal-register";
+import { statedStartDate } from "../shared/api";
+import { defaultRange, toInputDate, toPortalDate } from "../web/register/range";
 
 /**
  * Oracles over the Portal's replies, fed by a grammar rather than by examples.
@@ -195,6 +190,12 @@ test.describe("the cumulative counts add up", () => {
   });
 });
 
+/** dd/mm/yyyy as one comparable number — a string compare of a day-first date
+ *  orders by day of month, not by date. */
+const dateCode = (value: string): number => {
+  const [d, m, y] = value.split("/").map(Number);
+  return (y ?? 0) * 10_000 + (m ?? 0) * 100 + (d ?? 0);
+};
 test.describe("portal dates survive the round trip", () => {
   test("dd/mm/yyyy becomes an input value and back, unchanged", () => {
     const portalDate: Arbitrary<string> = record({
@@ -234,7 +235,10 @@ test.describe("portal dates survive the round trip", () => {
           const to = `${String(Math.max(a.d, b.d)).padStart(2, "0")}/${String(b.m).padStart(2, "0")}/${Math.max(a.y, b.y)}`;
           const stated = statedStartDate(dates, { from, to });
           if (stated === null) return true;
-          return stated >= from && stated <= to;
+          return (
+            dateCode(stated) >= dateCode(from) &&
+            dateCode(stated) <= dateCode(to)
+          );
         }
       ),
       { numRuns: 200 }

@@ -3,21 +3,8 @@ import { ArrowCounterClockwise, Trash } from "@phosphor-icons/react";
 import React from "react";
 
 import type { Sel } from "../register/cascade";
+import type { SavedClassCard } from "../register/saved-classes";
 
-/**
- * One saved class. The Subject leads because that is what tells one card from
- * another in the same section; the Section and the course sit beneath it as
- * context, which is also the order they matter in — you pick a subject, and the
- * section it belongs to is what identifies it.
- */
-export type SavedClassCard = {
-  sel: Sel;
-  /** The subject's own name, empty when this session has never been offered it. */
-  subject: string;
-  sectionName: string;
-  /** Course, semester and branch on one line — the longest string, so it is quietest. */
-  course: string;
-};
 /**
  * The saved classes, as cards above the class form. Opening one fills all five
  * levels and reads no register: the card is a shortcut to the form, not a request.

@@ -1,26 +1,24 @@
 import { test, expect } from "@playwright/test";
 
+import { parseDayClassWork, parseTodayClasses } from "../server/portal-daywork";
+import { parseLeaveStatus } from "../server/portal-faculty";
+import { looksLikeHtml, unquoteJs } from "../server/portal-html";
+import { matchOption, options, realOptions } from "../server/portal-options";
 import {
   classReportSubjects,
-  looksLikeHtml,
-  matchOption,
-  options,
   parseClassAttendance,
-  parseLeaveStatus,
-  parseRegister,
   parseCumulativeTotals,
+  parseRegister,
   parseStudentAbsences,
-  parseStudentBacklogs,
-  parseDayClassWork,
-  parseStudentClass,
-  parseStudentProfile,
   parseSubjectReport,
-  parseTodayClasses,
-  realOptions,
   registerDates,
   studentWiseDates,
-  unquoteJs,
-} from "../server/portal-replies";
+} from "../server/portal-register";
+import {
+  parseStudentBacklogs,
+  parseStudentClass,
+  parseStudentProfile,
+} from "../server/portal-student";
 
 const SELECT = `<select id="ddlcourse">
   <option value="-Select-">-Select-</option>

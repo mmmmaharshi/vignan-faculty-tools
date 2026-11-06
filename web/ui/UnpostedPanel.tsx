@@ -35,9 +35,7 @@ export type UnpostedPanelProps = {
 };
 
 /** Branches named by the report, in first-seen order. */
-export function branchesOf(
-  sections: DayWorkSection[] | null | undefined
-): string[] {
+function branchesOf(sections: DayWorkSection[] | null | undefined): string[] {
   const out: string[] = [];
   for (const section of sections ?? []) {
     if (!out.includes(section.branch)) out.push(section.branch);
@@ -251,6 +249,11 @@ export const UnpostedPanel = ({
     sections?.find((s) => s.branch === b)?.branchShort ?? b;
   const inBranch = (b: string): DayWorkSection[] =>
     sections ? sections.filter((s) => s.branch === b) : [];
+  // The branch on show: the one asked for while it is still offered, else the
+  // first the report names. Resolved here rather than by the caller, because
+  // this is the component that knows what the report offers.
+  const shown =
+    branch && branches.includes(branch) ? branch : (branches[0] ?? null);
   return (
     <Stack gap="md" mt="xl" pb="md">
       <Title order={4}>Today&apos;s Attendance</Title>
@@ -275,7 +278,7 @@ export const UnpostedPanel = ({
       {sections && sections.length > 0 ? (
         <>
           <Select
-            value={branch ?? ""}
+            value={shown ?? ""}
             onChange={(value) => onBranchChange?.(value ?? null)}
             data={branches.map((b) => ({
               value: b,
@@ -284,8 +287,8 @@ export const UnpostedPanel = ({
             placeholder="Choose a branch"
             aria-label="Branch"
           />
-          {branch ? (
-            <BranchPending key={branch} sections={inBranch(branch)} />
+          {shown ? (
+            <BranchPending key={shown} sections={inBranch(shown)} />
           ) : null}
         </>
       ) : null}

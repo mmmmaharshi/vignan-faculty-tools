@@ -43,18 +43,21 @@ import {
   isAllSubjects,
   chosenFacts,
   disabledLevels,
-  partialOf,
-  rememberRangeStart,
   selectionAfter,
-  startingRange,
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVELS,
+} from "../register/cascade";
+import type { Level, Sel } from "../register/cascade";
+import { partialOf } from "../register/cascade-run";
+import {
+  rememberRangeStart,
+  startingRange,
+  statedStartIso,
   toPortalDate,
   toInputDate,
-  statedStartDate,
-} from "../register/cascade";
-import type { Level, Range, Sel } from "../register/cascade";
+} from "../register/range";
+import type { Range } from "../register/range";
 import { savedClasses } from "../register/saved-classes";
 import type { SavedClass } from "../register/saved-classes";
 import { searchScope } from "../register/search-scope";
@@ -95,6 +98,7 @@ import {
   openPanel,
 } from "./panel-state";
 import type { PanelState } from "./panel-state";
+import { isScreen } from "./paths";
 import { nextRoute } from "./route-guard";
 import { isBooted, isSignedIn } from "./session-view";
 import type { SessionView } from "./session-view";
@@ -103,11 +107,8 @@ import type { Note } from "./types";
 /** A request the server refused, in words — unless it refused the session,
  *  which the shared failure sweep already ended. One helper, so the fifth
  *  screen does not bring a fifth copy of the same three lines. */
-const refusalNote = (
-  error: ApiError | undefined,
-  kind: Note["kind"]
-): Note | null =>
-  error && !isExpired(error) ? { kind, text: messageOf(error) } : null;
+const refusalNote = (error: ApiError | undefined): Note | null =>
+  error && !isExpired(error) ? { kind: "error", text: messageOf(error) } : null;
 const App = (): React.JSX.Element => {
   const navigate = useNavigate();
   const { pathname } = useLocation();
@@ -140,9 +141,6 @@ const App = (): React.JSX.Element => {
    *  shows the students under every bar set. Held here for the same reason as
    *  the cascade's own state: the table is presentational and keeps none. */
   const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
-  const applyFilter = (patch: Partial<RowFilter>): void => {
-    setFilter((f) => ({ ...f, ...patch }));
-  };
   /** A header refresh in flight. Held here, not in the header, because the
    *  header is presentational and keeps none. */
   const [refreshing, setRefreshing] = useState(false);
@@ -339,8 +337,8 @@ const App = (): React.JSX.Element => {
     preSemStart.error ??
     semAbsences.error;
   const filterNote: Note | null =
-    formNote ?? refusalNote(optionsError ?? register.error, "error");
-  const profileNote: Note | null = refusalNote(profile.error, "error");
+    formNote ?? refusalNote(optionsError ?? register.error);
+  const profileNote: Note | null = refusalNote(profile.error);
   /** A wider read ECAP would not give is said so, not left silent: no second
    *  list with no reason reads as "no absences in the semester". A 401 has
    *  already ended the session through the sweep above, so it says nothing
@@ -356,14 +354,14 @@ const App = (): React.JSX.Element => {
    *  class or no row for that roll. A 401 has already ended the session through
    *  the sweep above, so it says nothing here. */
   const searchNote: Note | null =
-    refusalNote(search.error, "error") ??
+    refusalNote(search.error) ??
     (found?.note ? { kind: "warning", text: found.note } : null);
   /** Home's own sentence: what the server refused. An empty day is not this —
    *  it is the skeleton table with blank classes. */
-  const todayNote: Note | null = refusalNote(today.error, "error");
+  const todayNote: Note | null = refusalNote(today.error);
   /** The unposted section's own sentence. A 401 has already ended the session
    *  through the sweep above, so it says nothing here. */
-  const unpostedNote: Note | null = refusalNote(unposted.error, "error");
+  const unpostedNote: Note | null = refusalNote(unposted.error);
   const savedList = saved?.userId === userId && userId ? saved.list : null;
   /** The class and window a searched figure belongs to, named on the panel: a
    *  percentage with no period under it invites being read as a semester's. An
@@ -505,7 +503,6 @@ const App = (): React.JSX.Element => {
     // The button is busy while the gate holds, so this is unreachable through
     // it; it stays as the rule's second half for any other caller.
     if (gate === "finding-start") return;
-    justLoaded.current = true;
     setFormNote(null);
     if (!range.from || !range.to) {
       setFormNote({ kind: "warning", text: "Choose a date range." });
@@ -519,6 +516,9 @@ const App = (): React.JSX.Element => {
       });
       return;
     }
+    // Armed only once the ask is real: a refused load that left it set would be
+    // overridden by the previous register's first day on the next settle.
+    justLoaded.current = true;
     const request: RegisterRequest = {
       ...chosen.levels,
       from: toPortalDate(range.from),
@@ -628,7 +628,7 @@ const App = (): React.JSX.Element => {
     // only place the name can arrive. Without it the rail and the profile panel
     // show a dash for a session that is working.
     if (session.data?.userId) noteUserId(session.data.userId);
-    if (!onLogin && !onHome && !onProfile && !onSearch) {
+    if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }
     if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
@@ -637,9 +637,7 @@ const App = (): React.JSX.Element => {
     session.isLoading,
     session.data,
     onLogin,
-    onHome,
-    onProfile,
-    onSearch,
+    pathname,
     navigate,
     runRefresh,
     noteUserId,
@@ -663,7 +661,7 @@ const App = (): React.JSX.Element => {
     justLoaded.current = false;
     let stated = register.data?.summary.statedFrom ?? "";
     if (!stated && register.data?.summary.dates?.length) {
-      stated = statedStartDate(register.data.summary.dates, range) ?? "";
+      stated = statedStartIso(register.data.summary.dates, range) ?? "";
     }
     const iso = toInputDate(stated);
     if (!iso || iso === range.from) return;
@@ -796,14 +794,7 @@ const App = (): React.JSX.Element => {
               sections={unposted.data?.sections ?? null}
               busy={unposted.isLoading}
               note={unpostedNote}
-              branch={
-                unpostedBranch &&
-                (unposted.data?.sections ?? []).some(
-                  (s) => s.branch === unpostedBranch
-                )
-                  ? unpostedBranch
-                  : (unposted.data?.sections?.[0]?.branch ?? null)
-              }
+              branch={unpostedBranch}
               onBranchChange={setUnpostedBranch}
             />
           </>
@@ -882,7 +873,7 @@ const App = (): React.JSX.Element => {
                 summary={summary}
                 filter={filter}
                 counts={counts}
-                onFilterChange={applyFilter}
+                onFilterChange={setFilter}
                 onShowDetails={showDetails}
                 chosen={registerFacts}
                 overallMode={overallMode}

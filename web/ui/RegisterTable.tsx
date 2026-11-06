@@ -12,10 +12,11 @@ import {
 } from "@mantine/core";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
-import { overallCellForDisplay } from "../../server/attendance-bands";
+import { overallCellForDisplay } from "../../shared/api";
 import type { RegisterReply, Student } from "../../shared/api";
 import type { ChosenFact } from "../register/cascade";
 import {
+  BARS,
   badgeFor,
   carriesOverall,
   cycleSubjectBar,
@@ -38,10 +39,10 @@ type RegisterTableProps = {
    *  worth before ticking it. Null before any register loads, when there
    *  is nothing to count yet. */
   counts: BarCounts | null;
-  /** One setter for every control on the filter row: a checkbox sends its
-   *  boolean, a name its threshold, a subject code its column. The subject
-   *  headers call it with the next step of their own cycle. */
-  onFilterChange: (patch: Partial<RowFilter>) => void;
+  /** The whole filter the table should now show. A checkbox sends the filter
+   *  with its own key flipped, a subject header the same with the next step of
+   *  its own cycle — so no control has to know the patch shape. */
+  onFilterChange: (next: RowFilter) => void;
   onShowDetails: (student: Student) => void;
   chosen: ChosenFact[];
   /** The All subjects path: no subject was chosen, so there are no subject columns
@@ -122,23 +123,21 @@ export const RegisterTable = ({
             label={`All irregular students${counts ? ` (${counts.irregular})` : ""}`}
             checked={filter.irregular}
             onChange={(e) =>
-              onFilterChange({ irregular: e.currentTarget.checked })
+              onFilterChange({ ...filter, irregular: e.currentTarget.checked })
             }
           />
-          <Checkbox
-            label={`Below 75%${counts ? ` (${counts.below75})` : ""}`}
-            checked={filter.below75}
-            onChange={(e) =>
-              onFilterChange({ below75: e.currentTarget.checked })
-            }
-          />
-          <Checkbox
-            label={`Below 65%${counts ? ` (${counts.below65})` : ""}`}
-            checked={filter.below65}
-            onChange={(e) =>
-              onFilterChange({ below65: e.currentTarget.checked })
-            }
-          />
+          {/* One map over the bars, so a new threshold is a line in `BARS` and
+              nothing here. */}
+          {BARS.map(({ key, below }) => (
+            <Checkbox
+              key={key}
+              label={`Below ${below}%${counts ? ` (${counts[key]})` : ""}`}
+              checked={filter[key]}
+              onChange={(e) =>
+                onFilterChange({ ...filter, [key]: e.currentTarget.checked })
+              }
+            />
+          ))}
         </Group>
         {/* Full width on a phone, a fixed box pulled to the right edge on wider
             screens: the flex basis drops it onto its own line below the boxes,
@@ -148,7 +147,9 @@ export const RegisterTable = ({
           placeholder="Name or roll no."
           leftSection={<MagnifyingGlass size={16} aria-hidden />}
           value={filter.search}
-          onChange={(e) => onFilterChange({ search: e.currentTarget.value })}
+          onChange={(e) =>
+            onFilterChange({ ...filter, search: e.currentTarget.value })
+          }
           flex={{ base: "1 1 100%", sm: "0 1 280px" }}
           ms="auto"
         />
@@ -169,7 +170,7 @@ export const RegisterTable = ({
               variant="subtle"
               size="compact-sm"
               mt="sm"
-              onClick={() => onFilterChange({ subjectBars: [] })}
+              onClick={() => onFilterChange({ ...filter, subjectBars: [] })}
             >
               Clear subject filters
             </Button>
@@ -221,6 +222,7 @@ export const RegisterTable = ({
                         <UnstyledButton
                           onClick={() =>
                             onFilterChange({
+                              ...filter,
                               subjectBars: cycleSubjectBar(
                                 filter.subjectBars,
                                 code

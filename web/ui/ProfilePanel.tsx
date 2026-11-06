@@ -50,54 +50,58 @@ export const ProfilePanel = ({
   userId,
   faculty,
   busy,
-}: ProfilePanelProps): React.JSX.Element => (
-  <Paper withBorder p="lg">
-    <Stack gap="xs">
-      <Title order={4}>Profile</Title>
-      {faculty?.photo ? (
-        <Group>
-          <Image
-            src={faculty.photo}
-            alt={faculty.name || userId}
-            w={96}
-            h={96}
-            radius="md"
-            fit="cover"
-          />
-        </Group>
-      ) : null}
-      <Row label="Employee Id" value={userId || "—"} />
-      <Row
-        label="Name (ECAP)"
-        value={nameValue(faculty ?? null, busy ?? false)}
-      />
-      <Row
-        label="Designation"
-        value={designationValue(faculty ?? null, busy ?? false)}
-      />
-      <Title order={5} mt="sm">
-        Leaves
-      </Title>
-      {faculty?.leaveStatus?.some((leave) => Number(leave.applied) > 0) ? (
-        // Seven columns never fit a phone screen: the table scrolls inside
-        // its own container instead of pushing the whole page sideways.
-        <Table.ScrollContainer minWidth={600}>
-          <Table striped withTableBorder tabularNums>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Leave</Table.Th>
-                <Table.Th ta="right">Eligible</Table.Th>
-                <Table.Th ta="right">Applied</Table.Th>
-                <Table.Th ta="right">Approved</Table.Th>
-                <Table.Th ta="right">Pending</Table.Th>
-                <Table.Th ta="right">Declined</Table.Th>
-                <Table.Th ta="right">Available</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {faculty.leaveStatus
-                .filter((leave) => Number(leave.applied) > 0)
-                .map((leave) => (
+}: ProfilePanelProps): React.JSX.Element => {
+  // One filtered list, so the section's presence and its rows cannot disagree:
+  // a leave type with nothing applied is not a row to show.
+  const applied = (faculty?.leaveStatus ?? []).filter(
+    (leave) => Number(leave.applied) > 0
+  );
+  return (
+    <Paper withBorder p="lg">
+      <Stack gap="xs">
+        <Title order={4}>Profile</Title>
+        {faculty?.photo ? (
+          <Group>
+            <Image
+              src={faculty.photo}
+              alt={faculty.name || userId}
+              w={96}
+              h={96}
+              radius="md"
+              fit="cover"
+            />
+          </Group>
+        ) : null}
+        <Row label="Employee Id" value={userId || "—"} />
+        <Row
+          label="Name (ECAP)"
+          value={nameValue(faculty ?? null, busy ?? false)}
+        />
+        <Row
+          label="Designation"
+          value={designationValue(faculty ?? null, busy ?? false)}
+        />
+        <Title order={5} mt="sm">
+          Leaves
+        </Title>
+        {applied.length ? (
+          // Seven columns never fit a phone screen: the table scrolls inside
+          // its own container instead of pushing the whole page sideways.
+          <Table.ScrollContainer minWidth={600}>
+            <Table striped withTableBorder tabularNums>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Leave</Table.Th>
+                  <Table.Th ta="right">Eligible</Table.Th>
+                  <Table.Th ta="right">Applied</Table.Th>
+                  <Table.Th ta="right">Approved</Table.Th>
+                  <Table.Th ta="right">Pending</Table.Th>
+                  <Table.Th ta="right">Declined</Table.Th>
+                  <Table.Th ta="right">Available</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {applied.map((leave) => (
                   <Table.Tr key={leave.type}>
                     <Table.Td>{leave.type}</Table.Td>
                     <Table.Td ta="right">{leave.eligible}</Table.Td>
@@ -108,12 +112,13 @@ export const ProfilePanel = ({
                     <Table.Td ta="right">{leave.available}</Table.Td>
                   </Table.Tr>
                 ))}
-            </Table.Tbody>
-          </Table>
-        </Table.ScrollContainer>
-      ) : (
-        <Text size="sm">{busy ? "Reading from ECAP..." : "—"}</Text>
-      )}
-    </Stack>
-  </Paper>
-);
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        ) : (
+          <Text size="sm">{busy ? "Reading from ECAP..." : "—"}</Text>
+        )}
+      </Stack>
+    </Paper>
+  );
+};

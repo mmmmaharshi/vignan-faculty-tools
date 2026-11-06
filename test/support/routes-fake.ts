@@ -1,8 +1,8 @@
 import { expect } from "@playwright/test";
 
+import { HttpError } from "../../server/http-error";
 import type { DayWorkRequest } from "../../server/portal-conventions";
-import { HttpError } from "../../server/portal-replies";
-import type { PortalReader } from "../../server/server-routes";
+import type { PortalReader } from "../../server/portal-reader";
 import type {
   Option,
   RegisterRequest,

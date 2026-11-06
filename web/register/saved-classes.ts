@@ -1,5 +1,18 @@
+import { LEVEL_KEYS } from "./cascade";
 import type { Sel } from "./cascade";
+import { readStored, writeStored } from "./string-map-store";
 
+/** One saved class, as the cards above the class form read it: the values that
+ *  reopen the register, and the three names that make the card readable. */
+export type SavedClassCard = {
+  sel: Sel;
+  /** The subject's own name, empty when this session has never been offered it. */
+  subject: string;
+  sectionName: string;
+  /** Course, semester and branch on one line — the longest string, so it is
+   *  quietest. */
+  course: string;
+};
 /** A saved class: the five values that name a register, plus the Subject's label as
  *  a display cache. The label is never the answer — the cascade's own label wins
  *  whenever this session has offered the subject — so a renamed subject corrects
@@ -30,26 +43,18 @@ export type SavedClass = Sel & { label?: string };
  * to another machine.
  */
 const CLASS_KEY_PREFIX = "section-";
-/** All five levels: a saved class names the register it opens. */
-const CLASS_LEVELS = [
-  "course",
-  "semester",
-  "branch",
-  "section",
-  "subject",
-] as const;
 /** The identity of a saved class: the five levels in a fixed order, so two saves
  *  of the same class compare equal without depending on key order. Also the
  *  identity of a class's earliest-start memory in `sem-starts.ts`. */
 export const classKey = (values: Record<string, string>): string =>
-  CLASS_LEVELS.map((key) => values[key]).join(" ");
+  LEVEL_KEYS.map((key) => values[key]).join(" ");
 /** A stored entry becomes a class only if all five levels are strings. Anything
  *  else is dropped rather than half-read. A missing label is not a fault: an entry
  *  written before labels were kept still opens, it just says nothing until opened. */
 function readClass(value: unknown): SavedClass | null {
   if (typeof value !== "object" || value === null) return null;
   const values = value as Record<string, unknown>;
-  const read = (key: (typeof CLASS_LEVELS)[number]): string => {
+  const read = (key: (typeof LEVEL_KEYS)[number]): string => {
     const found = values[key];
     return typeof found === "string" ? found : "";
   };
@@ -60,34 +65,25 @@ function readClass(value: unknown): SavedClass | null {
     section: read("section"),
     subject: read("subject"),
   };
-  if (!CLASS_LEVELS.every((key) => cls[key])) return null;
+  if (!LEVEL_KEYS.every((key) => cls[key])) return null;
   const { label } = values;
   if (typeof label === "string" && label) cls.label = label;
   return cls;
 }
+const storeKey = (userId: string): string => `${CLASS_KEY_PREFIX}${userId}`;
+/** A stored list, or a single class from an earlier build, which is still
+ *  offered. Anything that is not an object is no classes at all. */
+const isStoredList = (
+  value: unknown
+): value is unknown[] | Record<string, unknown> =>
+  typeof value === "object" && value !== null;
 function writeClasses(userId: string, list: readonly SavedClass[]): void {
-  try {
-    localStorage.setItem(`${CLASS_KEY_PREFIX}${userId}`, JSON.stringify(list));
-  } catch {
-    /* a refused write must not break the screen */
-  }
+  writeStored(storeKey(userId), list);
 }
 export function savedClasses(userId: string): SavedClass[] {
   if (!userId) return [];
-  let raw: string | null;
-  try {
-    raw = localStorage.getItem(`${CLASS_KEY_PREFIX}${userId}`);
-  } catch {
-    return [];
-  }
-  if (!raw) return [];
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(raw);
-  } catch {
-    return [];
-  }
-  // A single object is what an earlier build stored, and it is still offered.
+  const parsed = readStored(storeKey(userId), isStoredList);
+  if (!parsed) return [];
   const entries = Array.isArray(parsed) ? parsed : [parsed];
   const seen = new Set<string>();
   const list: SavedClass[] = [];

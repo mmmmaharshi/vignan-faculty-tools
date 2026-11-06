@@ -13,7 +13,8 @@ import {
 
 import type { CascadeLevel, Option, OptionsReply } from "../../shared/api";
 import type { Note } from "../app/types";
-import type { Level, Range, Sel } from "../register/cascade";
+import type { Level, Sel } from "../register/cascade";
+import type { Range } from "../register/range";
 
 type ClassPickerProps = {
   levels: readonly (readonly [Level, string])[];

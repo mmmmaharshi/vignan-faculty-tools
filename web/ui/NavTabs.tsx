@@ -11,8 +11,10 @@ import {
   DASHBOARD_PATH,
   HOME_PATH,
   PROFILE_PATH,
+  SCREENS,
   SEARCH_PATH,
 } from "../app/paths";
+import type { Screen } from "../app/paths";
 
 export {
   DASHBOARD_PATH,
@@ -21,15 +23,17 @@ export {
   PROFILE_PATH,
   SEARCH_PATH,
 } from "../app/paths";
-/** Every screen the navigation can name, in the order both surfaces show
- *  them. One array, so an icon or label change cannot land on the rail and
- *  miss the bar: the two surfaces differ only in chrome, never in content. */
-const TABS: readonly { path: string; label: string; Icon: Icon }[] = [
-  { path: HOME_PATH, label: "Home", Icon: House },
-  { path: DASHBOARD_PATH, label: "Register", Icon: CalendarCheck },
-  { path: SEARCH_PATH, label: "Student Search", Icon: MagnifyingGlass },
-  { path: PROFILE_PATH, label: "Profile", Icon: UserCircle },
-];
+/** What each screen is called and which icon it carries. Keyed by the screen
+ *  itself, so adding a path to `SCREENS` is a compile error until it is named
+ *  here, and the rail and the bar read the same list. */
+const CHROME: Record<Screen, { label: string; Icon: Icon }> = {
+  [HOME_PATH]: { label: "Home", Icon: House },
+  [DASHBOARD_PATH]: { label: "Register", Icon: CalendarCheck },
+  [SEARCH_PATH]: { label: "Student Search", Icon: MagnifyingGlass },
+  [PROFILE_PATH]: { label: "Profile", Icon: UserCircle },
+};
+/** Every screen both surfaces show, in tab order. */
+const TABS = SCREENS.map((path) => ({ path, ...CHROME[path] }));
 /** Which tab the address bar names. Anything else is the register screen:
  *  unknown paths render its body before the guard sends them on, so the
  *  highlight must agree with the screen rather than going dark. */

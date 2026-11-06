@@ -9,3 +9,15 @@ export const HOME_PATH = "/home";
 export const DASHBOARD_PATH = "/dashboard";
 export const PROFILE_PATH = "/profile";
 export const SEARCH_PATH = "/search";
+/** Every path that is a screen, in tab order. The guard, the tabs and the boot
+ *  landing all read this one list: a fifth screen added to the tabs but not
+ *  here would be redirected home while its tab was already on the rail. */
+export const SCREENS = [
+  HOME_PATH,
+  DASHBOARD_PATH,
+  SEARCH_PATH,
+  PROFILE_PATH,
+] as const;
+export type Screen = (typeof SCREENS)[number];
+export const isScreen = (pathname: string): boolean =>
+  (SCREENS as readonly string[]).includes(pathname);

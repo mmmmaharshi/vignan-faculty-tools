@@ -9,16 +9,7 @@ import {
   rememberClass,
   savedClasses,
 } from "./saved-classes";
-import type { SavedClass } from "./saved-classes";
-
-/** One card above the class form: the five values a saved class reopens, and
- *  the three names that make it readable. */
-export type SavedClassCard = {
-  sel: SavedClass;
-  subject: string;
-  sectionName: string;
-  course: string;
-};
+import type { SavedClass, SavedClassCard } from "./saved-classes";
 
 /**
  * The saved classes: whether the selection on screen is one worth saving, the

@@ -101,15 +101,29 @@ avoid the whole problem — one process, so there is no second one to forget.
 
 ```
 server/server.ts     Bun HTTP server: static files, routing to api.ts, and Bun.serve
-server/api.ts        the API: the portal and createApi(); imported by server.ts
-                     (prod), the dev plugin in vite.config.ts, and
-                     api/[[...path]].ts (Vercel). createApi takes the way to
-                     reach ECAP, so the retry rules are testable without one
-server/server-routes.ts the two route handlers, over a PortalReader; no HTTP in it
+server/api.ts        the API: the portal, createApi(), and the one table mapping a
+                     path to its handler; imported by server.ts (prod), the dev
+                     plugin in vite.config.ts, and api/[[...path]].ts (Vercel).
+                     createApi takes the way to reach ECAP, so the retry rules are
+                     testable without one
+server/server-routes.ts the route handlers, over a PortalReader; no HTTP in it
+server/portal-reader.ts what a handler may ask ECAP for, one method per screen
+server/http-error.ts the refusal a handler throws, the 401 a dead session earns,
+                     and the rule that only a 401 propagates
 api/[[...path]].ts   the Vercel function: rebuilds a fetch Request for handleApi
-server/portal-liveness.ts alive | dead | unknown: is this ECAP session still working?
+server/portal-liveness.ts alive | dead | unknown: is this ECAP session still working?,
+                     and the course list or the refusal that verdict earns
 server/portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
-server/portal-replies.ts pure string -> data functions, and the seam guards
+server/portal-html.ts ECAP's reply primitives: the tags, the cell strippers, and the
+                     one place a table becomes cell arrays
+server/portal-options.ts `<option>` replies, and matching a page's own words to one
+server/portal-register.ts the register, class and Student Wise grids, and the
+                     Cumulative totals
+server/portal-student.ts the StudentProfile page: GPA, SGPAs, phones, backlogs, class
+server/portal-faculty.ts the faculty name, and the leave grid
+server/portal-daywork.ts today's timetable, and the day-class-work report
+server/student-class.ts the class a student's own page names, matched to the
+                     Portal's own option values
 server/attendance-bands.ts the Regular / Irregular / Critical rule, and the summary
 web/index.html       Vite entry point
 web/main.tsx         React root + MantineProvider + the one <SWRConfig> holding
@@ -128,8 +142,11 @@ web/app/             the shell and the session: App.tsx (state, the three modes,
                      paths, panel-state, load-gate, types.ts (Note, the one
                      shape three modules share)
 web/register/        the cascade and its storage: cascade.ts (what auto-fills,
-                     when to keep looping, what a change clears, and the loop
-                     that settles a selection), worklist.ts (which rows show,
+                     when to keep looping, what a change clears, and the names
+                     one selection is known by), cascade-run.ts (the loop that
+                     settles a selection, and the run a failure left behind),
+                     range.ts (the window, its dates, and the start it
+                     remembers), worklist.ts (which rows show,
                      their order, the row tint, and the badge words both
                      surfaces share), saved-classes.ts,
                      use-saved-classes.ts (the cards and their three actions,
@@ -156,7 +173,7 @@ shared/api.ts        the server/client contract; both sides import it
 vite.config.ts       build, lint and fmt config; both blocks come from the
                      Ultracite preset, 15 rules off, markdown excluded
 playwright.config.ts test runner config
-test/seam.spec.ts    portal-replies over fixture markup
+test/seam.spec.ts    the reply parsers over fixture markup
 test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
 test/bands.spec.ts   where the attendance lines sit
 test/routes.*.spec.ts  split by topic: the options ladder, the register handler,
@@ -690,7 +707,7 @@ carries one also has its name in text.
   forever. This shipped: the semester's batch number stopped being sent and the
   section list came back from the wrong batch, with nothing on screen to show it.
   It is now impossible by construction: `runCascade(setup, fetchOptions)` in
-  `cascade.ts` takes the selection and the known options **as arguments**, and
+  `cascade-run.ts` takes the selection and the known options **as arguments**, and
   returns the settled ones, so a run cannot see a stale render. Do not reintroduce
   a ref that shadows state; pass the value. `test/smoke.spec.ts` still watches the
   wire for the batch number.
@@ -741,7 +758,7 @@ carries one also has its name in text.
 Five dependent levels: course → semester → branch → section → subject. It was
 wrong three separate times before it was right, and every failure was structural
 rather than cosmetic, so the rules are load-bearing. **The loop lives in
-`web/register/cascade.ts`, the worklist in `web/register/worklist.ts`** —
+`web/register/cascade-run.ts`, the worklist in `web/register/worklist.ts`** —
 `runCascade` asks for
 options until a pass gains nothing and no level below a chosen one is still
 empty, and `App.tsx` only decides *when* to run it. A dropdown that will not
@@ -813,8 +830,10 @@ fill is a rule bug, two requests racing is a loop bug.
   restored session opens Home, and an unknown deep link lands there too) —
   `nextRoute` returns null before boot, so it never competes. `web/app/paths.ts`
   holds the five strings with no JSX, so the guard and the test harness can
-  import them — `NavTabs.tsx` re-exports them, and the tabs remain the only
-  other place they appear.
+  import them, and it also holds `SCREENS` — the four screens in tab order —
+  with `isScreen`. `NavTabs.tsx` builds its tabs from `SCREENS` through a
+  `Record<Screen, …>` of labels and icons, so a fifth path is a compile error
+  until it is named, and the guard cannot keep a path the tabs do not show.
 - **A typed To no longer blocks the From snap.** `useSemStartSettle` takes the
   `"" | "from" | "to"` union, not a boolean: only `"from"` suppresses the
   settle-time snaps, so a probe that lands after a typed To still settles

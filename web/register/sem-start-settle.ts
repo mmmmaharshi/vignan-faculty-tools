@@ -15,11 +15,10 @@ import {
   probeSubject,
   selKeyOf,
   semesterTitleOf,
-  toInputDate,
-  toPortalDate,
-  rememberRangeStart,
 } from "./cascade";
-import type { Range, Sel } from "./cascade";
+import type { Sel } from "./cascade";
+import { rememberRangeStart, toInputDate, toPortalDate } from "./range";
+import type { Range } from "./range";
 import {
   noteSemStart,
   readSemStarts,
@@ -96,13 +95,17 @@ export function useSemStartSettle(setup: {
   const preProbeSubject = settled.ok
     ? probeSubject(opts.subject, settled.levels.subject)
     : null;
-  const preKey =
-    settled.ok && preProbeSubject
-      ? semStartKey(
-          { ...sel, subject: preProbeSubject.value },
-          semesterTitleOf(opts, sel.semester)
-        )
+  /** One construction for a class's start-memory key: the five levels, with
+   *  the subject the probe actually reads in place of the section-wide one,
+   *  plus the Portal's batch title. Every reader and writer of the memory goes
+   *  through it, so a probe and the fold that stores its answer cannot name two
+   *  different classes. */
+  const startKeyFor = (subject: string | undefined): string | null =>
+    subject
+      ? semStartKey({ ...sel, subject }, semesterTitleOf(opts, sel.semester))
       : null;
+  const preKey =
+    settled.ok && preProbeSubject ? startKeyFor(preProbeSubject.value) : null;
   const preProbe: SemStartRequest | null =
     settled.ok &&
     preProbeSubject &&
@@ -128,17 +131,9 @@ export function useSemStartSettle(setup: {
    *  settling onto a known class snaps From with no ECAP call at all. */
   const rememberedStart = preKey ? (semStarts[preKey] ?? null) : null;
   const semKey =
-    result &&
-    sel.course &&
-    sel.semester &&
-    sel.branch &&
-    sel.section &&
-    (overallMode ? semProbeSubject?.value : sel.subject)
-      ? semStartKey(
-          overallMode && semProbeSubject
-            ? { ...sel, subject: semProbeSubject.value }
-            : sel,
-          semesterTitleOf(opts, sel.semester)
+    result && sel.course && sel.semester && sel.branch && sel.section
+      ? startKeyFor(
+          overallMode ? semProbeSubject?.value : sel.subject || undefined
         )
       : null;
   const semSeen =

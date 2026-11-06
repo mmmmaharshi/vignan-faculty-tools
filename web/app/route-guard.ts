@@ -1,10 +1,4 @@
-import {
-  DASHBOARD_PATH,
-  HOME_PATH,
-  LOGIN_PATH,
-  PROFILE_PATH,
-  SEARCH_PATH,
-} from "./paths";
+import { HOME_PATH, isScreen, LOGIN_PATH } from "./paths";
 
 /**
  * The steady-state redirect, as a pure decision: every redirect once the
@@ -21,8 +15,7 @@ export function nextRoute(
   const onLogin = pathname === LOGIN_PATH;
   if (!session.signedIn) return onLogin ? null : LOGIN_PATH;
   if (onLogin) return HOME_PATH;
-  if (pathname === "/" || pathname === HOME_PATH || pathname === DASHBOARD_PATH)
-    return null;
-  if (pathname === PROFILE_PATH || pathname === SEARCH_PATH) return null;
+  // "/" is a second way in rather than a fifth screen, so it lands on Home too.
+  if (pathname === "/" || isScreen(pathname)) return null;
   return HOME_PATH;
 }

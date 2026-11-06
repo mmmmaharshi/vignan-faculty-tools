@@ -56,3 +56,20 @@ export function writeStored(key: string, value: unknown): void {
     /* a refused write must not break the screen */
   }
 }
+/** One localStorage string, kept as the bare string it was written as: the
+ *  range start predates the JSON memories and a stored format is not worth
+ *  migrating for a convenience. The failure rules are the ones above. */
+export function readStoredString(key: string): string {
+  try {
+    return localStorage.getItem(key) ?? "";
+  } catch {
+    return "";
+  }
+}
+export function writeStoredString(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* a refused write must not break the screen */
+  }
+}

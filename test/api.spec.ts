@@ -2,9 +2,9 @@ import { expect, test } from "@playwright/test";
 
 import { createApi } from "../server/api";
 import type { PortalPort } from "../server/api";
+import { HttpError } from "../server/http-error";
 import { CookieJar } from "../server/portal-conventions";
-import { HttpError } from "../server/portal-replies";
-import type { PortalReader } from "../server/server-routes";
+import type { PortalReader } from "../server/portal-reader";
 import type {
   ClientSession,
   OptionsReply,

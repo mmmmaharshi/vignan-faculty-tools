@@ -1,6 +1,6 @@
 /**
- * How ECAP's shouting reads on screen: one module for the words both panels
- * shape, so the timetable and the unposted list never drift apart.
+ * How ECAP's shouting reads on screen, so the timetable's cells and pills never
+ * drift apart.
  */
 /** "(CSE (AI))" rides the pill as "CSE(AI)": outer parens off, spaces out. */
 const compactBranch = (branch: string): string =>
@@ -38,9 +38,6 @@ export const pillsOf = (section: string): string[] =>
       return [words];
     })
     .filter(Boolean);
-/** "III Semester" + "A" reads "III-A": the pending list's section cell. */
-export const sectionShort = (semester: string, section: string): string =>
-  `${semester.replace(/\s*Semester\s*/i, "").trim()}-${section.trim()}`;
 /** "FLUTER LAB" reads "Fluter Lab": ECAP shouts its subject names, and the
  *  Class column should not. Words of two letters or fewer stay as written, so
  *  an acronym like "AI" does not come out "Ai". */

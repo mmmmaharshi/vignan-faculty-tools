@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-import { HttpError } from "../server/portal-replies";
+import { HttpError } from "../server/http-error";
+import type { PortalReader } from "../server/portal-reader";
 import { handleSemStart } from "../server/server-routes";
-import type { PortalReader } from "../server/server-routes";
 import { fake, levels, walkDated, walked } from "./support/routes-fake";
 
 test.describe("the semester start probe", () => {

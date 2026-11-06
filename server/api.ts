@@ -15,7 +15,8 @@ import type {
   SemStartRequest,
   StudentRequest,
 } from "../shared/api.js";
-import { SESSION_HEADER } from "../shared/api.js";
+import { messageOf, SESSION_HEADER } from "../shared/api.js";
+import { HttpError, sessionExpired } from "./http-error.js";
 import {
   calendarPairs,
   classPairs,
@@ -26,15 +27,12 @@ import {
   subjectReportPairs,
 } from "./portal-conventions.js";
 import type { DayWorkRequest } from "./portal-conventions.js";
+import { parseFacultyName, parseLeaveStatus } from "./portal-faculty.js";
+import { hiddenValue } from "./portal-html.js";
 import { courseVerdict } from "./portal-liveness.js";
 import type { CourseReader } from "./portal-liveness.js";
-import {
-  hiddenValue,
-  HttpError,
-  options,
-  parseFacultyName,
-  parseLeaveStatus,
-} from "./portal-replies.js";
+import { options } from "./portal-options.js";
+import type { PortalReader } from "./portal-reader.js";
 import {
   BASE,
   CLASS_REMOTE,
@@ -66,16 +64,12 @@ import {
   handleTodayClasses,
   handleUnposted,
 } from "./server-routes.js";
-import type { PortalReader } from "./server-routes.js";
 import { sessionVerdict } from "./session-verdict.js";
 
 type Level = CascadeLevel;
 /** Thirty days of *not using it*, after ADR 0013. The browser carries `at`
  *  and the server slides it on every answer. */
-export const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-function messageOf(e: unknown): string {
-  return e instanceof Error ? e.message : String(e);
-}
+const SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 class Portal {
   readonly jar = new CookieJar();
   get signedIn(): boolean {
@@ -342,6 +336,46 @@ async function readJson<T>(req: Request): Promise<Partial<T>> {
   }
 }
 /**
+ * Every signed-in read the API answers: the path, and how to turn a request into
+ * the work to do once a portal is in hand. One table, so a new endpoint is one
+ * row here rather than a sixth copy of parse-then-answer, and the `withRevival`
+ * and session-header rules cannot be forgotten on it.
+ *
+ * The body is read here, once, before any revival: a `Request` body can only be
+ * read once, and `withRevival` runs the work again on a fresh portal.
+ */
+type Work = (portal: PortalReader) => Promise<unknown>;
+type Read = (req: Request) => Work | Promise<Work>;
+const READS: Record<string, Read> = {
+  "/api/options": async (req) => {
+    const body = await readJson<OptionsRequest>(req);
+    return (p) => handleOptions(p, body);
+  },
+  "/api/register": async (req) => {
+    const body = await readJson<RegisterRequest>(req);
+    return (p) => handleRegister(p, body);
+  },
+  "/api/sem-start": async (req) => {
+    const body = await readJson<SemStartRequest>(req);
+    return (p) => handleSemStart(p, body);
+  },
+  "/api/student": async (req) => {
+    const body = await readJson<StudentRequest>(req);
+    return (p) => handleStudentProfile(p, body);
+  },
+  "/api/find": async (req) => {
+    const body = await readJson<FindRequest>(req);
+    return (p) => handleFind(p, body);
+  },
+  "/api/sem-absences": async (req) => {
+    const body = await readJson<SemAbsencesRequest>(req);
+    return (p) => handleSemAbsences(p, body);
+  },
+  "/api/faculty-profile": () => (p) => handleFacultyProfile(p),
+  "/api/today": () => (p) => handleTodayClasses(p),
+  "/api/unposted": () => (p) => handleUnposted(p),
+};
+/**
  * Everything a signed-in call needs from ECAP: the jar the request's session
  * is rebuilt into, the liveness question, and the reader the route handlers
  * cross.
@@ -359,7 +393,7 @@ type Session = {
   password: string;
   portal: PortalPort;
 };
-export type ApiOptions = {
+type ApiOptions = {
   /** How to reach ECAP. `Portal` is the real one; a test passes a fake. */
   connect?: () => PortalPort;
 };
@@ -434,8 +468,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
   }
   function requireSession(req: Request): Session {
     const s = readSession(req);
-    if (!s || !s.portal.signedIn)
-      throw new HttpError(401, "Your session expired. Please sign in again.");
+    if (!s || !s.portal.signedIn) throw sessionExpired();
     return s;
   }
   /**
@@ -444,11 +477,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
    * works.
    */
   async function reauthenticate(s: Session): Promise<void> {
-    if (!s.password)
-      throw new HttpError(
-        401,
-        "Your ECAP session expired. Please sign in again."
-      );
+    if (!s.password) throw sessionExpired();
     const portal = connect();
     try {
       await portal.signIn(s.userId, s.password);
@@ -532,71 +561,11 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         );
       }
       const s = await requireSession(req);
-      if (req.method === "POST" && path === "/api/options") {
-        const body = await readJson<OptionsRequest>(req);
+      const read = req.method === "POST" ? READS[path] : undefined;
+      if (read) {
+        const work = await read(req);
         return json(
-          await withRevival(s, (p) => handleOptions(p.reader, body)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/register") {
-        const body = await readJson<RegisterRequest>(req);
-        return json(
-          await withRevival(s, (p) => handleRegister(p.reader, body)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/sem-start") {
-        const body = await readJson<SemStartRequest>(req);
-        return json(
-          await withRevival(s, (p) => handleSemStart(p.reader, body)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/student") {
-        const body = await readJson<StudentRequest>(req);
-        return json(
-          await withRevival(s, (p) => handleStudentProfile(p.reader, body)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/find") {
-        const body = await readJson<FindRequest>(req);
-        return json(
-          await withRevival(s, (p) => handleFind(p.reader, body)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/faculty-profile") {
-        return json(
-          await withRevival(s, (p) => handleFacultyProfile(p.reader)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/today") {
-        return json(
-          await withRevival(s, (p) => handleTodayClasses(p.reader)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/unposted") {
-        return json(
-          await withRevival(s, (p) => handleUnposted(p.reader)),
-          200,
-          sessionHeader(s)
-        );
-      }
-      if (req.method === "POST" && path === "/api/sem-absences") {
-        const body = await readJson<SemAbsencesRequest>(req);
-        return json(
-          await withRevival(s, (p) => handleSemAbsences(p.reader, body)),
+          await withRevival(s, (p) => work(p.reader)),
           200,
           sessionHeader(s)
         );

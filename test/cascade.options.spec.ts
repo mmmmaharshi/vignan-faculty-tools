@@ -3,13 +3,9 @@ import { expect, test } from "@playwright/test";
 import { ALL_SUBJECTS } from "../shared/api";
 import type { OptionsRequest } from "../shared/api";
 import { ApiError } from "../web/data/client";
-import {
-  partialOf,
-  runCascade,
-  selectionAfter,
-  subjectNameKey,
-} from "../web/register/cascade";
+import { selectionAfter, subjectNameKey } from "../web/register/cascade";
 import type { Sel } from "../web/register/cascade";
+import { partialOf, runCascade } from "../web/register/cascade-run";
 import {
   courseOnlyReply,
   fullReply,

@@ -20,14 +20,9 @@ import type { Arbitrary } from "fast-check";
 import { ALL_SUBJECTS } from "../shared/api";
 import type { Option, OptionsReply } from "../shared/api";
 import { ApiError } from "../web/data/client";
-import {
-  applyOptions,
-  partialOf,
-  runCascade,
-  EMPTY_OPTS,
-  LEVEL_KEYS,
-} from "../web/register/cascade";
+import { applyOptions, EMPTY_OPTS, LEVEL_KEYS } from "../web/register/cascade";
 import type { Sel } from "../web/register/cascade";
+import { partialOf, runCascade } from "../web/register/cascade-run";
 import {
   barCounts,
   cycleSubjectBar,

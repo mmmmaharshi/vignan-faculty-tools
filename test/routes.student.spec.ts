@@ -1,12 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { HttpError } from "../server/portal-replies";
+import { HttpError } from "../server/http-error";
+import type { PortalReader } from "../server/portal-reader";
 import {
   handleFind,
   handleSemAbsences,
   handleStudentProfile,
 } from "../server/server-routes";
-import type { PortalReader } from "../server/server-routes";
 import { ALL_SUBJECTS, todayIST } from "../shared/api";
 import {
   CLASS_PAGE,

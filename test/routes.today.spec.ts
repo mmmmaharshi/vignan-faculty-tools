@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
-import { HttpError } from "../server/portal-replies";
+import { HttpError } from "../server/http-error";
+import type { PortalReader } from "../server/portal-reader";
 import {
   handleRegister,
   handleStudentProfile,
   handleTodayClasses,
   handleUnposted,
 } from "../server/server-routes";
-import type { PortalReader } from "../server/server-routes";
 import { ALL_SUBJECTS } from "../shared/api";
 import type { RegisterReply, StudentProfile } from "../shared/api";
 import {
@@ -99,7 +99,7 @@ test.describe("the unposted handler", () => {
       (error: unknown) => error
     );
     expect((failure as HttpError).status).toBe(502);
-    await expect(handleUnposted(reader)).rejects.toThrow(/no courses/);
+    await expect(handleUnposted(reader)).rejects.toThrow(/course list/);
   });
   test("outside B.Tech the first offered course is read instead", async () => {
     const { reader, calls } = fake({
