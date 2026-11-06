@@ -98,6 +98,8 @@ export const state = {
   /** How often the All subjects view probed one subject's earliest held day —
    *  sent only on that path, where the report on screen states no dates. */
   semStartCalls: 0,
+  /** How often Student Search asked about a roll number. */
+  findCalls: 0,
   /** How often a settled picker without a remembered start walked back for one:
    *  the settle-time probe, kept apart so the per-load probe keeps its count. */
   walkCalls: 0,
@@ -134,6 +136,7 @@ export const resetStub = (): void => {
   state.statedFrom = "";
   state.semAbsencesCalls = 0;
   state.semStartCalls = 0;
+  state.findCalls = 0;
   state.walkCalls = 0;
   state.semStartWalkFrom = null as string | null;
   state.todayCalls = 0;
@@ -402,6 +405,7 @@ export const stub = async (route: Route): Promise<void> => {
     return;
   }
   if (path === "/api/find") {
+    state.findCalls += 1;
     const { roll } = request.postDataJSON() as FindRequest;
     const reply = registerReply(null, true);
     const student = reply.students.find((row) => row.roll === roll) ?? null;

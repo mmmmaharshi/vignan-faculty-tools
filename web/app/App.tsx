@@ -387,6 +387,12 @@ const App = (): React.JSX.Element => {
       // The session is the browser's to drop: the server keeps nothing.
       clearStoredSession();
       setClick(null);
+      // A find ask left armed outlives the session: its key carries the epoch,
+      // so signing out changes the key and the ask is re-sent for a session that
+      // no longer exists. The roll is also the previous user's, so it leaves with
+      // them rather than opening the next person's Search screen on it.
+      setSearchClick(null);
+      setSearchRoll("");
       setUserId("");
       setPassword("");
       setView("signedOut");

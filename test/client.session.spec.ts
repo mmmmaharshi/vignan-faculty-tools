@@ -134,6 +134,35 @@ test.describe("the app's own data layer", () => {
     });
   });
 
+  test("a search ask does not outlive the session that made it", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Student Search" }).click();
+    await page.getByLabel("Roll number").fill("21CS001");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect.poll(() => state.findCalls, { timeout: 15_000 }).toBe(1);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+    // An armed find carries the epoch in its key, so signing out changes the
+    // key: a find left armed refetches with no session, 401s, signs out again,
+    // and the next key asks once more. The count is what shows the loop.
+    const after = state.findCalls;
+    await page.waitForTimeout(1500);
+    expect(
+      state.findCalls,
+      "a search the previous session made is never asked again"
+    ).toBe(after);
+    await signIn(page);
+    await page.getByRole("button", { name: "Student Search" }).click();
+    await expect(
+      page.getByLabel("Roll number"),
+      "nor is its roll handed to the next one"
+    ).toHaveValue("");
+  });
+
   test("the session is kept locally, and sign-out drops it", async ({
     page,
   }) => {
