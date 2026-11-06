@@ -205,6 +205,12 @@
       "skillPath": "skills/engineering/triage/SKILL.md",
       "computedHash": "453a7a098edcbec2a6ef67f8aa6720433672ebdf93023c90cefa79f160c72599"
     },
+    "untangle-codebase": {
+      "source": "caldoai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/untangle-codebase/SKILL.md",
+      "computedHash": "72ed3e75cb6b771b69b084772322d9c715fe843c28733f54091f0c3000fe5052"
+    },
     "vercel-cost-tuning": {
       "source": "jeremylongshore/claude-code-plugins-plus",
       "sourceType": "github",
