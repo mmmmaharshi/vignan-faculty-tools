@@ -485,6 +485,26 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
   });
 
+  test("a loaded register survives a trip to another tab", async ({ page }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })
+      .toBe("/home");
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })
+      .toBe("/dashboard");
+    await expect(
+      page.locator("thead ~ tbody tr"),
+      "the register is still on screen after the trip"
+    ).toHaveCount(3);
+  });
+
   test("a fully chosen section is remembered when Load register is clicked", async ({
     page,
   }) => {

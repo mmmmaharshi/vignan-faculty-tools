@@ -291,9 +291,15 @@ test.describe("Vignan Faculty Tools", () => {
     ).toBeVisible({
       timeout: 30_000,
     });
+    // A reload restores what the page was showing: the class the form named and
+    // the rows it read, with no Portal call to read them again (ADR 0031).
     await expect
       .poll(() => selectState(page, "Subject"), { timeout: 90_000 })
-      .toMatchObject({ value: "ALL SUBJECTS" });
+      .toMatchObject({ value: subject });
+    await expect(
+      page.getByRole("row", { name: `Subject ${subject}` }),
+      "the register is still the one that was loaded"
+    ).toBeVisible();
     expect(
       new URL(page.url()).pathname,
       "reload should stay on the dashboard"
@@ -440,7 +446,7 @@ test.describe("Vignan Faculty Tools", () => {
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     await page.goto("/dashboard");
     await submitSignIn(page);
-    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await openDashboard(page);
     const subjectOptions = await openSelect(page, "Subject");
     const firstOption = await subjectOptions.nth(1).innerText();
     const subject = firstOption.trim();

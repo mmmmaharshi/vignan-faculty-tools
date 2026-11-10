@@ -11,7 +11,13 @@ import {
   Title,
 } from "@mantine/core";
 import { ArrowClockwise, FloppyDisk, SignOut } from "@phosphor-icons/react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 
@@ -20,6 +26,7 @@ import { messageOf, todayIST } from "../../shared/api";
 import {
   clearStoredSession,
   forgetServerData,
+  keepRegister,
   revalidateServerData,
   isExpired,
   reloadSession,
@@ -57,6 +64,11 @@ import {
   toInputDate,
 } from "../register/range";
 import type { Range } from "../register/range";
+import {
+  readRegisterMemory,
+  writeRegisterMemory,
+  forgetRegisterMemory,
+} from "../register/register-memory";
 import { savedClasses } from "../register/saved-classes";
 import type { SavedClass } from "../register/saved-classes";
 import { searchScope } from "../register/search-scope";
@@ -130,16 +142,33 @@ const App = (): React.JSX.Element => {
   /** The warning the form is owed for what the user has not chosen yet. A request
    *  that failed says so on its own, from the hook that failed. */
   const [formNote, setFormNote] = useState<Note | null>(null);
-  const [sel, setSel] = useState<Sel>(EMPTY_SEL);
+  /** What the dashboard was showing when the page last read a register, read
+   *  once. A reload has a fresh JavaScript context, so the only way the screen can
+   *  look as it did is for the browser to have kept it: the reply, the class, the
+   *  window and the ticked bars all come back, and nothing is asked of the Portal
+   *  to restore them (ADR 0031). */
+  const restored = useMemo(() => readRegisterMemory(), []);
+  const [sel, setSel] = useState<Sel>(() => restored?.sel ?? EMPTY_SEL);
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
-  const [range, setRange] = useState<Range>(startingRange);
+  const [range, setRange] = useState<Range>(
+    () => restored?.range ?? startingRange()
+  );
   /** The click on `Load register` that the table is showing, or null when nobody
    *  has asked for one. The click number is what makes a second click a load. */
-  const [click, setClick] = useState<RegisterClick | null>(null);
+  const [click, setClick] = useState<RegisterClick | null>(() => {
+    if (!restored) return null;
+    // Handed to SWR under the key this click answers to, before the hook below
+    // asks for it, so the table appears from what the browser kept rather than
+    // from a download of the same rows.
+    void keepRegister(restored.click, restored.register);
+    return restored.click;
+  });
   /** Which worklist filters are ticked. Ticked bars intersect, so the table
    *  shows the students under every bar set. Held here for the same reason as
    *  the cascade's own state: the table is presentational and keeps none. */
-  const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
+  const [filter, setFilter] = useState<RowFilter>(
+    () => restored?.filter ?? NO_FILTER
+  );
   /** A header refresh in flight. Held here, not in the header, because the
    *  header is presentational and keeps none. */
   const [refreshing, setRefreshing] = useState(false);
@@ -172,6 +201,14 @@ const App = (): React.JSX.Element => {
   const [rangeEdited, setRangeEdited] = useState<"" | "from" | "to">("");
   /** Every fetch the app makes, through its own key. See `web/data/client.ts`. */
   const register = useRegisterLoad(click);
+  /** Keep the view the browser may have to rebuild: written whenever the
+   *  register on screen, the class or the window changes, and only then — a
+   *  memory written from a blank screen would erase the thing it exists to
+   *  protect. Cleared on sign-out, because it holds the Portal's rows. */
+  useEffect(() => {
+    if (!click || !register.data) return;
+    writeRegisterMemory({ sel, range, filter, click, register: register.data });
+  }, [click, register.data, sel, range, filter]);
   /* The two callbacks are stable and the state is not, so they are taken apart:
      a callback in a dependency list that changes every render would re-run every
      effect that names it. */
@@ -364,6 +401,8 @@ const App = (): React.JSX.Element => {
       // so a 401 left there would sit in the next session's class picker.
       resetCascade();
       void forgetServerData();
+      // The dashboard memory holds the Portal's rows, so it goes with the rest.
+      forgetRegisterMemory();
       // The session is the browser's to drop: the server keeps nothing.
       clearStoredSession();
       setClick(null);
@@ -616,7 +655,7 @@ const App = (): React.JSX.Element => {
     if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }
-    if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
+    if (!onLogin) void runRefresh(restored?.sel ?? EMPTY_SEL, EMPTY_OPTS);
   }, [
     booted,
     session.isLoading,
@@ -628,6 +667,7 @@ const App = (): React.JSX.Element => {
     runRefresh,
     noteUserId,
     setLoginNote,
+    restored,
   ]);
   /** A 401 is ECAP refusing the session, from whichever request met it: the app
    *  signs out through the one path, so nothing goes on showing the numbers of a
