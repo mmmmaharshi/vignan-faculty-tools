@@ -1,4 +1,4 @@
-import { statedStartDate } from "../../shared/api";
+import { statedStartDate } from "../../shared/portal-values";
 import { readStoredString, writeStoredString } from "./string-map-store";
 
 export type Range = { from: string; to: string };
@@ -14,6 +14,10 @@ export function toInputDate(portal: string): string {
   const [d, m, y] = portal.split("/");
   if (!d || !m || !y) return "";
   return `${y}-${m}-${d}`;
+}
+/** The window a register request asked for, in the shape the date inputs hold. */
+export function rangeOfRequest(request: { from: string; to: string }): Range {
+  return { from: toInputDate(request.from), to: toInputDate(request.to) };
 }
 /**
  * The register's own first day as an input date, or null where it states none

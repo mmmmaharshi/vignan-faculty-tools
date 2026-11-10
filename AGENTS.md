@@ -148,11 +148,12 @@ web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      range.ts (the window, its dates, and the start it
                      remembers), worklist.ts (which rows show,
                      their order, the row tint, and the badge words both
-                     surfaces share), saved-classes.ts,
-                     use-saved-classes.ts (the cards and their three actions,
+                     surfaces share), saved-sections.ts,
+                     use-saved-sections.ts (the cards and their three actions,
                      out of App so it stays under the god-file line),
                      absence-list.ts (the panel's one absent list),
                      register-memory.ts (the dashboard view a reload puts back),
+                     dashboard-view.ts (the view itself, and its one restore),
                      search-scope.ts (the class a searched figure belongs to),
                      sem-start-settle.ts, sem-starts.ts, string-map-store.ts
 web/home/            the timetable's memory: today-memory.ts, period-times.ts
@@ -171,6 +172,9 @@ scripts/portal-probe.ts  one Portal call, measured: prints the signed-in proxy's
 scripts/typecheck-staged.ts  the commit hook's typecheck, swallowing the filenames
                      lint-staged appends
 shared/api.ts        the server/client contract; both sides import it
+shared/portal-values.ts  the rules both runtimes apply to a Portal value, and the
+                     campus clock: the bands, the stated percentage, the register's
+                     stated start, the attended-of-held cell, the roll comparison
 vite.config.ts       build, lint and fmt config; both blocks come from the
                      Ultracite preset, 15 rules off, markdown excluded
 playwright.config.ts test runner config

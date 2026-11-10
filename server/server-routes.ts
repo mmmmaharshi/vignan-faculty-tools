@@ -1,10 +1,4 @@
-import {
-  ALL_SUBJECTS,
-  isAllSubjects,
-  sameRoll,
-  statedStartDate,
-  todayIST,
-} from "../shared/api.js";
+import { ALL_SUBJECTS, isAllSubjects } from "../shared/api.js";
 import type {
   FacultyProfile,
   FindReply,
@@ -25,6 +19,11 @@ import type {
   TodayClassesReply,
   UnpostedReply,
 } from "../shared/api.js";
+import {
+  sameRoll,
+  statedStartDate,
+  todayIST,
+} from "../shared/portal-values.js";
 import type { OverallLookup } from "./attendance-bands.js";
 import { summarise } from "./attendance-bands.js";
 import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";

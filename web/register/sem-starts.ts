@@ -1,19 +1,17 @@
-import { classKey } from "./saved-classes";
+import { selKeyOf } from "./cascade";
+import type { Sel } from "./cascade";
 import { readStringMap, writeStringMap } from "./string-map-store";
 
-/** The earliest held days seen, per class: class key to dd/mm/yyyy. Portal data,
- *  not personal data, so — unlike saved sections — it is not scoped by user id
- *  and it survives sign-out with the next user. */
+/** The earliest held days seen, per selection: its key to dd/mm/yyyy. Portal
+ *  data, not personal data, so — unlike saved sections — it is not scoped by
+ *  user id and it survives sign-out with the next user. */
 export type SemStarts = Record<string, string>;
 const STARTS_KEY = "sem-starts";
-/** A class plus its batch: the semester value alone can repeat next year, but
+/** A selection plus its batch: the semester value alone can repeat next year, but
  *  the Portal's own batch title ("2025") does not, so a new year starts a new
  *  memory instead of inheriting last year's start. */
-export function semStartKey(
-  values: Record<string, string>,
-  semesterTitle: string
-): string {
-  return `${classKey(values)} ${semesterTitle}`.trim();
+export function semStartKey(values: Sel, semesterTitle: string): string {
+  return `${selKeyOf(values)} ${semesterTitle}`.trim();
 }
 const code = (date: string): number => {
   const [d, m, y] = date.split("/").map(Number);

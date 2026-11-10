@@ -5,11 +5,11 @@ import { selectionAfter } from "./cascade";
 import type { Sel } from "./cascade";
 import {
   abbreviate,
-  forgetClass,
-  rememberClass,
-  savedClasses,
-} from "./saved-classes";
-import type { SavedClass, SavedClassCard } from "./saved-classes";
+  forgetSection,
+  rememberSection,
+  savedSections,
+} from "./saved-sections";
+import type { SavedSection, SavedSectionCard } from "./saved-sections";
 
 /**
  * The saved sections: whether the selection on screen is one worth saving, the
@@ -21,20 +21,20 @@ import type { SavedClass, SavedClassCard } from "./saved-classes";
  * ambiguous request must not save a card, and Load register stays a decision),
  * which is why the effect watches the reply rather than the selection.
  */
-export function useSavedClasses(setup: {
+export function useSavedSections(setup: {
   userId: string;
   sel: Sel;
   opts: OptionsReply;
-  savedList: SavedClass[] | null;
+  savedList: SavedSection[] | null;
   registerData: RegisterReply | null;
-  setSaved: (value: { userId: string; list: SavedClass[] } | null) => void;
+  setSaved: (value: { userId: string; list: SavedSection[] } | null) => void;
   setSel: (target: Sel) => void;
   runRefresh: (seed: Sel, known: OptionsReply) => Promise<void>;
 }): {
   /** The four levels that name a section, all chosen. The subject is not one of
    *  them: a card reopens the section and lands on the section-wide register. */
-  classChosen: boolean;
-  cards: SavedClassCard[];
+  sectionChosen: boolean;
+  cards: SavedSectionCard[];
   save: () => void;
   apply: (target: Sel) => void;
   clear: (target: Sel) => void;
@@ -49,33 +49,33 @@ export function useSavedClasses(setup: {
     setSel,
     runRefresh,
   } = setup;
-  const classChosen =
+  const sectionChosen =
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
     Boolean(sel.branch) &&
     Boolean(sel.section);
   const remember = useCallback(() => {
-    if (!userId || !classChosen) return;
-    rememberClass(
+    if (!userId || !sectionChosen) return;
+    rememberSection(
       userId,
       sel,
       opts.section.find((o) => String(o.value) === sel.section)?.label ?? ""
     );
-    setSaved({ userId, list: savedClasses(userId) });
-  }, [userId, classChosen, sel, opts, setSaved]);
-  /** Persist the section only once its register has actually loaded. rememberClass
+    setSaved({ userId, list: savedSections(userId) });
+  }, [userId, sectionChosen, sel, opts, setSaved]);
+  /** Persist the section only once its register has actually loaded. rememberSection
    *  dedupes, so re-loading the same section just moves it to the front. */
   const lastSavedRegister = useRef<RegisterReply | null>(null);
   useEffect(() => {
-    if (!userId || !classChosen || !registerData) return;
+    if (!userId || !sectionChosen || !registerData) return;
     if (registerData === lastSavedRegister.current) return;
     lastSavedRegister.current = registerData;
     remember();
-  }, [userId, classChosen, registerData, remember]);
+  }, [userId, sectionChosen, registerData, remember]);
   const clear = useCallback(
     (target: Sel) => {
-      forgetClass(userId, target);
-      setSaved({ userId, list: savedClasses(userId) });
+      forgetSection(userId, target);
+      setSaved({ userId, list: savedSections(userId) });
     },
     [userId, setSaved]
   );
@@ -107,5 +107,5 @@ export function useSavedClasses(setup: {
           .join(" · "),
       };
     }) ?? [];
-  return { classChosen, cards, save: remember, apply, clear };
+  return { sectionChosen, cards, save: remember, apply, clear };
 }

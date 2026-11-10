@@ -11,27 +11,19 @@ import {
   Title,
 } from "@mantine/core";
 import { ArrowClockwise, FloppyDisk, SignOut } from "@phosphor-icons/react";
-import React, {
-  useCallback,
-  useEffect,
-  useMemo,
-  useRef,
-  useState,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import type { OptionsReply, RegisterRequest, Student } from "../../shared/api";
-import { messageOf, todayIST } from "../../shared/api";
+import { messageOf, todayIST } from "../../shared/portal-values";
 import {
   clearStoredSession,
   forgetServerData,
-  keepRegister,
   revalidateServerData,
   isExpired,
   reloadSession,
   useOptionsChain,
-  useRegisterLoad,
   useSession,
   useSignIn,
   useSignOut,
@@ -41,7 +33,7 @@ import {
   useSemAbsences,
   useUnposted,
 } from "../data/client";
-import type { RegisterClick, FindClick, ApiError } from "../data/client";
+import type { FindClick, ApiError } from "../data/client";
 import { useTodayTable } from "../home/today-memory";
 import { fullAbsenceList, windowAbsenceList } from "../register/absence-list";
 import {
@@ -50,13 +42,13 @@ import {
   chosenFacts,
   disabledLevels,
   selectionAfter,
-  selOfRequest,
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVELS,
 } from "../register/cascade";
 import type { Level, Sel } from "../register/cascade";
 import { partialOf } from "../register/cascade-run";
+import { useDashboardView } from "../register/dashboard-view";
 import {
   rememberRangeStart,
   startingRange,
@@ -64,24 +56,18 @@ import {
   toPortalDate,
   toInputDate,
 } from "../register/range";
-import type { Range } from "../register/range";
-import {
-  readRegisterMemory,
-  writeRegisterMemory,
-  forgetRegisterMemory,
-} from "../register/register-memory";
-import { savedClasses } from "../register/saved-classes";
-import type { SavedClass } from "../register/saved-classes";
+import { forgetRegisterMemory } from "../register/register-memory";
+import { savedSections } from "../register/saved-sections";
+import type { SavedSection } from "../register/saved-sections";
 import { searchScope } from "../register/search-scope";
 import { useSemStartSettle } from "../register/sem-start-settle";
-import { useSavedClasses } from "../register/use-saved-classes";
+import { useSavedSections } from "../register/use-saved-sections";
 import {
   NO_FILTER,
   barCounts,
   pruneSubjectBars,
   registerRows,
 } from "../register/worklist";
-import type { RowFilter } from "../register/worklist";
 import { ClassPicker } from "../ui/ClassPicker";
 import { HomePanel } from "../ui/HomePanel";
 import {
@@ -97,7 +83,7 @@ import {
 import { ProfilePanel } from "../ui/ProfilePanel";
 import { RegisterSummary } from "../ui/RegisterSummary";
 import { RegisterTable } from "../ui/RegisterTable";
-import { SavedClasses } from "../ui/SavedClasses";
+import { SavedSections } from "../ui/SavedSections";
 import { SignInPanel } from "../ui/SignInPanel";
 import { StudentDetails } from "../ui/StudentDetails";
 import { UnpostedPanel } from "../ui/UnpostedPanel";
@@ -143,33 +129,24 @@ const App = (): React.JSX.Element => {
   /** The warning the form is owed for what the user has not chosen yet. A request
    *  that failed says so on its own, from the hook that failed. */
   const [formNote, setFormNote] = useState<Note | null>(null);
-  /** What the dashboard was showing when the page last read a register, read
-   *  once. A reload has a fresh JavaScript context, so the only way the screen can
-   *  look as it did is for the browser to have kept it: the reply, the class, the
-   *  window and the ticked bars all come back, and nothing is asked of the Portal
-   *  to restore them (ADR 0031). */
-  const restored = useMemo(() => readRegisterMemory(), []);
-  const [sel, setSel] = useState<Sel>(() => restored?.sel ?? EMPTY_SEL);
+  /** The dashboard's view of itself — the class, the window, the ticked bars and
+   *  the click whose reply the table shows — and the one thing that spans a
+   *  reload, which is all of them. See `dashboard-view.ts` (ADR 0031). */
+  const {
+    initialSel,
+    sel,
+    setSel,
+    range,
+    setRange,
+    filter,
+    setFilter,
+    rangeEdited,
+    setRangeEdited,
+    click,
+    setClick,
+    register,
+  } = useDashboardView();
   const [opts, setOpts] = useState<OptionsReply>(EMPTY_OPTS);
-  const [range, setRange] = useState<Range>(
-    () => restored?.range ?? startingRange()
-  );
-  /** The click on `Load register` that the table is showing, or null when nobody
-   *  has asked for one. The click number is what makes a second click a load. */
-  const [click, setClick] = useState<RegisterClick | null>(() => {
-    if (!restored) return null;
-    // Handed to SWR under the key this click answers to, before the hook below
-    // asks for it, so the table appears from what the browser kept rather than
-    // from a download of the same rows.
-    void keepRegister(restored.click, restored.register);
-    return restored.click;
-  });
-  /** Which worklist filters are ticked. Ticked bars intersect, so the table
-   *  shows the students under every bar set. Held here for the same reason as
-   *  the cascade's own state: the table is presentational and keeps none. */
-  const [filter, setFilter] = useState<RowFilter>(
-    () => restored?.filter ?? NO_FILTER
-  );
   /** A header refresh in flight. Held here, not in the header, because the
    *  header is presentational and keeps none. */
   const [refreshing, setRefreshing] = useState(false);
@@ -186,7 +163,7 @@ const App = (): React.JSX.Element => {
    *  values the browser already has. */
   const [saved, setSaved] = useState<{
     userId: string;
-    list: SavedClass[];
+    list: SavedSection[];
   } | null>(null);
   /** The cascade run in flight, as the flag that says the screen has stopped
    *  wanting it: a newer change aborts the one before. */
@@ -194,37 +171,6 @@ const App = (): React.JSX.Element => {
   /** Set true when a register load is initiated, consumed by the snap effect so
    *  a manual range edit cannot be overridden by a stale register. */
   const justLoaded = useRef(false);
-  /** Which end of the range on screen was typed by hand, if either: a typed
-   *  range wins over the settle-time snaps and needs no semester-start probe
-   *  to load. State, not a ref, because the Load gate reads it while
-   *  rendering. Only a typed From lifts the gate — a typed To alone still
-   *  leaves From on the unproven month start. */
-  const [rangeEdited, setRangeEdited] = useState<"" | "from" | "to">(
-    () => restored?.rangeEdited ?? ""
-  );
-  /** Every fetch the app makes, through its own key. See `web/data/client.ts`. */
-  const register = useRegisterLoad(click);
-  /** Keep the view the browser may have to rebuild: written whenever the
-   *  register on screen, the class or the window changes, and only then — a
-   *  memory written from a blank screen would erase the thing it exists to
-   *  protect. Cleared on sign-out, because it holds the Portal's rows. */
-  useEffect(() => {
-    if (!click || !register.data) return;
-    // The class and the window are taken from the request the reply answers, not
-    // from the picker: a class changed without pressing Load must not be stored
-    // beside another class's rows.
-    writeRegisterMemory({
-      sel: selOfRequest(click.request),
-      range: {
-        from: toInputDate(click.request.from),
-        to: toInputDate(click.request.to),
-      },
-      filter,
-      rangeEdited,
-      click,
-      register: register.data,
-    });
-  }, [click, register.data, filter, rangeEdited]);
   /* The two callbacks are stable and the state is not, so they are taken apart:
      a callback in a dependency list that changes every render would re-run every
      effect that names it. */
@@ -406,7 +352,7 @@ const App = (): React.JSX.Element => {
    *  section being opened, and nothing else. */
   const noteUserId = useCallback((name: string): void => {
     setUserId(name);
-    setSaved(name ? { userId: name, list: savedClasses(name) } : null);
+    setSaved(name ? { userId: name, list: savedSections(name) } : null);
   }, []);
   const signedOut = useCallback(
     (why: string) => {
@@ -443,7 +389,7 @@ const App = (): React.JSX.Element => {
       setSaved(null);
       navigate(LOGIN_PATH, { replace: true });
     },
-    [navigate, resetCascade]
+    [navigate, resetCascade, setClick, setSel, setFilter]
   );
   /** Settles the cascade for a selection. Both arguments are values rather than
    *  state read inside: a pass is built before React has committed the render that
@@ -494,7 +440,7 @@ const App = (): React.JSX.Element => {
           : { ...f, subjectBars: kept };
       });
     },
-    [triggerCascade]
+    [triggerCascade, setSel, setFilter, setRangeEdited]
   );
   /** The failed options read, asked again from the selection on screen: with
    *  no course there is no level to change, so without this the picker sits
@@ -505,7 +451,7 @@ const App = (): React.JSX.Element => {
   }, [runRefresh, sel, opts]);
   /** The saved sections: the cards above the class form, and the three actions
    *  on them. App keeps the list itself, because signing out clears it. */
-  const savedClassesView = useSavedClasses({
+  const savedSectionsView = useSavedSections({
     userId,
     sel,
     opts,
@@ -515,7 +461,7 @@ const App = (): React.JSX.Element => {
     setSel,
     runRefresh,
   });
-  const { classChosen, cards: savedClassCards } = savedClassesView;
+  const { sectionChosen, cards: savedSectionCards } = savedSectionsView;
   /** Re-reads the screen in place: server data revalidates, and the dashboard
    *  re-settles its cascade too — the selection stays, so unlike a reload
    *  nothing the picker holds is lost. The register is never re-read here:
@@ -681,7 +627,7 @@ const App = (): React.JSX.Element => {
     if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }
-    if (!onLogin) void runRefresh(restored?.sel ?? EMPTY_SEL, EMPTY_OPTS);
+    if (!onLogin) void runRefresh(initialSel, EMPTY_OPTS);
   }, [
     booted,
     session.isLoading,
@@ -693,7 +639,9 @@ const App = (): React.JSX.Element => {
     runRefresh,
     noteUserId,
     setLoginNote,
-    restored,
+    setClick,
+    setSel,
+    initialSel,
   ]);
   /** A 401 is ECAP refusing the session, from whichever request met it: the app
    *  signs out through the one path, so nothing goes on showing the numbers of a
@@ -720,7 +668,7 @@ const App = (): React.JSX.Element => {
     if (!iso || iso === range.from) return;
     rememberRangeStart(iso);
     setRange((r) => ({ ...r, from: iso }));
-  }, [register.data, range]);
+  }, [register.data, range, setRange]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
     // A signed-in user lands on /login only via Back: the first effect runs
@@ -767,16 +715,16 @@ const App = (): React.JSX.Element => {
     setRangeEdited(part);
     setRange((r) => ({ ...r, [part]: value }));
   };
-  const saveClass = () => {
-    savedClassesView.save();
+  const saveSection = () => {
+    savedSectionsView.save();
   };
-  const clearSavedClass = (target: Sel) => {
-    savedClassesView.clear(target);
+  const clearSavedSection = (target: Sel) => {
+    savedSectionsView.clear(target);
   };
   /** Opening a saved section fills its four levels and the section-wide subject:
    *  no register is fetched, and Load register stays a decision. */
-  const applySavedClass = (target: Sel) => {
-    savedClassesView.apply(target);
+  const applySavedSection = (target: Sel) => {
+    savedSectionsView.apply(target);
   };
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) screen = onLogin ? "login" : "app";
@@ -799,8 +747,8 @@ const App = (): React.JSX.Element => {
       }
       trailing={
         <Button
-          onClick={saveClass}
-          disabled={!classChosen || !userId.trim()}
+          onClick={saveSection}
+          disabled={!sectionChosen || !userId.trim()}
           leftSection={<FloppyDisk size={18} aria-hidden />}
         >
           Save this section
@@ -907,11 +855,11 @@ const App = (): React.JSX.Element => {
       } else {
         body = (
           <>
-            {savedClassCards.length ? (
-              <SavedClasses
-                classes={savedClassCards}
-                onOpen={applySavedClass}
-                onForget={clearSavedClass}
+            {savedSectionCards.length ? (
+              <SavedSections
+                classes={savedSectionCards}
+                onOpen={applySavedSection}
+                onForget={clearSavedSection}
               />
             ) : null}
             {picker}

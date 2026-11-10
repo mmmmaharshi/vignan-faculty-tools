@@ -1,5 +1,5 @@
 import type { RegisterReply } from "../../shared/api";
-import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../shared/api";
+import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../shared/portal-values";
 
 /** One student row out of a register reply, subject figures and overall ones. */
 export type StudentRow = RegisterReply["students"][number];

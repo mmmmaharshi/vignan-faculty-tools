@@ -12,8 +12,8 @@ import {
 } from "@mantine/core";
 import { MagnifyingGlass } from "@phosphor-icons/react";
 
-import { overallCellForDisplay } from "../../shared/api";
 import type { RegisterReply, Student } from "../../shared/api";
+import { overallCellForDisplay } from "../../shared/portal-values";
 import type { ChosenFact } from "../register/cascade";
 import {
   BARS,

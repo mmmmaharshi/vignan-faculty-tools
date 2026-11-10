@@ -3,20 +3,20 @@ import { ArrowCounterClockwise, Trash } from "@phosphor-icons/react";
 import React from "react";
 
 import type { Sel } from "../register/cascade";
-import { classKey } from "../register/saved-classes";
-import type { SavedClassCard } from "../register/saved-classes";
+import { selKeyOf } from "../register/cascade";
+import type { SavedSectionCard } from "../register/saved-sections";
 
 /**
  * The saved sections, as cards above the class form. Opening one fills the four
  * levels and lands on the section-wide register: the card is a shortcut to the
  * form, not a request.
  */
-export const SavedClasses = ({
+export const SavedSections = ({
   classes,
   onOpen,
   onForget,
 }: {
-  classes: readonly SavedClassCard[];
+  classes: readonly SavedSectionCard[];
   onOpen: (sel: Sel) => void;
   onForget: (sel: Sel) => void;
 }): React.JSX.Element | null => {
@@ -31,7 +31,7 @@ export const SavedClasses = ({
           // The card's identity is the section it names, read through the one
           // key builder that defines it, so two cards never share a key.
           <Paper
-            key={classKey(sel)}
+            key={selKeyOf(sel)}
             withBorder
             p="md"
             // Equal height, so a long branch name does not leave a short card with

@@ -7,7 +7,7 @@ import {
   IRREGULAR_BELOW,
   overallCellForDisplay,
   statedStartDate,
-} from "../shared/api";
+} from "../shared/portal-values";
 
 const row = (pct: number | null, roll = "21CS001"): RegisterRow => ({
   sl: "1",

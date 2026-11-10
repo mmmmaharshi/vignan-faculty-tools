@@ -1,5 +1,5 @@
 import type { RegisterReply, Student } from "../shared/api.js";
-import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../shared/api.js";
+import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../shared/portal-values.js";
 
 /**
  * What the portal stated for one student's attendance across every subject in

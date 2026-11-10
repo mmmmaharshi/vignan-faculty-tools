@@ -15,7 +15,8 @@ import type {
   SemStartRequest,
   StudentRequest,
 } from "../shared/api.js";
-import { messageOf, SESSION_HEADER } from "../shared/api.js";
+import { SESSION_HEADER } from "../shared/api.js";
+import { messageOf } from "../shared/portal-values.js";
 import { HttpError, sessionExpired } from "./http-error.js";
 import {
   calendarPairs,

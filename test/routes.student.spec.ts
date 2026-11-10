@@ -7,7 +7,8 @@ import {
   handleSemAbsences,
   handleStudentProfile,
 } from "../server/server-routes";
-import { ALL_SUBJECTS, todayIST } from "../shared/api";
+import { ALL_SUBJECTS } from "../shared/api";
+import { todayIST } from "../shared/portal-values";
 import {
   CLASS_PAGE,
   CLASS_PAGE_NO_SEM,

@@ -1,5 +1,5 @@
-import { statedPercent } from "../shared/api.js";
 import type { StudentTotals } from "../shared/api.js";
+import { statedPercent } from "../shared/portal-values.js";
 import type { RegisterRow } from "./attendance-bands.js";
 import {
   CELL,

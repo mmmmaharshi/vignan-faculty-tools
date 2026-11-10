@@ -20,7 +20,7 @@ import {
   parseCumulativeTotals,
   parseRegister,
 } from "../server/portal-register";
-import { statedStartDate } from "../shared/api";
+import { statedStartDate } from "../shared/portal-values";
 import { defaultRange, toInputDate, toPortalDate } from "../web/register/range";
 
 /**

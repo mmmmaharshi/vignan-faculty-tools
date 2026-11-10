@@ -1,12 +1,12 @@
 import { ALL_SUBJECTS } from "../../shared/api";
-import { LEVEL_KEYS } from "./cascade";
+import { LEVEL_KEYS, selKeyOf } from "./cascade";
 import type { Sel } from "./cascade";
 import { readStored, writeStored } from "./string-map-store";
 
 /** One saved section, as the cards above the class form read it: the values that
  *  reopen it, and the two names that make the card readable. */
-export type SavedClassCard = {
-  sel: SavedClass;
+export type SavedSectionCard = {
+  sel: SavedSection;
   sectionName: string;
   /** Course, semester and branch on one line — the longest string, so it is
    *  quietest. */
@@ -34,26 +34,21 @@ export type SavedClassCard = {
  * sections to the next. localStorage is per-browser, so it does not follow anyone
  * to another machine.
  */
-export type SavedClass = Sel & { sectionLabel?: string };
-const CLASS_KEY_PREFIX = "section-";
-/** The identity of a saved section: the five values in a fixed order, so two
- *  saves of the same section compare equal without depending on key order. Also
- *  the identity of a section's earliest-start memory in `sem-starts.ts`. */
-export const classKey = (values: Record<string, string>): string =>
-  LEVEL_KEYS.map((key) => values[key]).join(" ");
+export type SavedSection = Sel & { sectionLabel?: string };
+const STORE_PREFIX = "section-";
 /** A stored entry becomes a section only if all five values are strings; the
  *  subject it was saved under is replaced by the section-wide one, because that
  *  is what a card opens. Anything else is dropped rather than half-read. A
  *  missing section label is not a fault: an entry written before labels were kept
  *  still opens, it just says its value until this session offers the name. */
-function readClass(value: unknown): SavedClass | null {
+function readClass(value: unknown): SavedSection | null {
   if (typeof value !== "object" || value === null) return null;
   const values = value as Record<string, unknown>;
   const read = (key: (typeof LEVEL_KEYS)[number]): string => {
     const found = values[key];
     return typeof found === "string" ? found : "";
   };
-  const cls: SavedClass = {
+  const cls: SavedSection = {
     course: read("course"),
     semester: read("semester"),
     branch: read("branch"),
@@ -67,34 +62,34 @@ function readClass(value: unknown): SavedClass | null {
   }
   return cls;
 }
-const storeKey = (userId: string): string => `${CLASS_KEY_PREFIX}${userId}`;
+const storeKey = (userId: string): string => `${STORE_PREFIX}${userId}`;
 /** A stored list, or a single class from an earlier build, which is still
  *  offered. Anything that is not an object is no classes at all. */
 const isStoredList = (
   value: unknown
 ): value is unknown[] | Record<string, unknown> =>
   typeof value === "object" && value !== null;
-function writeClasses(userId: string, list: readonly SavedClass[]): void {
+function writeClasses(userId: string, list: readonly SavedSection[]): void {
   writeStored(storeKey(userId), list);
 }
-export function savedClasses(userId: string): SavedClass[] {
+export function savedSections(userId: string): SavedSection[] {
   if (!userId) return [];
   const parsed = readStored(storeKey(userId), isStoredList);
   if (!parsed) return [];
   const entries = Array.isArray(parsed) ? parsed : [parsed];
   const seen = new Set<string>();
-  const list: SavedClass[] = [];
+  const list: SavedSection[] = [];
   for (const entry of entries) {
     const cls = readClass(entry);
     if (!cls) continue;
-    const key = classKey(cls);
+    const key = selKeyOf(cls);
     if (seen.has(key)) continue;
     seen.add(key);
     list.push(cls);
   }
   return list;
 }
-export function rememberClass(
+export function rememberSection(
   userId: string,
   sel: Sel,
   sectionLabel = ""
@@ -105,19 +100,19 @@ export function rememberClass(
   if (sectionLabel) cls.sectionLabel = sectionLabel;
   // Re-saving moves the section to the front rather than duplicating it: the one
   // just used is the one most likely to be wanted again.
-  const kept = savedClasses(userId).filter(
-    (existing) => classKey(existing) !== classKey(cls)
+  const kept = savedSections(userId).filter(
+    (existing) => selKeyOf(existing) !== selKeyOf(cls)
   );
   writeClasses(userId, [cls, ...kept]);
 }
-export function forgetClass(userId: string, sel: Sel): void {
+export function forgetSection(userId: string, sel: Sel): void {
   if (!userId) return;
   const cls = readClass(sel);
   if (!cls) return;
   writeClasses(
     userId,
-    savedClasses(userId).filter(
-      (existing) => classKey(existing) !== classKey(cls)
+    savedSections(userId).filter(
+      (existing) => selKeyOf(existing) !== selKeyOf(cls)
     )
   );
 }
