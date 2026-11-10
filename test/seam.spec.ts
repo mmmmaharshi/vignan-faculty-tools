@@ -530,12 +530,26 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
       sections[0]?.cells.every((cell) => cell.posted),
       "every period of the live block posted"
     ).toBe(true);
-    // The same block with its first period's counts blanked reads unposted,
-    // and the short name falls back to the label it came with.
+    // The last column, headed `Roll.No's / Absent Students`, is the list of
+    // students the report marks absent for that period — the one place a period
+    // says who rather than how many.
+    const first = sections[0]?.cells[0];
+    expect(first?.absentRolls, "one entry per absent student").toHaveLength(31);
+    expect(first?.absentRolls[0], "in the report's own order").toBe(
+      "25L31A1201"
+    );
+    expect(
+      first?.absentRolls.at(-1),
+      "and the trailing &nbsp; is not a roll number"
+    ).toBe("26L35A1206");
+    // The same block with its first period's attendance blanked — both counts
+    // and the rolls column — reads unposted, and the short name falls back to
+    // the label it came with. A period nobody posted states no absentees
+    // either, so the whole row is blanked rather than just its counts.
     const blanked = parseDayClassWork(
       DAYWORK_BLOCK.replace(
-        "<td class='cellBorder' align='center'>32</td><td class='cellBorder' align='center'>31</td>",
-        "<td class='cellBorder' align='center'></td><td class='cellBorder' align='center'></td>"
+        /<td class='cellBorder' align='center'>32<\/td><td class='cellBorder' align='center'>31<\/td><td class='cellBorder' align='left'>[^<]*<\/td>/,
+        "<td class='cellBorder' align='center'></td><td class='cellBorder' align='center'></td><td class='cellBorder' align='left'></td>"
       )
     );
     expect(blanked[0]?.branchShort).toBe("Information Technology");
@@ -550,6 +564,7 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
         staff: "MRS.G.MANI",
         present: "",
         absent: "",
+        absentRolls: [],
       },
     ]);
     // A row with exactly one count still reads posted: every posted period

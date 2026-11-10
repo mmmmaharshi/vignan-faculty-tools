@@ -51,7 +51,7 @@ Traps measured here:
 | --- | --- | --- |
 | `LoadCourses`, `LoadBranchAndSemestersDropDown`, `LoadBranchSections` | jQuery convention (`jqmethods.aspx`) | Not the proxy convention; branch/semester arrive as one reply's two halves |
 | Class attendance report (`Academics_rptstudentsattendance…`) | `no` | Aggregates by subject, states counts and a percentage, never dates |
-| Day-class-work report (`Academics_rptdayclasswork…`) | `no` | Branch-wide periods for one date |
+| Day-class-work report (`Academics_rptdayclasswork…`) | `no` | Branch-wide periods for one date. Its last column is headed `Roll.No's / Absent Students` and holds a comma-separated list of the rolls that period marks absent. Measured live 2026-11-10: on every posted period checked, its entry count agreed with that period's `Absent` cell. An unposted period was not seen to list any, which is an assumption this app makes rather than a measurement. |
 | `GetToDayClasses`, `GetStudentsAttendance` | `r` | `no` answers a session-state exception |
 | `GetPhotoPath` | `rw` | Faculty photo |
 | `CheckEmployeeDesignation` | `r` | Faculty designation |

@@ -495,6 +495,7 @@ export const stub = async (route: Route): Promise<void> => {
               staff: "Some One",
               present: "30",
               absent: "5",
+              absentRolls: ["21B", "21C", "22A", "23B", "24C"],
             },
             {
               period: "2",
@@ -503,6 +504,7 @@ export const stub = async (route: Route): Promise<void> => {
               staff: "Other Two",
               present: "",
               absent: "",
+              absentRolls: [],
             },
           ],
         },
@@ -513,12 +515,15 @@ export const stub = async (route: Route): Promise<void> => {
           section: "B",
           cells: [
             {
+              // Posted, and nobody was missing: the modal says "None listed"
+              // rather than leaving the reader to read a gap as a fault.
               period: "1",
               subject: "MFCS",
               posted: true,
               staff: "Third Person",
-              present: "28",
-              absent: "2",
+              present: "35",
+              absent: "0",
+              absentRolls: [],
             },
           ],
         },

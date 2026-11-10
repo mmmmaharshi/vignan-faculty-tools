@@ -65,6 +65,7 @@ test.describe("the unposted handler", () => {
         staff: "Some One",
         present: "30",
         absent: "5",
+        absentRolls: ["21B", "21C", "22A", "23B", "24C"],
       },
       {
         period: "2",
@@ -73,6 +74,7 @@ test.describe("the unposted handler", () => {
         staff: "Other Two",
         present: "",
         absent: "",
+        absentRolls: [],
       },
     ]);
     // The ask carries every offered branch plus every titled semester: one

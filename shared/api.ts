@@ -297,8 +297,10 @@ export interface TodayClassesReply {
   classes: TodayClass[];
 }
 /** One held period out of ECAP's day-class-work report: posted or not, with
- *  the subject stated for it, who was to take it, and the present/absent
- *  counts where posted — blank where not, which is not a count of zero. */
+ *  the subject stated for it, who was to take it, the present/absent counts, and
+ *  the rolls its own `Roll.No's / Absent Students` column lists — the students
+ *  it marks absent for that period, read as written. Empty where the report
+ *  states none, which is not the same as a period nobody posted. */
 export interface DayWorkCell {
   period: string;
   subject: string;
@@ -306,6 +308,7 @@ export interface DayWorkCell {
   staff: string;
   present: string;
   absent: string;
+  absentRolls: string[];
 }
 /** One section's block of the day-class-work report. */
 export interface DayWorkSection {

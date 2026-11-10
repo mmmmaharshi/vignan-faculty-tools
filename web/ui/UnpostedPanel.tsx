@@ -2,6 +2,7 @@ import {
   Alert,
   Card,
   Center,
+  Divider,
   Loader,
   Modal,
   Paper,
@@ -169,6 +170,25 @@ const SlotDetails = ({
       }
     >
       {facts ? <FactsTable facts={facts} /> : null}
+      {/* The absentees sit below the facts rather than in a cell of their own: a
+          period can list thirty of them, and half a two-column row turns that
+          into a paragraph. */}
+      {cell?.posted ? (
+        <>
+          <Divider my="sm" />
+          <Text c="dimmed" size="xs" tt="uppercase">
+            Absentees ({cell.absentRolls.length})
+          </Text>
+          <Text size="sm">
+            {/* The report's own `Roll.No's / Absent Students` column, as
+                written. A posted period that lists none says so, because an
+                empty list is an answer here and a blank would read as a fault. */}
+            {cell.absentRolls.length
+              ? cell.absentRolls.join(", ")
+              : "None listed"}
+          </Text>
+        </>
+      ) : null}
     </Modal>
   );
 };

@@ -201,6 +201,30 @@ test.describe("the app's own data layer", () => {
       dialog.getByRole("row", { name: /Present\s*30/ })
     ).toBeVisible();
     await expect(dialog.getByRole("row", { name: /Absent\s*5/ })).toBeVisible();
+    // The report's own `Roll.No's / Absent Students` column, stated below the
+    // facts so a long list wraps instead of becoming a paragraph in half a row.
+    await expect(dialog.getByText("Absentees (5)")).toBeVisible();
+    await expect(
+      dialog.getByText("21B, 21C, 22A, 23B, 24C", { exact: true })
+    ).toBeVisible();
+  });
+
+  test("a posted box that lists no absentees says so", async ({ page }) => {
+    await page.goto("/login");
+    await signIn(page);
+    await expect(
+      page.getByRole("heading", { name: "Today's Attendance" })
+    ).toBeVisible({ timeout: 15_000 });
+    // CSE (AI) posted its one period with nobody missing: the row is there, and
+    // it is an answer — "nobody" — rather than a gap the reader must interpret.
+    await page.getByRole("combobox").click();
+    await page.getByRole("option", { name: "CSE (AI)" }).click();
+    await page.getByRole("button", { name: "Period 1, Section B" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Absentees (0)")).toBeVisible();
+    await expect(
+      dialog.getByText("None listed", { exact: true })
+    ).toBeVisible();
   });
 
   test("on a phone the tabs are a bottom bar with no drawer beside them", async ({

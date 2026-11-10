@@ -4,7 +4,8 @@
 
 Accepted (amended): the presentation moved from a per-period table to per-period
 boxes grouped by semester into cards, with branches chosen through a single
-`Select`. The wire contract and the parser are unchanged.
+`Select`. The wire contract and the parser were unchanged by that amendment; a
+later one adds the report's own absent-roll column to the modal (Amendment 2).
 
 ## Context
 
@@ -42,4 +43,22 @@ Home reads the report through `POST /api/unposted`, below the timetable:
   posted) plus the same block with one period's counts blanked and with a dash.
 - Staff and section attribution per pending period is no longer shown in this
   view; the boxes encode only posted/unposted per period. The register and
-  student profile remain the place for per-student detail.
+  student profile remain the place for a student's own figures.
+
+## Amendment 2: the box names the absentees the report lists
+
+The day-class-work reply's last column is headed `Roll.No's / Absent Students`
+and carries the rolls that period marks absent. The parser ignored it; the modal
+now states it, beside the counts, because a headcount answers "how many" and the
+question a faculty member asks next is "who".
+
+- It costs no Portal call: the column is in the reply the boxes already read, and
+  was measured live on 2026-11-10 to agree with the `Absent` cell on every posted
+  period checked.
+- The list is the report's own, in its order, as written. It is not joined to the
+  register, so it names rolls and not students; the register remains the place a
+  name is read.
+- A posted period that lists none says `None listed`, because an empty list is an
+  answer and a blank reads as a fault.
+- The absentees sit below the facts rather than in a facts cell: a period can list
+  thirty of them, and half a two-column row turns that into a paragraph.

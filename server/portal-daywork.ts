@@ -24,9 +24,21 @@ const BLOCK_SECTION = /<b>Section:<\/b>&nbsp;(?<section>[^<]*)/i;
  *  the read. */
 const PRESENT_COLUMN = 5;
 const ABSENT_COLUMN = 6;
+/** The report's last column, headed `Roll.No's / Absent Students`: the roll
+ *  numbers it lists as absent for that period, comma-separated. Measured live
+ *  2026-11-10, where its entry count agreed with the `Absent` cell on every
+ *  posted period checked. */
+const ROLLS_COLUMN = 7;
 /** A count is a number, never a dash: ECAP writes "-" where a period has
  *  not been posted, and that is not a count of zero. */
 const isCount = (value: string): boolean => /^\d+$/.test(value);
+/** The missing rolls the report lists, in its own order, as written. A dash is
+ *  not a roll number: it is ECAP's own way of stating nothing here. */
+const rollsOf = (cell: string): string[] =>
+  cell
+    .split(",")
+    .map((roll) => roll.trim())
+    .filter((roll) => roll && roll !== "-");
 /**
  * ECAP's day-class-work report, one block per section: course, branch,
  * semester, section and headcount, then one row per period with the subject,
@@ -66,6 +78,10 @@ export function parseDayClassWork(
         staff: rowCells[2] ?? "",
         present: hasPresent ? present : "",
         absent: hasAbsent ? absent : "",
+        // Read as written, whatever the counts say: an unposted period states
+        // no rolls either, so the list is empty on its own account rather than
+        // by a rule this parser imposes.
+        absentRolls: rollsOf(rowCells[ROLLS_COLUMN] ?? ""),
       });
     }
     sections.push({
