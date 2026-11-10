@@ -695,6 +695,17 @@ test.describe("Vignan Faculty Tools", () => {
           `a stated month is a percentage or a dash, never invented: "${figure}"`
         ).toMatch(/^(?:\d+\.\d{2}%|—)$/);
       }
+      /* The dates run month by month, so the column reads as a sequence: the
+       * term's first month opens where the semester did, and every later one on
+       * its own first day. A table that restarted every row at the semester
+       * start would look like the same month several times over. */
+      for (const [index, cells] of (monthRows?.body ?? []).entries()) {
+        if (index === 0) continue;
+        expect(
+          (cells[0] ?? "").trim().startsWith("01/"),
+          `row ${index + 1} starts on its own first day: ${cells[0]}`
+        ).toBe(true);
+      }
     }
     await page.keyboard.press("Escape");
     await expect(panel).toBeHidden();

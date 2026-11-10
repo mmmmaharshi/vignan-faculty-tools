@@ -129,9 +129,16 @@ test.describe("the student profile handler", () => {
       months.length,
       "the start's month through this one, both counted"
     ).toBe(4);
+    // The dates label each month in turn, so the column reads as a sequence:
+    // the term's first month opens where the semester did, and every later one
+    // on its own first day. The percentage stays cumulative — that is what
+    // every call asks ECAP for, checked below.
+    expect(months[0]?.from, "the first month opens at the semester start").toBe(
+      semStart
+    );
     expect(
-      months.every((month) => month.from === semStart),
-      "every window is cumulative from the start, not that month alone"
+      months.slice(1).every((month) => month.from.startsWith("01/")),
+      "every later month opens on its first day"
     ).toBe(true);
     // Each row ends on its own month's last day, except the one still running.
     for (const [index, month] of months.entries()) {
@@ -145,6 +152,10 @@ test.describe("the student profile handler", () => {
       expect(
         monthIndex(month.to) - monthIndex(previous.to),
         `${month.to} follows ${previous.to}`
+      ).toBe(1);
+      expect(
+        monthIndex(month.from) - monthIndex(previous.to),
+        `${month.from} continues where ${previous.to} stopped`
       ).toBe(1);
     }
     const current = months.at(-1);
@@ -174,8 +185,8 @@ test.describe("the student profile handler", () => {
       "and the newest row is the month in progress"
     ).toBe(todayIST());
     expect(
-      months.every((month) => month.from === "05/01/2025"),
-      "every row is still cumulative from the real start"
+      months.every((month) => month.from.startsWith("01/")),
+      "a capped table starts on a month boundary, not on the stale start day"
     ).toBe(true);
   });
   test("a month ECAP refuses reads blank, and the rest of the table stands", async () => {

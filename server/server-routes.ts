@@ -356,12 +356,14 @@ function nextMonth(
   return month < 12 ? { year, month: month + 1 } : { year: year + 1, month: 1 };
 }
 /**
- * One cumulative window per month, from the semester's first month through the
- * current one. Every window starts at the semester start — the figure is
- * cumulative, which is what a monthly counselling report quotes — and ends at
- * that month's own last day, or at today for the month still running. Empty
- * when either date will not parse, so the panel shows no table rather than one
- * built from a guess.
+ * One row per month, from the semester's first month through the current one.
+ *
+ * The dates label the month itself — its first day, or the semester start when
+ * the term began mid-month, through its last day or today. The percentage the
+ * row carries is cumulative from the semester start, which is what a monthly
+ * counselling report quotes: each row's figure includes the months above it.
+ * Empty when either date will not parse, so the panel shows no table rather than
+ * one built from a guess.
  */
 function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
   const [sd, sm, sy] = semStart.split("/").map(Number);
@@ -381,8 +383,10 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
   const out: StudentMonth[] = [];
   for (let step = 0; step < Math.min(span, MONTH_WALK_CAP); step++) {
     const running = year === ny && month === nm;
+    const opening = monthWindow(year, month).from;
     out.push({
-      from: semStart,
+      // The term's first month opens on the day the semester did, not on the 1st.
+      from: year === sy && month === sm ? semStart : opening,
       to: running ? now : monthWindow(year, month).to,
       pct: null,
     });
@@ -555,9 +559,11 @@ async function readMonths(
   const work = Promise.all(
     windows.map(async (month) => {
       try {
+        // Cumulative: every row is asked from the semester start, even though
+        // its dates label only the month it reports.
         const report = await portal.classAttendance({
           ...levels,
-          from: month.from,
+          from: semStart,
           to: month.to,
         });
         const row = parseClassAttendance(report).find((r) =>

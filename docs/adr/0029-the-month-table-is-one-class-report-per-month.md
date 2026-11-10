@@ -28,9 +28,11 @@ per month. So a month-by-month table costs one report per month.
 Read ECAP's stated figure, once per month, inside the read the panel already
 makes when it opens:
 
-- Every window starts at the semester start and ends at that month's own last
-  day, or at today for the month still running. The months run from the semester
-  start's month through the current one.
+- Every row is asked from the semester start and ends at that month's own last
+  day, or at today for the month still running — that is the window the figure
+  is cumulative over. The dates a row *shows* label the month itself: its first
+  day, or the semester start when the term began mid-month, so the column reads
+  as a sequence of months rather than the same start repeated.
 - The rows are asked in parallel: they need nothing from each other, so the
   table costs one round trip rather than one per month in sequence.
 - The figure travels as ECAP stated it. Nothing is divided, and a row with no

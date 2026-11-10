@@ -79,7 +79,7 @@ const MonthsBlock = ({
 }): React.JSX.Element => (
   <>
     <Text c="dimmed" size="xs" tt="uppercase">
-      Attendance by month (cumulative, all subjects)
+      Attendance by month (cumulative from the semester start, all subjects)
     </Text>
     {/* The window and its figure are the whole table; this is the floor both
         need to stay readable. */}
@@ -87,7 +87,7 @@ const MonthsBlock = ({
       <Table striped withTableBorder tabularNums>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Window</Table.Th>
+            <Table.Th>Month</Table.Th>
             <Table.Th ta="right">Cumulative %</Table.Th>
           </Table.Tr>
         </Table.Thead>
