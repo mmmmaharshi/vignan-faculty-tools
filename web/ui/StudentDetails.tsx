@@ -12,7 +12,6 @@ import {
   Text,
 } from "@mantine/core";
 
-import { overallCellForDisplay } from "../../shared/api";
 import type { Student, StudentMonth, StudentProfile } from "../../shared/api";
 import type { Note } from "../app/types";
 import { badgeFor, carriesOverall, displayName } from "../register/worklist";
@@ -83,12 +82,12 @@ const MonthsBlock = ({
       Attendance by month (cumulative, all subjects, from{" "}
       {months[0]?.from ?? ""})
     </Text>
-    <Table.ScrollContainer minWidth={520}>
+    {/* Two columns fit the drawer, so the table never scrolls sideways. */}
+    <Table.ScrollContainer minWidth={320}>
       <Table striped withTableBorder tabularNums>
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Month</Table.Th>
-            <Table.Th ta="right">Attended / Held</Table.Th>
             <Table.Th ta="right">Cumulative %</Table.Th>
           </Table.Tr>
         </Table.Thead>
@@ -97,11 +96,6 @@ const MonthsBlock = ({
             <Table.Tr key={`${month.from}-${month.to}`}>
               <Table.Td>
                 <Text size="sm">{month.label}</Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Text size="sm">
-                  {overallCellForDisplay(month.attendedOfHeld) || "—"}
-                </Text>
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="sm" fw={600}>

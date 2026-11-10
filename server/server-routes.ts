@@ -403,7 +403,6 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
       from: semStart,
       to: running ? now : monthWindow(year, month).to,
       pct: null,
-      attendedOfHeld: "",
     });
     ({ year, month } = nextMonth(year, month));
   }
@@ -582,9 +581,7 @@ async function readMonths(
         const row = parseClassAttendance(report).find((r) =>
           sameRoll(r.roll, roll)
         );
-        return row
-          ? { ...month, pct: row.pct, attendedOfHeld: row.attendedOfHeld }
-          : month;
+        return row ? { ...month, pct: row.pct } : month;
       } catch (error) {
         rethrowExpired(error);
         return month;

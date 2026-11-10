@@ -33,8 +33,8 @@ makes when it opens:
   start's month through the current one.
 - The rows are asked in parallel: they need nothing from each other, so the
   table costs one round trip rather than one per month in sequence.
-- The figure and the attended-of-held pair travel as ECAP stated them. Nothing is
-  divided, and a row with no figure reads a dash rather than a zero.
+- The figure travels as ECAP stated it. Nothing is divided, and a row with no
+  figure reads a dash rather than a zero.
 - A month ECAP refuses with a 502 leaves that row blank and the rest of the table
   standing. A month that refuses the session is still a 401, so a dead session
   signs out.

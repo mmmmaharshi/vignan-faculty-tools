@@ -180,8 +180,6 @@ export interface StudentMonth {
   to: string;
   /** ECAP's stated percentage for that window. Null is no figure. */
   pct: number | null;
-  /** ECAP's stated attended-of-held for that window, as written. */
-  attendedOfHeld: string;
 }
 /**
  * What ECAP's StudentProfile page states about one student. Read, never

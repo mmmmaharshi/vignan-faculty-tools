@@ -411,14 +411,12 @@ export const stub = async (route: Route): Promise<void> => {
                 from: semStart,
                 to: "31/08/2026",
                 pct: 65,
-                attendedOfHeld: "13\\20",
               },
               {
                 label: "Sep 2026",
                 from: semStart,
                 to: "30/09/2026",
                 pct: 75.5,
-                attendedOfHeld: "30\\40",
               },
             ],
           }

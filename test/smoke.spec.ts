@@ -657,9 +657,14 @@ test.describe("Vignan Faculty Tools", () => {
           )
         );
         return table
-          ? [...table.querySelectorAll("tbody tr")].map((monthRow) =>
-              [...monthRow.children].map((cell) => cell.textContent ?? "")
-            )
+          ? {
+              head: [...table.querySelectorAll("thead th")].map((th) =>
+                (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
+              ),
+              body: [...table.querySelectorAll("tbody tr")].map((monthRow) =>
+                [...monthRow.children].map((cell) => cell.textContent ?? "")
+              ),
+            }
           : null;
       });
       expect(
@@ -667,10 +672,19 @@ test.describe("Vignan Faculty Tools", () => {
         "the month table should be on the panel"
       ).not.toBeNull();
       expect(
-        monthRows?.length,
+        monthRows?.head.filter((column) => /attend\s*\/?\s*held/i.test(column)),
+        "the table states no attended-of-held column"
+      ).toEqual([]);
+      expect(
+        monthRows?.head.length,
+        "a month and its figure are the whole table"
+      ).toBe(2);
+      expect(
+        monthRows?.body.length,
         `at least one month should be stated; the panel said: ${stated}`
       ).toBeGreaterThan(0);
-      for (const cells of monthRows ?? []) {
+      for (const cells of monthRows?.body ?? []) {
+        expect(cells.length, "a row is a month and its figure").toBe(2);
         expect((cells[0] ?? "").trim(), "a row names its month").toMatch(
           /^[A-Z][a-z]{2} \d{4}$/
         );

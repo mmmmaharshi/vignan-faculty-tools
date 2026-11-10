@@ -153,7 +153,6 @@ test.describe("the student profile handler", () => {
       current?.pct,
       "ECAP's own figure for that window, not one we divided"
     ).toBe(75);
-    expect(current?.attendedOfHeld).toBe("30\\40");
     expect(
       calls.classAttendance.every((call) => call.from === semStart),
       "every call asks from the semester start"
@@ -191,7 +190,6 @@ test.describe("the student profile handler", () => {
     expect(months.length, "the table is still a finding").toBeGreaterThan(1);
     const september = months.find((month) => month.to === "30/09/2026");
     expect(september?.pct, "no figure is not a failing figure").toBeNull();
-    expect(september?.attendedOfHeld).toBe("");
     expect(
       months.filter((month) => month.pct != null).length,
       "the months ECAP did answer keep their figures"

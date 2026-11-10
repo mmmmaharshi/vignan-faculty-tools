@@ -44,11 +44,11 @@ test.describe("the app's own data layer", () => {
       )
     ).toBeVisible();
     await expect(
-      panel.getByRole("row", { name: /Aug 2026\s*13 \/ 20\s*65\.00%/ }),
+      panel.getByRole("row", { name: /Aug 2026\s*65\.00%/ }),
       "the first month's cumulative figure"
     ).toBeVisible();
     await expect(
-      panel.getByRole("row", { name: /Sep 2026\s*30 \/ 40\s*75\.50%/ }),
+      panel.getByRole("row", { name: /Sep 2026\s*75\.50%/ }),
       "and the next month's, which is the one that climbed"
     ).toBeVisible();
     await expect(
