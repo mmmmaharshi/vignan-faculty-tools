@@ -172,10 +172,10 @@ export interface StudentTotals {
  *  counselling report quotes. Read as stated — the app never divides one of its
  *  own counts to make it (ADR 0017). */
 export interface StudentMonth {
-  /** The month as the app names it ("Sep 2026"). */
-  label: string;
   /** The window the figure covers: the semester start to that month's end, or
-   *  to today for the month in progress. dd/mm/yyyy, the Portal's own shape. */
+   *  to today for the month in progress. dd/mm/yyyy, the Portal's own shape.
+   *  The window is the row's identity — it says which month, and which part of
+   *  the semester the percentage is cumulative over. */
   from: string;
   to: string;
   /** ECAP's stated percentage for that window. Null is no figure. */

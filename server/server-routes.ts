@@ -355,22 +355,6 @@ function nextMonth(
 ): { year: number; month: number } {
   return month < 12 ? { year, month: month + 1 } : { year: year + 1, month: 1 };
 }
-/** The Portal names no months in the reply, so the label is the server's own:
- *  a fixed table, because a locale-derived name would differ per instance. */
-const MONTH_NAMES = [
-  "Jan",
-  "Feb",
-  "Mar",
-  "Apr",
-  "May",
-  "Jun",
-  "Jul",
-  "Aug",
-  "Sep",
-  "Oct",
-  "Nov",
-  "Dec",
-];
 /**
  * One cumulative window per month, from the semester's first month through the
  * current one. Every window starts at the semester start — the figure is
@@ -397,9 +381,7 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
   const out: StudentMonth[] = [];
   for (let step = 0; step < Math.min(span, MONTH_WALK_CAP); step++) {
     const running = year === ny && month === nm;
-    const mm = String(month).padStart(2, "0");
     out.push({
-      label: `${MONTH_NAMES[month - 1] ?? mm} ${year}`,
       from: semStart,
       to: running ? now : monthWindow(year, month).to,
       pct: null,

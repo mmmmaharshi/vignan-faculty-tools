@@ -137,14 +137,14 @@ test.describe("the student profile handler", () => {
     for (const [index, month] of months.entries()) {
       const [day, monthNumber, year] = month.to.split("/").map(Number);
       const last = index === months.length - 1;
-      expect(day, `${month.label} ends where it should`).toBe(
+      expect(day, `${month.to} ends where it should`).toBe(
         last ? todayDay : new Date(year ?? 0, monthNumber ?? 0, 0).getDate()
       );
       const previous = months[index - 1];
       if (!previous) continue;
       expect(
         monthIndex(month.to) - monthIndex(previous.to),
-        `${month.label} follows ${previous.label}`
+        `${month.to} follows ${previous.to}`
       ).toBe(1);
     }
     const current = months.at(-1);

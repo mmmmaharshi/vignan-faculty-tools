@@ -79,15 +79,15 @@ const MonthsBlock = ({
 }): React.JSX.Element => (
   <>
     <Text c="dimmed" size="xs" tt="uppercase">
-      Attendance by month (cumulative, all subjects, from{" "}
-      {months[0]?.from ?? ""})
+      Attendance by month (cumulative, all subjects)
     </Text>
-    {/* Two columns fit the drawer, so the table never scrolls sideways. */}
-    <Table.ScrollContainer minWidth={320}>
+    {/* The window and its figure are the whole table; this is the floor both
+        need to stay readable. */}
+    <Table.ScrollContainer minWidth={360}>
       <Table striped withTableBorder tabularNums>
         <Table.Thead>
           <Table.Tr>
-            <Table.Th>Month</Table.Th>
+            <Table.Th>Window</Table.Th>
             <Table.Th ta="right">Cumulative %</Table.Th>
           </Table.Tr>
         </Table.Thead>
@@ -95,7 +95,9 @@ const MonthsBlock = ({
           {months.map((month) => (
             <Table.Tr key={`${month.from}-${month.to}`}>
               <Table.Td>
-                <Text size="sm">{month.label}</Text>
+                <Text size="sm">
+                  {month.from} to {month.to}
+                </Text>
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="sm" fw={600}>

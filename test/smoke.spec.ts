@@ -677,7 +677,7 @@ test.describe("Vignan Faculty Tools", () => {
       ).toEqual([]);
       expect(
         monthRows?.head.length,
-        "a month and its figure are the whole table"
+        "the window and its figure are the whole table"
       ).toBe(2);
       expect(
         monthRows?.body.length,
@@ -685,9 +685,10 @@ test.describe("Vignan Faculty Tools", () => {
       ).toBeGreaterThan(0);
       for (const cells of monthRows?.body ?? []) {
         expect(cells.length, "a row is a month and its figure").toBe(2);
-        expect((cells[0] ?? "").trim(), "a row names its month").toMatch(
-          /^[A-Z][a-z]{2} \d{4}$/
-        );
+        expect(
+          (cells[0] ?? "").trim(),
+          "a row names the window it covers"
+        ).toMatch(/^\d{2}\/\d{2}\/\d{4} to \d{2}\/\d{2}\/\d{4}$/);
         const figure = (cells.at(-1) ?? "").trim();
         expect(
           figure,
