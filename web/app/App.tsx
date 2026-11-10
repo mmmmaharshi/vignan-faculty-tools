@@ -50,6 +50,7 @@ import {
   chosenFacts,
   disabledLevels,
   selectionAfter,
+  selOfRequest,
   EMPTY_OPTS,
   EMPTY_SEL,
   LEVELS,
@@ -198,7 +199,9 @@ const App = (): React.JSX.Element => {
    *  to load. State, not a ref, because the Load gate reads it while
    *  rendering. Only a typed From lifts the gate — a typed To alone still
    *  leaves From on the unproven month start. */
-  const [rangeEdited, setRangeEdited] = useState<"" | "from" | "to">("");
+  const [rangeEdited, setRangeEdited] = useState<"" | "from" | "to">(
+    () => restored?.rangeEdited ?? ""
+  );
   /** Every fetch the app makes, through its own key. See `web/data/client.ts`. */
   const register = useRegisterLoad(click);
   /** Keep the view the browser may have to rebuild: written whenever the
@@ -207,8 +210,21 @@ const App = (): React.JSX.Element => {
    *  protect. Cleared on sign-out, because it holds the Portal's rows. */
   useEffect(() => {
     if (!click || !register.data) return;
-    writeRegisterMemory({ sel, range, filter, click, register: register.data });
-  }, [click, register.data, sel, range, filter]);
+    // The class and the window are taken from the request the reply answers, not
+    // from the picker: a class changed without pressing Load must not be stored
+    // beside another class's rows.
+    writeRegisterMemory({
+      sel: selOfRequest(click.request),
+      range: {
+        from: toInputDate(click.request.from),
+        to: toInputDate(click.request.to),
+      },
+      filter,
+      rangeEdited,
+      click,
+      register: register.data,
+    });
+  }, [click, register.data, filter, rangeEdited]);
   /* The two callbacks are stable and the state is not, so they are taken apart:
      a callback in a dependency list that changes every render would re-run every
      effect that names it. */
@@ -643,11 +659,21 @@ const App = (): React.JSX.Element => {
       return;
     }
     const alive = session.data.signedIn;
-    setView(alive ? "signedIn" : "signedOut");
     if (!alive) {
+      // A session that ends without the sign-out button — lapsed, or never
+      // restored — must take the stored dashboard with it, or the next person to
+      // sign in on this browser opens the previous one's roster with no Portal
+      // call to contradict it. Done here rather than through `signedOut` because
+      // that clears the stored session, which bumps the generation and re-keys
+      // the probe — one more request on every signed-out boot.
+      forgetRegisterMemory();
+      setClick(null);
+      setSel(EMPTY_SEL);
+      setView("signedOut");
       if (!onLogin) navigate(LOGIN_PATH, { replace: true });
       return;
     }
+    setView("signedIn");
     // A restored session never went through the sign-in form, so this is the
     // only place the name can arrive. Without it the rail and the profile panel
     // show a dash for a session that is working.

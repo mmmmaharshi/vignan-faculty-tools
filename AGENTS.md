@@ -152,6 +152,7 @@ web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      use-saved-classes.ts (the cards and their three actions,
                      out of App so it stays under the god-file line),
                      absence-list.ts (the panel's one absent list),
+                     register-memory.ts (the dashboard view a reload puts back),
                      search-scope.ts (the class a searched figure belongs to),
                      sem-start-settle.ts, sem-starts.ts, string-map-store.ts
 web/home/            the timetable's memory: today-memory.ts, period-times.ts
@@ -186,8 +187,8 @@ test/cascade.*.spec.ts  split by topic: the selection rules, the option loop ove
                      dates, and the saved sections
 test/client.*.spec.ts   split by topic: the session and its probe, the register
                      and its filters, the student panel and search, the dates a
-                     load settles, and the home screen - over a stub API in the
-                     browser
+                     load settles, the dashboard a reload puts back, and the home
+                     screen - over a stub API in the browser
 test/support/        the three families' shared harness: the stub API and the
                      mutable `state` the browser tests drive (`client-stub.ts`),
                      the fixture builders (`cascade-harness.ts`), and the fake

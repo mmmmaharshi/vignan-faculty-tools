@@ -59,6 +59,14 @@ export function chosenLevels(
   }
   return { ok: true, levels };
 }
+/** The five values a register request names, in the selection's own shape: the
+ *  inverse of `chosenLevels`, so a stored view can say which class its rows are
+ *  for without trusting the picker to still be on that class. */
+export function selOfRequest(request: Record<Level, Option>): Sel {
+  const sel = {} as Sel;
+  for (const key of LEVEL_KEYS) sel[key] = String(request[key].value);
+  return sel;
+}
 /**
  * Which levels a changed level invalidates. A change that arrives carrying a
  * selection is the case that needs the distinction: opening a saved section

@@ -60,6 +60,30 @@ test.describe("the dashboard after a reload", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(narrowed);
   });
 
+  test("a session that lapses while the page is closed leaves nothing behind", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    // The tab is closed and the session lapses, so the next boot finds none. That
+    // is a session ending without the sign-out button, and the stored view must
+    // go with it — otherwise the next person to sign in on this browser opens
+    // somebody else's roster, with no Portal call to contradict it.
+    state.signedIn = false;
+    await page.reload();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+    await signInAndSettle(page);
+    await expect(
+      page.locator("thead ~ tbody tr"),
+      "the new session starts on a blank dashboard"
+    ).toHaveCount(0);
+  });
+
   test("signing out forgets it", async ({ page }) => {
     await signInAndSettle(page);
     await page.getByRole("button", { name: "Load register" }).click();

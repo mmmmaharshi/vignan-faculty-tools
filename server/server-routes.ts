@@ -383,11 +383,11 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
   const out: StudentMonth[] = [];
   for (let step = 0; step < Math.min(span, MONTH_WALK_CAP); step++) {
     const running = year === ny && month === nm;
-    const opening = monthWindow(year, month).from;
+    const opening = monthWindow(year, month);
     out.push({
       // The term's first month opens on the day the semester did, not on the 1st.
-      from: year === sy && month === sm ? semStart : opening,
-      to: running ? now : monthWindow(year, month).to,
+      from: year === sy && month === sm ? semStart : opening.from,
+      to: running ? now : opening.to,
       pct: null,
     });
     ({ year, month } = nextMonth(year, month));
