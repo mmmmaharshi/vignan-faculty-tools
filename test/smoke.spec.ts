@@ -47,6 +47,15 @@ async function submitSignIn(page: Page): Promise<void> {
   await page.getByLabel("ECAP user name").fill(USER);
   await page.locator('input[type="password"]').fill(PASS);
   await page.getByRole("button", { name: "Sign in" }).click();
+  // Sign-in lands on the timetable, which is the app's landing screen. Tests
+  // that want a register walk one tab over, the way a person would.
+  await expect
+    .poll(() => new URL(page.url()).pathname, { timeout: 30_000 })
+    .toBe("/home");
+}
+/** One tab over from the landing screen, with the cascade settled enough to use. */
+async function openDashboard(page: Page): Promise<void> {
+  await page.getByRole("button", { name: "Register", exact: true }).click();
   await expect
     .poll(() => new URL(page.url()).pathname, { timeout: 30_000 })
     .toBe("/dashboard");
@@ -78,6 +87,7 @@ async function loadFirstSubject(page: Page): Promise<string> {
 async function signInAndLoad(page: Page): Promise<string> {
   await page.goto("/dashboard");
   await submitSignIn(page);
+  await openDashboard(page);
   return loadFirstSubject(page);
 }
 /** The browser's stored session, decoded. The server keeps no copy. */
@@ -115,6 +125,11 @@ test.describe("Vignan Faculty Tools", () => {
     await page.getByLabel("ECAP user name").fill(USER);
     await page.locator('input[type="password"]').fill(PASS);
     await page.getByRole("button", { name: "Sign in" }).click();
+    // Sign-in lands on the timetable; the cascade is one tab over.
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 30_000 })
+      .toBe("/home");
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     await page.waitForFunction(
       () => {
         const inputs = [
@@ -289,6 +304,7 @@ test.describe("Vignan Faculty Tools", () => {
   }) => {
     await page.goto("/dashboard");
     await submitSignIn(page);
+    await openDashboard(page);
     const register = page.getByRole("button", {
       name: "Register",
       exact: true,
@@ -389,20 +405,23 @@ test.describe("Vignan Faculty Tools", () => {
       "the boot guard must leave /profile alone"
     ).toBe("/profile");
   });
-  test("the profile says what is stored, and does not invent a name", async ({
+  test("the profile names the stored user, and invents no name of its own", async ({
     page,
   }) => {
     await page.goto("/dashboard");
     await submitSignIn(page);
     await page.getByRole("button", { name: "Profile" }).click();
     const panel = page.getByRole("heading", { name: "Profile" }).locator("..");
-    await expect(panel.getByText(USER, { exact: true })).toBeVisible();
-    await expect(page.getByText(/credential vault/i)).toBeVisible();
+    await expect(panel.getByText("Employee Id")).toBeVisible();
     await expect(
-      page.getByText(/never written to disk/i),
-      "ADR 0019 retired this claim; the panel must not state it again"
-    ).toHaveCount(0);
-    await expect(page.getByText(/twenty minutes/i)).toBeVisible();
+      panel.getByText(USER, { exact: true }),
+      "the id the session stores is the id the panel states"
+    ).toBeVisible();
+    // The server keeps nothing, so the retired claims about a vault, a disk and
+    // a twenty-minute session must not come back (ADR 0013, ADR 0024).
+    await expect(page.getByText(/credential vault/i)).toHaveCount(0);
+    await expect(page.getByText(/never written to disk/i)).toHaveCount(0);
+    await expect(page.getByText(/twenty minutes/i)).toHaveCount(0);
   });
   test("the header carries the app name and nothing else", async ({ page }) => {
     await page.goto("/dashboard");
@@ -421,6 +440,7 @@ test.describe("Vignan Faculty Tools", () => {
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     await page.goto("/dashboard");
     await submitSignIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
     const subjectOptions = await openSelect(page, "Subject");
     const firstOption = await subjectOptions.nth(1).innerText();
     const subject = firstOption.trim();
@@ -437,13 +457,29 @@ test.describe("Vignan Faculty Tools", () => {
         (th.textContent ?? "").replaceAll(/\s+/g, " ").trim()
       )
     );
-    // The subject columns must still be there: this is the subject path.
+    // Both figures ride the table on the subject path too: the overall column
+    // sits beside the name as the triage number, and the subject's own column
+    // is what the bars judge by. What stays on the All subjects path alone is
+    // the attended-of-total count column.
     expect(head).toContain("Attend / Held");
     expect(head).toContain("Subject Attendance %");
-    // The overall figure belongs to the all-subjects view only: beside a
-    // subject there is no overall column at all, badged or otherwise.
+    expect(head).toContain("Overall Attendance %");
     expect(head).not.toContain("Attended / Total");
-    expect(head).not.toContain("Overall Attendance %");
+    const overallCells = await page.evaluate(
+      (index) =>
+        [...document.querySelectorAll("thead ~ tbody tr")].map((row) =>
+          (row.children[index]?.textContent ?? "")
+            .replaceAll(/\s+/g, " ")
+            .trim()
+        ),
+      head.indexOf("Overall Attendance %")
+    );
+    expect(overallCells.length).toBeGreaterThan(0);
+    for (const cell of overallCells) {
+      // A stated figure (maybe followed by its band badge) or a dash: an
+      // unstated one is never printed as zero.
+      expect(cell, `overall cell "${cell}"`).toMatch(/^(?:\d+\.\d{2}%|—)/);
+    }
     expect(
       problems,
       `no uncaught errors; got ${JSON.stringify(problems)}`
@@ -456,6 +492,7 @@ test.describe("Vignan Faculty Tools", () => {
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     await page.goto("/dashboard");
     await submitSignIn(page);
+    await openDashboard(page);
     const options = await openSelect(page, "Subject");
     await expect(options.getByRole("option")).not.toHaveCount(1);
     await page
@@ -605,6 +642,45 @@ test.describe("Vignan Faculty Tools", () => {
         `a stated CGPA implies a semester SGPA; the panel said: ${stated}`
       ).toBe(true);
     }
+    /* The month table: one class report per month over [semester start -> that
+     * month's end], read as ECAP states it. Live evidence matters here because
+     * nothing else in the suite sees a real one-month window: the shape it
+     * answers, and whether a month comes back at all, are Portal facts. A month
+     * ECAP refuses is a dash, so the row count is the only thing required. */
+    if (/attendance by month/i.test(stated)) {
+      // Scope to the month table by its own header: the drawer holds several
+      // tables, so a scrape over every row mixes roll numbers with percentages.
+      const monthRows = await panel.evaluate((dialog) => {
+        const table = [...dialog.querySelectorAll("table")].find((t) =>
+          [...t.querySelectorAll("thead th")].some((th) =>
+            (th.textContent ?? "").includes("Cumulative %")
+          )
+        );
+        return table
+          ? [...table.querySelectorAll("tbody tr")].map((monthRow) =>
+              [...monthRow.children].map((cell) => cell.textContent ?? "")
+            )
+          : null;
+      });
+      expect(
+        monthRows,
+        "the month table should be on the panel"
+      ).not.toBeNull();
+      expect(
+        monthRows?.length,
+        `at least one month should be stated; the panel said: ${stated}`
+      ).toBeGreaterThan(0);
+      for (const cells of monthRows ?? []) {
+        expect((cells[0] ?? "").trim(), "a row names its month").toMatch(
+          /^[A-Z][a-z]{2} \d{4}$/
+        );
+        const figure = (cells.at(-1) ?? "").trim();
+        expect(
+          figure,
+          `a stated month is a percentage or a dash, never invented: "${figure}"`
+        ).toMatch(/^(?:\d+\.\d{2}%|—)$/);
+      }
+    }
     await page.keyboard.press("Escape");
     await expect(panel).toBeHidden();
     expect(
@@ -668,6 +744,7 @@ test.describe("Vignan Faculty Tools", () => {
     });
     await page.goto("/dashboard");
     await submitSignIn(page);
+    await openDashboard(page);
     expect(registerCalls, "the cascade must not fetch a register").toHaveLength(
       0
     );
@@ -716,7 +793,11 @@ test.describe("Vignan Faculty Tools", () => {
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
     await expect(page.getByRole("alert")).toHaveCount(0);
     await submitSignIn(page);
-    await expect(page.locator("tbody tr")).toHaveCount(0);
+    await openDashboard(page);
+    await expect(
+      page.locator("tbody tr"),
+      "the previous session's register did not come back with the new one"
+    ).toHaveCount(0);
     await loadFirstSubject(page);
     await expect(page.getByLabel("All irregular students")).not.toBeChecked();
     await expect(page.locator("tbody tr")).toHaveCount(total);
