@@ -13,6 +13,7 @@ import {
   CLASS_PAGE_NO_SEM,
   CLASS_PAGE_NO_SGPA,
   ask,
+  classGrid,
   fake,
   levels,
   monthGrid,
@@ -20,6 +21,12 @@ import {
   opt,
   semAbsencesAsked,
 } from "./support/routes-fake";
+
+/** A dd/mm/yyyy date as one comparable month number, for "the next month". */
+const monthIndex = (date: string): number => {
+  const [, m, y] = date.split("/").map(Number);
+  return (y ?? 0) * 12 + (m ?? 0);
+};
 
 test.describe("the student profile handler", () => {
   test("one student's GPA and numbers, read by roll number", async () => {
@@ -95,6 +102,118 @@ test.describe("the student profile handler", () => {
       (error: unknown) => error
     );
     expect((failure as HttpError).status).toBe(401);
+  });
+  test("cumulative attendance is read month by month, from the semester start", async () => {
+    // Three months back, so the row count follows from the spec's "from the
+    // start's month to now" rather than from whatever the handler built.
+    const [todayDay, todayMonth, todayYear] = todayIST().split("/").map(Number);
+    const startYear = (todayMonth ?? 1) > 3 ? todayYear : (todayYear ?? 1) - 1;
+    const startMonth =
+      (todayMonth ?? 1) > 3 ? (todayMonth ?? 1) - 3 : (todayMonth ?? 1) + 9;
+    const semStart = `05/${String(startMonth).padStart(2, "0")}/${startYear}`;
+    // The month in progress answers with a stated figure, so the row that is
+    // always present carries the one ECAP stated.
+    const { reader, calls } = fake({
+      classAttendanceMonths: {
+        [todayIST()]: classGrid([["21CS001", "30\\40", "75"]]),
+      },
+    });
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      name: "A Student",
+      register: levels(),
+      semStart,
+    });
+    const months = reply.months ?? [];
+    expect(
+      months.length,
+      "the start's month through this one, both counted"
+    ).toBe(4);
+    expect(
+      months.every((month) => month.from === semStart),
+      "every window is cumulative from the start, not that month alone"
+    ).toBe(true);
+    // Each row ends on its own month's last day, except the one still running.
+    for (const [index, month] of months.entries()) {
+      const [day, monthNumber, year] = month.to.split("/").map(Number);
+      const last = index === months.length - 1;
+      expect(day, `${month.label} ends where it should`).toBe(
+        last ? todayDay : new Date(year ?? 0, monthNumber ?? 0, 0).getDate()
+      );
+      const previous = months[index - 1];
+      if (!previous) continue;
+      expect(
+        monthIndex(month.to) - monthIndex(previous.to),
+        `${month.label} follows ${previous.label}`
+      ).toBe(1);
+    }
+    const current = months.at(-1);
+    expect(current?.to, "the month in progress ends today").toBe(todayIST());
+    expect(
+      current?.pct,
+      "ECAP's own figure for that window, not one we divided"
+    ).toBe(75);
+    expect(current?.attendedOfHeld).toBe("30\\40");
+    expect(
+      calls.classAttendance.every((call) => call.from === semStart),
+      "every call asks from the semester start"
+    ).toBe(true);
+  });
+  test("a start older than the cap keeps the newest months, not the oldest", async () => {
+    const { reader } = fake();
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels(),
+      // Two years before the month in progress: longer than the cap, so the
+      // table must still reach today rather than stopping a year short.
+      semStart: "05/01/2025",
+    });
+    const months = reply.months ?? [];
+    expect(months.length, "capped at twelve").toBe(12);
+    expect(
+      months.at(-1)?.to,
+      "and the newest row is the month in progress"
+    ).toBe(todayIST());
+    expect(
+      months.every((month) => month.from === "05/01/2025"),
+      "every row is still cumulative from the real start"
+    ).toBe(true);
+  });
+  test("a month ECAP refuses reads blank, and the rest of the table stands", async () => {
+    const semStart = "05/08/2026";
+    const { reader } = fake({ classFailsMonths: ["30/09/2026"] });
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels(),
+      semStart,
+    });
+    const months = reply.months ?? [];
+    expect(months.length, "the table is still a finding").toBeGreaterThan(1);
+    const september = months.find((month) => month.to === "30/09/2026");
+    expect(september?.pct, "no figure is not a failing figure").toBeNull();
+    expect(september?.attendedOfHeld).toBe("");
+    expect(
+      months.filter((month) => month.pct != null).length,
+      "the months ECAP did answer keep their figures"
+    ).toBe(months.length - 1);
+  });
+  test("a month that refuses the session still signs out", async () => {
+    const { reader } = fake({ classDeadMonths: ["30/09/2026"] });
+    const failure = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels(),
+      semStart: "05/08/2026",
+    }).catch((error: unknown) => error);
+    expect((failure as HttpError).status).toBe(401);
+  });
+  test("no semester start means no month table, and no class report asked", async () => {
+    const { reader, calls } = fake();
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels(),
+    });
+    expect(reply.months).toBeUndefined();
+    expect(calls.classAttendance).toEqual([]);
   });
   test("a totals read ECAP refuses leaves the panel's other answers alone", async () => {
     const { reader } = fake({ studentFails: true });

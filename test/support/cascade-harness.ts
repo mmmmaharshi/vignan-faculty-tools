@@ -4,7 +4,7 @@ import type {
   Student,
   TodayClass,
 } from "../../shared/api";
-import { chosenFacts } from "../../web/register/cascade";
+import { chosenFacts, chosenLevels } from "../../web/register/cascade";
 import type { ChosenFact, Level, Sel } from "../../web/register/cascade";
 import { NO_FILTER } from "../../web/register/worklist";
 import type { RowFilter } from "../../web/register/worklist";
@@ -56,27 +56,38 @@ export const nothing = reply({
 });
 /** The old single-checkbox filter, spelled in the new shape. */
 export const irregularOnly: RowFilter = { ...NO_FILTER, irregular: true };
+/** The five chosen options for a reply-and-selection pair — what the facts card
+ *  reads, since it names the levels the register on screen was loaded with. */
+export const chosenOf = (
+  opts: OptionsReply,
+  picked: Sel
+): Record<Level, Option> => {
+  const chosen = chosenLevels(opts, picked);
+  if (!chosen.ok) throw new Error(`no option for ${chosen.label}`);
+  return chosen.levels;
+};
 /** The Date Range tail for a fixed selection and range, varying only the
  *  register's own class-day count: the range fact, then classes held — or
  *  the bare range where the Portal stated no count. */
 export const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
-  const facts = chosenFacts(
-    reply({
-      course: ["1"],
-      semester: ["3"],
-      branch: ["4"],
-      section: ["5"],
-      subject: ["6"],
-    }),
-    sel({
-      course: "1",
-      semester: "3",
-      branch: "4",
-      section: "5",
-      subject: "6",
-    }),
-    { range: { from: "01/10/2026", to: "16/10/2026" }, classesHeld }
-  );
+  const opts = reply({
+    course: ["1"],
+    semester: ["3"],
+    branch: ["4"],
+    section: ["5"],
+    subject: ["6"],
+  });
+  const picked = sel({
+    course: "1",
+    semester: "3",
+    branch: "4",
+    section: "5",
+    subject: "6",
+  });
+  const facts = chosenFacts(chosenOf(opts, picked), opts, {
+    range: { from: "01/10/2026", to: "16/10/2026" },
+    classesHeld,
+  });
   return facts.slice(
     facts.findIndex((fact) => fact.label.startsWith("Date Range"))
   );
@@ -88,28 +99,26 @@ export const statedTail = (
   statedFrom: string,
   semStart?: string
 ): ChosenFact[] => {
-  const facts = chosenFacts(
-    reply({
-      course: ["1"],
-      semester: ["3"],
-      branch: ["4"],
-      section: ["5"],
-      subject: ["6"],
-    }),
-    sel({
-      course: "1",
-      semester: "3",
-      branch: "4",
-      section: "5",
-      subject: "6",
-    }),
-    {
-      range: { from: "01/07/2026", to: "16/10/2026" },
-      classesHeld: 6,
-      statedFrom,
-      semStart,
-    }
-  );
+  const opts = reply({
+    course: ["1"],
+    semester: ["3"],
+    branch: ["4"],
+    section: ["5"],
+    subject: ["6"],
+  });
+  const picked = sel({
+    course: "1",
+    semester: "3",
+    branch: "4",
+    section: "5",
+    subject: "6",
+  });
+  const facts = chosenFacts(chosenOf(opts, picked), opts, {
+    range: { from: "01/07/2026", to: "16/10/2026" },
+    classesHeld: 6,
+    statedFrom,
+    semStart,
+  });
   return facts.slice(
     facts.findIndex((fact) => fact.label.startsWith("Date Range"))
   );

@@ -36,6 +36,21 @@ test.describe("the app's own data layer", () => {
     await expect(
       panel.getByRole("row", { name: /Total Held\s*21/ })
     ).toBeVisible();
+    // The month table states ECAP's own cumulative figure per month, so a
+    // counselling report quotes the Portal rather than this app's arithmetic.
+    await expect(
+      panel.getByText(
+        /Attendance by month \(cumulative, all subjects, from 05\/08\/2026\)/
+      )
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("row", { name: /Aug 2026\s*13 \/ 20\s*65\.00%/ }),
+      "the first month's cumulative figure"
+    ).toBeVisible();
+    await expect(
+      panel.getByRole("row", { name: /Sep 2026\s*30 \/ 40\s*75\.50%/ }),
+      "and the next month's, which is the one that climbed"
+    ).toBeVisible();
     await expect(
       panel.getByRole("row", { name: /Total Attend\s*21/ })
     ).toBeVisible();

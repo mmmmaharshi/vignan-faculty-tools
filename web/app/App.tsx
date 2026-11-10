@@ -16,13 +16,12 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import type { OptionsReply, RegisterRequest, Student } from "../../shared/api";
-import { todayIST } from "../../shared/api";
+import { messageOf, todayIST } from "../../shared/api";
 import {
   clearStoredSession,
   forgetServerData,
   revalidateServerData,
   isExpired,
-  messageOf,
   reloadSession,
   useOptionsChain,
   useRegisterLoad,
@@ -603,28 +602,33 @@ const App = (): React.JSX.Element => {
       signedOut("Your session expired. Please sign in again.");
     }
   }, [booted, signedIn, session.data, signedOut]);
-  /** When the portal answers "no courses" there is nothing to pick from and
-   *  nothing to load: every account has at least one course, so an empty
-   *  course list means the session is gone or ECAP is not answering. Either
-   *  way there is nothing to do on the dashboard, so go to login instead of
-   *  leaving an alert on screen. Other empty levels (branch, semester, section,
-   *  subject) are genuine "this combination does not run" cases and keep their
-   *  alert. */
-  const checkedEmptyLevels = useRef(false);
-  useEffect(() => {
-    if (!booted || !signedIn) return;
-    if (!opts.emptyLevels.includes("course")) {
-      checkedEmptyLevels.current = false;
-      return;
-    }
-    if (checkedEmptyLevels.current) return;
-    checkedEmptyLevels.current = true;
-    signedOut("ECAP returned no courses. Please sign in again.");
-  }, [booted, signedIn, opts.emptyLevels, signedOut]);
-  /** The boot check: whether there is a session at all, and what it says. */
+  /**
+   * The boot check: whether there is a session at all, and what it says.
+   *
+   * A probe that failed is not an answer. ECAP not answering is a transport
+   * failure, and treating it as "signed out" sends someone whose stored session
+   * is perfectly good to the sign-in form, where the hook is paused and nothing
+   * asks again. So a first failure is retried once, and a second one falls back
+   * to the form with the reason on it rather than a silent one.
+   */
+  const [bootRetried, setBootRetried] = useState(false);
   useEffect(() => {
     if (booted || session.isLoading) return;
-    const alive = Boolean(session.data?.signedIn);
+    if (!session.data) {
+      if (!bootRetried) {
+        setBootRetried(true);
+        void reloadSession();
+        return;
+      }
+      setLoginNote({
+        kind: "warning",
+        text: "ECAP did not answer. Sign in again if this screen does not go away.",
+      });
+      setView("signedOut");
+      if (!onLogin) navigate(LOGIN_PATH, { replace: true });
+      return;
+    }
+    const alive = session.data.signedIn;
     setView(alive ? "signedIn" : "signedOut");
     if (!alive) {
       if (!onLogin) navigate(LOGIN_PATH, { replace: true });
@@ -633,7 +637,7 @@ const App = (): React.JSX.Element => {
     // A restored session never went through the sign-in form, so this is the
     // only place the name can arrive. Without it the rail and the profile panel
     // show a dash for a session that is working.
-    if (session.data?.userId) noteUserId(session.data.userId);
+    if (session.data.userId) noteUserId(session.data.userId);
     if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }
@@ -642,11 +646,13 @@ const App = (): React.JSX.Element => {
     booted,
     session.isLoading,
     session.data,
+    bootRetried,
     onLogin,
     pathname,
     navigate,
     runRefresh,
     noteUserId,
+    setLoginNote,
   ]);
   /** A 401 is ECAP refusing the session, from whichever request met it: the app
    *  signs out through the one path, so nothing goes on showing the numbers of a
@@ -688,16 +694,18 @@ const App = (): React.JSX.Element => {
   // carries. Reordering them by attendance made the numbers read as a ranking
   // rather than as a roster. A student needing a check-in is found by the tint,
   // not by being at the top of the list.
-  const registerFacts = chosenFacts(opts, sel, {
-    range: summary?.range,
-    classesHeld: summary?.classesHeld,
-    // The Date Range names the window the figures on screen cover: the
-    // register's own first day where it stated one, else the window asked for.
-    // The probe's day is NOT that — the class report covers the whole window —
-    // so it belongs in the Sem Start Date row alone.
-    statedFrom: summary?.statedFrom,
-    semStart: semStartShown,
-  });
+  const registerFacts = click
+    ? chosenFacts(click.request, opts, {
+        range: summary?.range,
+        classesHeld: summary?.classesHeld,
+        // The Date Range names the window the figures on screen cover: the
+        // register's own first day where it stated one, else the window asked
+        // for. The probe's day is NOT that — the class report covers the whole
+        // window — so it belongs in the Sem Start Date row alone.
+        statedFrom: summary?.statedFrom,
+        semStart: semStartShown,
+      })
+    : [];
   const onSelectLevel = (key: Level, value: string) => {
     const changed = { ...sel, [key]: value };
     // The subject has nothing below it, so it re-reads nothing; every other level

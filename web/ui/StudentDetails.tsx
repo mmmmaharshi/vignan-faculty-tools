@@ -12,7 +12,8 @@ import {
   Text,
 } from "@mantine/core";
 
-import type { Student, StudentProfile } from "../../shared/api";
+import { overallCellForDisplay } from "../../shared/api";
+import type { Student, StudentMonth, StudentProfile } from "../../shared/api";
 import type { Note } from "../app/types";
 import { badgeFor, carriesOverall, displayName } from "../register/worklist";
 
@@ -65,6 +66,55 @@ const chunked = (dates: readonly string[]): string[][] =>
   Array.from({ length: Math.ceil(dates.length / 5) }, (_, i) =>
     dates.slice(i * 5, i * 5 + 5)
   );
+/**
+ * The student's cumulative attendance month by month: one row per month from the
+ * semester start to the month in progress, each stating ECAP's own figure over
+ * that window, so a monthly counselling report quotes what the Portal states.
+ * A month ECAP would not give reads a dash, and a row with no figure is not a
+ * clean month.
+ */
+const MonthsBlock = ({
+  months,
+}: {
+  months: readonly StudentMonth[];
+}): React.JSX.Element => (
+  <>
+    <Text c="dimmed" size="xs" tt="uppercase">
+      Attendance by month (cumulative, all subjects, from{" "}
+      {months[0]?.from ?? ""})
+    </Text>
+    <Table.ScrollContainer minWidth={520}>
+      <Table striped withTableBorder tabularNums>
+        <Table.Thead>
+          <Table.Tr>
+            <Table.Th>Month</Table.Th>
+            <Table.Th ta="right">Attended / Held</Table.Th>
+            <Table.Th ta="right">Cumulative %</Table.Th>
+          </Table.Tr>
+        </Table.Thead>
+        <Table.Tbody>
+          {months.map((month) => (
+            <Table.Tr key={`${month.from}-${month.to}`}>
+              <Table.Td>
+                <Text size="sm">{month.label}</Text>
+              </Table.Td>
+              <Table.Td ta="right">
+                <Text size="sm">
+                  {overallCellForDisplay(month.attendedOfHeld) || "—"}
+                </Text>
+              </Table.Td>
+              <Table.Td ta="right">
+                <Text size="sm" fw={600}>
+                  {month.pct == null ? "—" : `${month.pct.toFixed(2)}%`}
+                </Text>
+              </Table.Td>
+            </Table.Tr>
+          ))}
+        </Table.Tbody>
+      </Table>
+    </Table.ScrollContainer>
+  </>
+);
 /** One absent-dates block: a heading with its count, the five-per-row table,
  *  and a copy button for the comma-separated dates. */
 const AbsenceBlock = ({
@@ -160,6 +210,7 @@ export const StudentDetails = ({
   const totals = profile?.totals ?? null;
   const backlogTotal = profile?.backlogs.total ?? null;
   const backlogNote = profile?.backlogs.note ?? "";
+  const months = profile?.months ?? [];
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
   const content = (
@@ -278,6 +329,10 @@ export const StudentDetails = ({
           </Table>
         </>
       ) : null}
+      {/* The student's cumulative attendance month by month, after the
+          semester's own counts: the same figures, walked forward, which is what
+          a monthly counselling report quotes. */}
+      {months.length ? <MonthsBlock months={months} /> : null}
       {/* The student's absences over the whole semester, five to a row. No
           list when there are none, because a grid that states no dates must
           not be read as a clean sheet. */}

@@ -401,6 +401,28 @@ export const stub = async (route: Route): Promise<void> => {
       ...(allSubjects ? { absent: ["02/09"] } : {}),
       // The semester's counts, as the Cumulative register states them.
       ...(semStart ? { totals: { held: 21, attend: 21, absent: 0 } } : {}),
+      // The month table, as the class report states it: cumulative from the
+      // semester start, one row per month, the figure climbing.
+      ...(semStart
+        ? {
+            months: [
+              {
+                label: "Aug 2026",
+                from: semStart,
+                to: "31/08/2026",
+                pct: 65,
+                attendedOfHeld: "13\\20",
+              },
+              {
+                label: "Sep 2026",
+                from: semStart,
+                to: "30/09/2026",
+                pct: 75.5,
+                attendedOfHeld: "30\\40",
+              },
+            ],
+          }
+        : {}),
     });
     return;
   }

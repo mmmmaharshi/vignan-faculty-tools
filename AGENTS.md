@@ -468,6 +468,25 @@ carries one also has its name in text.
   section empty, and those are different answers — the words are shown, the empty
   section is not.
 
+- **The month table is one class report per month, and the figure is ECAP's own.**
+  A monthly counselling report quotes the term so far, so each row is a window
+  from the semester start to that month's end, read through `ShowAllAttendance`
+  and stated as ECAP stated it — never a percentage divided out of ADR 0026's
+  counts, because ECAP states no percentage there and the arithmetic would
+  disagree with the Portal the moment the windows differ by a period. The rows go
+  out in parallel, from the semester start's month through the current one, capped
+  at the same twelve months the walks use — a start older than the cap drops its
+  oldest rows rather than stopping short of the month in progress; a month ECAP
+  refuses with a 502 leaves that row a dash while the rest of the table stands,
+  and a 401 from any month still signs out. No open register or no known start
+  means no table, and a roll is matched the one way `sameRoll` matches it, so a
+  casing difference cannot blank the whole table. The months share a 15-second
+  budget, so a slow one is a blank row rather than a panel that never answers.
+  The Student Search screen reads
+  the same table through `handleFind`, which knows its section and start by then,
+  so the two panels never disagree. ADR 0029 records the cost: this is the
+  heaviest read in the app.
+
 - **The All subjects panel's absent dates are one more Portal answer, not a
   Monday-to-Friday subtraction.** The class report aggregates by subject and
   states **no dates at all** — its header is `Sl.No | Roll.No | Student Name |
@@ -635,10 +654,14 @@ carries one also has its name in text.
   not "did it throw" — and every account has at least one course, so an empty list
   can only mean the session is gone. But a 502 is genuinely ambiguous, and ADR 0002
   and ADR 0013 both refused to treat it as an expiry.
-- **A caller needing both the verdict and the options must use `courseVerdict`.**
-  Reading `portal.courses()` first and passing the result to `liveness` lets a
+- **A caller needing both the verdict and the options must use `requireCourses`.**
+  Reading `portal.courses()` first and passing the result to `courseVerdict` lets a
   throw escape *before* the rule is reached, so the 502 refusal holds by accident
-  rather than by decision. That was the first version; a mutation probe caught it.
+  rather than by decision — the first version did exactly that, and a mutation
+  probe caught it. Both handlers that start from the course list therefore call
+  `requireCourses`, which throws the 401 or the 502 and returns the list otherwise.
+  There is no client-side net behind it: an empty course list never reaches the
+  browser, so nothing on the front end can fire for it.
 - **The 30 days is a ceiling on *our* session, not a promise from ECAP.** A live
   spike proved both portal cookies are session cookies with no `Expires` and no
   `Max-Age`, and that **neither authenticates alone** — so the credential is
@@ -779,8 +802,11 @@ fill is a rule bug, two requests racing is a loop bug.
   register loads; that is now carried by `All subjects` leading the list, so the
   auto-fill lands on the section-wide view and the user narrows from there. A
   section with no subjects at all still leaves it empty, which is what keeps the
-  cascade loop honest. The facts table above the register names it on screen so
-  a wrong pick is visible rather than silent.
+  cascade loop honest. **The facts table names the register on screen, not the
+  picker**: it is built from the request that produced the table, because a
+  level changed without pressing Load must keep naming the rows above it — and a
+  card naming one class over another class's figures is the exact failure that
+  card exists to prevent.
 - **A newer refresh always wins, and the signal is what says so.** A change
   aborts the run before it — `cascadeRun` in `App.tsx` — and the run answers
   `null` rather than a settled selection, so an older pass cannot write to the
@@ -888,8 +914,9 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   idle and `0` when a request is in flight or the login screen is up. And the
   **profile** hook keeps SWR's own "revalidate on mount if stale", which is why
   reopening a student's panel shows the last answer at once and refreshes it
-  behind the panel — the panel's read is still one call per open, per ADR 0018,
-  joined by one more only on the **All subjects** path, whose report states no
+  behind the panel — one request on the wire, which fans out to the profile page,
+  the Cumulative grid and, per ADR 0029, one class report per month for the month
+  table, plus one more only on the **All subjects** path, whose report states no
   dates at all (ADR 0021).
 - **A one-shot read is `useSWRImmutable`, and that is the register, the semester
   start and the full-semester absences.** Their keys already say when the answer

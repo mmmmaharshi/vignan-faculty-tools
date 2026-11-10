@@ -172,9 +172,19 @@ export function semesterTitleOf(opts: OptionsReply, semester: string): string {
 }
 export type ChosenFact = { label: string; value: string };
 const dayWord = (n: number): string => (n === 1 ? "day" : "days");
+/**
+ * The five levels and the window, as the register on screen names them.
+ *
+ * The levels come from the request that produced the register, never from the
+ * picker: a level changed without pressing Load must keep naming the rows above
+ * it, or the card states one class over another class's figures — and that card
+ * exists to make a wrong pick visible. The options reply is only used to correct
+ * a label the Portal has since renamed; the request's own label covers a level
+ * this reply no longer offers.
+ */
 export function chosenFacts(
+  request: Record<Level, Option>,
   opts: OptionsReply,
-  sel: Sel,
   tail?: {
     /** The window the figures on screen cover. */
     range?: Range;
@@ -189,8 +199,12 @@ export function chosenFacts(
 ): ChosenFact[] {
   const { range, classesHeld, statedFrom, semStart } = tail ?? {};
   const facts = LEVELS.flatMap(([key, label]) => {
-    const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
-    return hit ? [{ label, value: hit.label }] : [];
+    const chosen = request[key];
+    const known = opts[key].find(
+      (o) => String(o.value) === String(chosen.value)
+    );
+    const value = known?.label ?? chosen.label;
+    return value ? [{ label, value }] : [];
   });
   // The period is part of naming the register: the card above it and
   // a student's panel state the same facts, so it is written once here. The

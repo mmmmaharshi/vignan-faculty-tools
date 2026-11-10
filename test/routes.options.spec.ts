@@ -80,7 +80,7 @@ test.describe("the options ladder", () => {
       expect(nth(calls.sections, 0)[3]).toBe("2025");
     });
   });
-  test("an absent title arrives as absent, not as an empty string", () => {
+  test("a semester the list states no title for asks with no batch", () => {
     const { reader, calls } = fake();
     return handleOptions(reader, {
       course: "1",
@@ -88,6 +88,22 @@ test.describe("the options ladder", () => {
       semester: "3",
     }).then(() => {
       expect(nth(calls.sections, 0)[3]).toBeUndefined();
+    });
+  });
+  test("the batch comes from the Portal's own list, so a stale one cannot ask the wrong batch", () => {
+    // The client sends the title it remembers, and a cascade that has not
+    // settled yet sends none at all. What this call just fetched is the only
+    // statement of the batch that matters.
+    const { reader, calls } = fake({
+      semester: [opt("3", "III Semester", "2025")],
+    });
+    return handleOptions(reader, {
+      course: "1",
+      branch: "6",
+      semester: "3",
+      semesterTitle: "1999",
+    }).then(() => {
+      expect(nth(calls.sections, 0)[3]).toBe("2025");
     });
   });
   test("every level comes back on every call, empty rather than absent", () => {

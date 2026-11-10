@@ -167,6 +167,22 @@ export interface StudentTotals {
   attend: number;
   absent: number;
 }
+/** One month's cumulative attendance for a student: ECAP's own class report
+ *  over [semester start → that month's end], which is the figure a monthly
+ *  counselling report quotes. Read as stated — the app never divides one of its
+ *  own counts to make it (ADR 0017). */
+export interface StudentMonth {
+  /** The month as the app names it ("Sep 2026"). */
+  label: string;
+  /** The window the figure covers: the semester start to that month's end, or
+   *  to today for the month in progress. dd/mm/yyyy, the Portal's own shape. */
+  from: string;
+  to: string;
+  /** ECAP's stated percentage for that window. Null is no figure. */
+  pct: number | null;
+  /** ECAP's stated attended-of-held for that window, as written. */
+  attendedOfHeld: string;
+}
 /**
  * What ECAP's StudentProfile page states about one student. Read, never
  * computed: `cgpaPercent` is the figure the page prints beside the CGPA, and a
@@ -189,6 +205,10 @@ export interface StudentProfile {
   /** The semester's held / attended / absent class counts, from the Cumulative
    *  student-wise register. Left out when ECAP would not give that reply. */
   totals?: StudentTotals;
+  /** The student's cumulative attendance month by month, from the semester's
+   *  first month through the current one. Left out when no register is open or
+   *  the semester start is unknown: the section cannot be named without them. */
+  months?: StudentMonth[];
 }
 /** One student's absent days over a wider window than the register on screen —
  *  asked with the remembered semester start so the panel can name a full-sem
@@ -370,6 +390,15 @@ export function overallCellForDisplay(cell: string): string {
  *  report failures in words, so both read them the same way. */
 export const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
+/**
+ * Whether two statements of a roll number name the same student. ECAP writes a
+ * roll in caps on a report and in whatever case it was typed elsewhere, so a
+ * comparison that cares about case blanks a row whose figure is right there.
+ * One rule, because three readers look a roll up and all three must find the
+ * same row.
+ */
+export const sameRoll = (a: string, b: string): boolean =>
+  a.trim().toLowerCase() === b.trim().toLowerCase();
 /** Today on the campus clock, dd/mm/yyyy: ECAP's dates are IST, and a server
  *  on UTC would ask for yesterday after 18:30 UTC. Pure, so both the server's
  *  ask and the client's title read the same day. */

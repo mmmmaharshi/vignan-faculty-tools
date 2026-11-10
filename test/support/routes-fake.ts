@@ -159,6 +159,14 @@ export const fake = (
     subject?: Option[];
     register?: string;
     classAttendance?: string;
+    /** The class report for one month, keyed by the window's end date: the
+     *  month-by-month table reads a different window per row. */
+    classAttendanceMonths?: Record<string, string>;
+    /** The windows, by end date, whose class report refuses with a 502 — the
+     *  one row that goes blank while the rest of the table stands. */
+    classFailsMonths?: string[];
+    /** The windows, by end date, that refuse the session with a 401. */
+    classDeadMonths?: string[];
     classFails?: boolean;
     studentProfile?: string;
     studentWise?: string;
@@ -244,7 +252,17 @@ export const fake = (
       if (answers.classFails) {
         return Promise.reject(new HttpError(502, "class report unavailable"));
       }
-      return resolved(answers.classAttendance ?? ONE_CLASS_ROW);
+      if (answers.classFailsMonths?.includes(p.to)) {
+        return Promise.reject(new HttpError(502, "class report unavailable"));
+      }
+      if (answers.classDeadMonths?.includes(p.to)) {
+        return Promise.reject(new HttpError(401, "Your ECAP session expired."));
+      }
+      return resolved(
+        answers.classAttendanceMonths?.[p.to] ??
+          answers.classAttendance ??
+          ONE_CLASS_ROW
+      );
     },
     studentProfile: (roll) => {
       calls.studentProfile.push(roll);

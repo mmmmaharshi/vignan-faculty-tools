@@ -14,6 +14,7 @@ import {
 import { noteSemStart, semStartKey } from "../web/register/sem-starts";
 import {
   CLASS_A,
+  chosenOf,
   dateRangeTail,
   nothing,
   reply,
@@ -215,7 +216,37 @@ test.describe("the register, before it is sent", () => {
     }
   });
   test("the register's naming, one fact per row", () => {
-    const facts = chosenFacts(
+    const opts = reply({
+      course: ["1"],
+      semester: ["3"],
+      branch: ["4"],
+      section: ["5"],
+      subject: ["6"],
+    });
+    const picked = sel({
+      course: "1",
+      semester: "3",
+      branch: "4",
+      section: "5",
+      subject: "6",
+    });
+    const facts = chosenFacts(chosenOf(opts, picked), opts, {
+      range: { from: "01/10/2026", to: "16/10/2026" },
+    });
+    expect(facts).toEqual([
+      { label: "Course", value: "L1" },
+      { label: "Semester", value: "L3" },
+      { label: "Branch", value: "L4" },
+      { label: "Section", value: "L5" },
+      { label: "Subject", value: "L6" },
+      { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
+    ]);
+  });
+  test("a load's own class is named even after the picker moved on", () => {
+    // Pick DBMS without pressing Load and the table still holds MFCS's rows.
+    // The card must keep naming MFCS, and must still name it when the options
+    // reply no longer offers it — that reply is the picker's, not the table's.
+    const loaded = chosenOf(
       reply({
         course: ["1"],
         semester: ["3"],
@@ -229,17 +260,32 @@ test.describe("the register, before it is sent", () => {
         branch: "4",
         section: "5",
         subject: "6",
-      }),
-      { range: { from: "01/10/2026", to: "16/10/2026" } }
+      })
     );
-    expect(facts).toEqual([
-      { label: "Course", value: "L1" },
-      { label: "Semester", value: "L3" },
-      { label: "Branch", value: "L4" },
-      { label: "Section", value: "L5" },
-      { label: "Subject", value: "L6" },
-      { label: "Date Range", value: "01/10/2026 to 16/10/2026" },
-    ]);
+    const movedOn = reply({
+      course: ["1"],
+      semester: ["3"],
+      branch: ["4"],
+      section: ["5"],
+      subject: ["9"],
+    });
+    expect(
+      chosenFacts(loaded, movedOn).find((fact) => fact.label === "Subject"),
+      "the register's subject, not the dropdown's"
+    ).toEqual({ label: "Subject", value: "L6" });
+    expect(
+      chosenFacts(
+        loaded,
+        reply({
+          course: ["1"],
+          semester: [],
+          branch: [],
+          section: [],
+          subject: [],
+        })
+      ).find((fact) => fact.label === "Subject"),
+      "and it survives an options reply that no longer offers it"
+    ).toEqual({ label: "Subject", value: "L6" });
   });
   test("the date range carries the register's own class-day count", () => {
     // 01/10 to 16/10 is 16 calendar days, and the register states classes

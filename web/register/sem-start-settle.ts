@@ -137,7 +137,14 @@ export function useSemStartSettle(setup: {
         )
       : null;
   const semSeen =
-    result?.summary.statedFrom ?? semStart.data?.statedFrom ?? null;
+    result?.summary.statedFrom ??
+    semStart.data?.statedFrom ??
+    // The settle walk answered for the same class whenever the two keys agree,
+    // and its day is the true start. Folding it in matters because the fold
+    // only ever lowers an entry: a first load over a hand-narrowed window would
+    // otherwise record that window's first day as the class's start, for good.
+    (preKey === semKey ? preSemStart.data?.statedFrom : null) ??
+    null;
   const semStartShown = (semKey && (semStarts[semKey] ?? semSeen)) || null;
   /** The stamps that stop an effect asking twice: the last applied From snap
    *  (`source|iso`), and the selection the memory snap already ran for. Both

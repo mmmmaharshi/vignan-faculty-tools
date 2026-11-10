@@ -1,6 +1,7 @@
 import {
   ALL_SUBJECTS,
   isAllSubjects,
+  sameRoll,
   statedStartDate,
   todayIST,
 } from "../shared/api.js";
@@ -19,6 +20,7 @@ import type {
   SemStartRequest,
   StudentProfile,
   StudentRequest,
+  StudentMonth,
   StudentTotals,
   TodayClassesReply,
   UnpostedReply,
@@ -69,9 +71,17 @@ export async function handleOptions(
     take("semester", semesters);
   }
   if (b.course && b.branch && b.semester) {
+    // The batch number travels beside the semester value, and only the Portal's
+    // own list states it. It is resolved here from the list just fetched, with
+    // the client's value only as a fallback: a client whose cascade has not
+    // settled yet sends none, and an unresolved batch asks the wrong section
+    // list.
+    const batch =
+      out.semester.find((o) => String(o.value) === String(b.semester))?.title ||
+      b.semesterTitle;
     take(
       "section",
-      await portal.sections(b.course, b.branch, b.semester, b.semesterTitle)
+      await portal.sections(b.course, b.branch, b.semester, batch)
     );
   }
   if (b.course && b.branch && b.semester && b.section) {
@@ -313,10 +323,10 @@ async function readAbsences(
     return {};
   }
 }
-/** How many months back a semester walk reads before it gives up: the asked
- *  month plus this many before it, each a month-shaped read — the only shape
- *  ECAP reliably answers. Both walks share the number so their reach cannot
- *  drift apart. */
+/** How many months one walk may read before it gives up. The two semester
+ *  walks use it as a limit on how far back they look; the month table uses it
+ *  as a limit on how many rows it will ask for. One number, because all three
+ *  are answering "how far can this go before it is not a semester any more". */
 const MONTH_WALK_CAP = 12;
 /** One calendar month as a portal window, dd/mm/yyyy both ends. Month shapes
  *  are the only range ECAP reliably answers — live runs show wide registers
@@ -337,6 +347,67 @@ function previousMonth(
   month: number
 ): { year: number; month: number } {
   return month > 1 ? { year, month: month - 1 } : { year: year - 1, month: 12 };
+}
+/** The month after, across a year boundary. */
+function nextMonth(
+  year: number,
+  month: number
+): { year: number; month: number } {
+  return month < 12 ? { year, month: month + 1 } : { year: year + 1, month: 1 };
+}
+/** The Portal names no months in the reply, so the label is the server's own:
+ *  a fixed table, because a locale-derived name would differ per instance. */
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+/**
+ * One cumulative window per month, from the semester's first month through the
+ * current one. Every window starts at the semester start — the figure is
+ * cumulative, which is what a monthly counselling report quotes — and ends at
+ * that month's own last day, or at today for the month still running. Empty
+ * when either date will not parse, so the panel shows no table rather than one
+ * built from a guess.
+ */
+function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
+  const [sd, sm, sy] = semStart.split("/").map(Number);
+  const [, nm, ny] = now.split("/").map(Number);
+  if (!sd || !sm || !sy || !nm || !ny || sm > 12 || nm > 12) return [];
+  // How many months the semester spans, both ends counted.
+  const span = (ny - sy) * 12 + (nm - sm) + 1;
+  if (span < 1) return [];
+  // A span longer than the cap keeps its newest rows: the table exists to show
+  // where the student stands now, so a stale start drops old months rather than
+  // stopping short of the month in progress.
+  let year = sy;
+  let month = sm;
+  for (let skipped = 0; skipped < span - MONTH_WALK_CAP; skipped++) {
+    ({ year, month } = nextMonth(year, month));
+  }
+  const out: StudentMonth[] = [];
+  for (let step = 0; step < Math.min(span, MONTH_WALK_CAP); step++) {
+    const running = year === ny && month === nm;
+    const mm = String(month).padStart(2, "0");
+    out.push({
+      label: `${MONTH_NAMES[month - 1] ?? mm} ${year}`,
+      from: semStart,
+      to: running ? now : monthWindow(year, month).to,
+      pct: null,
+      attendedOfHeld: "",
+    });
+    ({ year, month } = nextMonth(year, month));
+  }
+  return out;
 }
 /**
  * A grid's date columns belonging to one month, in the grid's own order. Only
@@ -455,12 +526,82 @@ async function readTotals(
   }
 }
 /**
+ * How long the month table may take before the panel answers without it. The
+ * rest of the panel has already arrived by then, and a month still in flight is
+ * the blank row a refused month already earns — not a reason to hold the GPA and
+ * the phone numbers back, and not a reason to run the function into its own
+ * timeout.
+ */
+const MONTHS_BUDGET_MS = 15_000;
+/**
+ * `work` if it finishes inside `ms`, else null. A deadline is a timer, and a
+ * timer is the only way to bound a wait — the promise raced here is left
+ * running, and `Promise.race` already holds a handler for it, so a late refusal
+ * cannot surface as an unhandled rejection.
+ */
+function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  return Promise.race([
+    work,
+    // oxlint-disable-next-line promise/avoid-new -- a deadline is a timer; there is no promise to await instead
+    new Promise<null>((resolve) => {
+      setTimeout(() => resolve(null), ms);
+    }),
+  ]);
+}
+/**
+ * One student's cumulative attendance month by month, from the semester's first
+ * month through the current one: each row is the class report over
+ * [semester start → that month's end], so the figure a monthly counselling
+ * report quotes is the one ECAP states rather than one this app derived.
+ *
+ * Needs the open register for the five levels and the known semester start for
+ * the window; without either there is no section to read, so the panel says
+ * nothing instead of guessing one. Every month is asked in parallel because
+ * they need nothing from each other. A month ECAP refuses leaves that row's
+ * figure blank — the rest of the table is still a finding — while a 401 still
+ * ends the session. ADR 0029 records the cost.
+ */
+async function readMonths(
+  portal: PortalReader,
+  roll: string,
+  b: Partial<StudentRequest>
+): Promise<{ months?: StudentMonth[] }> {
+  const { register, semStart } = b;
+  if (!register || !semStart) return {};
+  const windows = monthToDateWindows(semStart, todayIST());
+  if (!windows.length) return {};
+  const levels = requireLevels(register);
+  const work = Promise.all(
+    windows.map(async (month) => {
+      try {
+        const report = await portal.classAttendance({
+          ...levels,
+          from: month.from,
+          to: month.to,
+        });
+        const row = parseClassAttendance(report).find((r) =>
+          sameRoll(r.roll, roll)
+        );
+        return row
+          ? { ...month, pct: row.pct, attendedOfHeld: row.attendedOfHeld }
+          : month;
+      } catch (error) {
+        rethrowExpired(error);
+        return month;
+      }
+    })
+  );
+  // After the budget nobody is waiting; `within` holds the handler.
+  const months = await within(work, MONTHS_BUDGET_MS);
+  return months ? { months } : { months: windows };
+}
+/**
  * One student's GPA and phone numbers, read on demand when their row is opened.
  * The register states neither, so the Portal is asked about a single student here
  * and nowhere else — except on the All subjects path, where `readAbsences` asks
  * for one more thing, that student's own grid, because the report on screen states
  * no dates at all — and on every path, where `readTotals` asks for the
- * semester's class counts.
+ * semester's class counts and `readMonths` for one class report per month.
  */
 export async function handleStudentProfile(
   portal: PortalReader,
@@ -468,21 +609,22 @@ export async function handleStudentProfile(
 ): Promise<StudentProfile> {
   const roll = b.roll?.trim();
   if (!roll) throw new HttpError(400, "Choose a student.");
-  // The GPA page, the absent-dates read and the semester's totals need nothing
-  // from each other — the roll, the name and the open register all arrive in
-  // the request — so they go out together. A 401 from any still ends the
-  // session, and a page that is not the profile still fails named instead of
-  // half-read.
-  const [page, absences, totals] = await Promise.all([
+  // The GPA page, the absent-dates read, the semester's totals and the month
+  // table need nothing from each other — the roll, the name and the open
+  // register all arrive in the request — so they go out together. A 401 from
+  // any still ends the session, and a page that is not the profile still fails
+  // named instead of half-read.
+  const [page, absences, totals, monthly] = await Promise.all([
     portal.studentProfile(roll),
     readAbsences(portal, roll, b),
     readTotals(portal, roll, b),
+    readMonths(portal, roll, b),
   ]);
   const profile = parseStudentProfile(page);
   if (!profile) {
     throw unreadablePage("student profile page");
   }
-  return { ...profile, ...absences, ...totals };
+  return { ...profile, ...absences, ...totals, ...monthly };
 }
 /**
  * One roll number in, the student's class and attendance figure out.
@@ -543,9 +685,7 @@ export async function handleFind(
       }
     );
     if (reply) reportAnswered = true;
-    const student = reply?.students.find(
-      (row) => row.roll.trim().toLowerCase() === roll.toLowerCase()
-    );
+    const student = reply?.students.find((row) => sameRoll(row.roll, roll));
     if (reply && student) {
       // The class report states no dates, so the student's own grid is the only
       // place they exist — read them now, over the same window, the way the
@@ -564,13 +704,18 @@ export async function handleFind(
       // The semester's class counts, over the same start the absent walk found —
       // the window ECAP's Cumulative screen uses. The Search screen has no
       // register picker, so this is the only place its panel can get them.
-      const totals = await readTotals(portal, roll, {
+      const asked = {
         name: student.name,
         register: gridRequest,
         semStart: full.range?.from ?? window.from,
-      });
+      };
+      const totals = await readTotals(portal, roll, asked);
+      // The same panel reads the same month table here: the section and the
+      // semester start are both known by now, so a search must not show less
+      // than the register's panel does.
+      const monthly = await readMonths(portal, roll, asked);
       return {
-        profile: { ...profile, ...totals },
+        profile: { ...profile, ...totals, ...monthly },
         class: {
           ...found.levels,
           section,
@@ -701,7 +846,7 @@ export async function handleSemAbsences(
     });
   }
   const rows = parseRegister(await portal.register({ ...p, from, to }));
-  const row = rows.find((r) => r.roll === roll);
+  const row = rows.find((r) => sameRoll(r.roll, roll));
   // A student the wider grid does not mention is stated as nothing, never as a
   // clean sheet: the read said nothing about them, which is not a finding.
   return row ? { absent: row.absent } : {};
