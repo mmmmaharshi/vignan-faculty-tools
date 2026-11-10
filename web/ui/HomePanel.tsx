@@ -12,7 +12,7 @@ import React, { useEffect, useMemo, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
 import type { Note } from "../app/types";
-import { capitalCase, pillsOf, splitSubject } from "../data/format";
+import { capitalCase, isLive, pillsOf, splitSubject } from "../data/format";
 import {
   notePeriodTimes,
   readPeriodTimes,
@@ -30,31 +30,6 @@ export type HomePanelProps = {
   note?: Note | null;
   /** The day both Home sections cover, dd/mm/yyyy on the campus clock. */
   date?: string | null;
-};
-/** "08:45 AM- 09:35 PM" as minutes since midnight, or null when the grid
- *  wrote something else. Twelve-hour clock, as ECAP writes it. */
-const TIME_RANGE =
-  /(?<from>\d{1,2}:\d{2}\s*[AP]M)\s*-\s*(?<to>\d{1,2}:\d{2}\s*[AP]M)/i;
-const toMinutes = (clock: string): number | null => {
-  const parts = clock
-    .trim()
-    .match(/^(?<hour>\d{1,2}):(?<minute>\d{2})\s*(?<half>[AP])M$/i)?.groups;
-  if (!parts?.hour || !parts.minute || !parts.half) return null;
-  const hour =
-    (Number(parts.hour) % 12) + (parts.half.toUpperCase() === "P" ? 12 : 0);
-  return hour * 60 + Number(parts.minute);
-};
-/** Whether the faculty member is inside this period right now, by the
- *  browser's own clock — ECAP and the faculty share the campus day. Ranges
- *  read on a 24-hour clock, so an evening range past midnight still contains
- *  its early minutes. */
-const isLive = (time: string, now: Date): boolean => {
-  const range = time.match(TIME_RANGE)?.groups;
-  const from = range?.from ? toMinutes(range.from) : null;
-  const to = range?.to ? toMinutes(range.to) : null;
-  if (from === null || to === null) return false;
-  const at = now.getHours() * 60 + now.getMinutes();
-  return from <= to ? from <= at && at < to : at >= from || at < to;
 };
 const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
   const { name, branch } = splitSubject(entry.subject);

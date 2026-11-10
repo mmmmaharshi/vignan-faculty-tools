@@ -38,8 +38,39 @@ export const pillsOf = (section: string): string[] =>
       return [words];
     })
     .filter(Boolean);
-/** "FLUTER LAB" reads "Fluter Lab": ECAP shouts its subject names, and the
- *  Class column should not. Words of two letters or fewer stay as written, so
+/**
+ * "08:45 AM- 09:35 PM" as minutes since midnight, or null when the grid wrote
+ * something else. Twelve-hour clock, as ECAP writes it.
+ */
+const TIME_RANGE =
+  /(?<from>\d{1,2}:\d{2}\s*[AP]M)\s*-\s*(?<to>\d{1,2}:\d{2}\s*[AP]M)/i;
+const toMinutes = (clock: string): number | null => {
+  const parts = clock
+    .trim()
+    .match(/^(?<hour>\d{1,2}):(?<minute>\d{2})\s*(?<half>[AP])M$/i)?.groups;
+  if (!parts?.hour || !parts.minute || !parts.half) return null;
+  const hour =
+    (Number(parts.hour) % 12) + (parts.half.toUpperCase() === "P" ? 12 : 0);
+  return hour * 60 + Number(parts.minute);
+};
+/**
+ * Whether a period is running right now, by the browser's own clock — ECAP and
+ * the faculty share the campus day. The two ends read on a 24-hour clock, so a
+ * range that runs past midnight still contains its early minutes.
+ *
+ * It lives here rather than in the panel because a rule that can only be read
+ * beside JSX is a rule that cannot be pinned by a test, and this one is wrong
+ * for every afternoon period if the 12-hour conversion loses its noon.
+ */
+export const isLive = (time: string, now: Date): boolean => {
+  const range = time.match(TIME_RANGE)?.groups;
+  const from = range?.from ? toMinutes(range.from) : null;
+  const to = range?.to ? toMinutes(range.to) : null;
+  if (from === null || to === null) return false;
+  const at = now.getHours() * 60 + now.getMinutes();
+  return from <= to ? from <= at && at < to : at >= from || at < to;
+};
+/** "FLUTER LAB" reads "Fluter Lab": ECAP shouts its subject names, and the *  Class column should not. Words of two letters or fewer stay as written, so
  *  an acronym like "AI" does not come out "Ai". */
 export const capitalCase = (text: string): string =>
   text

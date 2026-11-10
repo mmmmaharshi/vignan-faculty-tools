@@ -141,21 +141,12 @@ export function parseClassAttendance(html: string): OverallRow[] {
 }
 /**
  * One student's stated percentage for one subject, out of that subject's own
- * report: Sl.No, Roll.No, name, the subject's attended, then its percent.
- * Read as stated, never recomputed — like the overall figure beside it.
+ * report. That report is the class report's grid under another head, so the
+ * walk is the class report's: a row shape change lands in one place instead of
+ * two that must agree.
  */
 export function parseSubjectReport(html: string): SubjectRow[] {
-  const rows: SubjectRow[] = [];
-  const grid = anyHeaded(gridTables(html));
-  if (!grid) return rows;
-  for (const cells of grid) {
-    if (cells.length < 4) continue;
-    const sl = cells[0] ?? "";
-    const roll = cells[1] ?? "";
-    if (!/^\d+$/.test(sl) || !roll) continue;
-    rows.push({ roll, pct: statedPercent(cells.at(-1) ?? "") });
-  }
-  return rows;
+  return parseClassAttendance(html).map(({ roll, pct }) => ({ roll, pct }));
 }
 /** The Cumulative student-wise register's own marks, by the colour the reply
  *  paints on each cell. The reply states that legend above its grid, so the

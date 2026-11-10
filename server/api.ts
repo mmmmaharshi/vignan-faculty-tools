@@ -22,26 +22,22 @@ import {
   classPairs,
   CookieJar,
   dayWorkPairs,
-  portalEncrypt,
   studentPairs,
   subjectReportPairs,
 } from "./portal-conventions.js";
 import type { DayWorkRequest } from "./portal-conventions.js";
 import { parseFacultyName, parseLeaveStatus } from "./portal-faculty.js";
-import { hiddenValue } from "./portal-html.js";
 import { courseVerdict } from "./portal-liveness.js";
 import type { CourseReader } from "./portal-liveness.js";
 import { options } from "./portal-options.js";
 import type { PortalReader } from "./portal-reader.js";
+import { signInTo } from "./portal-signin.js";
 import {
-  BASE,
   CLASS_REMOTE,
   DASHBOARD_REMOTE,
   DAYWORK_REMOTE,
-  HTTP_TIMEOUT_MS,
   LEAVE_STATUS_REMOTE,
   LOGIN_PAGE,
-  LOGIN_POST,
   MAIN_DESIGNATION_REMOTE,
   MAIN_PHOTO_REMOTE,
   portalJq,
@@ -76,38 +72,7 @@ class Portal {
     return this.jar.signedIn;
   }
   async signIn(userId: string, password: string): Promise<void> {
-    const page = await fetch(LOGIN_PAGE, {
-      headers: { "user-agent": UA },
-      signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
-    });
-    const html = await page.text();
-    const cipher = portalEncrypt(password);
-    const res = await portalRequest(this.jar, LOGIN_POST, {
-      method: "POST",
-      headers: {
-        "content-type": "application/x-www-form-urlencoded",
-        referer: LOGIN_PAGE,
-        origin: BASE,
-        "user-agent": UA,
-      },
-      body: new URLSearchParams({
-        __VIEWSTATE: hiddenValue(html, "__VIEWSTATE"),
-        __VIEWSTATEGENERATOR: hiddenValue(html, "__VIEWSTATEGENERATOR"),
-        __EVENTVALIDATION: hiddenValue(html, "__EVENTVALIDATION"),
-        txtId1: userId,
-        txtPwd1: cipher,
-        hdnpwd1: cipher,
-        "imgBtn1.x": "12",
-        "imgBtn1.y": "12",
-      }),
-    });
-    await res.text();
-    if (!this.signedIn) {
-      throw new HttpError(
-        401,
-        "Sign-in failed. Check your ECAP user name and password."
-      );
-    }
+    await signInTo(this.jar, userId, password);
   }
   async courses(): Promise<Option[]> {
     return options(
@@ -117,9 +82,6 @@ class Portal {
         isdefaultall: false,
       })
     );
-  }
-  get reader(): PortalReader {
-    return this;
   }
   async branchesAndSemesters(
     courseId: string | number
@@ -376,16 +338,17 @@ const READS: Record<string, Read> = {
   "/api/unposted": () => (p) => handleUnposted(p),
 };
 /**
- * Everything a signed-in call needs from ECAP: the jar the request's session
- * is rebuilt into, the liveness question, and the reader the route handlers
- * cross.
+ * Everything a signed-in call needs from ECAP: the procedure responses a route
+ * handler reads, plus the jar its session is rebuilt into, the liveness
+ * question, and the way back in. A `Portal` is one of these by construction, so
+ * nothing has to be unwrapped before a handler crosses it.
  */
-export type PortalPort = CourseReader & {
-  readonly jar: CookieJar;
-  readonly signedIn: boolean;
-  readonly reader: PortalReader;
-  signIn: (userId: string, password: string) => Promise<void>;
-};
+export type PortalPort = CourseReader &
+  PortalReader & {
+    readonly jar: CookieJar;
+    readonly signedIn: boolean;
+    signIn: (userId: string, password: string) => Promise<void>;
+  };
 type Session = {
   userId: string;
   // Kept so a dead ECAP session can be re-established without asking again.
@@ -565,7 +528,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       if (read) {
         const work = await read(req);
         return json(
-          await withRevival(s, (p) => work(p.reader)),
+          await withRevival(s, (p) => work(p)),
           200,
           sessionHeader(s)
         );

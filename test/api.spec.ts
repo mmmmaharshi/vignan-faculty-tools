@@ -90,10 +90,9 @@ function portalOf(
   const jar = new CookieJar();
   jar.entries.set("frmAuth", "ok");
   return {
+    ...reader,
     jar,
     signedIn: true,
-    reader,
-    courses: () => reader.courses(),
     signIn: () => {
       revivals.count += 1;
       return signInError ? Promise.reject(signInError) : Promise.resolve();

@@ -3,10 +3,11 @@ import { gridTables } from "./portal-html.js";
 
 /** ECAP states the faculty member's name inside the `lblUser` span on
  *  main.aspx, prefixed with "Welcome ". Returns the name, or empty when the
- *  page did not state one (not logged in, or the span is empty). */
+ *  page did not state one (not logged in, or the span is empty). The attribute
+ *  may be quoted either way, as ECAP's own markup is not consistent. */
 export function parseFacultyName(html: string): string {
   const m = html.match(
-    /id="lblUser"[^>]*>\s*Welcome\s+(?<name>[\s\S]*?)<\/span>/i
+    /id=["']?lblUser["']?[^>]*>\s*Welcome\s+(?<name>[\s\S]*?)<\/span>/i
   );
   return m?.groups?.name?.trim() ?? "";
 }

@@ -78,8 +78,7 @@ export class ApiError extends Error {
 /** Whether a failure is the session being refused, rather than the request. */
 export const isExpired = (error: unknown): boolean =>
   error instanceof ApiError && error.status === 401;
-export const messageOf = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error);
+
 /**
  * The session lives in localStorage and travels on every request: the server
  * keeps nothing per user, so the browser is the session's only home. The

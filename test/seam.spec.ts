@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 
 import { parseDayClassWork, parseTodayClasses } from "../server/portal-daywork";
-import { parseLeaveStatus } from "../server/portal-faculty";
+import { parseFacultyName, parseLeaveStatus } from "../server/portal-faculty";
 import { looksLikeHtml, unquoteJs } from "../server/portal-html";
 import { matchOption, options, realOptions } from "../server/portal-options";
 import {
@@ -592,6 +592,19 @@ CGPA:&nbsp;5.61&nbsp;&nbsp;&nbsp;Credits:16/19&nbsp;&nbsp;&nbsp;48.55&nbsp;%</di
     });
     // No section blocks at all is no classes that day, not all posted.
     expect(parseDayClassWork("<div>holiday</div>")).toEqual([]);
+  });
+  test("the faculty name is read whether ECAP quotes the attribute or not", () => {
+    // The Profile screen answers a 502 when this reads empty, so a markup
+    // change here blanks the whole panel.
+    expect(parseFacultyName('<span id="lblUser">Welcome R Rao</span>')).toBe(
+      "R Rao"
+    );
+    expect(parseFacultyName("<span id='lblUser'>Welcome  R Rao </span>")).toBe(
+      "R Rao"
+    );
+    // A page that states no name is empty, not a guess.
+    expect(parseFacultyName("<span id='lblUser'></span>")).toBe("");
+    expect(parseFacultyName("<span id='other'>Welcome R Rao</span>")).toBe("");
   });
   test("leave status comes from the application grid, per stage", () => {
     // Copied from the APPLY-SELF page's `showLeaves` reply: the counts sit

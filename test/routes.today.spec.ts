@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { HttpError } from "../server/http-error";
 import type { PortalReader } from "../server/portal-reader";
 import {
+  handleFacultyProfile,
   handleRegister,
   handleStudentProfile,
   handleTodayClasses,
@@ -166,5 +167,29 @@ test.describe("independent portal reads go out together", () => {
     release();
     const reply = (await loaded) as StudentProfile;
     expect(reply.cgpa).toBe("5.61");
+  });
+});
+
+test.describe("the faculty profile handler", () => {
+  test("a page that states no name is a named 502, not a blank panel", async () => {
+    // The name is the only thing that proves the reply is the page at all, and
+    // the Profile screen answers this refusal in words rather than rendering an
+    // empty card.
+    const { reader } = fake();
+    const unnamed: PortalReader = {
+      ...reader,
+      facultyProfile: () =>
+        Promise.resolve({
+          name: "",
+          photo: "",
+          designation: "0",
+          leaveStatus: [],
+        }),
+    };
+    const failure = await handleFacultyProfile(unnamed).catch(
+      (error: unknown) => error
+    );
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(502);
   });
 });

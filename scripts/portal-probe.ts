@@ -16,18 +16,14 @@
  * roll number; credentials come from the environment so they never reach the
  * repo.
  */
-import { CookieJar, portalEncrypt } from "../server/portal-conventions";
-import { hiddenValue } from "../server/portal-html";
+import { CookieJar } from "../server/portal-conventions";
 import { options } from "../server/portal-options";
+import { signInTo } from "../server/portal-signin";
 import {
-  BASE,
-  LOGIN_PAGE,
-  LOGIN_POST,
   portalJq,
   portalRequest,
   REGISTER_PAGE_URL,
   REGISTER_REMOTE,
-  UA,
 } from "../server/portal-transport";
 
 const userId = process.env.ECAP_USER ?? "";
@@ -41,42 +37,15 @@ if (!userId || !password) {
 
 const jar = new CookieJar();
 
-/** The same sign-in the server performs, so the cookie jar holds what the app
- *  holds. */
-async function signIn(): Promise<void> {
-  const page = await portalRequest(jar, LOGIN_PAGE, {
-    method: "GET",
-    headers: { "user-agent": UA },
-  });
-  const html = await page.text();
-  const cipher = portalEncrypt(password);
-  const login = await portalRequest(jar, LOGIN_POST, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      referer: LOGIN_PAGE,
-      origin: BASE,
-      "user-agent": UA,
-    },
-    body: new URLSearchParams({
-      __VIEWSTATE: hiddenValue(html, "__VIEWSTATE"),
-      __VIEWSTATEGENERATOR: hiddenValue(html, "__VIEWSTATEGENERATOR"),
-      __EVENTVALIDATION: hiddenValue(html, "__EVENTVALIDATION"),
-      txtId1: userId,
-      txtPwd1: cipher,
-      hdnpwd1: cipher,
-      "imgBtn1.x": "12",
-      "imgBtn1.y": "12",
-    }),
-  });
-  await login.text();
-  if (!jar.signedIn) {
-    console.error("Sign-in failed; check the credentials.");
-    process.exit(1);
-  }
+// The app's own sign-in, so what this script measures is what the app speaks.
+try {
+  await signInTo(jar, userId, password);
+} catch (error) {
+  console.error(
+    `Sign-in failed (${error instanceof Error ? error.message : String(error)}).`
+  );
+  process.exit(1);
 }
-
-await signIn();
 
 const wanted = process.argv[2] ?? "";
 const declared = (text: string): { name: string; params: string }[] =>

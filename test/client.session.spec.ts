@@ -163,6 +163,21 @@ test.describe("the app's own data layer", () => {
     ).toHaveValue("");
   });
 
+  test("a signed-in visit to the sign-in path is sent back to the app", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    // Back from a signed-in dashboard, or a bookmark, lands on /login. The boot
+    // effect deliberately leaves a signed-in user there, so this redirect is the
+    // only thing that stops the form being shown to someone with a session —
+    // and a second sign-in would then post a login over a working one.
+    await page.goto("/login");
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })
+      .toBe("/home");
+    await expect(page.getByLabel("ECAP user name")).toHaveCount(0);
+  });
+
   test("the session is kept locally, and sign-out drops it", async ({
     page,
   }) => {

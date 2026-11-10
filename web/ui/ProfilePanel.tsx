@@ -51,11 +51,7 @@ export const ProfilePanel = ({
   faculty,
   busy,
 }: ProfilePanelProps): React.JSX.Element => {
-  // One filtered list, so the section's presence and its rows cannot disagree:
-  // a leave type with nothing applied is not a row to show.
-  const applied = (faculty?.leaveStatus ?? []).filter(
-    (leave) => Number(leave.applied) > 0
-  );
+  const leaves = faculty?.leaveStatus ?? [];
   return (
     <Paper withBorder p="lg">
       <Stack gap="xs">
@@ -84,7 +80,7 @@ export const ProfilePanel = ({
         <Title order={5} mt="sm">
           Leaves
         </Title>
-        {applied.length ? (
+        {leaves.length ? (
           // Seven columns never fit a phone screen: the table scrolls inside
           // its own container instead of pushing the whole page sideways.
           <Table.ScrollContainer minWidth={600}>
@@ -101,7 +97,7 @@ export const ProfilePanel = ({
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
-                {applied.map((leave) => (
+                {leaves.map((leave) => (
                   <Table.Tr key={leave.type}>
                     <Table.Td>{leave.type}</Table.Td>
                     <Table.Td ta="right">{leave.eligible}</Table.Td>

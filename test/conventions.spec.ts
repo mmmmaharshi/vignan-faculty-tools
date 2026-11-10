@@ -14,6 +14,7 @@ import {
   portalEncrypt,
   webMethodBody,
 } from "../server/portal-conventions";
+import { portalRequest } from "../server/portal-transport";
 import type { CascadeLevel, Option } from "../shared/api";
 
 test.describe("the password cipher", () => {
@@ -258,5 +259,43 @@ test.describe("following redirects by hand", () => {
   test("does not follow a 200, and does not treat a 404 as a redirect", () => {
     expect(nextHop(at(200, "/somewhere"), "https://x/", 6)).toBeNull();
     expect(nextHop(at(404, "/somewhere"), "https://x/", 6)).toBeNull();
+  });
+});
+test.describe("one request through the jar", () => {
+  test("a Set-Cookie on the redirect reaches the hop it points at", async () => {
+    // The whole hand-rolled loop exists for this: `Bun.fetch` does not store
+    // Set-Cookie, so a redirect followed automatically drops the auth cookie and
+    // a correct password answers "Sign-in failed". Removing the in-loop
+    // `absorbResponse` is invisible to `nextHop`'s own tests.
+    const jar = new CookieJar();
+    const sent: (string | null)[] = [];
+    const real = globalThis.fetch;
+    let hop = 0;
+    globalThis.fetch = ((_url: string, init?: RequestInit) => {
+      sent.push(new Headers(init?.headers).get("cookie"));
+      hop += 1;
+      return Promise.resolve(
+        hop === 1
+          ? new Response(null, {
+              status: 302,
+              headers: {
+                location: "https://x.test/landing",
+                "set-cookie": "frmAuth=ok; path=/",
+              },
+            })
+          : new Response("landed")
+      );
+    }) as typeof fetch;
+    try {
+      const answer = await portalRequest(jar, "https://x.test/start");
+      expect(await answer.text()).toBe("landed");
+      expect(sent, "the first hop has no cookie to send").toEqual([
+        null,
+        "frmAuth=ok",
+      ]);
+      expect(jar.signedIn, "and the jar ends up holding it").toBe(true);
+    } finally {
+      globalThis.fetch = real;
+    }
   });
 });
