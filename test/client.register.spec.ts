@@ -485,7 +485,7 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
   });
 
-  test("a fully chosen class is remembered when Load register is clicked", async ({
+  test("a fully chosen section is remembered when Load register is clicked", async ({
     page,
   }) => {
     await page.goto("/login");
@@ -499,8 +499,34 @@ test.describe("the app's own data layer", () => {
     await page.getByRole("option", { name: "MFCS", exact: true }).click();
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(
-      page.getByRole("heading", { name: "Saved classes" }),
+      page.getByRole("heading", { name: "Saved sections" }),
       "the card appears once the register is loaded"
     ).toBeVisible({ timeout: 5000 });
+  });
+
+  test("opening a saved section lands on all subjects, whatever subject was chosen", async ({
+    page,
+  }) => {
+    // The card names a section; the subject on screen at save time is not part of
+    // what it means. Choosing a subject and then opening the card must return the
+    // form to ALL SUBJECTS rather than to that subject.
+    await page.goto("/login");
+    await page.evaluate(() => localStorage.removeItem("section-faculty"));
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(
+      page.getByRole("button", { name: "Open" }).first(),
+      "the card is saved once the register loads"
+    ).toBeVisible({ timeout: 15_000 });
+    await page.getByRole("button", { name: "Open" }).first().click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
   });
 });

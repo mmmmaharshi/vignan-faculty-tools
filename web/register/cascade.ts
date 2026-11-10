@@ -60,11 +60,12 @@ export function chosenLevels(
   return { ok: true, levels };
 }
 /**
- * Which levels a changed level invalidates. Opening a saved class is the case
- * that needs the distinction: it changes the section, but it arrives carrying a
- * Subject, and clearing it below the section throws the saved one away — the
- * subject list then auto-fills to its first entry, which is ALL SUBJECTS, so the
- * card opened the section-wide view instead of the register it names.
+ * Which levels a changed level invalidates. A change that arrives carrying a
+ * selection is the case that needs the distinction: opening a saved section
+ * changes the section *and* comes with its subject already decided, so clearing
+ * below the section would throw that away — and the subject list, refilling from
+ * the top, lands on whatever the Portal offers first rather than on the choice
+ * the card made.
  *
  * An empty list means nothing below is cleared: the selection arrived whole, so
  * the loop keeps it and only refetches the options for it.
@@ -74,7 +75,7 @@ export function resetFor(changed: Level, arriving?: Sel): readonly Level[] {
   if (changed === "semester" || changed === "branch")
     return ["section", "subject"];
   if (changed === "section") {
-    // A saved class carries its own subject; a manual pick does not.
+    // A card arrives with its subject decided; a manual pick does not.
     return arriving?.subject ? [] : ["subject"];
   }
   return [];
@@ -85,9 +86,9 @@ export function resetFor(changed: Level, arriving?: Sel): readonly Level[] {
  * asked, so the screen shows the clear rather than a selection the new options
  * may not contain.
  *
- * `arriving` is the whole selection a change came *with* — a saved class being
+ * `arriving` is the whole selection a change came *with* — a saved section being
  * opened — and is absent for a change made by hand, which is what tells the two
- * apart: only an arriving selection has the subject the section change was for.
+ * apart: only an arriving selection has the subject the section change came for.
  */
 export function selectionAfter(
   seed: Sel,
@@ -129,15 +130,6 @@ export function shouldContinue(
     (k) => k !== "course" && isReady(draft, k) && reply[k].length === 0
   );
   return gained && !!pending;
-}
-/**
- * A subject name's identity within a session: the section it was offered in, and
- * its own value. A subject code is short and repeats across branches, so a key of
- * the value alone hands a card the name of the same code in a different section.
- * This is display-only and never stored, so nothing here outlives the session.
- */
-export function subjectNameKey(section: string, subject: string): string {
-  return `${section} ${subject}`;
 }
 /**
  * A selection's identity within a session: the five values joined, for guards

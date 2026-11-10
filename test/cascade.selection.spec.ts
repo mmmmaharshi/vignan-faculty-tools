@@ -415,10 +415,10 @@ test.describe("the register, before it is sent", () => {
 });
 
 test.describe("what a changed level clears below it", () => {
-  test("opening a saved class keeps the subject it names", () => {
+  test("a change that arrives with a subject keeps it", () => {
     expect(
       resetFor("section", CLASS_A),
-      "clearing the subject made the card open ALL SUBJECTS instead"
+      "clearing it would refill the subject from the top of the list instead"
     ).toEqual([]);
   });
   test("changing the section by hand still clears the subject", () => {

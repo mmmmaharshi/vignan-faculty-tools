@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef } from "react";
 
 import type { OptionsReply, RegisterReply } from "../../shared/api";
-import { isAllSubjects, selectionAfter, subjectNameKey } from "./cascade";
+import { selectionAfter } from "./cascade";
 import type { Sel } from "./cascade";
 import {
   abbreviate,
@@ -12,8 +12,8 @@ import {
 import type { SavedClass, SavedClassCard } from "./saved-classes";
 
 /**
- * The saved classes: whether the selection on screen is one worth saving, the
- * cards that reopen a class, and the three actions on them. App keeps the list
+ * The saved sections: whether the selection on screen is one worth saving, the
+ * cards that reopen a section, and the three actions on them. App keeps the list
  * itself — it is cleared with the session, and the session is App's — so this
  * hook reads it, writes through `setSaved`, and owns nothing else.
  *
@@ -26,14 +26,13 @@ export function useSavedClasses(setup: {
   sel: Sel;
   opts: OptionsReply;
   savedList: SavedClass[] | null;
-  subjectNames: ReadonlyMap<string, string>;
   registerData: RegisterReply | null;
   setSaved: (value: { userId: string; list: SavedClass[] } | null) => void;
   setSel: (target: Sel) => void;
   runRefresh: (seed: Sel, known: OptionsReply) => Promise<void>;
 }): {
-  /** All five levels named, and the subject a real one rather than ALL SUBJECTS:
-   *  a section-wide view is not a class a card can reopen. */
+  /** The four levels that name a section, all chosen. The subject is not one of
+   *  them: a card reopens the section and lands on the section-wide register. */
   classChosen: boolean;
   cards: SavedClassCard[];
   save: () => void;
@@ -45,7 +44,6 @@ export function useSavedClasses(setup: {
     sel,
     opts,
     savedList,
-    subjectNames,
     registerData,
     setSaved,
     setSel,
@@ -55,20 +53,18 @@ export function useSavedClasses(setup: {
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
     Boolean(sel.branch) &&
-    Boolean(sel.section) &&
-    Boolean(sel.subject) &&
-    !isAllSubjects(opts.subject.find((o) => String(o.value) === sel.subject));
+    Boolean(sel.section);
   const remember = useCallback(() => {
     if (!userId || !classChosen) return;
     rememberClass(
       userId,
       sel,
-      opts.subject.find((o) => String(o.value) === sel.subject)?.label ?? ""
+      opts.section.find((o) => String(o.value) === sel.section)?.label ?? ""
     );
     setSaved({ userId, list: savedClasses(userId) });
   }, [userId, classChosen, sel, opts, setSaved]);
-  /** Persist the class only once its register has actually loaded. rememberClass
-   *  dedupes, so re-loading the same class just moves it to the front. */
+  /** Persist the section only once its register has actually loaded. rememberClass
+   *  dedupes, so re-loading the same section just moves it to the front. */
   const lastSavedRegister = useRef<RegisterReply | null>(null);
   useEffect(() => {
     if (!userId || !classChosen || !registerData) return;
@@ -83,8 +79,8 @@ export function useSavedClasses(setup: {
     },
     [userId, setSaved]
   );
-  /** Opening a saved class fills all five levels and nothing else: no register
-   *  is fetched, and Load register stays a decision. */
+  /** Opening a saved section fills its four levels with the section-wide subject:
+   *  no register is fetched, and Load register stays a decision. */
   const apply = useCallback(
     (target: Sel) => {
       setSel(target);
@@ -93,20 +89,15 @@ export function useSavedClasses(setup: {
     [setSel, runRefresh, opts]
   );
   /** Each card's names come from the cascade wherever this session has offered
-   *  them, falling back to the label cached at save time for the cards it has
-   *  not. The Subject leads, because that is what tells one saved class from
-   *  another in the same section. */
+   *  them, falling back to the label saved with the card — `opts` holds only the
+   *  branch on screen, so a card from another branch has no name here. */
   const cards =
     savedList?.map((s) => {
       const labelOf = (key: keyof Sel): string =>
         opts[key].find((o) => String(o.value) === String(s[key]))?.label ?? "";
       return {
         sel: s,
-        subject:
-          subjectNames.get(subjectNameKey(s.section, s.subject)) ??
-          s.label ??
-          "",
-        sectionName: labelOf("section") || s.section,
+        sectionName: labelOf("section") || s.sectionLabel || s.section,
         course: [
           labelOf("course"),
           labelOf("semester"),

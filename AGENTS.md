@@ -183,7 +183,7 @@ test/api.spec.ts     handleApi over a header-carried session and a fake portal:
                      what a dead session does, and what a 502 must never do
 test/cascade.*.spec.ts  split by topic: the selection rules, the option loop over
                      a fake fetcher, the worklist and its filters, the range
-                     dates, and the saved classes
+                     dates, and the saved sections
 test/client.*.spec.ts   split by topic: the session and its probe, the register
                      and its filters, the student panel and search, the dates a
                      load settles, and the home screen - over a stub API in the
@@ -574,31 +574,30 @@ carries one also has its name in text.
   is why `sgpaBySemester` locates the column first; the semester name comes from
   the `Semester` span above that table, not from the last span on the page.
 
-- **A saved class is a Subject in a Section: five values, and no Portal call.**
-  `Save this class` writes them; a card above the class form fills the five
-  dropdowns and nothing else. There is no dashboard and no per-subject fetch —
-  one was built and removed, and ADR 0016 records why. **A Section has no
-  statistics of its own**, which is why the summary cannot be a section row.
-  See `docs/adr/0016-the-saved-class-opens-the-register-it-names.md`.
+- **A saved section is four values, and no Portal call.** `Save this section`
+  writes course, semester, branch and section; a card above the class form fills
+  those four and lands on the section-wide register (`ALL SUBJECTS`), so the user
+  narrows from there. One card per section, never one per subject: a subject says
+  which register to read, not which section the user works in. There is no
+  dashboard and no per-subject fetch — one was built and removed, and ADR 0016
+  records why. **A Section has no statistics of its own**, which is why the
+  summary cannot be a section row. ADR 0030 records the move back from one card
+  per subject. See
+  `docs/adr/0016-the-saved-class-opens-the-register-it-names.md`.
 
-- **A subject's name is stored as a cache, never as the answer.** The label the
-  cascade offers wins whenever this session has offered that section's subjects, so
-  a renamed subject corrects itself on the card's next open; the stored one covers
-  only cards this session has not opened. Without it every card reads blank until
-  opened once per browser session, which is the worse trade — amendment 3 of ADR
-  0016. **A name key is `section` + `subject`, not the value alone**: subject codes
-  are short and repeat across branches, so a value-only key hands a card the name
-  of the same code in another section. The key is display-only and never stored,
-  so it is cleared with `saved` on sign-out rather than left for the next user.
+- **A stored card is five values even though four name it.** The subject key
+  stays in the stored shape, always `ALL SUBJECTS`, so a card written when a card
+  named a subject still reads as the section it belongs to and the five-value key
+  stays one shape. The subject is never read back: a card opens a section, so
+  whatever subject was on screen at save time is not part of what it means.
 
 - **`resetFor` is why opening a card keeps its subject.** A section change
   invalidates everything below it, so opening a card with "the section changed"
-  discarded the very subject the card names — and auto-fill then took the first
-  subject entry, which is `ALL SUBJECTS`. A change that **arrives carrying a
-  selection** clears nothing below it; one made by hand still clears the subject.
-  It lives in `cascade.ts` rather than the component because a rule that cannot be
-  imported without booting a server cannot be tested, and this one shipped wrong
-  twice before it was.
+  would clear the subject the card arrives with. A change that **arrives carrying
+  a selection** clears nothing below it; one made by hand still clears the
+  subject. It lives in `cascade.ts` rather than the component because a rule that
+  cannot be imported without booting a server cannot be tested, and this one
+  shipped wrong twice before it was.
 
 - **A comment is not a dependency list.** The dashboard effect this replaced said
   its trigger was the section while its dependencies named all five levels, so

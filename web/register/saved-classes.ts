@@ -1,56 +1,51 @@
+import { ALL_SUBJECTS } from "../../shared/api";
 import { LEVEL_KEYS } from "./cascade";
 import type { Sel } from "./cascade";
 import { readStored, writeStored } from "./string-map-store";
 
-/** One saved class, as the cards above the class form read it: the values that
- *  reopen the register, and the three names that make the card readable. */
+/** One saved section, as the cards above the class form read it: the values that
+ *  reopen it, and the two names that make the card readable. */
 export type SavedClassCard = {
-  sel: Sel;
-  /** The subject's own name, empty when this session has never been offered it. */
-  subject: string;
+  sel: SavedClass;
   sectionName: string;
   /** Course, semester and branch on one line — the longest string, so it is
    *  quietest. */
   course: string;
 };
-/** A saved class: the five values that name a register, plus the Subject's label as
- *  a display cache. The label is never the answer — the cascade's own label wins
- *  whenever this session has offered the subject — so a renamed subject corrects
- *  itself the moment it is opened, and the cache only covers the cards that have
- *  not been opened yet. */
-export type SavedClass = Sel & { label?: string };
 /**
- * A saved class is a Subject within a Section: five values, and the Subject's
- * label as a display cache. No date is stored — the range belongs to the
- * register, not to the class, and a remembered `to` would open the app on
- * last month's numbers.
+ * A saved section: the four values that name a section, the Subject key that
+ * keeps the stored shape one shape, and the section's own label as a display
+ * cache.
  *
- * The label is a cache and never the answer: the cascade's own label wins whenever
- * this session has offered the subject, so a subject ECAP has renamed corrects
- * itself the moment its card is opened. It is stored because a card that cannot
- * name its own subject asks the user to open every card once per browser session
- * before the screen is readable, which is a worse trade than a name that is right
- * up to the moment ECAP renames it.
+ * The subject is always `ALL SUBJECTS`, because a card reopens a section, not one
+ * subject inside it — opening one lands on the section-wide register and the user
+ * narrows from there. No date is stored either: the range belongs to the
+ * register, not to the section, and a remembered `to` would open the app on last
+ * month's numbers.
  *
- * Storing the Subject means one card per subject taught, which is what the user
- * asked for: opening one fills all five levels and lands on that Subject's
- * register. It is a different trade from ADR 0016's one-card-per-section, and
- * the cost is that three subjects in one section are three cards differing only
- * in their last value. That is deliberate, not an oversight.
+ * `sectionLabel` is a cache and never the answer. The cascade's own label wins
+ * whenever this session has offered that branch's sections, so a renamed section
+ * corrects itself the moment its card is opened. It is stored because `opts` holds
+ * only the branch on screen, so a card from another branch would otherwise print
+ * a bare value like `1` where its section should be — which reads as a data fault
+ * rather than as a name.
  *
  * The key is scoped by user id, so a shared machine does not offer one person's
- * classes to the next. localStorage is per-browser, so it does not follow anyone
+ * sections to the next. localStorage is per-browser, so it does not follow anyone
  * to another machine.
  */
+export type SavedClass = Sel & { sectionLabel?: string };
 const CLASS_KEY_PREFIX = "section-";
-/** The identity of a saved class: the five levels in a fixed order, so two saves
- *  of the same class compare equal without depending on key order. Also the
- *  identity of a class's earliest-start memory in `sem-starts.ts`. */
+/** The identity of a saved section: the five values in a fixed order, so two
+ *  saves of the same section compare equal without depending on key order. Also
+ *  the identity of a section's earliest-start memory in `sem-starts.ts`. */
 export const classKey = (values: Record<string, string>): string =>
   LEVEL_KEYS.map((key) => values[key]).join(" ");
-/** A stored entry becomes a class only if all five levels are strings. Anything
- *  else is dropped rather than half-read. A missing label is not a fault: an entry
- *  written before labels were kept still opens, it just says nothing until opened. */
+/** A stored entry becomes a section only if all five values are strings; the
+ *  subject it was saved under is replaced by the section-wide one, because that
+ *  is what a card opens. Anything else is dropped rather than half-read. A
+ *  missing section label is not a fault: an entry written before labels were kept
+ *  still opens, it just says its value until this session offers the name. */
 function readClass(value: unknown): SavedClass | null {
   if (typeof value !== "object" || value === null) return null;
   const values = value as Record<string, unknown>;
@@ -63,11 +58,13 @@ function readClass(value: unknown): SavedClass | null {
     semester: read("semester"),
     branch: read("branch"),
     section: read("section"),
-    subject: read("subject"),
+    subject: ALL_SUBJECTS.value,
   };
   if (!LEVEL_KEYS.every((key) => cls[key])) return null;
-  const { label } = values;
-  if (typeof label === "string" && label) cls.label = label;
+  const { sectionLabel } = values;
+  if (typeof sectionLabel === "string" && sectionLabel) {
+    cls.sectionLabel = sectionLabel;
+  }
   return cls;
 }
 const storeKey = (userId: string): string => `${CLASS_KEY_PREFIX}${userId}`;
@@ -97,12 +94,16 @@ export function savedClasses(userId: string): SavedClass[] {
   }
   return list;
 }
-export function rememberClass(userId: string, sel: Sel, label = ""): void {
+export function rememberClass(
+  userId: string,
+  sel: Sel,
+  sectionLabel = ""
+): void {
   if (!userId) return;
   const cls = readClass(sel);
   if (!cls) return;
-  if (label) cls.label = label;
-  // Re-saving moves the class to the front rather than duplicating it: the one
+  if (sectionLabel) cls.sectionLabel = sectionLabel;
+  // Re-saving moves the section to the front rather than duplicating it: the one
   // just used is the one most likely to be wanted again.
   const kept = savedClasses(userId).filter(
     (existing) => classKey(existing) !== classKey(cls)
@@ -139,8 +140,9 @@ const INITIALS = /\p{L}/u;
  * that is itself an initialism is left exactly as written, so "(CSE)" is not
  * turned into "(CS)".
  *
- * Display only. Two classes are told apart by their five values, never by the text
- * on a card, and the full name is what the dropdown says when the card is opened.
+ * Display only. Two sections are told apart by their five values, never by the
+ * text on a card, and the full name is what the dropdown says when the card is
+ * opened.
  */
 export function abbreviate(name: string): string {
   const bracket = name.match(/^\s*(?<head>.*?)\s*\((?<inside>[^()]*)\)\s*$/);

@@ -1,9 +1,8 @@
 import { expect, test } from "@playwright/test";
 
-import { ALL_SUBJECTS } from "../shared/api";
 import type { OptionsRequest } from "../shared/api";
 import { ApiError } from "../web/data/client";
-import { selectionAfter, subjectNameKey } from "../web/register/cascade";
+import { selectionAfter } from "../web/register/cascade";
 import type { Sel } from "../web/register/cascade";
 import { partialOf, runCascade } from "../web/register/cascade-run";
 import {
@@ -23,7 +22,7 @@ test.describe("the cascade's option loop", () => {
     section: "5",
     subject: "6",
   };
-  test("a manual section change clears the subject, and a saved class keeps its own", () => {
+  test("a manual section change clears the subject, and an arriving one keeps it", () => {
     const full = sel(SETTLED);
     expect(
       selectionAfter(full, "section"),
@@ -172,23 +171,6 @@ test.describe("the cascade's option loop", () => {
       runs[0]?.semesterTitle,
       "the Portal wants the batch number beside the semester's value"
     ).toBe("2025");
-  });
-  test("a run keeps every subject name it was offered, but not the whole-section entry", async () => {
-    const outcome = await runCascade(
-      { seed: sel(SETTLED), known: nothing },
-      () => {
-        const one = fullReply();
-        one.subject = [ALL_SUBJECTS, opt("6", "DATA STRUCTURES")];
-        return Promise.resolve(one);
-      }
-    );
-    expect(outcome?.names.get(subjectNameKey("5", "6"))).toBe(
-      "DATA STRUCTURES"
-    );
-    expect(
-      outcome?.names.has(subjectNameKey("5", ALL_SUBJECTS.value)),
-      "All subjects is a way of asking, not a subject"
-    ).toBe(false);
   });
   test("a run superseded while the Portal is being asked stops there and answers nothing", async () => {
     const controller = new AbortController();

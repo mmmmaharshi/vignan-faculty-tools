@@ -2,7 +2,7 @@ import { classKey } from "./saved-classes";
 import { readStringMap, writeStringMap } from "./string-map-store";
 
 /** The earliest held days seen, per class: class key to dd/mm/yyyy. Portal data,
- *  not personal data, so — unlike saved classes — it is not scoped by user id
+ *  not personal data, so — unlike saved sections — it is not scoped by user id
  *  and it survives sign-out with the next user. */
 export type SemStarts = Record<string, string>;
 const STARTS_KEY = "sem-starts";

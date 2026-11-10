@@ -1,11 +1,9 @@
-import { isAllSubjects } from "../../shared/api";
 import type { OptionsReply, OptionsRequest } from "../../shared/api";
 import {
   LEVEL_KEYS,
   applyOptions,
   semesterTitleOf,
   shouldContinue,
-  subjectNameKey,
 } from "./cascade";
 import type { Sel } from "./cascade";
 
@@ -17,9 +15,6 @@ import type { Sel } from "./cascade";
 export type CascadeOutcome = {
   sel: Sel;
   opts: OptionsReply;
-  /** Every subject name this run was offered, keyed as `subjectNameKey` writes
-   *  them. The session's own labels, which beat a name stored at save time. */
-  names: Map<string, string>;
 };
 export type CascadeSetup = {
   /** The selection to settle, already cleared by `selectionAfter`. */
@@ -34,8 +29,8 @@ export type CascadeSetup = {
 };
 /**
  * Settles the cascade: asks for options until a pass gains nothing and no level
- * below a chosen one is still empty, and answers the selection, the last reply,
- * and the subject names it was offered.
+ * below a chosen one is still empty, and answers the selection and the last
+ * reply.
  *
  * The fetcher is an argument rather than an import so the loop can be driven
  * without a server, the way `createApi` takes its way of reaching ECAP. It is
@@ -91,7 +86,6 @@ export async function runCascade(
   const { seed, known, signal } = setup;
   let draft = { ...seed };
   let opts = known;
-  const names = new Map<string, string>();
   try {
     for (const _pass of LEVEL_KEYS) {
       if (signal?.aborted) return null;
@@ -111,13 +105,6 @@ export async function runCascade(
         signal
       );
       if (signal?.aborted) return null;
-      for (const option of reply.subject) {
-        if (isAllSubjects(option)) continue;
-        names.set(
-          subjectNameKey(draft.section, String(option.value)),
-          option.label
-        );
-      }
       draft = applyOptions(draft, reply);
       opts = reply;
       if (!shouldContinue(draft, before, reply)) break;
@@ -131,10 +118,9 @@ export async function runCascade(
       (error as { partial?: CascadeOutcome }).partial = {
         sel: { ...draft },
         opts,
-        names: new Map(names),
       };
     }
     throw error;
   }
-  return { sel: draft, opts, names };
+  return { sel: draft, opts };
 }

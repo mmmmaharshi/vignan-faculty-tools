@@ -3,11 +3,13 @@ import { ArrowCounterClockwise, Trash } from "@phosphor-icons/react";
 import React from "react";
 
 import type { Sel } from "../register/cascade";
+import { classKey } from "../register/saved-classes";
 import type { SavedClassCard } from "../register/saved-classes";
 
 /**
- * The saved classes, as cards above the class form. Opening one fills all five
- * levels and reads no register: the card is a shortcut to the form, not a request.
+ * The saved sections, as cards above the class form. Opening one fills the four
+ * levels and lands on the section-wide register: the card is a shortcut to the
+ * form, not a request.
  */
 export const SavedClasses = ({
   classes,
@@ -22,37 +24,24 @@ export const SavedClasses = ({
   return (
     <>
       <Title order={5} mb="xs">
-        Saved classes
+        Saved sections
       </Title>
       <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} mb="md">
-        {classes.map(({ sel, subject, sectionName, course }) => (
-          // The five levels are the card's identity, so the key is the values and
-          // not the label text: two cards never share one.
+        {classes.map(({ sel, sectionName, course }) => (
+          // The card's identity is the section it names, read through the one
+          // key builder that defines it, so two cards never share a key.
           <Paper
-            key={`${sel.course}/${sel.section}/${sel.subject}`}
+            key={classKey(sel)}
             withBorder
             p="md"
-            // Equal height, so a long subject does not leave a short card with a
-            // gap under it. The subject itself wraps rather than being cut.
+            // Equal height, so a long branch name does not leave a short card with
+            // a gap under it. The name itself wraps rather than being cut.
             h="100%"
           >
             <Text size="xs" c="dimmed" tt="uppercase">
-              Subject
+              Section
             </Text>
-            {subject ? (
-              <Text fw={700} size="lg">
-                {subject}
-              </Text>
-            ) : (
-              // Reached only by a class saved before labels were kept, or by one
-              // whose section this session has never offered: the card has no name
-              // from either source. Saying so beats printing the identifier, which
-              // reads as a data fault.
-              <Text size="sm" c="dimmed" fw={500}>
-                Subject name not known yet — open it once to name this subject
-              </Text>
-            )}
-            <Text size="sm" c="dimmed" mt={2}>
+            <Text fw={700} size="lg">
               {/* The Portal's own section label already reads "Section-A", so a
                   "Section" prefix in front of it printed the word twice. */}
               {sectionName}

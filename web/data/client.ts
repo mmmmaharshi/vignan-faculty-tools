@@ -317,7 +317,7 @@ export function useUnposted(enabled: boolean) {
 }
 /**
  * One pass of the option chain. Cached under the request it answered, so the
- * same chain run twice — the same saved class opened again — costs no Portal
+ * same chain run twice — the same saved section opened again — costs no Portal
  * calls. `revalidate: false` because the chain, not the cache, decides what to
  * ask for next.
  */

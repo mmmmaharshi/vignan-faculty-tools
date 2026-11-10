@@ -6,6 +6,11 @@ added the Subject's label as a cache. What is here now is what the code does; th
 reasoning it overturned is kept, because it is the reason the current shape is a
 deliberate trade and not an oversight.
 
+**Superseded in part, 2026-11-10.** ADR 0030 returns the saved unit to a section:
+the four values, one card per section, and no subject label cache. Amendments 2
+and 3 below are the decision ADR 0030 reverses; they are kept because they are
+the argument that lost, not because the code still does what they say.
+
 Builds on ADR 0009 (routes, not a mode switch) and ADR 0015 (the selection left
 the URL). Touches ADR 0014 (the vault) and repairs a gap it left.
 
@@ -68,11 +73,12 @@ subject they are about to open.
 **What survived is the part that needed no Portal call:** the shortcut to the
 form.
 
-### Amendment 2: the saved unit is a Subject
+### Amendment 2: the saved unit is a Subject — superseded by ADR 0030
 
 The original Decision stored four values and no subject, on the argument above
-that "the class" is not one thing. **That argument still holds and the decision
-now contradicts it anyway.** A saved class carries its subject, so:
+that "the class" is not one thing. **ADR 0030 restores that: the four values are
+the card, and the subject is the section-wide one.** The argument below is kept
+as the case that lost.
 
 - Opening a card lands on that subject's register, which is the point of the
   shortcut. A saved section cannot say which register to open, and the cascade
@@ -98,7 +104,7 @@ A card's subject name comes from the cascade whenever this session has offered
 that section's subjects. Opening the card fetches them, so the name arrives from
 then on.
 
-### Amendment 3: the subject's name is kept as a cache
+### Amendment 3: the subject's name is kept as a cache — superseded by ADR 0030
 
 The Decision above stored no label at all, and Freshness said the Portal's own was
 read every time. **That made every card unreadable until it had been opened**, in
@@ -106,6 +112,9 @@ every browser session: the Portal answers subjects one section at a time, so a c
 sign-in has no name for any card, and the user opens each one once to make the
 screen legible. That is a worse trade than the one the no-label rule was protecting
 against, so the rule is amended rather than defended.
+
+ADR 0030 applies the same reasoning to the **section's** label, which is the one
+the card still shows, and drops the subject's with the subject line.
 
 `Save this class` now writes the Subject's label alongside the five values. **The
 stored label is a cache and never the answer:** the cascade's own label wins

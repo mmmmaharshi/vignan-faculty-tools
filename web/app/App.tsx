@@ -151,26 +151,7 @@ const App = (): React.JSX.Element => {
   const showDetails = (student: Student) => {
     setPanel(openPanel(student));
   };
-  /** Every subject name this session has been offered, by section and value.
-   *
-   *  The Portal answers subjects one section at a time, so on a cold load a card
-   *  naming another section has no label in `opts`. Names are recorded where the
-   *  cascade receives them — the only place they arrive — and what is read here
-   *  wins over the label stored at save time, so a subject ECAP renames corrects
-   *  itself the moment its card is opened. The stored label covers only the cards
-   *  this session has not opened.
-   *
-   *  Keyed by section as well as value: a subject code is short and repeats across
-   *  branches, so a card keyed on the value alone could be handed the name of the
-   *  same code in a different section.
-   *
-   *  State rather than a ref, because a card renders these; and set from the reply
-   *  rather than from an effect, because an effect that mirrors props into state
-   *  starts a render for a value the cascade already computed. */
-  const [subjectNames, setSubjectNames] = useState<ReadonlyMap<string, string>>(
-    () => new Map()
-  );
-  /** The saved classes, read when the name becomes known and on the events that
+  /** The saved sections, read when the name becomes known and on the events that
    *  change them. An effect would mirror them into state on every render for
    *  values the browser already has. */
   const [saved, setSaved] = useState<{
@@ -366,10 +347,10 @@ const App = (): React.JSX.Element => {
    *  percentage with no period under it invites being read as a semester's. An
    *  inferred semester is marked as one, so a guess never prints as a fact. */
   const scopeRows = searchScope(found);
-  /** The name arriving is also the moment the saved classes become readable, so
+  /** The name arriving is also the moment the saved sections become readable, so
    *  both are set together: a restore never went through the sign-in form. The
    *  stored values are not applied to the cascade here — filling the form is the
-   *  saved class being opened, and nothing else. */
+   *  section being opened, and nothing else. */
   const noteUserId = useCallback((name: string): void => {
     setUserId(name);
     setSaved(name ? { userId: name, list: savedClasses(name) } : null);
@@ -405,7 +386,6 @@ const App = (): React.JSX.Element => {
       // The saved section is the previous user's, so it leaves the screen with
       // them. What is in storage is theirs to find again on sign-in.
       setSaved(null);
-      setSubjectNames(new Map());
       navigate(LOGIN_PATH, { replace: true });
     },
     [navigate, resetCascade]
@@ -436,9 +416,6 @@ const App = (): React.JSX.Element => {
         if (partial && !run.signal.aborted) {
           setSel(partial.sel);
           setOpts(partial.opts);
-          setSubjectNames(
-            (previous) => new Map([...previous, ...partial.names])
-          );
         }
         return null;
       });
@@ -448,7 +425,6 @@ const App = (): React.JSX.Element => {
       if (!outcome || run.signal.aborted) return;
       setSel(outcome.sel);
       setOpts(outcome.opts);
-      setSubjectNames((previous) => new Map([...previous, ...outcome.names]));
       // A new settle is a new class context for the ticked subject bars too:
       // a bar naming a subject this class does not offer would narrow a
       // roster with no column on screen saying so.
@@ -472,14 +448,13 @@ const App = (): React.JSX.Element => {
   const retryOptions = useCallback(() => {
     void runRefresh(sel, opts);
   }, [runRefresh, sel, opts]);
-  /** The saved classes: the cards above the class form, and the three actions
+  /** The saved sections: the cards above the class form, and the three actions
    *  on them. App keeps the list itself, because signing out clears it. */
   const savedClassesView = useSavedClasses({
     userId,
     sel,
     opts,
     savedList,
-    subjectNames,
     registerData: register.data ?? null,
     setSaved,
     setSel,
@@ -732,8 +707,8 @@ const App = (): React.JSX.Element => {
   const clearSavedClass = (target: Sel) => {
     savedClassesView.clear(target);
   };
-  /** Opening a saved class fills all five levels and nothing else: no register
-   *  is fetched, and Load register stays a decision. */
+  /** Opening a saved section fills its four levels and the section-wide subject:
+   *  no register is fetched, and Load register stays a decision. */
   const applySavedClass = (target: Sel) => {
     savedClassesView.apply(target);
   };
@@ -762,7 +737,7 @@ const App = (): React.JSX.Element => {
           disabled={!classChosen || !userId.trim()}
           leftSection={<FloppyDisk size={18} aria-hidden />}
         >
-          Save this class
+          Save this section
         </Button>
       }
     />
