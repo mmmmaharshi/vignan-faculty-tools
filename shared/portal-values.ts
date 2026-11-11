@@ -96,17 +96,20 @@ export function todayIST(now: Date = new Date()): string {
   return `${get("day")}/${get("month")}/${get("year")}`;
 }
 
+/** The words that only name a label's kind, and the punctuation a label is
+ *  compared without. One regex each, built once: `matchOption` runs per column
+ *  label against every offered subject, so this is the hot path of a settle. */
+const KIND_WORDS =
+  /\b(?:semester|section|branch|course|year|degree|programme|program)\b/gi;
+const NOT_ALPHANUMERIC = /[^a-z0-9]/g;
 /** A label without the word that merely names its kind: "III Semester" and "III"
  *  are the same semester, and "Section-1" and "1" are not forced together —
  *  everything else about the comparison stays exact. */
 const bareLabel = (label: string): string =>
   label
-    .replaceAll(
-      /\b(?:semester|section|branch|course|year|degree|programme|program)\b/gi,
-      ""
-    )
+    .replaceAll(KIND_WORDS, "")
     .toLowerCase()
-    .replaceAll(/[^a-z0-9]/g, "");
+    .replaceAll(NOT_ALPHANUMERIC, "");
 /** The option a page's own words name, or null. Value first, because the Portal's
  *  reports are asked by value rather than by label; then the label — which the
  *  class report's column header and the subject list's own label state in
