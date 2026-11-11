@@ -38,11 +38,7 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
     // The month table states ECAP's own cumulative figure per month, so a
     // counselling report quotes the Portal rather than this app's arithmetic.
-    await expect(
-      panel.getByText(
-        /Attendance by month \(cumulative from the semester start, all subjects\)/
-      )
-    ).toBeVisible();
+    await expect(panel.getByText(/Attendance by month/)).toBeVisible();
     await expect(
       panel.getByRole("row", {
         name: /05\/08\/2026 to 31\/08\/2026\s*65\.00%/,
