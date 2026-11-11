@@ -181,7 +181,8 @@ web/data/            the transport and the browser's own storage: client.ts (eve
                      format.ts
 web/ui/              eleven presentational modules; only HomePanel holds state,
                      and only its ticking clock — and UnpostedPanel, only which
-                     period box stands open — the memories live in App
+                     period box stands open, and StudentDetails, only which
+                     semester's grade modal stands open — the memories live in App
 docs/portal-wire.md  the Portal's per-method contracts: proxy, session marker,
                      parameters in declared order, reply shape, and the traps
                      measured against each. Read it before writing any ECAP call
