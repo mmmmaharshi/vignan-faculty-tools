@@ -32,37 +32,42 @@ export const nth = <T>(list: readonly T[], n: number): T => {
  * that asks two reads together starts both before either answers; one that
  * asks in sequence never starts the second, so the started pair below fails
  * the test without waiting on timing.
+ *
+ * `hold` narrows which reads the gate keeps, for a handler that reads one thing
+ * first and only then reaches the pair under test: a read left out of it answers
+ * at once and never appears in `started`.
  */
 export const startedPair = (
   reader: PortalReader,
-  run: (reader: PortalReader) => Promise<unknown>
+  run: (reader: PortalReader) => Promise<unknown>,
+  hold: readonly string[] = ["register", "class", "offered", "profile", "wise"]
 ): { started: string[]; loaded: Promise<unknown>; release: () => void } => {
   const started: string[] = [];
   const gate = Promise.withResolvers<undefined>();
-  const held: PortalReader = {
-    ...reader,
-    register: (...args: Parameters<PortalReader["register"]>) => {
-      started.push("register");
-      return gate.promise.then(() => reader.register(...args));
-    },
-    classAttendance: (...args: Parameters<PortalReader["classAttendance"]>) => {
-      started.push("class");
-      return gate.promise.then(() => reader.classAttendance(...args));
-    },
-    subjectOptions: (...args: Parameters<PortalReader["subjectOptions"]>) => {
-      started.push("offered");
-      return gate.promise.then(() => reader.subjectOptions(...args));
-    },
-    studentProfile: (...args: Parameters<PortalReader["studentProfile"]>) => {
-      started.push("profile");
-      return gate.promise.then(() => reader.studentProfile(...args));
-    },
-    studentWise: (...args: Parameters<PortalReader["studentWise"]>) => {
-      started.push("wise");
-      return gate.promise.then(() => reader.studentWise(...args));
-    },
+  const held = async <T>(name: string, call: () => Promise<T>): Promise<T> => {
+    if (!hold.includes(name)) return call();
+    started.push(name);
+    await gate.promise;
+    return call();
   };
-  return { started, loaded: run(held), release: () => gate.resolve(undefined) };
+  const heldReader: PortalReader = {
+    ...reader,
+    register: (...args: Parameters<PortalReader["register"]>) =>
+      held("register", () => reader.register(...args)),
+    classAttendance: (...args: Parameters<PortalReader["classAttendance"]>) =>
+      held("class", () => reader.classAttendance(...args)),
+    subjectOptions: (...args: Parameters<PortalReader["subjectOptions"]>) =>
+      held("offered", () => reader.subjectOptions(...args)),
+    studentProfile: (...args: Parameters<PortalReader["studentProfile"]>) =>
+      held("profile", () => reader.studentProfile(...args)),
+    studentWise: (...args: Parameters<PortalReader["studentWise"]>) =>
+      held("wise", () => reader.studentWise(...args)),
+  };
+  return {
+    started,
+    loaded: run(heldReader),
+    release: () => gate.resolve(undefined),
+  };
 };
 export const bothStarted = (
   started: string[],

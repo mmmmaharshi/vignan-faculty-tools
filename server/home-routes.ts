@@ -1,5 +1,5 @@
-/** The three reads that name neither one class nor one student: the signed-in
- *  faculty's own profile, today's timetable, and the day-class-work report. */
+/** The Home screen's reads and the rail's: today's timetable, the
+ *  day-class-work report, and the signed-in faculty's own profile. */
 import type {
   FacultyProfile,
   TodayClassesReply,

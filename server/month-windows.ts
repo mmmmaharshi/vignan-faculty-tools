@@ -1,3 +1,11 @@
+/**
+ * The Portal's month vocabulary: one calendar month as a window it reliably
+ * answers, the month either side of one, the day a month's own grid starts
+ * on, and the cap every walk stops at. Wide registers come back empty while
+ * month-shaped ones answer, so every walk here reads one month at a time.
+ */
+import { statedStartDate } from "../shared/portal-values.js";
+
 /** How many months one walk may read before it gives up. The two semester
  *  walks use it as a limit on how far back they look; the month table uses it
  *  as a limit on how many rows it will ask for. One number, because all three
@@ -40,14 +48,12 @@ function datesInMonth(dates: readonly string[], month: number): string[] {
   return dates.filter((c) => Number(c.split("/")[1]) === month);
 }
 /** The month's own first held day as dd/mm/yyyy, or null where the grid
- *  states none of it. */
+ *  states none of it. The year comes from the shared rule that places a stated
+ *  day inside a window, not from attaching the walk's own year afterwards. */
 export function monthStart(
   dates: readonly string[],
   year: number,
   month: number
 ): string | null {
-  const [day] = (datesInMonth(dates, month)[0] ?? "").split("/");
-  if (!day) return null;
-  const mm = String(month).padStart(2, "0");
-  return `${day.padStart(2, "0")}/${mm}/${year}`;
+  return statedStartDate(datesInMonth(dates, month), monthWindow(year, month));
 }

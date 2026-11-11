@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 
+import { handleFind } from "../server/find-routes";
 import { HttpError } from "../server/http-error";
 import type { PortalReader } from "../server/portal-reader";
 import {
-  handleFind,
   handleSemAbsences,
   handleStudentProfile,
 } from "../server/student-routes";
@@ -14,6 +14,7 @@ import {
   CLASS_PAGE_NO_SEM,
   CLASS_PAGE_NO_SGPA,
   ask,
+  bothStarted,
   classGrid,
   fake,
   levels,
@@ -21,6 +22,7 @@ import {
   nth,
   opt,
   semAbsencesAsked,
+  startedPair,
 } from "./support/routes-fake";
 
 /** A dd/mm/yyyy date as one comparable month number, for "the next month". */
@@ -382,6 +384,21 @@ test.describe("a roll number searched on its own", () => {
     expect(calls.studentCumulative.map((call) => call[2])).toEqual([
       reply.fullRange?.from,
     ]);
+  });
+  test("the window's absent grid and the semester's walk go out together", async () => {
+    const { reader } = fake({ studentProfile: CLASS_PAGE });
+    // The page is read first, so only the Student Wise reads are held. Two in
+    // flight at once is what says the window's own list and the walk were not
+    // asked one after the other.
+    const { started, loaded, release } = startedPair(
+      reader,
+      (held) => handleFind(held, { roll: "21CS001", ...ask }),
+      ["wise"]
+    );
+    await expect.poll(() => started.length).toBe(2);
+    bothStarted(started, "wise", "wise");
+    release();
+    await loaded;
   });
   test("the full-semester list walks back month by month to the first held day", async () => {
     const { reader, calls } = fake({

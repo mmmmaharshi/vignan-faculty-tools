@@ -176,14 +176,18 @@ async function readSubjectPercents(
   );
   return { labels: pairs.map((pair) => pair.label), byColumn };
 }
-export async function handleRegister(
+/**
+ * The register one settled selection and window answer. No request validation:
+ * the five levels and the dates arrive resolved, because the callers that build
+ * a request themselves (the search) already hold them. Throws the named 502
+ * where the reply states no rows, so a caller that can live without one catches.
+ */
+export async function readRegister(
   portal: PortalReader,
-  b: Partial<RegisterRequest>
+  p: Record<Level, Option>,
+  window: { from: string; to: string }
 ): Promise<RegisterReply> {
-  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
-  const p = requireLevels(b);
-  const { from, to } = b;
-  const range = { from, to };
+  const { from, to } = window;
   if (isAllSubjects(p.subject)) {
     // No subject was chosen, so the class report is the whole register and its
     // emptiness is a real failure rather than a report to render without.
@@ -215,7 +219,7 @@ export async function handleRegister(
         ),
         absent: [],
       })),
-      range,
+      window,
       byRoll,
       null,
       null,
@@ -248,12 +252,24 @@ export async function handleRegister(
   const dates = registerDates(registerSettled.value);
   return summarise(
     rows,
-    range,
+    window,
     byRoll,
     dates.length || null,
-    statedStartDate(dates, range),
+    statedStartDate(dates, window),
     dates
   );
+}
+export async function handleRegister(
+  portal: PortalReader,
+  b: Partial<RegisterRequest>
+): Promise<RegisterReply> {
+  // Async so a refused request rejects rather than throwing at the call site:
+  // the route table calls this and awaits it.
+  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
+  return await readRegister(portal, requireLevels(b), {
+    from: b.from,
+    to: b.to,
+  });
 }
 /**
  * The semester's first held day, walking back month by month from the asked

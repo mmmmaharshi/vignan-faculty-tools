@@ -1,13 +1,13 @@
 import { expect, test } from "@playwright/test";
 
 import { handleRegister } from "../server/class-routes";
-import { HttpError } from "../server/http-error";
-import type { PortalReader } from "../server/portal-reader";
 import {
   handleFacultyProfile,
   handleTodayClasses,
   handleUnposted,
-} from "../server/screen-routes";
+} from "../server/home-routes";
+import { HttpError } from "../server/http-error";
+import type { PortalReader } from "../server/portal-reader";
 import { handleStudentProfile } from "../server/student-routes";
 import { ALL_SUBJECTS } from "../shared/api";
 import type { RegisterReply, StudentProfile } from "../shared/api";

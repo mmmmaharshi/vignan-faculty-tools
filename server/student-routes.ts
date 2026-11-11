@@ -1,10 +1,9 @@
-/** Everything one roll number is asked for: the profile page, the absent days
- *  the register on screen cannot state, the semester's counts, the month table,
- *  and the class a search resolves to. */
-import { ALL_SUBJECTS, isAllSubjects } from "../shared/api.js";
+/** Whatever one roll number's own page states, and the two reads its panel
+ *  needs that the register on screen cannot give it: the absent days over the
+ *  whole semester, the term's counts, and the month table beside them. The
+ *  search screen reads the same three, so they are exported. */
+import { isAllSubjects } from "../shared/api.js";
 import type {
-  FindReply,
-  FindRequest,
   Option,
   SemAbsencesReply,
   SemAbsencesRequest,
@@ -14,7 +13,6 @@ import type {
   StudentTotals,
 } from "../shared/api.js";
 import { sameRoll, todayIST } from "../shared/portal-values.js";
-import { handleRegister } from "./class-routes.js";
 import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";
 import {
   MONTH_WALK_CAP,
@@ -31,9 +29,8 @@ import {
   parseStudentAbsences,
   studentWiseDates,
 } from "./portal-register.js";
-import { parseStudentClass, parseStudentProfile } from "./portal-student.js";
+import { parseStudentProfile } from "./portal-student.js";
 import { requireLevels } from "./register-levels.js";
-import { resolveClass } from "./student-class.js";
 
 /** One student's absent days from their own day-wise grid, over the window
  *  given. Absent where the grid states none — which is not a clean sheet. A
@@ -57,7 +54,7 @@ async function studentWiseAbsent(
  * A report ECAP will not give changes nothing else: the panel's GPA and numbers
  * are the main read, and a 401 still ends the session.
  */
-async function readAbsences(
+export async function readAbsences(
   portal: PortalReader,
   roll: string,
   b: Partial<StudentRequest>
@@ -128,7 +125,7 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
  * (A whole break month with no meetings would stop the walk early; accepted
  * because a section meets continuously.)
  */
-async function readFullSemesterAbsences(
+export async function readFullSemesterAbsences(
   portal: PortalReader,
   roll: string,
   name: string,
@@ -140,7 +137,7 @@ async function readFullSemesterAbsences(
 }> {
   const [fd, fm, fy] = p.from.split("/").map(Number);
   const [td, tm, ty] = p.to.split("/").map(Number);
-  if (!fd || !fm || !fy || !td || !tm || !ty) {
+  if (!fd || !fm || !fy || !td || !tm || !ty || fm > 12 || tm > 12) {
     return { absent: null, range: null, note: "" };
   }
   const perMonth: string[][] = [];
@@ -191,7 +188,7 @@ async function readFullSemesterAbsences(
  * colour-coded marks are the only copy of them a server can reach. ADR 0026
  * records why that exception is narrow to this screen.
  */
-async function readTotals(
+export async function readTotals(
   portal: PortalReader,
   roll: string,
   b: Partial<StudentRequest>
@@ -247,7 +244,7 @@ function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
  * figure blank — the rest of the table is still a finding — while a 401 still
  * ends the session. ADR 0029 records the cost.
  */
-async function readMonths(
+export async function readMonths(
   portal: PortalReader,
   roll: string,
   b: Partial<StudentRequest>
@@ -311,130 +308,6 @@ export async function handleStudentProfile(
     throw unreadablePage("student profile page");
   }
   return { ...profile, ...absences, ...totals, ...monthly };
-}
-/**
- * One roll number in, the student's class and attendance figure out.
- *
- * The class comes from the student's own profile page — the one ECAP answer a
- * roll number is enough for — and the figure from the class attendance report
- * that page's class is read over. No picker, so a class the page states and the
- * Portal's lists do not agree on is a named answer rather than a guess.
- *
- * This is a deliberate ask from the Student Search tab, which is why it reads a
- * register at all; the refresh loop still never fetches one.
- */
-export async function handleFind(
-  portal: PortalReader,
-  b: Partial<FindRequest>
-): Promise<FindReply> {
-  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
-  const roll = b.roll?.trim();
-  if (!roll) throw new HttpError(400, "Enter a roll number.");
-  const html = await portal.studentProfile(roll);
-  const profile = parseStudentProfile(html);
-  if (!profile) {
-    throw unreadablePage("student profile page");
-  }
-  const found = await resolveClass(portal, parseStudentClass(html), profile);
-  if (typeof found === "string") {
-    return {
-      profile,
-      class: null,
-      window: { from: b.from, to: b.to },
-      student: null,
-      fullAbsent: null,
-      fullRange: null,
-      note: found,
-    };
-  }
-  // The class report states no dates, so its window is whatever we ask for.
-  const window = { from: b.from, to: b.to };
-  // A report no section could give is a portal failure, not an absent student:
-  // only a report that answered without the roll earns the "No row" note.
-  let reportFailed: unknown = null;
-  let reportAnswered = false;
-  for (const section of found.sections) {
-    const gridRequest = {
-      ...found.levels,
-      section,
-      subject: ALL_SUBJECTS,
-      from: window.from,
-      to: window.to,
-    };
-    const reply = await handleRegister(portal, gridRequest).catch(
-      (error: unknown) => {
-        // A dead session must still sign out. Anything else is one section this
-        // search can do without: the next one may hold the roll.
-        rethrowExpired(error);
-        reportFailed ??= error;
-        return null;
-      }
-    );
-    if (reply) reportAnswered = true;
-    const student = reply?.students.find((row) => sameRoll(row.roll, roll));
-    if (reply && student) {
-      // The class report states no dates, so the student's own grid is the only
-      // place they exist — read them now, over the same window, the way the
-      // panel does for a register row, and walk the semester beside them.
-      const absences = await readAbsences(portal, roll, {
-        name: student.name,
-        register: gridRequest,
-      });
-      if (absences.absent) student.absent = absences.absent;
-      const full = await readFullSemesterAbsences(
-        portal,
-        roll,
-        student.name,
-        gridRequest
-      );
-      // The semester's class counts, over the same start the absent walk found —
-      // the window ECAP's Cumulative screen uses. The Search screen has no
-      // register picker, so this is the only place its panel can get them.
-      const asked = {
-        name: student.name,
-        register: gridRequest,
-        semStart: full.range?.from ?? window.from,
-      };
-      const totals = await readTotals(portal, roll, asked);
-      // The same panel reads the same month table here: the section and the
-      // semester start are both known by now, so a search must not show less
-      // than the register's panel does.
-      const monthly = await readMonths(portal, roll, asked);
-      return {
-        profile: { ...profile, ...totals, ...monthly },
-        class: {
-          ...found.levels,
-          section,
-          semesterInferred: found.semesterInferred,
-        },
-        window: reply.summary.range,
-        student,
-        fullAbsent: full.absent,
-        fullRange: full.range,
-        note: full.note,
-      };
-    }
-  }
-  if (!reportAnswered && reportFailed) {
-    if (reportFailed instanceof HttpError) throw reportFailed;
-    throw new HttpError(
-      502,
-      "ECAP's class attendance report came back in an unexpected shape, so no figure could be read for this student."
-    );
-  }
-  return {
-    profile,
-    class: {
-      ...found.levels,
-      section: null,
-      semesterInferred: found.semesterInferred,
-    },
-    window,
-    student: null,
-    fullAbsent: null,
-    fullRange: null,
-    note: `No row for ${roll} in ${found.label} over ${window.from} to ${window.to}.`,
-  };
 }
 /**
  * One student's absent days over a wider window than the register on screen —

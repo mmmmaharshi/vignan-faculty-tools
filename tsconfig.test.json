@@ -15,7 +15,8 @@
     "server/portal-conventions.ts",
     "server/class-routes.ts",
     "server/student-routes.ts",
-    "server/screen-routes.ts",
+    "server/find-routes.ts",
+    "server/home-routes.ts",
     "server/register-levels.ts",
     // The cascade's rules. Listed file by file rather than as "web", because
     // web/ is the DOM+React project and this harness is not - see

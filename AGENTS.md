@@ -108,11 +108,13 @@ server/api.ts        the API: the portal, createApi(), and the one table mapping
                      testable without one
 server/class-routes.ts the cascade's options, the register, and the semester start:
                      every read that comes back from the Academic Register page
-server/student-routes.ts everything one roll number is asked for: the profile page,
-                     absent days, the semester's counts, the month table, and the
-                     class a search resolves to
-server/screen-routes.ts the faculty profile, today's timetable, and the day-class-work
-                     report - the reads that name no class and no student
+server/student-routes.ts one roll number's own page, and the reads its panel needs
+                     that the register cannot give it: absent days, the term's
+                     counts, and the month table
+server/find-routes.ts the Search screen: one roll in, the class ECAP states for it,
+                     and that class's report read for the same panel
+server/home-routes.ts the Home screen's reads and the rail's: today's timetable, the
+                     day-class-work report, and the signed-in faculty
 server/register-levels.ts the five levels a register-shaped request names, and the
                      refusal a missing one earns
 server/month-windows.ts one calendar month as the window ECAP reliably answers, the
