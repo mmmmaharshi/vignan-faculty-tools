@@ -11,7 +11,7 @@ import type {
   SemStartReply,
   SemStartRequest,
 } from "../shared/api.js";
-import { statedStartDate } from "../shared/portal-values.js";
+import { statedStartDate, matchOption } from "../shared/portal-values.js";
 import type { OverallLookup } from "./attendance-bands.js";
 import { summarise } from "./attendance-bands.js";
 import { HttpError, rethrowExpired } from "./http-error.js";
@@ -22,7 +22,7 @@ import {
   previousMonth,
 } from "./month-windows.js";
 import { requireCourses } from "./portal-liveness.js";
-import { matchOption, realOptions } from "./portal-options.js";
+import { realOptions } from "./portal-options.js";
 import type { Level, PortalReader } from "./portal-reader.js";
 import {
   classReportSubjects,
@@ -185,7 +185,11 @@ async function readSubjectPercents(
 export async function readRegister(
   portal: PortalReader,
   p: Record<Level, Option>,
-  window: { from: string; to: string }
+  window: { from: string; to: string },
+  /** Whether to read each subject's own report for its column figures. The
+   *  search needs one roll's row and nothing else, and every column is one
+   *  ECAP read — asked, on the All subjects path, for figures nobody reads. */
+  { subjectPercents = true }: { subjectPercents?: boolean } = {}
 ): Promise<RegisterReply> {
   const { from, to } = window;
   if (isAllSubjects(p.subject)) {
@@ -195,7 +199,10 @@ export async function readRegister(
     // they go out together; the per-subject reads wait for both.
     const [{ rows, byRoll, subjects: columns }, offered] = await Promise.all([
       readOverall(portal, { ...p, from, to }),
-      listOfferedSubjects(portal, p),
+      // Skipped rather than read and dropped: `readSubjectPercents` names the
+      // report's own columns with a dash each, which is the answer a caller that
+      // wants no figures already gets.
+      subjectPercents ? listOfferedSubjects(portal, p) : Promise.resolve(null),
     ]);
     if (!rows.length) {
       throw new HttpError(

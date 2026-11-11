@@ -129,7 +129,7 @@ server/portal-liveness.ts alive | dead | unknown: is this ECAP session still wor
 server/portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
 server/portal-html.ts ECAP's reply primitives: the tags, the cell strippers, and the
                      one place a table becomes cell arrays
-server/portal-options.ts `<option>` replies, and matching a page's own words to one
+server/portal-options.ts `<option>` replies, and the placeholder no class names
 server/portal-register.ts the register, class and Student Wise grids, and the
                      Cumulative totals
 server/portal-student.ts the StudentProfile page: GPA, SGPAs, phones, backlogs, class
@@ -187,7 +187,8 @@ scripts/typecheck-staged.ts  the commit hook's typecheck, swallowing the filenam
 shared/api.ts        the server/client contract; both sides import it
 shared/portal-values.ts  the rules both runtimes apply to a Portal value, and the
                      campus clock: the bands, the stated percentage, the register's
-                     stated start, the attended-of-held cell, the roll comparison
+                     stated start, the attended-of-held cell, the roll comparison,
+                     and matching a page's own words to one option
 vite.config.ts       build, lint and fmt config; both blocks come from the
                      Ultracite preset, 15 rules off, markdown excluded
 playwright.config.ts test runner config
@@ -1036,7 +1037,7 @@ sends someone after them for the wrong reason. `registerRows` in
 `web/register/worklist.ts`
 owns all three rules, which is where they can be pinned without booting a server.
 
-**The All subjects table states one percentage per subject, read from that subject's own report.** The class report states attended counts, never percentages, so each column's figures come from one `ShowSubjectAttendance` read per offered subject, in parallel beside the class report — still one `/api/register` call on the wire. A column whose subject the Portal's own subject list does not offer is dropped rather than guessed; a subject ECAP will not give leaves dashes rather than failing the register; a dead session still signs out, through the same retry the register already has. The cells are read as written — a blank is no figure, never a zero — and they carry no badges and change no band, tint, filter, or sort; the overall percentage stays the one figure that path judges by. Every head label renders on one line; the table scrolls instead of wrapping. Each subject header ticks a threshold for its own column — off, below 75, below 65, then off — and ticked columns intersect like the ticked bars, with a dash clearing none; an empty table names its bar and offers to clear it, since the headers it would be unticked from are gone with it. Settling a class drops bars for subjects it does not offer, so no invisible filter travels with the selection. The Overall column reads beside the name in both modes — it is the triage number — and the Roll No column sticks to the scroll edge (`pos="sticky" left={0}`, both Mantine props): positioned beats static, so no z-index exists to set, and the stuck body cells paint the row's own tint or stripe colour so sliding columns hide beneath them instead of ghosting through.
+**The All subjects table states one percentage per subject, read from that subject's own report.** The class report states attended counts, never percentages, so each column's figures come from one `ShowSubjectAttendance` read per offered subject, in parallel beside the class report — still one `/api/register` call on the wire. A column whose subject the Portal's own subject list does not offer is dropped rather than guessed; a subject ECAP will not give leaves dashes rather than failing the register; a dead session still signs out, through the same retry the register already has. The cells are read as written — a blank is no figure, never a zero — and they carry no badges and change no band, tint, filter, or sort; the overall percentage stays the one figure that path judges by. Every head label renders on one line; the table scrolls instead of wrapping. Each subject header ticks a threshold for its own column — off, below 75, below 65, then off — and ticked columns intersect like the ticked bars, with a dash clearing none; an empty table names its bar and offers to clear it, since the headers it would be unticked from are gone with it. Settling a class drops bars for subjects it does not offer, so no invisible filter travels with the selection; the bar carries the report's own column heading while the cascade offers the subject list's label, so the two are matched by `matchOption` — the same rule the server reads a reply's words with — never by string equality, which dropped a live bar whenever ECAP spelled one subject differently in the two places. The Overall column reads beside the name in both modes — it is the triage number — and the Roll No column sticks to the scroll edge (`pos="sticky" left={0}`, both Mantine props): positioned beats static, so no z-index exists to set, and the stuck body cells paint the row's own tint or stripe colour so sliding columns hide beneath them instead of ghosting through.
 
 **A typed search is the one filter a new register clears.** A name or a roll was
 typed for the class in front of the reader, so carrying it into the next load hides

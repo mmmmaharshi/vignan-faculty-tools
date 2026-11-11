@@ -5,6 +5,7 @@
  * exchange, and this file states what those shapes mean.
  */
 
+import type { Option } from "./api.js";
 /**
  * The two attendance lines, as fractions of 100. Both halves of the app judge by
  * them: the server bands every figure with them and the client's worklist
@@ -93,4 +94,39 @@ export function todayIST(now: Date = new Date()): string {
   const get = (type: string): string =>
     parts.find((p) => p.type === type)?.value ?? "";
   return `${get("day")}/${get("month")}/${get("year")}`;
+}
+
+/** A label without the word that merely names its kind: "III Semester" and "III"
+ *  are the same semester, and "Section-1" and "1" are not forced together —
+ *  everything else about the comparison stays exact. */
+const bareLabel = (label: string): string =>
+  label
+    .replaceAll(
+      /\b(?:semester|section|branch|course|year|degree|programme|program)\b/gi,
+      ""
+    )
+    .toLowerCase()
+    .replaceAll(/[^a-z0-9]/g, "");
+/** The option a page's own words name, or null. Value first, because the Portal's
+ *  reports are asked by value rather than by label; then the label — which the
+ *  class report's column header and the subject list's own label state in
+ *  different words for one subject. A text that names more than one option names
+ *  none of them: guessing a class reads the wrong section's register, and the
+ *  figure's own label is the only sign of it. */
+export function matchOption(
+  text: string,
+  list: readonly Option[]
+): Option | null {
+  const t = text.trim();
+  if (!t) return null;
+  const byValue = list.find(
+    (o) => o.value.trim().toLowerCase() === t.toLowerCase()
+  );
+  if (byValue) return byValue;
+  const bare = bareLabel(t);
+  if (!bare) return null;
+  const exact = list.filter((o) => bareLabel(o.label) === bare);
+  if (exact.length === 1) return exact[0] ?? null;
+  const partial = list.filter((o) => bareLabel(o.label).includes(bare));
+  return partial.length === 1 ? (partial[0] ?? null) : null;
 }

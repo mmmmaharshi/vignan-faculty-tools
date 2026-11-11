@@ -3,7 +3,7 @@ import { test, expect } from "@playwright/test";
 import { parseDayClassWork, parseTodayClasses } from "../server/portal-daywork";
 import { parseFacultyName, parseLeaveStatus } from "../server/portal-faculty";
 import { looksLikeHtml, unquoteJs } from "../server/portal-html";
-import { matchOption, options, realOptions } from "../server/portal-options";
+import { options, realOptions } from "../server/portal-options";
 import {
   classReportSubjects,
   parseClassAttendance,
@@ -19,6 +19,7 @@ import {
   parseStudentClass,
   parseStudentProfile,
 } from "../server/portal-student";
+import { matchOption } from "../shared/portal-values";
 
 const SELECT = `<select id="ddlcourse">
   <option value="-Select-">-Select-</option>

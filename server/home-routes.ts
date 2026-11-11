@@ -5,11 +5,11 @@ import type {
   TodayClassesReply,
   UnpostedReply,
 } from "../shared/api.js";
-import { todayIST } from "../shared/portal-values.js";
+import { todayIST, matchOption } from "../shared/portal-values.js";
 import { HttpError } from "./http-error.js";
 import { parseDayClassWork, parseTodayClasses } from "./portal-daywork.js";
 import { requireCourses } from "./portal-liveness.js";
-import { matchOption, realOptions } from "./portal-options.js";
+import { realOptions } from "./portal-options.js";
 import type { PortalReader } from "./portal-reader.js";
 
 export async function handleFacultyProfile(

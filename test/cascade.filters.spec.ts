@@ -78,16 +78,32 @@ test.describe("one threshold per subject column", () => {
     ]);
   });
   test("settling a class drops bars for subjects it does not offer", () => {
+    const offered = ["MFCS", "UHV"].map((label) => ({
+      value: label,
+      label,
+      title: "",
+    }));
     expect(
       pruneSubjectBars(
         [
           { code: "MFCS", below: 75 },
           { code: "SE", below: 65 },
         ],
-        ["MFCS", "UHV"]
+        offered
       )
     ).toEqual([{ code: "MFCS", below: 75 }]);
-    expect(pruneSubjectBars([], ["MFCS"])).toEqual([]);
+    expect(pruneSubjectBars([], offered)).toEqual([]);
+  });
+  test("a bar the report heads in its own words survives the settle", () => {
+    // ECAP heads the column "AI&DS" and offers the subject labelled "AI & DS":
+    // one subject, spelled differently in the two places. A string equality
+    // drops the tick with the selection, leaving no column to untick it from.
+    expect(
+      pruneSubjectBars(
+        [{ code: "AI&DS", below: 75 }],
+        [{ value: "9", label: "AI & DS", title: "" }]
+      )
+    ).toEqual([{ code: "AI&DS", below: 75 }]);
   });
 });
 

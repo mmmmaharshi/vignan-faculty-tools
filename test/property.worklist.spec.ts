@@ -188,10 +188,13 @@ test.describe("a column threshold cycles in place", () => {
           { maxLength: 4 }
         ),
         uniqueArray(constantFrom("AI", "MFCS"), { maxLength: 2 }),
-        (bars, offered) => {
-          const kept = pruneSubjectBars(bars, offered);
+        (bars, labels) => {
+          const kept = pruneSubjectBars(
+            bars,
+            labels.map((label) => ({ value: label, label, title: "" }))
+          );
           expect(kept.length).toBeLessThanOrEqual(bars.length);
-          for (const bar of kept) expect(offered).toContain(bar.code);
+          for (const bar of kept) expect(labels).toContain(bar.code);
           return true;
         }
       ),

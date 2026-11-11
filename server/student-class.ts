@@ -1,5 +1,5 @@
 import type { Option, StudentProfile } from "../shared/api.js";
-import { matchOption } from "./portal-options.js";
+import { matchOption } from "../shared/portal-values.js";
 import type { PortalReader } from "./portal-reader.js";
 import type { StatedClass } from "./portal-student.js";
 

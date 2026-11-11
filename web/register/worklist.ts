@@ -1,5 +1,9 @@
-import type { RegisterReply } from "../../shared/api";
-import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../../shared/portal-values";
+import type { Option, RegisterReply } from "../../shared/api";
+import {
+  CRITICAL_BELOW,
+  IRREGULAR_BELOW,
+  matchOption,
+} from "../../shared/portal-values";
 
 /** One student row out of a register reply, subject figures and overall ones. */
 export type StudentRow = RegisterReply["students"][number];
@@ -96,12 +100,17 @@ export function cycleSubjectBar(
  * for a column this class does not show must not travel with the selection:
  * it would narrow a roster with nothing on screen saying so, and the way
  * back — the column header — is not on screen either.
+ *
+ * The bar carries the class report's column heading while the cascade offers
+ * the subject list's own label, and ECAP states one subject in different words
+ * in the two places. So the comparison is the same rule the server reads a
+ * reply's own words with, not a string equality that would drop a live bar.
  */
 export function pruneSubjectBars(
   bars: readonly SubjectBar[],
-  offered: readonly string[]
+  offered: readonly Option[]
 ): SubjectBar[] {
-  return bars.filter((b) => offered.includes(b.code));
+  return bars.filter((bar) => matchOption(bar.code, offered) !== null);
 }
 /**
  * Which worklist filters are ticked. Ticked bars intersect: a row must clear

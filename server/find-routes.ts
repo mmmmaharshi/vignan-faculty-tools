@@ -67,7 +67,11 @@ export async function handleFind(
     };
     let reply: RegisterReply | null = null;
     try {
-      reply = await readRegister(portal, gridRequest, window);
+      // One roll's row is all this screen needs, so no subject's own report is
+      // read for it: the columns it would fill are not shown here.
+      reply = await readRegister(portal, gridRequest, window, {
+        subjectPercents: false,
+      });
     } catch (error) {
       // A dead session must still sign out. Anything else is one section this
       // search can do without: the next one may hold the roll.

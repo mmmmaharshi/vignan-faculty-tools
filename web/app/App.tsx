@@ -431,9 +431,7 @@ const App = (): React.JSX.Element => {
       // roster with no column on screen saying so.
       setFilter((f) => {
         if (!f.subjectBars.length) return f;
-        const offered = outcome.opts.subject
-          .filter((o) => !isAllSubjects(o))
-          .map((o) => o.label);
+        const offered = outcome.opts.subject.filter((o) => !isAllSubjects(o));
         const kept = pruneSubjectBars(f.subjectBars, offered);
         return kept.length === f.subjectBars.length
           ? f

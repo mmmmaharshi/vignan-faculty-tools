@@ -365,6 +365,34 @@ test.describe("a roll number searched on its own", () => {
     // never a subject register over a wide range, which ECAP answers empty.
     expect(calls.register).toEqual([]);
   });
+  test("find reads no subject's own report, because it shows no column", async () => {
+    const { reader, calls } = fake({ studentProfile: CLASS_PAGE });
+    await handleFind(reader, { roll: "21CS001", ...ask });
+    // A search wants one roll's row. The per-subject figures the register's All
+    // subjects table shows are not on this screen, and each is one ECAP read.
+    expect(calls.subjectReports).toEqual([]);
+  });
+  test("a report every section refused keeps its refusal", async () => {
+    // A class report no section could give is a portal failure, not a student
+    // with no absence: the search states the refusal rather than "No row".
+    const { reader } = fake({ studentProfile: CLASS_PAGE, classFails: true });
+    const failure = await handleFind(reader, {
+      roll: "21CS001",
+      ...ask,
+    }).catch((error: unknown) => error);
+    expect((failure as HttpError).status).toBe(502);
+    expect((failure as HttpError).message).toMatch(/class attendance report/);
+  });
+  test("a report that answers without the roll states no row, not an error", async () => {
+    const { reader } = fake({
+      studentProfile: CLASS_PAGE,
+      classAttendance: `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
+<tr><td>1</td><td>21CS999</td><td>Someone Else</td><td>38/45</td><td>84.44</td></tr></table>`,
+    });
+    const reply = await handleFind(reader, { roll: "21CS001", ...ask });
+    expect(reply.student).toBeNull();
+    expect(reply.note).toMatch(/No row for 21CS001/);
+  });
   test("a Search result states the semester's class counts beside the profile", async () => {
     const { reader, calls } = fake({
       studentProfile: CLASS_PAGE,
