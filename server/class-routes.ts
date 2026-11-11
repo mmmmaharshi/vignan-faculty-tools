@@ -52,9 +52,40 @@ export async function handleOptions(
     out[key] = choices;
     if (!choices.length) emptyLevels.push(key);
   };
-  take("course", await requireCourses(portal));
+  // A list held from an earlier pass of the same run is the Portal's own
+  // answer under these same parents, so it is used as stated instead of
+  // asked for again. An empty held list states nothing and is refetched.
+  const held = (key: Level): Option[] | null => {
+    const list = b.held?.[key];
+    return list?.length ? list : null;
+  };
+  // Whether ECAP was asked anything this call. A request holding every list
+  // still proves the session the way any other call does: a dead session
+  // refuses even with nothing left to fetch.
+  let fetched = false;
+  /** A held list reused as stated, or the Portal asked once. Marks which. */
+  const reuse = (
+    list: Option[] | null,
+    fetch: () => Promise<Option[]>
+  ): Promise<Option[]> => {
+    if (list) return Promise.resolve(list);
+    fetched = true;
+    return fetch();
+  };
+  take("course", await reuse(held("course"), () => requireCourses(portal)));
   if (b.course) {
-    const [branches, semesters] = await portal.branchesAndSemesters(b.course);
+    // Branches and semesters arrive in one reply, so one held list cannot
+    // stand in for the pair: both travel or the Portal is asked.
+    const heldBranch = held("branch");
+    const heldSemester = held("semester");
+    let branches: Option[];
+    let semesters: Option[];
+    if (heldBranch && heldSemester) {
+      [branches, semesters] = [heldBranch, heldSemester];
+    } else {
+      fetched = true;
+      [branches, semesters] = await portal.branchesAndSemesters(b.course);
+    }
     take("branch", branches);
     take("semester", semesters);
   }
@@ -67,17 +98,42 @@ export async function handleOptions(
     const batch =
       out.semester.find((o) => String(o.value) === String(b.semester))?.title ||
       b.semesterTitle;
+    const { course } = b;
+    const { branch } = b;
+    const { semester } = b;
     take(
       "section",
-      await portal.sections(b.course, b.branch, b.semester, batch)
+      await reuse(held("section"), () =>
+        portal.sections(course, branch, semester, batch)
+      )
     );
   }
   if (b.course && b.branch && b.semester && b.section) {
-    take("subject", await portal.subjects(b.course, b.branch, b.semester));
+    // A held subject list already leads with ALL SUBJECTS — it is a past
+    // reply, and every reply does. The lead entry is added again below, so
+    // the held one is set aside first: reusing a reply must read the same.
+    const heldSubject = held("subject")?.filter(
+      (o) => o.value !== ALL_SUBJECTS.value
+    );
+    const subjectCourse = b.course;
+    const subjectBranch = b.branch;
+    const subjectSemester = b.semester;
+    take(
+      "subject",
+      await reuse(heldSubject?.length ? heldSubject : null, () =>
+        portal.subjects(subjectCourse, subjectBranch, subjectSemester)
+      )
+    );
     // First, so the whole section is one click away, and upper-cased so it reads
     // as a mode rather than as one of the portal's short codes. An empty level
     // must stay empty, or the cascade would think it had nothing left to fetch.
     if (out.subject.length) out.subject = [ALL_SUBJECTS, ...out.subject];
+  }
+  if (!fetched) {
+    // Every list travelled, so ECAP was asked nothing — but the call still
+    // proves the session the way any other call does. A dead session refuses
+    // even here, instead of answering 200 on a session that is gone.
+    await requireCourses(portal);
   }
   return out;
 }

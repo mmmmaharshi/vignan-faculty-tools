@@ -86,6 +86,13 @@ export async function runCascade(
   const { seed, known, signal } = setup;
   let draft = { ...seed };
   let opts = known;
+  // Lists this run's own passes fetched, under the parents each pass named.
+  // Parents cannot move mid-run, so carrying them forward saves asking ECAP
+  // again for the same answer. The incoming `known` never qualifies: a new
+  // run refetches, which is what lets a renamed option correct itself. Only
+  // non-empty lists travel — an empty list states nothing, so that level is
+  // asked for again.
+  const fresh: NonNullable<OptionsRequest["held"]> = {};
   try {
     for (const _pass of LEVEL_KEYS) {
       if (signal?.aborted) return null;
@@ -101,12 +108,16 @@ export async function runCascade(
           semesterTitle,
           branch: draft.branch || undefined,
           section: draft.section || undefined,
+          ...(Object.keys(fresh).length ? { held: { ...fresh } } : null),
         },
         signal
       );
       if (signal?.aborted) return null;
       draft = applyOptions(draft, reply);
       opts = reply;
+      for (const key of LEVEL_KEYS) {
+        if (reply[key].length) fresh[key] = reply[key];
+      }
       if (!shouldContinue(draft, before, reply)) break;
     }
   } catch (error) {

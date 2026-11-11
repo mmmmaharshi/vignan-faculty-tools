@@ -402,6 +402,16 @@ export interface OptionsRequest {
   semesterTitle?: string;
   branch?: string;
   section?: string;
+  /**
+   * Lists the screen holds from earlier passes of the same settle run, under
+   * the parent values this request names. The server uses a held list verbatim
+   * instead of asking ECAP again — parents cannot move mid-run, so a list
+   * fetched seconds ago under these same parents is the Portal's own answer.
+   * Only non-empty lists travel: an empty list states nothing, so the Portal
+   * is asked. Never carried across runs: a new run refetches, which is what
+   * lets a renamed option correct itself.
+   */
+  held?: Partial<Record<CascadeLevel, Option[]>>;
 }
 export interface RegisterRequest {
   course: Option;

@@ -4,6 +4,7 @@ import { handleOptions } from "../server/class-routes";
 import { HttpError } from "../server/http-error";
 import type { PortalReader } from "../server/portal-reader";
 import { requireLevels } from "../server/register-levels";
+import { ALL_SUBJECTS } from "../shared/api";
 import { fake, levels, nth, opt } from "./support/routes-fake";
 
 test.describe("the options ladder", () => {
@@ -69,6 +70,100 @@ test.describe("the options ladder", () => {
         "MFCS",
       ]);
     });
+  });
+  test("held lists are used as stated, and only the missing levels are asked for", () => {
+    const { reader, calls } = fake();
+    const held = {
+      course: [opt("1", "B.Tech")],
+      branch: [opt("6", "IT")],
+      semester: [opt("3", "III")],
+    };
+    return handleOptions(reader, {
+      course: "1",
+      branch: "6",
+      semester: "3",
+      held,
+    }).then((reply) => {
+      expect(calls.courses, "courses travelled, so ECAP is not asked").toBe(0);
+      expect(calls.branches, "the pair travelled, so ECAP is not asked").toBe(
+        0
+      );
+      expect(
+        calls.sections,
+        "sections are missing, so ECAP is asked"
+      ).toHaveLength(1);
+      expect(reply.course).toEqual(held.course);
+      expect(reply.branch).toEqual(held.branch);
+      expect(reply.semester).toEqual(held.semester);
+    });
+  });
+  test("half a pair is no pair: one held level still fetches both", () => {
+    const { reader, calls } = fake();
+    return handleOptions(reader, {
+      course: "1",
+      held: { branch: [opt("6", "IT")] },
+    }).then((reply) => {
+      expect(
+        calls.branches,
+        "branches and semesters arrive in one reply, so one held list cannot stand in for both"
+      ).toBe(1);
+      expect(reply.branch).toHaveLength(1);
+    });
+  });
+  test("an empty held list is fetched, never taken as a known empty", () => {
+    const { reader, calls } = fake();
+    return handleOptions(reader, { held: { course: [] } }).then(() => {
+      expect(
+        calls.courses,
+        "an empty list states nothing, so the Portal is asked"
+      ).toBe(1);
+    });
+  });
+  test("a held subject list keeps its single ALL SUBJECTS lead", () => {
+    const { reader, calls } = fake();
+    const held = {
+      course: [opt("1", "B.Tech")],
+      branch: [opt("6", "IT")],
+      semester: [opt("3", "III")],
+      section: [opt("1", "Section-1")],
+      subject: [ALL_SUBJECTS, opt("57", "MFCS")],
+    };
+    return handleOptions(reader, {
+      course: "1",
+      branch: "6",
+      semester: "3",
+      section: "1",
+      held,
+    }).then((reply) => {
+      expect(
+        calls.subjects,
+        "the list travelled, so ECAP is not asked"
+      ).toHaveLength(0);
+      expect(
+        reply.subject.filter((o) => o.value === ALL_SUBJECTS.value),
+        "reusing a reply reads the same: one lead entry, not two"
+      ).toHaveLength(1);
+    });
+  });
+  test("a request holding every list still proves the session", async () => {
+    const { reader, calls } = fake({ course: [] });
+    const held = {
+      course: [opt("1", "B.Tech")],
+      branch: [opt("6", "IT")],
+      semester: [opt("3", "III")],
+      section: [opt("1", "Section-1")],
+      subject: [opt("57", "MFCS")],
+    };
+    const failure = await handleOptions(reader, {
+      course: "1",
+      branch: "6",
+      semester: "3",
+      section: "1",
+      held,
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(401);
+    expect(calls.courses, "the verdict is still asked for").toBe(1);
   });
   test("the semester's title is passed on, because it carries the batch number", () => {
     const { reader, calls } = fake();

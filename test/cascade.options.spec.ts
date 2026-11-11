@@ -59,6 +59,68 @@ test.describe("the cascade's option loop", () => {
     ).toBe(5);
     expect(outcome?.sel).toEqual(SETTLED);
   });
+  test("later passes carry the lists this run fetched, never the incoming known", async () => {
+    const runs: OptionsRequest[] = [];
+    // A stale screen: it holds a course list this run must not trust.
+    const stale = reply({
+      course: ["9"],
+      semester: [],
+      branch: [],
+      section: [],
+      subject: [],
+    });
+    const outcome = await runCascade(
+      { seed: sel(), known: stale },
+      (request) => {
+        runs.push(request);
+        const pass = runs.length;
+        const fill = (level: number, value: string) =>
+          pass >= level ? [value] : [];
+        return Promise.resolve(
+          reply({
+            course: fill(1, "1"),
+            semester: fill(2, "3"),
+            branch: fill(3, "4"),
+            section: fill(4, "5"),
+            subject: fill(5, "6"),
+          })
+        );
+      }
+    );
+    expect(
+      runs[0]?.held,
+      "the first pass fetches; nothing is held yet"
+    ).toBeUndefined();
+    expect(
+      runs[1]?.held,
+      "only the fetched course travels; unfetched levels are not the stale known"
+    ).toEqual({ course: [opt("1")] });
+    expect(
+      runs[2]?.held,
+      "the third pass carries the two lists the first two fetched"
+    ).toEqual({
+      course: [opt("1")],
+      semester: [opt("3")],
+    });
+    expect(
+      runs[3]?.held,
+      "the fourth pass carries the three lists the first three fetched"
+    ).toEqual({
+      course: [opt("1")],
+      semester: [opt("3")],
+      branch: [opt("4")],
+    });
+    expect(
+      runs[4]?.held,
+      "the fifth pass carries every list fetched so far"
+    ).toEqual({
+      course: [opt("1")],
+      semester: [opt("3")],
+      branch: [opt("4")],
+      section: [opt("5")],
+    });
+    expect(outcome?.sel).toEqual(SETTLED);
+  });
   test("a selection that is already settled is one request", async () => {
     const runs: OptionsRequest[] = [];
     const outcome = await runCascade(
