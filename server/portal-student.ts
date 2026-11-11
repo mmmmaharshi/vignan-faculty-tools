@@ -5,6 +5,7 @@ import type {
   StudentPhone,
   StudentProfile,
   StudentSgpa,
+  StudentSubjectGrade,
 } from "../shared/api.js";
 import { ROW, TABLE, cellText, cellsOf } from "./portal-html.js";
 
@@ -54,7 +55,7 @@ function sgpaBySemester(html: string): StudentSgpa[] {
     // so the pairs between the leading blank and the trailing SGPA are the
     // semester's own subject grades. Sliced by the header's length: the
     // unclosed Grade row carries the Credit row's cells after its own.
-    const subjects: StudentSgpa["subjects"] = [];
+    const subjects: StudentSubjectGrade[] = [];
     for (let i = 1; i < header.length - 1; i++) {
       const code = (header[i] ?? "").trim();
       if (!code) continue;

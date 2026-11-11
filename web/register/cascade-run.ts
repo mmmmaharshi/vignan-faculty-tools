@@ -1,11 +1,11 @@
-import type { OptionsReply, OptionsRequest } from "../../shared/api";
+import type { Option, OptionsReply, OptionsRequest } from "../../shared/api";
 import {
   LEVEL_KEYS,
   applyOptions,
   semesterTitleOf,
   shouldContinue,
 } from "./cascade";
-import type { Sel } from "./cascade";
+import type { Level, Sel } from "./cascade";
 
 /**
  * One run of the option loop, with every request it makes and everything it
@@ -92,7 +92,7 @@ export async function runCascade(
   // run refetches, which is what lets a renamed option correct itself. Only
   // non-empty lists travel — an empty list states nothing, so that level is
   // asked for again.
-  const fresh: NonNullable<OptionsRequest["held"]> = {};
+  const fresh: Partial<Record<Level, Option[]>> = {};
   try {
     for (const _pass of LEVEL_KEYS) {
       if (signal?.aborted) return null;
