@@ -106,7 +106,17 @@ server/api.ts        the API: the portal, createApi(), and the one table mapping
                      plugin in vite.config.ts, and api/[[...path]].ts (Vercel).
                      createApi takes the way to reach ECAP, so the retry rules are
                      testable without one
-server/server-routes.ts the route handlers, over a PortalReader; no HTTP in it
+server/class-routes.ts the cascade's options, the register, and the semester start:
+                     every read that comes back from the Academic Register page
+server/student-routes.ts everything one roll number is asked for: the profile page,
+                     absent days, the semester's counts, the month table, and the
+                     class a search resolves to
+server/screen-routes.ts the faculty profile, today's timetable, and the day-class-work
+                     report - the reads that name no class and no student
+server/register-levels.ts the five levels a register-shaped request names, and the
+                     refusal a missing one earns
+server/month-windows.ts one calendar month as the window ECAP reliably answers, the
+                     month either side, and a month's own first held day
 server/portal-reader.ts what a handler may ask ECAP for, one method per screen
 server/http-error.ts the refusal a handler throws, the 401 a dead session earns,
                      and the rule that only a 401 propagates
@@ -208,7 +218,7 @@ Anything with a decision in it therefore lives in a file importable without
 one, and `server/server.ts` is HTTP plumbing only. A network call in any of
 those files makes the credential-free suite unreachable.
 
-- **The semester's class counts come from the Cumulative student-wise register.** The panel's Total Held / Total Attend / Total Absent are the numbers ECAP's Academic Register prints for Student-wise + Cumulative over the semester start through today — the same window that screen uses, and only when the start is known (`studentCumulative` in `server/api.ts`, `readTotals` in `server-routes.ts`). ECAP states those three totals as **empty spans** and fills them in the page, so they are counted from the grid the reply does state: one row per day, one cell per period, and a legend the reply carries with it — green Holiday, yellow Absent, red Not Entered, purple No Class Work, and an uncoloured cell attended. Held counts attended + absent + not-entered; a holiday or no-class-work period never ran. The mapping is read from that legend, never assumed: a colour it does not name — or a reply with no legend — leaves the totals absent rather than counting the cell as attended (`parseCumulativeTotals`). This is the one counted figure in the app, and ADR 0026 records why it is narrow; every percentage stays read (ADR 0017). A reply ECAP will not give is no totals, not a failed panel.
+- **The semester's class counts come from the Cumulative student-wise register.** The panel's Total Held / Total Attend / Total Absent are the numbers ECAP's Academic Register prints for Student-wise + Cumulative over the semester start through today — the same window that screen uses, and only when the start is known (`studentCumulative` in `server/api.ts`, `readTotals` in `server/student-routes.ts`). ECAP states those three totals as **empty spans** and fills them in the page, so they are counted from the grid the reply does state: one row per day, one cell per period, and a legend the reply carries with it — green Holiday, yellow Absent, red Not Entered, purple No Class Work, and an uncoloured cell attended. Held counts attended + absent + not-entered; a holiday or no-class-work period never ran. The mapping is read from that legend, never assumed: a colour it does not name — or a reply with no legend — leaves the totals absent rather than counting the cell as attended (`parseCumulativeTotals`). This is the one counted figure in the app, and ADR 0026 records why it is narrow; every percentage stays read (ADR 0017). A reply ECAP will not give is no totals, not a failed panel.
 
 - **Dependencies are audited and delayed.** `bun run audit` is `bun audit
   --audit-level high`: it reads `bun.lock`, asks the npm advisory endpoint, and
@@ -691,7 +701,7 @@ carries one also has its name in text.
   the stored session and revives it if ECAP dropped it.
 - **The dev API reloads with the dev server; the Playwright one does not.**
   `server/api.ts` is an import of `vite.config.ts`, which Vite watches: a change
-  to it (or to `server/server-routes.ts` behind it) restarts the Vite dev
+  to it (or to the `server/*-routes.ts` files behind it) restarts the Vite dev
   server, so a band threshold, an option list or a summary figure is live on
   the next request, same as the front end. Two things follow, both learned the
   hard way. `bun server/server.ts` on its own **does not** watch, and

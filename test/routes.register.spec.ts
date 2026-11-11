@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+import { handleOptions, handleRegister } from "../server/class-routes";
 import { HttpError } from "../server/http-error";
 import type { PortalReader } from "../server/portal-reader";
-import { handleOptions, handleRegister } from "../server/server-routes";
 import { ALL_SUBJECTS } from "../shared/api";
 import {
   classGrid,

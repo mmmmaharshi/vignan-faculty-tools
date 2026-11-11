@@ -6,7 +6,7 @@ import {
   handleFind,
   handleSemAbsences,
   handleStudentProfile,
-} from "../server/server-routes";
+} from "../server/student-routes";
 import { ALL_SUBJECTS } from "../shared/api";
 import { todayIST } from "../shared/portal-values";
 import {

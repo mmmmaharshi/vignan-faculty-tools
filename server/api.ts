@@ -17,6 +17,11 @@ import type {
 } from "../shared/api.js";
 import { SESSION_HEADER } from "../shared/api.js";
 import { messageOf } from "../shared/portal-values.js";
+import {
+  handleOptions,
+  handleRegister,
+  handleSemStart,
+} from "./class-routes.js";
 import { HttpError, sessionExpired } from "./http-error.js";
 import {
   calendarPairs,
@@ -52,16 +57,15 @@ import {
 } from "./portal-transport.js";
 import {
   handleFacultyProfile,
-  handleFind,
-  handleOptions,
-  handleRegister,
-  handleSemAbsences,
-  handleSemStart,
-  handleStudentProfile,
   handleTodayClasses,
   handleUnposted,
-} from "./server-routes.js";
+} from "./screen-routes.js";
 import { sessionVerdict } from "./session-verdict.js";
+import {
+  handleFind,
+  handleSemAbsences,
+  handleStudentProfile,
+} from "./student-routes.js";
 
 type Level = CascadeLevel;
 /** Thirty days of *not using it*, after ADR 0013. The browser carries `at`
