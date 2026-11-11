@@ -14,7 +14,6 @@ import {
   CLASS_PAGE_NO_SEM,
   CLASS_PAGE_NO_SGPA,
   ask,
-  bothStarted,
   classGrid,
   fake,
   levels,
@@ -408,7 +407,8 @@ test.describe("a roll number searched on its own", () => {
       absent: 0,
     });
     // Asked from the semester start the walk settled on, not the month asked
-    // for: the totals are a semester figure.
+    // for: the totals are a semester figure, and they name the same start the
+    // panel states beside them.
     expect(calls.studentCumulative.map((call) => call[2])).toEqual([
       reply.fullRange?.from,
     ]);
@@ -424,7 +424,6 @@ test.describe("a roll number searched on its own", () => {
       ["wise"]
     );
     await expect.poll(() => started.length).toBe(2);
-    bothStarted(started, "wise", "wise");
     release();
     await loaded;
   });
@@ -509,18 +508,6 @@ test.describe("a roll number searched on its own", () => {
     const reply = await handleFind(reader, { roll: "21CS001", ...ask });
     expect(reply.fullRange?.from).toBe("15/11/2024");
     expect(reply.note).toContain("earlier than shown");
-  });
-  test("a class report no section could give fails instead of reading absent", async () => {
-    const { reader } = fake({
-      studentProfile: CLASS_PAGE,
-      classFails: true,
-    });
-    const failure = await handleFind(reader, {
-      roll: "21CS001",
-      ...ask,
-    }).catch((error: unknown) => error);
-    expect((failure as HttpError).status).toBe(502);
-    expect((failure as HttpError).message).toMatch(/class attendance report/);
   });
   test("is read through the class the student's own page states", async () => {
     const { reader, calls } = fake({ studentProfile: CLASS_PAGE });

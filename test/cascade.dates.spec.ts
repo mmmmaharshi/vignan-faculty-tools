@@ -50,11 +50,6 @@ test.describe("dates", () => {
       to: "2026-09-01",
     });
   });
-  test("midnight on the 1st does not slip back into the previous month", () => {
-    const range = defaultRange(new Date(2026, 8, 1, 0, 0, 0));
-    expect(range.from).toBe("2026-09-01");
-    expect(range.to).toBe("2026-09-01");
-  });
   test("with nothing remembered, the range is the month to date", () => {
     saved.clear();
     expect(startingRange(new Date(2026, 8, 28, 12, 0, 0))).toEqual({

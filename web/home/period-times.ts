@@ -1,3 +1,5 @@
+import { useEffect, useMemo } from "react";
+
 import type { TodayClass } from "../../shared/api";
 import { readStringMap, writeStringMap } from "../data/storage";
 
@@ -47,4 +49,28 @@ export function notePeriodTimes(
     changed = true;
   }
   return changed ? next : prev;
+}
+
+/**
+ * The memory as the timetable uses it: the hours every read has taught, folded
+ * on each answer and written back when one taught something new. It lives here
+ * rather than in the panel because the panel is presentational — its clock is
+ * the only state it owns. The read is taken again inside the effect on purpose:
+ * a later answer folding into a captured snapshot would erase what an earlier
+ * one taught.
+ */
+export function usePeriodTimes(
+  classes: TodayClass[] | null | undefined
+): PeriodTimes {
+  const known = useMemo(
+    () => notePeriodTimes(readPeriodTimes(), classes ?? []),
+    [classes]
+  );
+  useEffect(() => {
+    if (!classes) return;
+    const prev = readPeriodTimes();
+    const next = notePeriodTimes(prev, classes);
+    if (next !== prev) writePeriodTimes(next);
+  }, [classes]);
+  return known;
 }

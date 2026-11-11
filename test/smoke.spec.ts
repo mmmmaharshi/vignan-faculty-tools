@@ -109,7 +109,9 @@ test.describe("Vignan Faculty Tools", () => {
     !USER || !PASS,
     "set ECAP_USER and ECAP_PASS to run against the live portal"
   );
-  test("loads a class register, worst attendance first", async ({ page }) => {
+  test("loads a class register in the Portal's own row order", async ({
+    page,
+  }) => {
     const problems: string[] = [];
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     page.on("console", (m) => {

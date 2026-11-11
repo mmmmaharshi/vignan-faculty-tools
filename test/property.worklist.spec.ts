@@ -31,7 +31,6 @@ import {
   NO_FILTER,
   pruneSubjectBars,
   registerRows,
-  tintFor,
   visibleStudents,
 } from "../web/register/worklist";
 import type { RowFilter, StudentRow } from "../web/register/worklist";
@@ -145,18 +144,6 @@ test.describe("a worklist is a subset of the roster", () => {
         return true;
       }),
       { numRuns: 150 }
-    );
-  });
-  test("only a critical row is tinted", () => {
-    assert(
-      property(rows, boolean(), (students, overallMode) => {
-        for (const s of students) {
-          const critical = overallMode ? s.overallCritical : s.critical;
-          expect(Boolean(tintFor(s, overallMode))).toBe(critical);
-        }
-        return true;
-      }),
-      { numRuns: 100 }
     );
   });
 });

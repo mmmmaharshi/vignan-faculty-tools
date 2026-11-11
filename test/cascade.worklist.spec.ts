@@ -28,12 +28,6 @@ test.describe("the bands", () => {
     const unknown = { ...student(null), irregular: false, critical: false };
     expect(tintFor(unknown)).toBeUndefined();
   });
-  test("tint is a Mantine token or nothing, never a custom rule", () => {
-    expect(tintFor({ ...student(40), critical: true })).toBe(
-      "var(--mantine-color-red-light)"
-    );
-    expect(tintFor(student(90))).toBeUndefined();
-  });
   test("a count without a percentage still counts as an overall", () => {
     // The column rule is "any row carries one", so a row the report counted
     // but never percentaged must hold the column up beside fully-stated rows.

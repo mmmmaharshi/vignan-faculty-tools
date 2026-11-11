@@ -8,17 +8,12 @@ import {
   Text,
   Title,
 } from "@mantine/core";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 import type { TodayClass } from "../../shared/api";
 import type { Note } from "../app/types";
 import { capitalCase, isLive, pillsOf, splitSubject } from "../data/format";
-import {
-  notePeriodTimes,
-  readPeriodTimes,
-  writePeriodTimes,
-  PERIOD_COUNT,
-} from "../home/period-times";
+import { PERIOD_COUNT, usePeriodTimes } from "../home/period-times";
 import type { PeriodTimes } from "../home/period-times";
 
 export type HomePanelProps = {
@@ -105,21 +100,7 @@ export const HomePanel = ({
     const tick = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(tick);
   }, []);
-  // ECAP states every slot's hours until it clears the day, and then states
-  // none at all — so each read teaches the memory the slot hours it will need
-  // once they are gone. The hours are read back on every render rather than
-  // captured once, so a read that arrives later in the same session cannot
-  // fold into a stale snapshot and erase what an earlier read taught.
-  const known = useMemo(
-    () => notePeriodTimes(readPeriodTimes(), classes ?? []),
-    [classes]
-  );
-  useEffect(() => {
-    if (!classes) return;
-    const prev = readPeriodTimes();
-    const next = notePeriodTimes(prev, classes);
-    if (next !== prev) writePeriodTimes(next);
-  }, [classes]);
+  const known = usePeriodTimes(classes);
 
   return (
     <Stack gap="md">

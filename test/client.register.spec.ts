@@ -509,7 +509,6 @@ test.describe("the app's own data layer", () => {
     page,
   }) => {
     await page.goto("/login");
-    await page.evaluate(() => localStorage.removeItem("section-faculty"));
     await signIn(page);
     await page.getByRole("button", { name: "Register", exact: true }).click();
     await expect

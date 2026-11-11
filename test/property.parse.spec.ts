@@ -128,6 +128,10 @@ test.describe("the class report never invents a figure", () => {
   });
 });
 
+/** A Portal date from a Date, zero-padded. */
+const portalDay = (at: Date): string =>
+  `${String(at.getDate()).padStart(2, "0")}/${String(at.getMonth() + 1).padStart(2, "0")}/${at.getFullYear()}`;
+
 test.describe("the cumulative counts add up", () => {
   const colour = constantFrom("", "Green", "Yellow", "Red", "Purple");
   const legend = `<table><tr><td>
@@ -168,6 +172,12 @@ test.describe("the cumulative counts add up", () => {
           expect(totals.held).toBeGreaterThanOrEqual(totals.attend);
           expect(totals.held).toBeGreaterThanOrEqual(
             totals.attend + totals.absent
+          );
+          expect(
+            totals.held,
+            "a count cannot exceed the cells it was read from"
+          ).toBeLessThanOrEqual(
+            days.reduce((cells, [, each]) => cells + each.length, 0)
           );
           return true;
         }
@@ -222,17 +232,18 @@ test.describe("portal dates survive the round trip", () => {
           m: integer({ min: 1, max: 12 }),
           y: integer({ min: 2024, max: 2028 }),
         }),
-        record({
-          d: integer({ min: 1, max: 28 }),
-          m: integer({ min: 1, max: 12 }),
-          y: integer({ min: 2024, max: 2028 }),
-        }),
-        (a, b) => {
+        integer({ min: 0, max: 60 }),
+        (start, span) => {
+          // The window is built forward from one day, so its ends are ordered:
+          // an inverted range is not a window any reply states, and testing one
+          // only ever exercised the early return.
+          const first = new Date(start.y, start.m - 1, start.d);
+          const last = new Date(start.y, start.m - 1, start.d + span);
+          const from = portalDay(first);
+          const to = portalDay(last);
           const dates = [
-            `${String(a.d).padStart(2, "0")}/${String(a.m).padStart(2, "0")}`,
+            `${String(start.d).padStart(2, "0")}/${String(start.m).padStart(2, "0")}`,
           ];
-          const from = `${String(Math.min(a.d, b.d)).padStart(2, "0")}/${String(a.m).padStart(2, "0")}/${Math.min(a.y, b.y)}`;
-          const to = `${String(Math.max(a.d, b.d)).padStart(2, "0")}/${String(b.m).padStart(2, "0")}/${Math.max(a.y, b.y)}`;
           const stated = statedStartDate(dates, { from, to });
           if (stated === null) return true;
           return (
