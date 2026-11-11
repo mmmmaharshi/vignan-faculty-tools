@@ -11,10 +11,12 @@
   "include": [
     "test",
     "shared",
-    "server/portal-replies.ts",
     "server/attendance-bands.ts",
     "server/portal-conventions.ts",
-    "server/server-routes.ts",
+    "server/class-routes.ts",
+    "server/student-routes.ts",
+    "server/screen-routes.ts",
+    "server/register-levels.ts",
     // The cascade's rules. Listed file by file rather than as "web", because
     // web/ is the DOM+React project and this harness is not - see
     // tsconfig.json. web/register/cascade.ts is deliberately free of both, which is what

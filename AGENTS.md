@@ -116,7 +116,8 @@ server/screen-routes.ts the faculty profile, today's timetable, and the day-clas
 server/register-levels.ts the five levels a register-shaped request names, and the
                      refusal a missing one earns
 server/month-windows.ts one calendar month as the window ECAP reliably answers, the
-                     month either side, and a month's own first held day
+                     month either side, a month's own first held day, and the
+                     twelve-month cap every walk stops at
 server/portal-reader.ts what a handler may ask ECAP for, one method per screen
 server/http-error.ts the refusal a handler throws, the 401 a dead session earns,
                      and the rule that only a 401 propagates
@@ -701,7 +702,7 @@ carries one also has its name in text.
   the stored session and revives it if ECAP dropped it.
 - **The dev API reloads with the dev server; the Playwright one does not.**
   `server/api.ts` is an import of `vite.config.ts`, which Vite watches: a change
-  to it (or to the `server/*-routes.ts` files behind it) restarts the Vite dev
+  to it (or to any `server/` module behind it) restarts the Vite dev
   server, so a band threshold, an option list or a summary figure is live on
   the next request, same as the front end. Two things follow, both learned the
   hard way. `bun server/server.ts` on its own **does not** watch, and
