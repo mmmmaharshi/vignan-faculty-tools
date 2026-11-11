@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { handleOptions } from "../server/class-routes";
+import { ALL_SUBJECTS } from "../shared/api";
 import type { OptionsRequest } from "../shared/api";
 import { ApiError } from "../web/data/client";
 import { selectionAfter } from "../web/register/cascade";
@@ -13,6 +15,7 @@ import {
   reply,
   sel,
 } from "./support/cascade-harness";
+import { fake } from "./support/routes-fake";
 
 test.describe("the cascade's option loop", () => {
   const SETTLED: Sel = {
@@ -120,6 +123,36 @@ test.describe("the cascade's option loop", () => {
       section: [opt("5")],
     });
     expect(outcome?.sel).toEqual(SETTLED);
+  });
+  test("a fresh settle costs one portal call per level, never one per level per pass", async () => {
+    const { reader, calls } = fake();
+    let requests = 0;
+    const outcome = await runCascade(
+      { seed: sel(), known: nothing },
+      (request) => {
+        requests += 1;
+        return handleOptions(reader, request);
+      }
+    );
+    expect(outcome?.sel).toEqual({
+      course: "1",
+      semester: "3",
+      branch: "6",
+      section: "1",
+      // The subject auto-fills to the section-wide view, like a real settle.
+      subject: ALL_SUBJECTS.value,
+    });
+    expect(
+      calls.courses +
+        calls.branches +
+        calls.sections.length +
+        calls.subjects.length,
+      "pass N reuses the lists passes 1..N-1 fetched instead of asking ECAP again"
+    ).toBe(4);
+    expect(
+      requests,
+      "the passes still go out; only the Portal calls shrink"
+    ).toBeGreaterThan(1);
   });
   test("a selection that is already settled is one request", async () => {
     const runs: OptionsRequest[] = [];

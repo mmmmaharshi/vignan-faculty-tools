@@ -115,6 +115,9 @@ export default defineConfig({
     overrides: [
       ...(core.overrides ?? []),
       { files: SERVER_SIDE, env: { browser: false, node: true } },
+      // React's hook rules cannot apply where no component runs: a helper
+      // named `use*` in server code misfires rules-of-hooks, as measured.
+      { files: SERVER_SIDE, rules: { "react/rules-of-hooks": "off" } },
     ],
   },
   root: "web",

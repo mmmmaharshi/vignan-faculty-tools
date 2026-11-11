@@ -931,7 +931,9 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   attempt]`, where `attempt` is a counter the click increments: every click is a
   load, a repeat click is not a cache hit, and "the click is the only way a
   register is ever fetched" survives the rewrite — `test/smoke.spec.ts` still
-  counts the POSTs on the wire.
+  counts the POSTs on the wire. The options chain is the mirror image: one pass
+  is cached under the request it answered (`options-chain.ts`), so reopening a
+  saved section settles from cache with no Portal calls.
 - **A key is a promise about *whose* data it is, so nothing keyed on the server
   survives a session.** `forgetServerData()` sweeps every `/api/` key on the way
   out, and `signedOut` clears the stored session beside it. That sweep is not

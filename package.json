@@ -10,6 +10,7 @@
     "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.server.json && tsc -p tsconfig.test.json",
     "test": "playwright test",
     "test:fast": "playwright test --config=playwright.fast.config.ts",
+    "test:fast:quiet": "playwright test --config=playwright.fast.config.ts --reporter=dot",
     "lint": "vp check",
     "lint:fix": "vp check --fix",
     "audit": "bun audit --audit-level high"
