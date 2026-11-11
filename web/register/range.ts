@@ -1,5 +1,5 @@
-import { statedStartDate } from "../../shared/portal-values";
-import { readStoredString, writeStoredString } from "./string-map-store";
+import { parsePortalDate, statedStartDate } from "../../shared/portal-values";
+import { readStoredString, writeStoredString } from "../data/storage";
 
 export type Range = { from: string; to: string };
 /** A dd/mm/yyyy Portal date as the `yyyy-mm-dd` a date input takes. */
@@ -59,6 +59,19 @@ export function rememberRangeStart(from: string): void {
   if (!from) return;
   writeStoredString(START_KEY, from);
 }
+/** Opens the window at `iso`, unless it already opens there, and remembers
+ *  it so the next visit starts at the semester rather than at the month. The
+ *  one writer of `range.from` on a stated start: the settle-time snaps and
+ *  the just-loaded register both come through here. */
+export function openRangeAt(
+  iso: string,
+  range: Range,
+  setRange: (update: (r: Range) => Range) => void
+): void {
+  if (!iso || iso === range.from) return;
+  rememberRangeStart(iso);
+  setRange((r) => ({ ...r, from: iso }));
+}
 export function startingRange(now: Date = new Date()): Range {
   const fallback = defaultRange(now);
   const saved = readStoredString(START_KEY);
@@ -69,16 +82,12 @@ export function startingRange(now: Date = new Date()): Range {
  * will not parse, so the facts stay bare rather than printing nonsense.
  */
 export function calendarDays(from: string, to: string): number | null {
-  const [fd, fm, fy] = from.split("/").map(Number);
-  const [td, tm, ty] = to.split("/").map(Number);
-  if (!fd || !fm || !fy || !td || !tm || !ty) return null;
-  const start = new Date(fy, fm - 1, fd);
-  const end = new Date(ty, tm - 1, td);
-  if (
-    Number.isNaN(start.getTime()) ||
-    Number.isNaN(end.getTime()) ||
-    end < start
-  )
-    return null;
-  return Math.round((end.getTime() - start.getTime()) / 86_400_000) + 1;
+  const start = parsePortalDate(from);
+  const end = parsePortalDate(to);
+  if (!start || !end) return null;
+  // UTC, so a daylight-saving hour cannot make one day 23 or 25 hours long.
+  const startAt = Date.UTC(start.year, start.month - 1, start.day);
+  const endAt = Date.UTC(end.year, end.month - 1, end.day);
+  if (endAt < startAt) return null;
+  return Math.round((endAt - startAt) / 86_400_000) + 1;
 }

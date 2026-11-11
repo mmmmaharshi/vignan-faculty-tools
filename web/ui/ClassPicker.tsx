@@ -38,7 +38,7 @@ type ClassPickerProps = {
   onRetryOptions?: () => void;
   /** Rendered at the far end of the button row, so the class's own actions sit
    *  on the same line as Load register rather than under it. */
-  trailing?: React.ReactNode;
+  trailing: React.ReactNode;
 };
 function toSelectData(list: Option[]): { value: string; label: string }[] {
   return list.map((o) => ({ value: String(o.value), label: o.label }));

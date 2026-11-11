@@ -3,14 +3,16 @@
  * `handleApi`. Only a 401 says the credential is dead; a 502 is `unknown`,
  * and ADR 0019 forbids evicting on ambiguity — the next request asks again.
  */
+import { HttpError } from "./http-error.js";
 import type { Liveness } from "./portal-liveness.js";
 
 export function sessionVerdict(
   liveness: Liveness,
-  reauthFailure: { status: number } | null
+  reauthFailure: unknown
 ): Liveness {
-  if (liveness === "alive") return "alive";
-  if (liveness === "unknown") return "unknown";
+  if (liveness !== "dead") return liveness;
   if (reauthFailure === null) return "alive";
-  return reauthFailure.status === 401 ? "dead" : "unknown";
+  return reauthFailure instanceof HttpError && reauthFailure.status === 401
+    ? "dead"
+    : "unknown";
 }

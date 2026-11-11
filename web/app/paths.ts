@@ -1,8 +1,8 @@
 /**
- * Every path the app can name. One module with no JSX, so pure route logic
- * (`route-guard.ts`) and the test harness (which compiles without `--jsx`)
- * can import it. `NavTabs.tsx` re-exports these: the tabs are the only other
- * place the strings appear.
+ * Every path the app can name, and the two questions asked of them: is this a
+ * screen, and which tab does the address bar highlight. One module with no JSX,
+ * so the guard, the boot landing and the test harness read the same list as the
+ * rail and the bar.
  */
 export const LOGIN_PATH = "/login";
 export const HOME_PATH = "/home";
@@ -21,3 +21,8 @@ export const SCREENS = [
 export type Screen = (typeof SCREENS)[number];
 export const isScreen = (pathname: string): boolean =>
   (SCREENS as readonly string[]).includes(pathname);
+/** Which screen the address bar names. Anything else is the register screen:
+ *  unknown paths render its body before the guard sends them on, so the
+ *  highlight agrees with the screen rather than going dark. */
+export const activeTab = (pathname: string): Screen =>
+  isScreen(pathname) ? (pathname as Screen) : DASHBOARD_PATH;

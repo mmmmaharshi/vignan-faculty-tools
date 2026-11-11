@@ -28,10 +28,11 @@ import {
   handleTodayClasses,
   handleUnposted,
 } from "./home-routes.js";
-import { HttpError, sessionExpired } from "./http-error.js";
+import { HttpError, refusalOf, sessionExpired } from "./http-error.js";
 import {
   calendarPairs,
   classPairs,
+  subjectFilterPairs,
   CookieJar,
   dayWorkPairs,
   studentPairs,
@@ -40,7 +41,6 @@ import {
 import type { DayWorkRequest } from "./portal-conventions.js";
 import { parseFacultyName, parseLeaveStatus } from "./portal-faculty.js";
 import { courseVerdict } from "./portal-liveness.js";
-import type { CourseReader } from "./portal-liveness.js";
 import { options } from "./portal-options.js";
 import type { PortalReader } from "./portal-reader.js";
 import { signInTo } from "./portal-signin.js";
@@ -128,11 +128,12 @@ class Portal {
     semesterId: string | number
   ): Promise<Option[]> {
     return options(
-      await portalWebMethod(this.jar, REGISTER_REMOTE, "FillSubjects", [
-        ["CourseId", courseId],
-        ["BranchId", branchId],
-        ["SemesterId", semesterId],
-      ])
+      await portalWebMethod(
+        this.jar,
+        REGISTER_REMOTE,
+        "FillSubjects",
+        subjectFilterPairs(courseId, branchId, semesterId)
+      )
     );
   }
   register(
@@ -167,11 +168,7 @@ class Portal {
         this.jar,
         SUBJECT_ATTENDANCE_REMOTE,
         "FillSubjects",
-        [
-          ["CourseId", courseId],
-          ["BranchId", branchId],
-          ["SemesterId", semesterId],
-        ]
+        subjectFilterPairs(courseId, branchId, semesterId)
       )
     );
   }
@@ -345,12 +342,11 @@ const READS: Record<string, Read> = {
  * question, and the way back in. A `Portal` is one of these by construction, so
  * nothing has to be unwrapped before a handler crosses it.
  */
-export type PortalPort = CourseReader &
-  PortalReader & {
-    readonly jar: CookieJar;
-    readonly signedIn: boolean;
-    signIn: (userId: string, password: string) => Promise<void>;
-  };
+export type PortalPort = PortalReader & {
+  readonly jar: CookieJar;
+  readonly signedIn: boolean;
+  signIn: (userId: string, password: string) => Promise<void>;
+};
 type Session = {
   userId: string;
   // Kept so a dead ECAP session can be re-established without asking again.
@@ -447,9 +443,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
     try {
       await portal.signIn(s.userId, s.password);
     } catch (error) {
-      throw error instanceof HttpError
-        ? error
-        : new HttpError(502, messageOf(error));
+      throw refusalOf(error);
     }
     s.portal = portal;
   }
@@ -485,9 +479,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         try {
           await portal.signIn(String(userId), String(password));
         } catch (error) {
-          throw error instanceof HttpError
-            ? error
-            : new HttpError(502, messageOf(error));
+          throw refusalOf(error);
         }
         const s: Session = {
           userId: String(userId).trim(),
@@ -511,10 +503,7 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
           probe === "dead"
             ? await reauthenticate(s).catch((error: unknown) => error)
             : null;
-        const verdict = sessionVerdict(
-          probe,
-          failure instanceof HttpError ? failure : null
-        );
+        const verdict = sessionVerdict(probe, failure);
         if (verdict === "dead") return json(signedOutReply(), 200);
         return json(
           {

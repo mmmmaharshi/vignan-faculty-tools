@@ -24,15 +24,15 @@ export type UnpostedPanelProps = {
   /** Every section's cells in the report's order. Null while unread; empty
    *  when the report stated no sections at all — no classes that day, which
    *  is not the same as all posted. */
-  sections?: DayWorkSection[] | null;
-  busy?: boolean;
+  sections: DayWorkSection[] | null;
+  busy: boolean;
   /** A read that failed says so here. A fully posted day is not this — it is
    *  an "all posted" line below. */
-  note?: Note | null;
+  note: Note | null;
   /** The branch currently shown; null means none chosen yet. */
-  branch?: string | null;
+  branch: string | null;
   /** Called when the user picks a branch. */
-  onBranchChange?: (branch: string | null) => void;
+  onBranchChange: (branch: string | null) => void;
 };
 
 /** Branches named by the report, in first-seen order. */

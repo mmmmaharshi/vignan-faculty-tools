@@ -15,14 +15,6 @@ import {
   SEARCH_PATH,
 } from "../app/paths";
 import type { Screen } from "../app/paths";
-
-export {
-  DASHBOARD_PATH,
-  HOME_PATH,
-  LOGIN_PATH,
-  PROFILE_PATH,
-  SEARCH_PATH,
-} from "../app/paths";
 /** What each screen is called and which icon it carries. Keyed by the screen
  *  itself, so adding a path to `SCREENS` is a compile error until it is named
  *  here, and the rail and the bar read the same list. */
@@ -34,11 +26,6 @@ const CHROME: Record<Screen, { label: string; Icon: Icon }> = {
 };
 /** Every screen both surfaces show, in tab order. */
 const TABS = SCREENS.map((path) => ({ path, ...CHROME[path] }));
-/** Which tab the address bar names. Anything else is the register screen:
- *  unknown paths render its body before the guard sends them on, so the
- *  highlight must agree with the screen rather than going dark. */
-export const activeTab = (pathname: string): string =>
-  TABS.some((tab) => tab.path === pathname) ? pathname : DASHBOARD_PATH;
 export type Navigate = (path: string) => void;
 /** The desktop rail's tab buttons: stock `Button`s, the current screen a
  *  variant, and nothing else. `Button` has no `active` prop, so the variant

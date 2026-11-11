@@ -1,3 +1,4 @@
+import { messageOf } from "../shared/portal-values.js";
 /**
  * The refusal a route handler throws, and the two rules every caller applies to
  * one. It lives apart from the reply parsers because it is the more stable
@@ -31,4 +32,16 @@ export const unreadablePage = (what: string): HttpError =>
  */
 export function rethrowExpired(error: unknown): void {
   if (error instanceof HttpError && error.status === 401) throw error;
+}
+
+/**
+ * A thrown failure as the refusal the answer states: one already named keeps
+ * its status and sentence, anything else becomes the 502 ECAP's own words
+ * earn. Signing in is asked twice — at the form and again to revive a session
+ * — and both answers must read the same way.
+ */
+export function refusalOf(error: unknown): HttpError {
+  return error instanceof HttpError
+    ? error
+    : new HttpError(502, messageOf(error));
 }

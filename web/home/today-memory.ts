@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import type { TodayClass } from "../../shared/api";
 import { todayIST } from "../../shared/portal-values";
 import { useTodayClasses } from "../data/client";
-import { readStored, writeStored } from "../register/string-map-store";
+import { readStored, writeStored } from "../data/storage";
 
 /**
  * Today's timetable as last read with periods still in it, and the campus day

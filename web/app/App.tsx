@@ -23,7 +23,6 @@ import {
   revalidateServerData,
   isExpired,
   reloadSession,
-  useOptionsChain,
   useSession,
   useSignIn,
   useSignOut,
@@ -49,6 +48,7 @@ import {
 import type { Level, Sel } from "../register/cascade";
 import { partialOf } from "../register/cascade-run";
 import { useDashboardView } from "../register/dashboard-view";
+import { useOptionsChain } from "../register/options-chain";
 import {
   rememberRangeStart,
   startingRange,
@@ -70,16 +70,7 @@ import {
 } from "../register/worklist";
 import { ClassPicker } from "../ui/ClassPicker";
 import { HomePanel } from "../ui/HomePanel";
-import {
-  BarNav,
-  DASHBOARD_PATH,
-  HOME_PATH,
-  LOGIN_PATH,
-  PROFILE_PATH,
-  RailNav,
-  SEARCH_PATH,
-  activeTab,
-} from "../ui/NavTabs";
+import { BarNav, RailNav } from "../ui/NavTabs";
 import { ProfilePanel } from "../ui/ProfilePanel";
 import { RegisterSummary } from "../ui/RegisterSummary";
 import { RegisterTable } from "../ui/RegisterTable";
@@ -96,7 +87,15 @@ import {
   openPanel,
 } from "./panel-state";
 import type { PanelState } from "./panel-state";
-import { isScreen } from "./paths";
+import {
+  activeTab,
+  DASHBOARD_PATH,
+  HOME_PATH,
+  isScreen,
+  LOGIN_PATH,
+  PROFILE_PATH,
+  SEARCH_PATH,
+} from "./paths";
 import { nextRoute } from "./route-guard";
 import { isBooted, isSignedIn } from "./session-view";
 import type { SessionView } from "./session-view";
@@ -303,7 +302,7 @@ const App = (): React.JSX.Element => {
     rangeEdited,
   };
   const gate = loadGate(gateInput);
-  const loadNote = gateNote(gateInput);
+  const loadNote = gateNote(gate);
   const failure =
     optionsError ??
     register.error ??
@@ -671,11 +670,11 @@ const App = (): React.JSX.Element => {
   useEffect(() => {
     // A signed-in user lands on /login only via Back: the first effect runs
     // once, so this is the writer that sends them back to the landing screen.
-    const target = nextRoute(pathname, { booted, signedIn });
+    const target = nextRoute(pathname, view);
     if (target && pathname === LOGIN_PATH) {
       navigate(target, { replace: true });
     }
-  }, [booted, signedIn, pathname, navigate]);
+  }, [view, pathname, navigate]);
   const disabled = disabledLevels(sel);
   // No sort: the rows are the Portal's own roster order, which the Sl.No column
   // carries. Reordering them by attendance made the numbers read as a ranking

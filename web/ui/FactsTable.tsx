@@ -1,19 +1,18 @@
 import { Table, Text } from "@mantine/core";
 
-import type { ChosenFact } from "../register/cascade";
+/** A fact as the table draws it: two strings and nothing else. The cascade
+ *  names its own shape, which is why this one is declared here — the table
+ *  renders whatever pair it is handed. */
+type Fact = { label: string; value: string };
 
 /** The register's own naming — course through period, one fact per row, for the
  *  card above the register. It stays headless on purpose: the specs count
  *  register rows as `thead ~ tbody tr`, and a thead here would join that count. */
-export const FactsTable = ({
-  facts,
-}: {
-  facts: ChosenFact[];
-}): React.JSX.Element => {
+export const FactsTable = ({ facts }: { facts: Fact[] }): React.JSX.Element => {
   // Two facts per row, in order: course with semester, branch with section,
   // subject with period. A dangling last fact keeps its row's shape with an
   // empty cell beside it.
-  const rows: ChosenFact[][] = [];
+  const rows: Fact[][] = [];
   for (const [i, fact] of facts.entries()) {
     if (i % 2 === 0) rows.push([fact]);
     else rows.at(-1)?.push(fact);

@@ -17,7 +17,7 @@ import {
   semesterTitleOf,
 } from "./cascade";
 import type { Sel } from "./cascade";
-import { rememberRangeStart, toInputDate, toPortalDate } from "./range";
+import { openRangeAt, toInputDate, toPortalDate } from "./range";
 import type { Range } from "./range";
 import {
   noteSemStart,
@@ -169,8 +169,7 @@ export function useSemStartSettle(setup: {
       const stamp = `${source}|${iso}`;
       if (stamp === snapMarks.current.stamp) return;
       snapMarks.current.stamp = stamp;
-      rememberRangeStart(iso);
-      setRange((r) => ({ ...r, from: iso }));
+      openRangeAt(iso, range, setRange);
     };
     if (snapMarks.current.selection !== selKey) {
       snapMarks.current.selection = selKey;

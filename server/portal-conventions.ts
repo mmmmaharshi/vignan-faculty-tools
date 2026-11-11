@@ -197,3 +197,18 @@ export function nextHop(
   if (!loc) return null;
   return new URL(loc, from).toString();
 }
+
+/** The three values both FillSubjects proxies take, in declared order. The
+ *  register's page and the subject-attendance page each offer a subject list
+ *  under its own proxy; the values are the same, so they are named once. */
+export function subjectFilterPairs(
+  courseId: string | number,
+  branchId: string | number,
+  semesterId: string | number
+): [string, string | number][] {
+  return [
+    ["CourseId", courseId],
+    ["BranchId", branchId],
+    ["SemesterId", semesterId],
+  ];
+}

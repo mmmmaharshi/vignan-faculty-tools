@@ -1,4 +1,5 @@
 import { createDecipheriv } from "node:crypto";
+import { readFile } from "node:fs/promises";
 
 import { test, expect } from "@playwright/test";
 
@@ -15,6 +16,7 @@ import {
   webMethodBody,
 } from "../server/portal-conventions";
 import { portalRequest } from "../server/portal-transport";
+import { CONTENT_SECURITY_POLICY } from "../server/security-headers";
 import type { CascadeLevel, Option } from "../shared/api";
 
 test.describe("the password cipher", () => {
@@ -297,5 +299,23 @@ test.describe("one request through the jar", () => {
     } finally {
       globalThis.fetch = real;
     }
+  });
+});
+
+test.describe("the two deployments", () => {
+  test("carry one content security policy", async () => {
+    // The local server holds it as a constant and the deployed front end as a
+    // string in vercel.json. Nothing else links the two copies, so a policy
+    // loosened in one place would ship in the other unnoticed.
+    const deployed: unknown = JSON.parse(
+      await readFile("vercel.json", "utf-8")
+    );
+    const headers = (
+      deployed as { headers: { headers: { key: string; value: string }[] }[] }
+    ).headers.flatMap((entry) => entry.headers);
+    const stated = headers.find(
+      (header) => header.key.toLowerCase() === "content-security-policy"
+    );
+    expect(stated?.value).toBe(CONTENT_SECURITY_POLICY);
   });
 });

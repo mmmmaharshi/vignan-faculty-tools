@@ -1,6 +1,7 @@
+import { parsePortalDate } from "../../shared/portal-values";
+import { readStringMap, writeStringMap } from "../data/storage";
 import { selKeyOf } from "./cascade";
 import type { Sel } from "./cascade";
-import { readStringMap, writeStringMap } from "./string-map-store";
 
 /** The earliest held days seen, per selection: its key to dd/mm/yyyy. Portal
  *  data, not personal data, so — unlike saved sections — it is not scoped by
@@ -14,11 +15,12 @@ export function semStartKey(values: Sel, semesterTitle: string): string {
   return `${selKeyOf(values)} ${semesterTitle}`.trim();
 }
 const code = (date: string): number => {
-  const [d, m, y] = date.split("/").map(Number);
-  if (!d || !m || !y || d > 31 || m > 12) return Number.NaN;
-  return y * 10_000 + m * 100 + d;
+  const parsed = parsePortalDate(date);
+  return parsed
+    ? parsed.year * 10_000 + parsed.month * 100 + parsed.day
+    : Number.NaN;
 };
-const valid = (date: string): boolean => !Number.isNaN(code(date));
+const valid = (date: string): boolean => parsePortalDate(date) !== null;
 export function readSemStarts(): SemStarts {
   return readStringMap(STARTS_KEY, valid);
 }

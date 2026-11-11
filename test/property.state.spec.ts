@@ -68,13 +68,12 @@ test.describe("the redirect guard converges", () => {
           ),
           string({ maxLength: 24 })
         ),
-        boolean(),
-        boolean(),
-        (pathname, booted, signedIn) => {
+        constantFrom("booting", "signedOut", "signedIn"),
+        (pathname, view) => {
           let current = pathname;
           let hops = 0;
           for (; hops < 5; hops++) {
-            const next = nextRoute(current, { booted, signedIn });
+            const next = nextRoute(current, view);
             if (next === null || next === current) return hops <= 2;
             current = next;
           }
@@ -87,7 +86,7 @@ test.describe("the redirect guard converges", () => {
   test("a signed-in visitor is never sent to the login form", () => {
     assert(
       property(string(), (pathname) => {
-        const next = nextRoute(pathname, { booted: true, signedIn: true });
+        const next = nextRoute(pathname, "signedIn");
         return next !== LOGIN_PATH;
       }),
       { numRuns: 200 }
@@ -96,7 +95,7 @@ test.describe("the redirect guard converges", () => {
   test("a signed-out visitor is never kept off the login form", () => {
     assert(
       property(string(), (pathname) => {
-        const next = nextRoute(pathname, { booted: true, signedIn: false });
+        const next = nextRoute(pathname, "signedOut");
         return next === null ? pathname === LOGIN_PATH : next === LOGIN_PATH;
       }),
       { numRuns: 200 }

@@ -1,4 +1,6 @@
 import { HOME_PATH, isScreen, LOGIN_PATH } from "./paths";
+import { isBooted, isSignedIn } from "./session-view";
+import type { SessionView } from "./session-view";
 
 /**
  * The steady-state redirect, as a pure decision: every redirect once the
@@ -7,13 +9,10 @@ import { HOME_PATH, isScreen, LOGIN_PATH } from "./paths";
  * never compete — the signed-out and unknown-path branches below exist so the
  * decision reads whole, and only the back-button effect acts on them.
  */
-export function nextRoute(
-  pathname: string,
-  session: { booted: boolean; signedIn: boolean }
-): string | null {
-  if (!session.booted) return null;
+export function nextRoute(pathname: string, view: SessionView): string | null {
+  if (!isBooted(view)) return null;
   const onLogin = pathname === LOGIN_PATH;
-  if (!session.signedIn) return onLogin ? null : LOGIN_PATH;
+  if (!isSignedIn(view)) return onLogin ? null : LOGIN_PATH;
   if (onLogin) return HOME_PATH;
   // "/" is a second way in rather than a fifth screen, so it lands on Home too.
   if (pathname === "/" || isScreen(pathname)) return null;

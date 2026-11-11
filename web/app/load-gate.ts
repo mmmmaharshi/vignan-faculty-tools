@@ -31,12 +31,12 @@ export function loadGate(input: {
   return "ready";
 }
 
-export function loadNote(input: Parameters<typeof loadGate>[0]): string {
-  const notes: Record<LoadGate, string> = {
-    "loading-options": "Loading options...",
-    "reading-register": "Reading the register from ECAP...",
-    "finding-start": "Finding the semester start...",
-    ready: "",
-  };
-  return notes[loadGate(input)];
+const NOTES: Record<LoadGate, string> = {
+  "loading-options": "Loading options...",
+  "reading-register": "Reading the register from ECAP...",
+  "finding-start": "Finding the semester start...",
+  ready: "",
+};
+export function loadNote(gate: LoadGate): string {
+  return NOTES[gate];
 }

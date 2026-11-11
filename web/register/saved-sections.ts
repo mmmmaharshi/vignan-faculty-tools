@@ -1,7 +1,7 @@
 import { ALL_SUBJECTS } from "../../shared/api";
+import { readStored, writeStored } from "../data/storage";
 import { LEVEL_KEYS, selKeyOf } from "./cascade";
 import type { Sel } from "./cascade";
-import { readStored, writeStored } from "./string-map-store";
 
 /** One saved section, as the cards above the class form read it: the values that
  *  reopen it, and the two names that make the card readable. */

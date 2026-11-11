@@ -2,6 +2,7 @@ import path from "node:path";
 
 import type { ErrorReply } from "../shared/api.js";
 import { createApi, json } from "./api.js";
+import { SECURITY_HEADERS } from "./security-headers.js";
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
@@ -10,21 +11,6 @@ const DIST = `${ROOT}/../dist`;
  *  too, so the containment check must compare against this, not the raw
  *  `../dist` string — which no resolved path can ever start with. */
 const DIST_DIR = path.resolve(DIST);
-/**
- * Every document and asset answer carries these. The CSP mirrors vercel.json,
- * which carries the same set for the deployed front end — keep the two in
- * step. `style-src 'unsafe-inline'` is Mantine's runtime styles; `img-src`
- * names ECAP because the faculty photo loads from the portal itself.
- */
-const SECURITY_HEADERS: Record<string, string> = {
-  "content-security-policy":
-    "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
-    "img-src 'self' data: https://webprosindia.com; font-src 'self' data:; " +
-    "connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'",
-  "x-content-type-options": "nosniff",
-  "x-frame-options": "DENY",
-  "referrer-policy": "same-origin",
-};
 async function indexHtml(): Promise<Response> {
   const index = Bun.file(`${DIST}/index.html`);
   if (!(await index.exists())) {

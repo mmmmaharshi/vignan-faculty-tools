@@ -5,8 +5,6 @@ import useSWRMutation from "swr/mutation";
 import type {
   LoginRequest,
   OkReply,
-  OptionsReply,
-  OptionsRequest,
   RegisterReply,
   RegisterRequest,
   FacultyProfile,
@@ -23,8 +21,6 @@ import type {
   UnpostedReply,
 } from "../../shared/api";
 import { SESSION_HEADER, SESSION_STORE_KEY } from "../../shared/api";
-import { runCascade } from "../register/cascade-run";
-import type { CascadeOutcome, CascadeSetup } from "../register/cascade-run";
 import { createEpoch } from "./session-epoch";
 /**
  * The app's whole way of talking to its own server: one JSON wrapper, and the
@@ -55,10 +51,7 @@ const SEM_ABSENCES_PATH = "/api/sem-absences";
 const FACULTY_PROFILE_PATH = "/api/faculty-profile";
 const TODAY_PATH = "/api/today";
 const UNPOSTED_PATH = "/api/unposted";
-const OPTIONS_PATH = "/api/options";
-/** The option chain is one key, not five: its requests depend on each other, so
- *  the thing worth caching is a run, and a run is named by its seed. */
-const OPTIONS_RUN = `${OPTIONS_PATH}#chain`;
+export const OPTIONS_PATH = "/api/options";
 const LOGIN_PATH = "/api/login";
 const LOGOUT_PATH = "/api/logout";
 /** A key this server answers, on its own or as the first half of an array key. */
@@ -332,31 +325,6 @@ export function useTodayClasses(enabled: boolean) {
  */
 export function useUnposted(enabled: boolean) {
   return usePostOnOpen<UnpostedReply>(UNPOSTED_PATH, enabled);
-}
-/**
- * One pass of the option chain. Cached under the request it answered, so the
- * same chain run twice — the same saved section opened again — costs no Portal
- * calls. `revalidate: false` because the chain, not the cache, decides what to
- * ask for next.
- */
-const optionsFor = async (request: OptionsRequest): Promise<OptionsReply> => {
-  const reply = await mutate(
-    [OPTIONS_PATH, request],
-    () => postJson<OptionsReply>(OPTIONS_PATH, request),
-    { revalidate: false }
-  );
-  // A reply that is not options is a failure, the same way a register reply
-  // without its roster is: the caller's next pass cannot be built from nothing.
-  if (!reply) throw new ApiError(502, "ECAP sent no options for that class.");
-  return reply;
-};
-/** The cascade, as one run: `trigger` settles a selection and answers what the
- *  Portal said, or null when the run was superseded before it settled. */
-export function useOptionsChain() {
-  return useSWRMutation<CascadeOutcome | null, ApiError, string, CascadeSetup>(
-    OPTIONS_RUN,
-    (_key, { arg }) => runCascade(arg, optionsFor)
-  );
 }
 export function useSignIn() {
   return useSWRMutation<OkReply, ApiError, string, LoginRequest>(

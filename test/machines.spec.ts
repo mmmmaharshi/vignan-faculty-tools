@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 
+import { HttpError } from "../server/http-error";
 import { sessionVerdict } from "../server/session-verdict";
 import type { Student } from "../shared/api";
 import { loadGate, loadNote } from "../web/app/load-gate";
@@ -173,29 +174,30 @@ test.describe("explicit state machines", () => {
   });
   test("load gate: options and register beat the start probe in the note", () => {
     expect(
-      loadNote({
-        optionsLoading: true,
-        registerLoading: false,
-        preLoading: true,
-        rememberedStart: null,
-        rangeEdited: "",
-      })
+      loadNote(
+        loadGate({
+          optionsLoading: true,
+          registerLoading: false,
+          preLoading: true,
+          rememberedStart: null,
+          rangeEdited: "",
+        })
+      )
     ).toBe("Loading options...");
   });
   test("route guard: one writer decides every redirect", () => {
-    expect(nextRoute("/login", { booted: true, signedIn: true })).toBe("/home");
-    expect(nextRoute("/dashboard", { booted: true, signedIn: false })).toBe(
-      "/login"
-    );
-    expect(nextRoute("/nope", { booted: true, signedIn: true })).toBe("/home");
-    expect(nextRoute("/dashboard", { booted: false, signedIn: true })).toBe(
-      null
-    );
+    expect(nextRoute("/login", "signedIn")).toBe("/home");
+    expect(nextRoute("/dashboard", "signedOut")).toBe("/login");
+    expect(nextRoute("/nope", "signedIn")).toBe("/home");
+    expect(nextRoute("/dashboard", "booting")).toBe(null);
   });
   test("session verdict: only a 401 evicts, a 502 stays unknown", () => {
     expect(sessionVerdict("alive", null)).toBe("alive");
     expect(sessionVerdict("dead", null)).toBe("alive");
-    expect(sessionVerdict("dead", { status: 401 })).toBe("dead");
-    expect(sessionVerdict("dead", { status: 502 })).toBe("unknown");
+    // The verdict narrows the failure itself, so a refusal is the only thing
+    // that can mean the credential is gone.
+    expect(sessionVerdict("dead", new HttpError(401, "expired"))).toBe("dead");
+    expect(sessionVerdict("dead", new HttpError(502, "down"))).toBe("unknown");
+    expect(sessionVerdict("dead", new Error("socket"))).toBe("unknown");
   });
 });

@@ -2,7 +2,8 @@ import type { RegisterReply } from "../../shared/api";
 import type { RangeEdited } from "../app/load-gate";
 import { keepRegister } from "../data/client";
 import type { RegisterClick } from "../data/client";
-import { readStored, writeStored } from "./string-map-store";
+import { readStored, writeStored } from "../data/storage";
+import { NO_FILTER } from "./worklist";
 import type { RowFilter } from "./worklist";
 
 /**
@@ -56,7 +57,7 @@ const isMemory = (value: unknown): value is RegisterMemory => {
     unknown
   >;
   return (
-    has("irregular", "search", "below75", "below65", "subjectBars")(filter) &&
+    has(...Object.keys(NO_FILTER))(filter) &&
     Array.isArray((filter as { subjectBars: unknown }).subjectBars) &&
     (rangeEdited === "" || rangeEdited === "from" || rangeEdited === "to") &&
     has("request", "attempt")(click) &&

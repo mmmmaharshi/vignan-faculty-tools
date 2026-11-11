@@ -27,6 +27,24 @@ export function statedPercent(cell: string): number | null {
   const num = Number(stated);
   return num <= 100 ? num : null;
 }
+const PORTAL_DATE = /^(?<day>\d{1,2})\/(?<month>\d{1,2})\/(?<year>\d{4})$/;
+/** A dd/mm/yyyy Portal date as its three numbers, or null where it is not one.
+ *  The one reading of the shape: a range, a stated start, a remembered start
+ *  and a day count all ask it, so what counts as a date here is stated once.
+ *  The month's own length is checked, so 31/02 is no date rather than the 3rd
+ *  of March. */
+export function parsePortalDate(
+  date: string
+): { day: number; month: number; year: number } | null {
+  const match = PORTAL_DATE.exec(date.trim());
+  if (!match) return null;
+  const day = Number(match.groups?.day);
+  const month = Number(match.groups?.month);
+  const year = Number(match.groups?.year);
+  if (month < 1 || month > 12 || day < 1) return null;
+  if (day > new Date(year, month, 0).getDate()) return null;
+  return { day, month, year };
+}
 /**
  * The register's own first date column, carried as a full dd/mm/yyyy date. The
  * grid states dd/mm only, so the year is whichever year inside the range puts
@@ -43,13 +61,13 @@ export function statedStartDate(
   range: { from: string; to: string }
 ): string | null {
   const [d, m] = (dates[0] ?? "").split("/").map(Number);
-  const [fd, fm, fy] = range.from.split("/").map(Number);
-  const [td, tm, ty] = range.to.split("/").map(Number);
-  if (!d || !m || !fd || !fm || !td || !tm || !fy || !ty) return null;
+  const from = parsePortalDate(range.from);
+  const to = parsePortalDate(range.to);
+  if (!d || !m || !from || !to) return null;
   const code = (y: number): number => y * 10_000 + m * 100 + d;
-  const low = fy * 10_000 + fm * 100 + fd;
-  const high = ty * 10_000 + tm * 100 + td;
-  for (let y = fy; y <= ty; y++) {
+  const low = from.year * 10_000 + from.month * 100 + from.day;
+  const high = to.year * 10_000 + to.month * 100 + to.day;
+  for (let y = from.year; y <= to.year; y++) {
     if (code(y) >= low && code(y) <= high) {
       return `${String(d).padStart(2, "0")}/${String(m).padStart(2, "0")}/${y}`;
     }
