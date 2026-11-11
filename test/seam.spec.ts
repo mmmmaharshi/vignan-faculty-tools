@@ -302,6 +302,19 @@ test.describe("portal replies", () => {
  *  reader finds as "Grade" carries the Credit row's cells too, and its last cell
  *  is 16/19 rather than the SGPA. */
 const SEMESTER_I = `<span class='reportHeading2' align='left'>I Semester</span><table width='100%' cellspacing='0' cellpadding='2' border='0'><tr class='reportHeading2WithBackground'><td>&nbsp;</td><td align='center'>LAC</td><td align='center'>EP</td><td align='center'>Com.Eng</td><td align='center'>BCME</td><td align='center'>EG</td><td align='center'>NNSCCS</td><td align='center'>EPL</td><td align='center'>CEL</td><td align='center'>EWS</td><td align='center'>ITWS</td><td align='center'>SGPA</td></tr><tr><td class='cellBorder' align='center'><b>Grade</b></td><td class='cellBorder' align='center' style='color:Blue '>E</td><td class='cellBorder' align='center' style='color:Red '>F</td><td class='cellBorder' align='center' style='color:Blue '>C</td><td class='cellBorder' align='center' style='color:Blue '>C</td><td class='cellBorder' align='center' style='color:Blue '>E</td><td class='cellBorder' align='center' style='color:Blue '>A</td><td class='cellBorder' style='color:Blue' align='center'>B</td><td class='cellBorder' style='color:Blue' align='center'>B</td><td class='cellBorder' style='color:Blue' align='center'>B</td><td class='cellBorder' style='color:Blue' align='center'>A</td><td class='cellBorder' align='center' >5.61</td><tr><td class='cellBorder' align='center'><b>Credits</b></td><td class='cellBorder'  align='center' >3.0</td><td class='cellBorder' style='color:Red' align='center' ></td><td class='cellBorder'  align='center' >2.0</td><td class='cellBorder'  align='center' >3.0</td><td class='cellBorder'  align='center' >3.0</td><td class='cellBorder'  align='center' >0.5</td><td class='cellBorder'  align='center'>1.0</td><td class='cellBorder'  align='center'>1.0</td><td class='cellBorder'  align='center'>1.5</td><td class='cellBorder'  align='center'>1.0</td><td class='cellBorder' align='center'>16/19</td></tr></tr></table>`;
+/** The subject grades the I-semester grid above states, in its column order. */
+const SEMESTER_I_SUBJECTS = [
+  { code: "LAC", grade: "E" },
+  { code: "EP", grade: "F" },
+  { code: "Com.Eng", grade: "C" },
+  { code: "BCME", grade: "C" },
+  { code: "EG", grade: "E" },
+  { code: "NNSCCS", grade: "A" },
+  { code: "EPL", grade: "B" },
+  { code: "CEL", grade: "B" },
+  { code: "EWS", grade: "B" },
+  { code: "ITWS", grade: "A" },
+];
 /** ECAP's StudentProfile page, trimmed to the rows this app reads, with the two
  *  numbers it filled and the four it left blank kept as they are. */
 const BIO_DATA = `<div id='tblReport'><h1 >BIO-DATA</h1><div id='divProfile_BioData'><table width='100%' cellspacing='0' cellpadding='2'>
@@ -321,7 +334,13 @@ test.describe("the student profile page", () => {
       cgpa: "5.61",
       credits: "16/19",
       cgpaPercent: "48.55",
-      sgpa: [{ semester: "I Semester", value: "5.61" }],
+      sgpa: [
+        {
+          semester: "I Semester",
+          value: "5.61",
+          subjects: SEMESTER_I_SUBJECTS,
+        },
+      ],
       phones: [
         { label: "Mobile.No", number: "7661864881" },
         { label: "Father Mobile.No", number: "8790011786" },
@@ -338,7 +357,11 @@ test.describe("the student profile page", () => {
       ">7.77<"
     ).replaceAll(">16/19<", ">99/99<")}`;
     expect(parseStudentProfile(html)?.sgpa).toEqual([
-      { semester: "I Semester", value: "7.77" },
+      {
+        semester: "I Semester",
+        value: "7.77",
+        subjects: SEMESTER_I_SUBJECTS,
+      },
     ]);
   });
   test("one entry per semester, named by the span above its own table", () => {
@@ -348,8 +371,16 @@ test.describe("the student profile page", () => {
     );
     const html = `<div id='divProfile_BioData'></div>${SEMESTER_I}${second}`;
     expect(parseStudentProfile(html)?.sgpa).toEqual([
-      { semester: "I Semester", value: "5.61" },
-      { semester: "II Semester", value: "6.20" },
+      {
+        semester: "I Semester",
+        value: "5.61",
+        subjects: SEMESTER_I_SUBJECTS,
+      },
+      {
+        semester: "II Semester",
+        value: "6.20",
+        subjects: SEMESTER_I_SUBJECTS,
+      },
     ]);
   });
   test("a blank number is left out rather than printed empty", () => {

@@ -50,7 +50,17 @@ function sgpaBySemester(html: string): StudentSgpa[] {
     for (const span of html.slice(0, table.index).matchAll(SEMESTER_SPAN)) {
       semester = span.groups?.semester?.trim() ?? semester;
     }
-    out.push({ semester, value });
+    // The subject codes head the same table and the Grade row marks each one,
+    // so the pairs between the leading blank and the trailing SGPA are the
+    // semester's own subject grades. Sliced by the header's length: the
+    // unclosed Grade row carries the Credit row's cells after its own.
+    const subjects: StudentSgpa["subjects"] = [];
+    for (let i = 1; i < header.length - 1; i++) {
+      const code = (header[i] ?? "").trim();
+      if (!code) continue;
+      subjects.push({ code, grade: (grade?.[i] ?? "").trim() });
+    }
+    out.push({ semester, value, subjects });
   }
   return out;
 }

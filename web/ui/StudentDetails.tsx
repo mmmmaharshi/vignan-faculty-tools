@@ -7,12 +7,19 @@ import {
   Drawer,
   Group,
   Loader,
+  Modal,
   Stack,
   Table,
   Text,
 } from "@mantine/core";
+import { useState } from "react";
 
-import type { Student, StudentMonth, StudentProfile } from "../../shared/api";
+import type {
+  Student,
+  StudentMonth,
+  StudentProfile,
+  StudentSgpa,
+} from "../../shared/api";
 import type { Note } from "../app/types";
 import { badgeFor, carriesOverall, displayName } from "../register/worklist";
 
@@ -209,6 +216,8 @@ export const StudentDetails = ({
   const months = profile?.months ?? [];
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
+  /** The semester whose subject grades the modal names, or null when shut. */
+  const [gradesFor, setGradesFor] = useState<StudentSgpa | null>(null);
   const content = (
     <Stack
       gap="md"
@@ -388,7 +397,15 @@ export const StudentDetails = ({
               {sgpa.map((semester) => (
                 <Table.Tr key={semester.semester}>
                   <Table.Td c="dimmed">
-                    <Text size="sm">{semester.semester}</Text>
+                    {/* The grade each subject earned lives one click away: the
+                        row opens the semester's own subject table. */}
+                    <Button
+                      variant="subtle"
+                      size="xs"
+                      onClick={() => setGradesFor(semester)}
+                    >
+                      {semester.semester}
+                    </Button>
                   </Table.Td>
                   <Table.Td ta="right">
                     <Text size="sm" fw={600}>
@@ -399,6 +416,47 @@ export const StudentDetails = ({
               ))}
             </Table.Tbody>
           </Table>
+          {/* One semester's subject grades, as its own table states them:
+              ECAP's letter grades, never marks. */}
+          <Modal
+            opened={gradesFor !== null}
+            onClose={() => setGradesFor(null)}
+            title={
+              gradesFor
+                ? `${gradesFor.semester} — subject grades`
+                : "Subject grades"
+            }
+            closeButtonProps={{ "aria-label": "Close subject grades" }}
+          >
+            {gradesFor?.subjects.length ? (
+              <Table striped withTableBorder tabularNums>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>Subject</Table.Th>
+                    <Table.Th ta="right">Grade</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {gradesFor.subjects.map((subject) => (
+                    <Table.Tr key={subject.code}>
+                      <Table.Td>
+                        <Text size="sm">{subject.code}</Text>
+                      </Table.Td>
+                      <Table.Td ta="right">
+                        <Text size="sm" fw={600}>
+                          {subject.grade || "—"}
+                        </Text>
+                      </Table.Td>
+                    </Table.Tr>
+                  ))}
+                </Table.Tbody>
+              </Table>
+            ) : (
+              <Text size="sm" c="dimmed">
+                ECAP states no subject grades for this semester.
+              </Text>
+            )}
+          </Modal>
         </>
       ) : null}
       {/* The backlogs the page's own section states, by semester, after the

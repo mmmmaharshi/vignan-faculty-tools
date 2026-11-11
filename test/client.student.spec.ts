@@ -244,6 +244,31 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible();
   });
 
+  test("a semester row opens its subject grades in a modal", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    await page
+      .getByRole("button", { name: "Show details for A student" })
+      .click();
+    const panel = page.getByRole("dialog");
+    await expect(panel.getByText("CGPA 5.61")).toBeVisible({
+      timeout: 15_000,
+    });
+    await panel.getByRole("button", { name: "I Semester" }).click();
+    const modal = page.getByRole("dialog", {
+      name: "I Semester — subject grades",
+    });
+    await expect(modal.getByRole("row", { name: /LAC\s*E/ })).toBeVisible();
+    await expect(modal.getByRole("row", { name: /EP\s*F/ })).toBeVisible();
+    await page.getByRole("button", { name: "Close subject grades" }).click();
+    await expect(modal).toBeHidden();
+  });
+
   test("a student's details are read once per open, and not again and again", async ({
     page,
   }) => {

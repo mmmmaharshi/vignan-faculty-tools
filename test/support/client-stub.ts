@@ -265,7 +265,19 @@ export const profileFor = (roll: string): StudentProfile => ({
   cgpa: roll === "21C" ? "NA" : "5.61",
   credits: roll === "21C" ? "" : "16/19",
   cgpaPercent: roll === "21C" ? "" : "48.55",
-  sgpa: roll === "21C" ? [] : [{ semester: "I Semester", value: "5.61" }],
+  sgpa:
+    roll === "21C"
+      ? []
+      : [
+          {
+            semester: "I Semester",
+            value: "5.61",
+            subjects: [
+              { code: "LAC", grade: "E" },
+              { code: "EP", grade: "F" },
+            ],
+          },
+        ],
   phones: roll === "21C" ? [] : [{ label: "Mobile.No", number: "9876543210" }],
   backlogs: backlogsFor(roll),
 });

@@ -130,6 +130,16 @@ export interface StudentPhone {
 export interface StudentSgpa {
   semester: string;
   value: string;
+  /** One grade per subject in that semester's own table, in the table's order —
+   *  ECAP's letter grades (A, B, …), never marks. Empty where the grade row
+   *  states none. */
+  subjects: StudentSubjectGrade[];
+}
+/** One subject's grade in a past semester, as that semester's own table states
+ *  it: the header's code beside the Grade row's mark. */
+export interface StudentSubjectGrade {
+  code: string;
+  grade: string;
 }
 /** One subject ECAP lists under a student's backlogs. The page marks some of
  *  them in red with a leading asterisk and does not say what the mark means, so
