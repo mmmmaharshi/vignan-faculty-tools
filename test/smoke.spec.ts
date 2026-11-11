@@ -902,7 +902,10 @@ test.describe("Vignan Faculty Tools", () => {
         }
         localStorage.setItem(
           key as string,
-          btoa(out).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "")
+          btoa(out)
+            .replaceAll("+", "-")
+            .replaceAll("/", "_")
+            .replace(/[=]+$/, "")
         );
       },
       [SESSION_STORE_KEY, aged] as const
