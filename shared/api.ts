@@ -172,12 +172,15 @@ export interface StudentTotals {
  *  counselling report quotes. Read as stated — the app never divides one of its
  *  own counts to make it (ADR 0017). */
 export interface StudentMonth {
-  /** The month this row reports, as its own window: the first day of that month,
-   *  or the semester start when the term began mid-month, through its last day
-   *  (or today for the month in progress). dd/mm/yyyy, the Portal's own shape.
-   *  It labels the month; it is not the window `pct` is cumulative over. */
-  from: string;
-  to: string;
+  /**
+   * The month this row reports, as its own window: the first day of that month,
+   * or the semester start when the term began mid-month, through its last day
+   * (or today for the month in progress). dd/mm/yyyy, the Portal's own shape.
+   *
+   * Nested on purpose. It labels the month; it is not the window `pct` is
+   * cumulative over, and two flat dates on the row read as if it were.
+   */
+  month: { from: string; to: string };
   /** ECAP's stated percentage for the semester start through this month's end.
    *  Cumulative, so a later row includes the earlier ones. Null is no figure. */
   pct: number | null;

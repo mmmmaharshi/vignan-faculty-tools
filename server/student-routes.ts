@@ -106,8 +106,10 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
     const opening = monthWindow(year, month);
     out.push({
       // The term's first month opens on the day the semester did, not on the 1st.
-      from: year === sy && month === sm ? semStart : opening.from,
-      to: running ? now : opening.to,
+      month: {
+        from: year === sy && month === sm ? semStart : opening.from,
+        to: running ? now : opening.to,
+      },
       pct: null,
     });
     ({ year, month } = nextMonth(year, month));
@@ -263,7 +265,7 @@ async function readMonths(
         const report = await portal.classAttendance({
           ...levels,
           from: semStart,
-          to: month.to,
+          to: month.month.to,
         });
         const row = parseClassAttendance(report).find((r) =>
           sameRoll(r.roll, roll)

@@ -134,33 +134,36 @@ test.describe("the student profile handler", () => {
     // the term's first month opens where the semester did, and every later one
     // on its own first day. The percentage stays cumulative — that is what
     // every call asks ECAP for, checked below.
-    expect(months[0]?.from, "the first month opens at the semester start").toBe(
-      semStart
-    );
     expect(
-      months.slice(1).every((month) => month.from.startsWith("01/")),
+      months[0]?.month.from,
+      "the first month opens at the semester start"
+    ).toBe(semStart);
+    expect(
+      months.slice(1).every((month) => month.month.from.startsWith("01/")),
       "every later month opens on its first day"
     ).toBe(true);
     // Each row ends on its own month's last day, except the one still running.
     for (const [index, month] of months.entries()) {
-      const [day, monthNumber, year] = month.to.split("/").map(Number);
+      const [day, monthNumber, year] = month.month.to.split("/").map(Number);
       const last = index === months.length - 1;
-      expect(day, `${month.to} ends where it should`).toBe(
+      expect(day, `${month.month.to} ends where it should`).toBe(
         last ? todayDay : new Date(year ?? 0, monthNumber ?? 0, 0).getDate()
       );
       const previous = months[index - 1];
       if (!previous) continue;
       expect(
-        monthIndex(month.to) - monthIndex(previous.to),
-        `${month.to} follows ${previous.to}`
+        monthIndex(month.month.to) - monthIndex(previous.month.to),
+        `${month.month.to} follows ${previous.month.to}`
       ).toBe(1);
       expect(
-        monthIndex(month.from) - monthIndex(previous.to),
-        `${month.from} continues where ${previous.to} stopped`
+        monthIndex(month.month.from) - monthIndex(previous.month.to),
+        `${month.month.from} continues where ${previous.month.to} stopped`
       ).toBe(1);
     }
     const current = months.at(-1);
-    expect(current?.to, "the month in progress ends today").toBe(todayIST());
+    expect(current?.month.to, "the month in progress ends today").toBe(
+      todayIST()
+    );
     expect(
       current?.pct,
       "ECAP's own figure for that window, not one we divided"
@@ -182,11 +185,11 @@ test.describe("the student profile handler", () => {
     const months = reply.months ?? [];
     expect(months.length, "capped at twelve").toBe(12);
     expect(
-      months.at(-1)?.to,
+      months.at(-1)?.month.to,
       "and the newest row is the month in progress"
     ).toBe(todayIST());
     expect(
-      months.every((month) => month.from.startsWith("01/")),
+      months.every((month) => month.month.from.startsWith("01/")),
       "a capped table starts on a month boundary, not on the stale start day"
     ).toBe(true);
   });
@@ -200,7 +203,7 @@ test.describe("the student profile handler", () => {
     });
     const months = reply.months ?? [];
     expect(months.length, "the table is still a finding").toBeGreaterThan(1);
-    const september = months.find((month) => month.to === "30/09/2026");
+    const september = months.find((month) => month.month.to === "30/09/2026");
     expect(september?.pct, "no figure is not a failing figure").toBeNull();
     expect(
       months.filter((month) => month.pct != null).length,

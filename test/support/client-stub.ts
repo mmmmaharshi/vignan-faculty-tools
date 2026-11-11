@@ -406,16 +406,8 @@ export const stub = async (route: Route): Promise<void> => {
       ...(semStart
         ? {
             months: [
-              {
-                from: "05/08/2026",
-                to: "31/08/2026",
-                pct: 65,
-              },
-              {
-                from: "01/09/2026",
-                to: "30/09/2026",
-                pct: 75.5,
-              },
+              { month: { from: "05/08/2026", to: "31/08/2026" }, pct: 65 },
+              { month: { from: "01/09/2026", to: "30/09/2026" }, pct: 75.5 },
             ],
           }
         : {}),

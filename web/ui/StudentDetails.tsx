@@ -93,10 +93,10 @@ const MonthsBlock = ({
         </Table.Thead>
         <Table.Tbody>
           {months.map((month) => (
-            <Table.Tr key={`${month.from}-${month.to}`}>
+            <Table.Tr key={`${month.month.from}-${month.month.to}`}>
               <Table.Td>
                 <Text size="sm">
-                  {month.from} to {month.to}
+                  {month.month.from} to {month.month.to}
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
