@@ -359,7 +359,6 @@ const REFRESHABLE_PATHS: ReadonlySet<string> = new Set([
   FACULTY_PROFILE_PATH,
   TODAY_PATH,
   UNPOSTED_PATH,
-  OPTIONS_PATH,
 ]);
 const isRefreshableKey = (
   key: unknown

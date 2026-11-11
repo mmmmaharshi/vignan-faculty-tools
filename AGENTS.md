@@ -120,6 +120,8 @@ server/register-levels.ts the five levels a register-shaped request names, and t
 server/month-windows.ts one calendar month as the window ECAP reliably answers, the
                      month either side, a month's own first held day, and the
                      twelve-month cap every walk stops at
+server/security-headers.ts the headers every answer carries, named once for the
+                     local server and the deployed front end both
 server/portal-reader.ts what a handler may ask ECAP for, one method per screen
 server/http-error.ts the refusal a handler throws, the 401 a dead session earns,
                      and the rule that only a 401 propagates
@@ -168,11 +170,14 @@ web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      register-memory.ts (the dashboard view a reload puts back),
                      dashboard-view.ts (the view itself, and its one restore),
                      search-scope.ts (the class a searched figure belongs to),
-                     sem-start-settle.ts, sem-starts.ts, string-map-store.ts
+                     sem-start-settle.ts, sem-starts.ts, options-chain.ts (the
+                     option chain's one run, and the cache key it answers to)
 web/home/            the timetable's memory: today-memory.ts, period-times.ts
-web/data/            the fetch layer and its browser service worker: client.ts
-                     (every fetch the app makes: one JSON wrapper, and the SWR
-                     hooks and keys each screen reads through), sw-update.ts,
+                     (the hours each read teaches, and the hook that folds them)
+web/data/            the transport and the browser's own storage: client.ts (every
+                     fetch the app makes: one JSON wrapper, and the SWR hooks and
+                     keys each screen reads through), storage.ts (the one
+                     localStorage walk every memory uses), sw-update.ts,
                      format.ts
 web/ui/              eleven presentational modules; only HomePanel holds state,
                      and only its ticking clock — and UnpostedPanel, only which

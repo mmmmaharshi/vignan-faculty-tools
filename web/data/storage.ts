@@ -1,8 +1,11 @@
 /**
- * One localStorage map of strings to strings: read with a validator, written
- * whole. The semester-start memory and the period-hours memory are both one
- * of these — the only thing differing is what counts as a keepable value —
- * so the storage walk lives once rather than once per memory.
+ * One localStorage walk for every memory the app keeps, in the three shapes the
+ * memories take: a map of values read with a validator, one JSON value of any
+ * shape read with a guard, and one bare string. Six memories use it — the
+ * semester starts, the saved sections, the dashboard view, the range start, the
+ * period hours and today's timetable — and differ in what they keep and in how
+ * a value is judged, never in how a failure is handled: a refused read answers
+ * absent, and a refused write leaves the screen alone.
  */
 export function readStringMap(
   key: string,

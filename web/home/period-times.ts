@@ -23,10 +23,10 @@ const TIMES_KEY = "period-times";
 /** Anything with a clock in it: the grid writes `08:45 AM- 09:35 AM`, and a
  *  remembered value that cannot be read as one is dropped rather than shown. */
 const CLOCK = /\d{1,2}:\d{2}\s*[AP]M/i;
-export function readPeriodTimes(): PeriodTimes {
+function readPeriodTimes(): PeriodTimes {
   return readStringMap(TIMES_KEY, (time) => CLOCK.test(time));
 }
-export function writePeriodTimes(times: PeriodTimes): void {
+function writePeriodTimes(times: PeriodTimes): void {
   writeStringMap(TIMES_KEY, times);
 }
 /**

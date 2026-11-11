@@ -51,6 +51,7 @@ import { useDashboardView } from "../register/dashboard-view";
 import { useOptionsChain } from "../register/options-chain";
 import {
   rememberRangeStart,
+  openRangeAt,
   startingRange,
   statedStartIso,
   toPortalDate,
@@ -661,10 +662,7 @@ const App = (): React.JSX.Element => {
     if (!stated && register.data?.summary.dates?.length) {
       stated = statedStartIso(register.data.summary.dates, range) ?? "";
     }
-    const iso = toInputDate(stated);
-    if (!iso || iso === range.from) return;
-    rememberRangeStart(iso);
-    setRange((r) => ({ ...r, from: iso }));
+    openRangeAt(toInputDate(stated), range, setRange);
   }, [register.data, range, setRange]);
   /* oxlint-enable react/set-state-in-effect */
   useEffect(() => {
