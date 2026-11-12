@@ -16,6 +16,18 @@ import type { Option } from "./api.js";
 export const IRREGULAR_BELOW = 75;
 export const CRITICAL_BELOW = 65;
 /**
+ * Consecutive classes a student must attend to reach the regular line, from
+ * the semester's own held / attended counts. (A + x) / (H + x) >= 75% gives
+ * x >= 3H - 4A, rounded up. Zero when already there or when there are no
+ * held classes — the panel shows no row either way, not a "0 more" one.
+ */
+export function classesToReach(held: number, attend: number): number {
+  if (!Number.isFinite(held) || !Number.isFinite(attend) || held <= 0) return 0;
+  const need = (IRREGULAR_BELOW / 100) * held - attend;
+  if (need <= 0) return 0;
+  return Math.ceil(need / (1 - IRREGULAR_BELOW / 100));
+}
+/**
  * A stated percentage, or null where ECAP stated no number. A blank cell is
  * absence of evidence and `Number("")` is `0`, which is how a missing figure
  * once read as a failing student; a value above 100 is not a percentage either.

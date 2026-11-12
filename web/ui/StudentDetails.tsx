@@ -20,6 +20,7 @@ import type {
   StudentProfile,
   StudentSgpa,
 } from "../../shared/api";
+import { IRREGULAR_BELOW, classesToReach } from "../../shared/portal-values";
 import type { Note } from "../app/types";
 import { badgeFor, carriesOverall, displayName } from "../register/worklist";
 
@@ -216,6 +217,9 @@ export const StudentDetails = ({
   const months = profile?.months ?? [];
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
+  /** Consecutive attends from here that reach the regular line. Zero doubles
+   *  as "already there", which is why the row below is keyed on it. */
+  const need = totals ? classesToReach(totals.held, totals.attend) : 0;
   /** The semester whose subject grades the modal names, or null when shut. */
   const [gradesFor, setGradesFor] = useState<StudentSgpa | null>(null);
   const content = (
@@ -330,6 +334,21 @@ export const StudentDetails = ({
                   </Table.Td>
                 </Table.Tr>
               ))}
+              {/* Below the line, one row names the way back: consecutive
+                  attends from here that reach the line. Absent when already
+                  regular. */}
+              {need > 0 ? (
+                <Table.Tr>
+                  <Table.Td c="dimmed">
+                    <Text size="sm">{`Need for ${IRREGULAR_BELOW}%`}</Text>
+                  </Table.Td>
+                  <Table.Td ta="right">
+                    <Text size="sm" fw={600}>
+                      {`Attend next ${need} class${need === 1 ? "" : "es"}`}
+                    </Text>
+                  </Table.Td>
+                </Table.Tr>
+              ) : null}
             </Table.Tbody>
           </Table>
         </>
