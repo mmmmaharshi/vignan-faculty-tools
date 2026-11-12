@@ -338,7 +338,7 @@ export const StudentDetails = ({
                   attends from here that reach the line. Absent when already
                   regular. */}
               {need > 0 ? (
-                <Table.Tr>
+                <Table.Tr bg="var(--mantine-color-yellow-light)">
                   <Table.Td c="dimmed">
                     <Text size="sm">{`Need for ${IRREGULAR_BELOW}%`}</Text>
                   </Table.Td>
