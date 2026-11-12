@@ -5,7 +5,7 @@ import type { OverallFigure, RegisterRow } from "../server/attendance-bands";
 import {
   CRITICAL_BELOW,
   IRREGULAR_BELOW,
-  classesToReach,
+  classesToRegular,
   overallCellForDisplay,
   statedStartDate,
 } from "../shared/portal-values";
@@ -243,16 +243,16 @@ test.describe("the overall cell is shown the way the column is labelled", () => 
 });
 test.describe("the way back to 75%", () => {
   test("a regular student needs nothing, so the panel shows no row", () => {
-    expect(classesToReach(21, 21)).toBe(0);
-    expect(classesToReach(100, 75)).toBe(0);
+    expect(classesToRegular({ held: 21, attend: 21 })).toBe(0);
+    expect(classesToRegular({ held: 100, attend: 75 })).toBe(0);
   });
   test("consecutive attends from here reach the line", () => {
     // (70 + 20) / (100 + 20) = 75%, and 19 still falls short.
-    expect(classesToReach(100, 70)).toBe(20);
-    expect(classesToReach(21, 11)).toBe(19);
+    expect(classesToRegular({ held: 100, attend: 70 })).toBe(20);
+    expect(classesToRegular({ held: 21, attend: 11 })).toBe(19);
   });
-  test("no held classes needs nothing, so the panel shows no row", () => {
-    expect(classesToReach(0, 0)).toBe(0);
+  test("no held classes is no number, so the panel shows no row", () => {
+    expect(classesToRegular({ held: 0, attend: 0 })).toBe(0);
   });
 });
 test.describe("what the portal gave, preserved", () => {
