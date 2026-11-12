@@ -20,13 +20,9 @@ import type {
   StudentProfile,
   StudentSgpa,
 } from "../../shared/api";
-import {
-  CRITICAL_BELOW,
-  IRREGULAR_BELOW,
-  classesToRegular,
-} from "../../shared/portal-values";
 import type { Note } from "../app/types";
 import { badgeFor, carriesOverall, displayName } from "../register/worklist";
+import { SemesterClasses } from "./SemesterClasses";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */
@@ -221,17 +217,6 @@ export const StudentDetails = ({
   const months = profile?.months ?? [];
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
-  /** The figure the panel's own bands are read from: the semester-wide one
-   *  where the register carries it, else the subject's own. */
-  const judged = student?.overallPct ?? student?.pct ?? null;
-  const belowLine = judged != null && judged < IRREGULAR_BELOW;
-  /** Consecutive attends from here that reach the regular line, reckoned from
-   *  the semester's own counts — zero when that reply never arrived, which the
-   *  row below reads as "no number", never as "regular". */
-  const need = totals ? classesToRegular(totals) : 0;
-  /** The way back shows when the counts name one, or when the figure sits
-   *  below the line with no counts to reckon from. */
-  const showNeed = need > 0 || belowLine;
   /** The semester whose subject grades the modal names, or null when shut. */
   const [gradesFor, setGradesFor] = useState<StudentSgpa | null>(null);
   const content = (
@@ -319,66 +304,8 @@ export const StudentDetails = ({
           ) : null}
         </>
       ) : null}
-      {/* The semester's own class counts, from the Cumulative student-wise
-          register: only when that reply was given. Held is the periods that
-          ran, so attend and absent are its two parts and not-entered the
-          third. The way-back row below joins this block even where no counts
-          arrived, because a below-the-line figure with no counts is still a
-          student the row is for. */}
-      {totals || showNeed ? (
-        <>
-          <Text c="dimmed" size="xs" tt="uppercase">
-            Semester classes
-          </Text>
-          <Table striped withTableBorder tabularNums>
-            <Table.Tbody>
-              {totals
-                ? [
-                    { label: "Total Held", value: totals.held },
-                    { label: "Total Attend", value: totals.attend },
-                    { label: "Total Absent", value: totals.absent },
-                  ].map(({ label, value }) => (
-                    <Table.Tr key={label}>
-                      <Table.Td c="dimmed">
-                        <Text size="sm">{label}</Text>
-                      </Table.Td>
-                      <Table.Td ta="right">
-                        <Text size="sm" fw={600}>
-                          {value}
-                        </Text>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))
-                : null}
-              {/* Below the line, one row names the way back: consecutive
-                  attends from here that reach the line, or a dash where no
-                  counts arrived to reckon from — absence of evidence, never
-                  a zero. Yellow warning, escalating to the register's
-                  critical red, like every other row tint in the app. */}
-              {showNeed ? (
-                <Table.Tr
-                  bg={
-                    judged != null && judged < CRITICAL_BELOW
-                      ? "var(--mantine-color-red-light)"
-                      : "var(--mantine-color-yellow-light)"
-                  }
-                >
-                  <Table.Td c="dimmed">
-                    <Text size="sm">{`Need for ${IRREGULAR_BELOW}%`}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="sm" fw={600}>
-                      {need > 0
-                        ? `Attend next ${need} class${need === 1 ? "" : "es"}`
-                        : "—"}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              ) : null}
-            </Table.Tbody>
-          </Table>
-        </>
-      ) : null}
+      {/* The semester's own class counts and the way back to the line. */}
+      <SemesterClasses student={student} totals={totals} />
       {/* The student's cumulative attendance month by month, after the
           semester's own counts: the same figures, walked forward, which is what
           a monthly counselling report quotes. */}

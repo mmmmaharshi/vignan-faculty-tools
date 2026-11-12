@@ -18,18 +18,15 @@ export const CRITICAL_BELOW = 65;
 /**
  * Consecutive classes a student must attend to reach the regular line, from
  * the semester's own held / attended counts. (A + x) / (H + x) >= 75% gives
- * x >= 3H - 4A, rounded up. Zero means "no number to show" — already there,
- * or no held classes to reckon from — and the panel decides separately
- * whether the row appears at all.
+ * x >= 3H - 4A, rounded up. Null where there is no number to show — already
+ * at the line, or no held classes to reckon from — so the caller never reads
+ * a zero as "regular".
  */
-export function classesToRegular(counts: {
-  held: number;
-  attend: number;
-}): number {
-  const { held, attend } = counts;
-  if (!Number.isFinite(held) || !Number.isFinite(attend) || held <= 0) return 0;
+export function classesToRegular(held: number, attend: number): number | null {
+  if (!Number.isFinite(held) || !Number.isFinite(attend) || held <= 0)
+    return null;
   const need = (IRREGULAR_BELOW / 100) * held - attend;
-  if (need <= 0) return 0;
+  if (need <= 0) return null;
   return Math.ceil(need / (1 - IRREGULAR_BELOW / 100));
 }
 /**
