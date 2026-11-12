@@ -33,6 +33,14 @@
 - **Evidence-Based Performance Optimization** : Measure real user journeys, identify the highest-impact bottleneck, form a hypothesis, and make the smallest safe change. Benchmark before and after, retain only measurable improvements, add a guardrail for each, and repeat until the target is met.
 - **Defer Concurrency Until Measured** : Parallelise independent I/O when measurement shows it is the bottleneck, preserving error and ordering semantics.
 - **Make Illegal States Unrepresentable** : Model lifecycle and status as explicit states with no illegal combination and a clear transition table, in place of scattered booleans, strings, or phase checks.
+- **Design Out, Don't Patch** : Before you add a guard, retry, catch-and-ignore, flag, or fallback, find why the problem exists and change the design so the line is not needed. Prefer removing the error or the illegal state over detecting it. Where the cause lies outside the tree, mark the workaround with its cause and an expiry, and know why old compensating code exists before you delete it.
+- **Stable Canonical Identity** : Give every object that outlives one call, or that another object refers to, one ID. Assign it once and never change it. Refer to the object by that ID only, never by name, position, or a copy of its attributes. Leave value objects without IDs.
+- **Deep Modules** : Give each module a small interface that hides a lot of work. Keep what a caller must know to a minimum, make the common call the simplest, and take complexity into the module, not onto its callers. A deep module has one purpose. Merge or remove a layer that adds no hidden work.
+- **Evidence-Based Engineering**: Every decision, implementation, optimisation, and technical conclusion MUST be driven by verifiable data, empirical evidence, reproducible testing, and measurable outcomes; assumptions are not facts, speculation is not validation, and unverified claims are not accepted.
+- **Invariant Enforcement**: Identify and explicitly enforce all implicit system constraints through boundary validation, type safety, and automated tests to prevent invalid states and runtime failures.
+- **Dependency Isolation**: Encapsulate external dependencies behind well-defined interfaces and centralised control mechanisms to enforce consistent communication, failure handling, and system resilience.
+- **Verifiable Delivery**: Define measurable acceptance criteria, establish baseline behaviour, validate changes through reproducible tests, and retain objective evidence of correctness, performance, and regression safety before declaring completion.
+- **Multi-Stakeholder Design**: Optimise every interface for user experience (UX), developer experience (DX), and agent experience (AX), ensuring usability, maintainability, and safe, predictable future modifications without compromising one for another.
 
 # Codebase Slop Indicators / Anti-patterns
 
@@ -46,3 +54,5 @@
 - pass-through wrappers
 - errors / validation not at the boundary
 - change detector tests
+- compensating code over a known cause
+- workarounds without a cause and an expiry
