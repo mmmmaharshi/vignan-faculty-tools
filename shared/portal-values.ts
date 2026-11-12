@@ -22,7 +22,11 @@ export const CRITICAL_BELOW = 65;
  * at the line, or no held classes to reckon from — so the caller never reads
  * a zero as "regular".
  */
-export function classesToRegular(held: number, attend: number): number | null {
+export function classesToRegular(counts: {
+  held: number;
+  attend: number;
+}): number | null {
+  const { held, attend } = counts;
   if (!Number.isFinite(held) || !Number.isFinite(attend) || held <= 0)
     return null;
   const need = (IRREGULAR_BELOW / 100) * held - attend;

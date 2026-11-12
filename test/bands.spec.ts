@@ -243,16 +243,16 @@ test.describe("the overall cell is shown the way the column is labelled", () => 
 });
 test.describe("the way back to 75%", () => {
   test("a regular student has no number, so the panel shows no row", () => {
-    expect(classesToRegular(21, 21)).toBeNull();
-    expect(classesToRegular(100, 75)).toBeNull();
+    expect(classesToRegular({ held: 21, attend: 21 })).toBeNull();
+    expect(classesToRegular({ held: 100, attend: 75 })).toBeNull();
   });
   test("consecutive attends from here reach the line", () => {
     // (70 + 20) / (100 + 20) = 75%, and 19 still falls short.
-    expect(classesToRegular(100, 70)).toBe(20);
-    expect(classesToRegular(21, 11)).toBe(19);
+    expect(classesToRegular({ held: 100, attend: 70 })).toBe(20);
+    expect(classesToRegular({ held: 21, attend: 11 })).toBe(19);
   });
   test("no held classes is no number, so the panel shows no row", () => {
-    expect(classesToRegular(0, 0)).toBeNull();
+    expect(classesToRegular({ held: 0, attend: 0 })).toBeNull();
   });
 });
 test.describe("what the portal gave, preserved", () => {

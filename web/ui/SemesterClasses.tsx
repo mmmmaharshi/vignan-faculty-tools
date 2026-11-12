@@ -45,8 +45,11 @@ type SemesterClassesProps = {
 export const SemesterClasses = ({ student, totals }: SemesterClassesProps) => {
   const { below, critical } = bandsFor(student);
   /** Null where there is no number — no counts, or already at the line. */
-  const need = totals ? classesToRegular(totals.held, totals.attend) : null;
-  if (!totals && !(need != null || below)) return null;
+  const need = totals ? classesToRegular(totals) : null;
+  /** The way back shows when the counts name one, or when the figure sits
+   *  below the line with no counts to reckon from. */
+  const showNeed = need != null || below;
+  if (!totals && !showNeed) return null;
   return (
     <>
       <Text c="dimmed" size="xs" tt="uppercase">
@@ -77,7 +80,7 @@ export const SemesterClasses = ({ student, totals }: SemesterClassesProps) => {
           {/* Below the line, one row names the way back, or a dash where no
               counts arrived — absence of evidence, never a zero. Yellow
               warning, escalating to the register's critical red. */}
-          {need != null || below ? (
+          {showNeed ? (
             <Table.Tr
               bg={
                 critical
