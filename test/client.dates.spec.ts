@@ -2,14 +2,13 @@ import { expect, test } from "@playwright/test";
 
 import {
   hold,
+  release,
   resetStub,
   selectValue,
   signIn,
   signInAndSettle,
   state,
   stub,
-  take,
-  unhold,
 } from "./support/client-stub";
 
 test.describe("the app's own data layer", () => {
@@ -174,14 +173,13 @@ test.describe("the app's own data layer", () => {
       state.registerCalls,
       "no register goes out before the start is known"
     ).toBe(0);
-    const held = take("walk");
-    unhold("walk");
-    expect(held, "the walk was asked").not.toBeNull();
-    await held?.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
-    });
+    await release("walk", (held) =>
+      held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
+      })
+    );
     await expect(page.getByLabel("From")).toHaveValue("2026-08-05", {
       timeout: 15_000,
     });
@@ -221,14 +219,13 @@ test.describe("the app's own data layer", () => {
     expect(state.lastRegisterFrom, "the typed range wins over the walk").toBe(
       "01/09/2026"
     );
-    const held = take("walk");
-    unhold("walk");
-    expect(held, "the walk was asked").not.toBeNull();
-    await held?.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
-    });
+    await release("walk", (held) =>
+      held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
+      })
+    );
   });
 
   test("editing only To keeps the gate: From is still unsettled", async ({
@@ -253,13 +250,12 @@ test.describe("the app's own data layer", () => {
       state.registerCalls,
       "a typed To alone must not take the unsettled From"
     ).toBe(0);
-    const held = take("walk");
-    unhold("walk");
-    expect(held, "the walk was asked").not.toBeNull();
-    await held?.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
-    });
+    await release("walk", (held) =>
+      held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
+      })
+    );
   });
 });

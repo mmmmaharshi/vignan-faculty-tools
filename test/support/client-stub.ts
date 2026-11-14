@@ -63,6 +63,10 @@ export const profileRolls: string[] = [];
 export const totalsAsked: string[] = [];
 /** A read the stub can park for the test to answer late. */
 export type Holdable = "session" | "walk" | "profile";
+/** A parked read: the route plus what the answer must remember about the
+ *  moment of asking — a held session answer belongs to the session that
+ *  asked for it, not to whatever signed in or out while it was in flight. */
+type Parked = { route: Route; wasIn: boolean };
 /** Everything the stub answers from and has answered so far. One mutable
  *  object, because every spec file in this family shares this module and a
  *  binding imported from it cannot be assigned. `resetStub()` is where each
@@ -74,14 +78,12 @@ export const state = {
   sessionCalls: 0,
   /** Reads parked for the test to answer late, by read. One mechanism for
    *  every holdable read: `hold` arms, the stub parks instead of answering,
-   *  `take` consumes the oldest parked route, and `unhold` disarms. The arm
-   *  stays until `unhold` because the settle loop can ask again while the
-   *  first answer is still held back; parked routes queue so the test
-   *  always gets the in-flight request it armed for rather than whatever
-   *  asked last — a revalidation after a sign-out must never stand in for
-   *  the probe that was already in flight across it. */
+   *  and `release` answers the oldest parked route with the test's answer.
+   *  The arm stays until the release because the settle loop can ask again
+   *  while the first answer is still held back; the queue keeps the
+   *  in-flight request first, so a revalidation can never stand in for it. */
   armed: new Set<Holdable>(),
-  holds: new Map<Holdable, Route[]>(),
+  holds: new Map<Holdable, Parked[]>(),
   optionsCalls: 0,
   /** The next that many `/api/options` calls answer 502, then answer again:
    *  consecutive portal failures, the way ECAP fails from the server. The loop
@@ -146,30 +148,32 @@ export const resetStub = (): void => {
   state.todayEmpty = false;
   state.absentAsked = false;
 };
-/** Arms the next `read` to park instead of answering. Sticky until
- *  `unhold`: the settle loop can ask again while the test is still holding
- *  the first answer back. */
+/** Arms `read` to park instead of answering. Sticky until the release:
+ *  the settle loop can ask again while the first answer is still held back. */
 export const hold = (read: Holdable): void => {
   state.armed.add(read);
 };
-/** Disarms `read`: later calls answer at once again. */
-export const unhold = (read: Holdable): void => {
-  state.armed.delete(read);
-};
-/** The parked route for `read`, consumed oldest-first. Null where nothing
- *  is parked. */
-export const take = (read: Holdable): Route | null => {
+/** Answers the oldest parked `read` with the test's answer. Fails fast
+ *  where nothing is parked: a release without a hold is a broken test,
+ *  not an empty reply. */
+export const release = async (
+  read: Holdable,
+  answer: (held: Parked) => Promise<unknown>
+): Promise<void> => {
   const queue = state.holds.get(read) ?? [];
-  const route = queue.shift() ?? null;
+  const held = queue.shift();
   if (queue.length === 0) state.holds.delete(read);
-  return route;
+  if (!held) throw new Error(`release with no parked ${read} read`);
+  state.armed.delete(read);
+  await answer(held);
 };
 /** Parks `route` when `read` is armed. True where the caller must not also
- *  answer: one mechanism for every holdable read. */
+ *  answer: one mechanism for every holdable read. The snapshot rides along
+ *  because a held answer belongs to the session that asked for it. */
 const park = (read: Holdable, route: Route): boolean => {
   if (!state.armed.has(read)) return false;
   const queue = state.holds.get(read) ?? [];
-  queue.push(route);
+  queue.push({ route, wasIn: state.signedIn });
   state.holds.set(read, queue);
   return true;
 };
@@ -334,19 +338,15 @@ export const studentReply = (asked: StudentRequest): StudentProfile => {
       : {}),
   };
 };
-/** Answers a parked profile read the way an immediate one answers, then
- *  disarms: the hold covered the first answer, not every reopen. Fails
- *  fast where nothing is parked: a release without a hold is a broken test,
- *  not an empty reply. */
+/** Answers a parked profile read the way an immediate one answers. */
 export const releaseProfile = async (): Promise<void> => {
-  const route = take("profile");
-  unhold("profile");
-  if (!route) throw new Error("releaseProfile with no parked profile read");
-  const asked = route.request().postDataJSON() as StudentRequest;
-  await route.fulfill({
-    status: 200,
-    contentType: "application/json",
-    body: JSON.stringify(studentReply(asked)),
+  await release("profile", async (held) => {
+    const asked = held.route.request().postDataJSON() as StudentRequest;
+    await held.route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(studentReply(asked)),
+    });
   });
 };
 /** The stored session answers carry, built the way the real server sends it. */

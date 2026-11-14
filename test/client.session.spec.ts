@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import { SESSION_STORE_KEY } from "../shared/api";
 import {
   hold,
+  release,
   resetStub,
   selectValue,
   sessionAnswer,
@@ -10,8 +11,6 @@ import {
   signInAndSettle,
   state,
   stub,
-  take,
-  unhold,
 } from "./support/client-stub";
 
 test.describe("the app's own data layer", () => {
@@ -100,9 +99,6 @@ test.describe("the app's own data layer", () => {
     await expect
       .poll(() => state.sessionCalls, { timeout: 15_000 })
       .toBeGreaterThan(2);
-    // The held answer belongs to the session that asked for it: read now,
-    // before the sign-out drops what it would store.
-    const wasIn = state.signedIn;
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByLabel("ECAP user name")).toBeVisible({
       timeout: 15_000,
@@ -114,16 +110,20 @@ test.describe("the app's own data layer", () => {
       ),
       "sign-out clears what the probe has not yet answered"
     ).toBeNull();
-    // The held answer lands now, carrying a session to store.
-    const held = take("session");
-    unhold("session");
-    const landed = page.waitForResponse("**/api/session", { timeout: 15_000 });
-    const answer = sessionAnswer(wasIn);
-    await held?.fulfill({
-      status: 200,
-      contentType: "application/json",
-      headers: answer.headers,
-      body: answer.body,
+    // The held answer lands now, carrying a session to store. The snapshot
+    // rode along with the parked probe: it belongs to the session that
+    // asked, not to whatever signed out while it was in flight.
+    const landed = page.waitForResponse("**/api/session", {
+      timeout: 15_000,
+    });
+    await release("session", async (held) => {
+      const answer = sessionAnswer(held.wasIn);
+      await held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: answer.headers,
+        body: answer.body,
+      });
     });
     await landed;
     expect(
