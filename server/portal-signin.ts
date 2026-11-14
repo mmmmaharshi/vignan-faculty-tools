@@ -10,7 +10,6 @@ import {
   portalRequest,
   UA,
 } from "./portal-transport.js";
-
 /**
  * One ECAP sign-in: read the login form's view state, post the password as bare
  * ciphertext, and let the jar keep the cookie. Throws the 401 the API answers
@@ -58,4 +57,34 @@ export async function signInTo(
       "Sign-in failed. Check your ECAP user name and password."
     );
   }
+}
+/**
+ * ECAP's own sign-out: the landing shell's `lnkLogOut` postback, measured off
+ * an authenticated reply (scripts/portal-logout-link.ts) rather than guessed.
+ * Dropping the browser's session leaves this one alive server-side, and a
+ * second sign-in while it lives comes back dead — its first read 401s and
+ * the app bounces to the sign-in form. May throw; the caller treats it as
+ * best-effort so a refusal here never fails the browser's own sign-out.
+ */
+export async function signOutFrom(jar: CookieJar): Promise<void> {
+  const page = await portalRequest(jar, LOGIN_PAGE, {
+    headers: { "user-agent": UA, referer: LOGIN_PAGE },
+  });
+  const html = await page.text();
+  const body = new URLSearchParams({
+    __VIEWSTATE: hiddenValue(html, "__VIEWSTATE"),
+    __VIEWSTATEGENERATOR: hiddenValue(html, "__VIEWSTATEGENERATOR"),
+    __EVENTVALIDATION: hiddenValue(html, "__EVENTVALIDATION"),
+    __EVENTTARGET: "lnkLogOut",
+    __EVENTARGUMENT: "",
+  });
+  await portalRequest(jar, LOGIN_PAGE, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      referer: LOGIN_PAGE,
+      "user-agent": UA,
+    },
+    body,
+  });
 }

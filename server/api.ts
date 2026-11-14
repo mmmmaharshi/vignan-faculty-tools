@@ -43,7 +43,7 @@ import { parseFacultyName, parseLeaveStatus } from "./portal-faculty.js";
 import { courseVerdict } from "./portal-liveness.js";
 import { options } from "./portal-options.js";
 import type { PortalReader } from "./portal-reader.js";
-import { signInTo } from "./portal-signin.js";
+import { signInTo, signOutFrom } from "./portal-signin.js";
 import {
   CLASS_REMOTE,
   DASHBOARD_REMOTE,
@@ -75,6 +75,9 @@ class Portal {
   }
   async signIn(userId: string, password: string): Promise<void> {
     await signInTo(this.jar, userId, password);
+  }
+  async signOut(): Promise<void> {
+    await signOutFrom(this.jar);
   }
   async courses(): Promise<Option[]> {
     return options(
@@ -346,6 +349,8 @@ export type PortalPort = PortalReader & {
   readonly jar: CookieJar;
   readonly signedIn: boolean;
   signIn: (userId: string, password: string) => Promise<void>;
+  /** Ends the portal session. Best-effort: a refusal must never fail logout. */
+  signOut: () => Promise<void>;
 };
 type Session = {
   userId: string;
@@ -489,7 +494,13 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         return json({ ok: true } satisfies OkReply, 200, sessionHeader(s));
       }
       if (req.method === "POST" && path === "/api/logout") {
-        // Nothing server-side to end: the browser drops its stored session.
+        // End the portal session too, best-effort: dropping the browser's
+        // session leaves ECAP's own alive, and a second sign-in while it
+        // lives comes back dead — its first read 401s and the app bounces
+        // to the form. A refusal here never fails the browser's sign-out.
+        await readSession(req)
+          ?.portal.signOut()
+          .catch(() => null);
         return json({ ok: true } satisfies OkReply);
       }
       if (path === "/api/session") {

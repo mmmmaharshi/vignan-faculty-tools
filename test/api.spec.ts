@@ -85,7 +85,8 @@ const expiredCourses = () => Promise.reject(new HttpError(401, "expired"));
 function portalOf(
   reader: PortalReader,
   revivals: { count: number },
-  signInError?: Error
+  signInError?: Error,
+  ended?: { count: number; error?: Error }
 ): PortalPort {
   const jar = new CookieJar();
   jar.entries.set("frmAuth", "ok");
@@ -96,6 +97,10 @@ function portalOf(
     signIn: () => {
       revivals.count += 1;
       return signInError ? Promise.reject(signInError) : Promise.resolve();
+    },
+    signOut: () => {
+      if (ended) ended.count += 1;
+      return ended?.error ? Promise.reject(ended.error) : Promise.resolve();
     },
   };
 }
@@ -561,5 +566,32 @@ test.describe("handleApi", () => {
     const stale = stored({ at: Date.now() - 31 * 24 * 60 * 60 * 1000 });
     const res = await post(api, "/api/options", { course: "1" }, stale);
     expect(res.status).toBe(401);
+  });
+  test("sign-out ends the portal session, then answers ok", async () => {
+    const ended = { count: 0 };
+    const api = createApi({
+      connect: () => portalOf(readerWith(), { count: 0 }, undefined, ended),
+    });
+    const session = await signIn(api);
+    const res = await post(api, "/api/logout", {}, session);
+    expect(res.status).toBe(200);
+    expect(ended.count).toBe(1);
+  });
+  test("a refused portal sign-out still answers ok", async () => {
+    const ended = { count: 0, error: new HttpError(502, "ECAP is down") };
+    const api = createApi({
+      connect: () => portalOf(readerWith(), { count: 0 }, undefined, ended),
+    });
+    const session = await signIn(api);
+    const res = await post(api, "/api/logout", {}, session);
+    expect(res.status, "logout never fails the browser's sign-out").toBe(200);
+    expect(ended.count).toBe(1);
+  });
+  test("sign-out without a session answers ok", async () => {
+    const api = createApi({
+      connect: () => portalOf(readerWith(), { count: 0 }),
+    });
+    const res = await post(api, "/api/logout", {});
+    expect(res.status).toBe(200);
   });
 });
