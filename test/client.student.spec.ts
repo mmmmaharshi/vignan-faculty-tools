@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
-import type { Route } from "@playwright/test";
 
-import type { StudentRequest } from "../shared/api";
 import {
+  hold,
   profileRolls,
+  releaseProfile,
   resetStub,
   selectValue,
   signInAndSettle,
   state,
-  studentReply,
   stub,
   totalsAsked,
 } from "./support/client-stub";
@@ -335,7 +334,7 @@ test.describe("the app's own data layer", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
       timeout: 15_000,
     });
-    state.hangProfile = true;
+    hold("profile");
     await page
       .getByRole("button", { name: "Show details for B student" })
       .click();
@@ -348,15 +347,7 @@ test.describe("the app's own data layer", () => {
       "no counts block while ECAP has not answered"
     ).toHaveCount(0);
     await expect(panel.getByText(/Need for 75%/)).toHaveCount(0);
-    const held: Route | null = state.heldProfile;
-    expect(held, "the panel asked for its totals").not.toBeNull();
-    state.hangProfile = false;
-    const asked = held?.request().postDataJSON() as StudentRequest;
-    await held?.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify(studentReply(asked)),
-    });
+    await releaseProfile();
     await expect(
       panel.getByText("Semester classes", { exact: true }),
       "the block lands with the answer"

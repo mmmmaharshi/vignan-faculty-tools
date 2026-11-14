@@ -61,6 +61,8 @@ export const sessionAnswer = (
 export const profileRolls: string[] = [];
 /** The semester starts each student panel asked its totals over. */
 export const totalsAsked: string[] = [];
+/** A read the stub can park for the test to answer late. */
+export type Holdable = "session" | "walk" | "profile";
 /** Everything the stub answers from and has answered so far. One mutable
  *  object, because every spec file in this family shares this module and a
  *  binding imported from it cannot be assigned. `resetStub()` is where each
@@ -70,18 +72,16 @@ export const state = {
    *  for so far. Reset for each test. */
   signedIn: false,
   sessionCalls: 0,
-  /** When true, session reads are held for the test to answer: a probe already
-   *  in flight while the user signs out, whose answer lands after the clear. */
-  hangSession: false,
-  heldSession: null as { route: Route; wasIn: boolean } | null,
-  /** When true, settle-time semester walks hang for the test to answer: the
-   *  term start ECAP has not named yet while the picker is already settled. */
-  hangWalk: false,
-  heldWalk: null as Route | null,
-  /** When true, student profile reads are held for the test to answer: the
-   *  totals ECAP has not named yet while the panel is already open. */
-  hangProfile: false,
-  heldProfile: null as Route | null,
+  /** Reads parked for the test to answer late, by read. One mechanism for
+   *  every holdable read: `hold` arms, the stub parks instead of answering,
+   *  `take` consumes the oldest parked route, and `unhold` disarms. The arm
+   *  stays until `unhold` because the settle loop can ask again while the
+   *  first answer is still held back; parked routes queue so the test
+   *  always gets the in-flight request it armed for rather than whatever
+   *  asked last — a revalidation after a sign-out must never stand in for
+   *  the probe that was already in flight across it. */
+  armed: new Set<Holdable>(),
+  holds: new Map<Holdable, Route[]>(),
   optionsCalls: 0,
   /** The next that many `/api/options` calls answer 502, then answer again:
    *  consecutive portal failures, the way ECAP fails from the server. The loop
@@ -127,12 +127,8 @@ export const resetStub = (): void => {
   totalsAsked.length = 0;
   state.signedIn = false;
   state.sessionCalls = 0;
-  state.hangSession = false;
-  state.heldSession = null as { route: Route; wasIn: boolean } | null;
-  state.hangWalk = false;
-  state.heldWalk = null as Route | null;
-  state.hangProfile = false;
-  state.heldProfile = null as Route | null;
+  state.armed.clear();
+  state.holds.clear();
   state.optionsCalls = 0;
   state.optionsFailCount = 0;
   state.optionsFailAfterFirst = false;
@@ -149,6 +145,33 @@ export const resetStub = (): void => {
   state.unpostedCalls = 0;
   state.todayEmpty = false;
   state.absentAsked = false;
+};
+/** Arms the next `read` to park instead of answering. Sticky until
+ *  `unhold`: the settle loop can ask again while the test is still holding
+ *  the first answer back. */
+export const hold = (read: Holdable): void => {
+  state.armed.add(read);
+};
+/** Disarms `read`: later calls answer at once again. */
+export const unhold = (read: Holdable): void => {
+  state.armed.delete(read);
+};
+/** The parked route for `read`, consumed oldest-first. Null where nothing
+ *  is parked. */
+export const take = (read: Holdable): Route | null => {
+  const queue = state.holds.get(read) ?? [];
+  const route = queue.shift() ?? null;
+  if (queue.length === 0) state.holds.delete(read);
+  return route;
+};
+/** Parks `route` when `read` is armed. True where the caller must not also
+ *  answer: one mechanism for every holdable read. */
+const park = (read: Holdable, route: Route): boolean => {
+  if (!state.armed.has(read)) return false;
+  const queue = state.holds.get(read) ?? [];
+  queue.push(route);
+  state.holds.set(read, queue);
+  return true;
 };
 export const opt = (value: string, label: string, title = ""): Option => ({
   value,
@@ -291,9 +314,7 @@ export const profileFor = (roll: string): StudentProfile => ({
  *  day-wise grid where the register states none, the semester's counts and
  *  the month table. Exported so a test holding the read can answer it late
  *  with the same body the stub would have sent. */
-export const studentReply = (
-  asked: StudentRequest
-): Record<string, unknown> => {
+export const studentReply = (asked: StudentRequest): StudentProfile => {
   const { roll, register, semStart } = asked;
   const allSubjects = register?.subject?.value === ALL_SUBJECTS.value;
   return {
@@ -312,6 +333,21 @@ export const studentReply = (
         }
       : {}),
   };
+};
+/** Answers a parked profile read the way an immediate one answers, then
+ *  disarms: the hold covered the first answer, not every reopen. Fails
+ *  fast where nothing is parked: a release without a hold is a broken test,
+ *  not an empty reply. */
+export const releaseProfile = async (): Promise<void> => {
+  const route = take("profile");
+  unhold("profile");
+  if (!route) throw new Error("releaseProfile with no parked profile read");
+  const asked = route.request().postDataJSON() as StudentRequest;
+  await route.fulfill({
+    status: 200,
+    contentType: "application/json",
+    body: JSON.stringify(studentReply(asked)),
+  });
 };
 /** The stored session answers carry, built the way the real server sends it. */
 export const storedSessionHeader = (): Record<string, string> => ({
@@ -336,19 +372,15 @@ export const stub = async (route: Route): Promise<void> => {
     });
   if (path === "/api/session") {
     state.sessionCalls += 1;
-    // Read now: a held answer belongs to the session that asked for it, not
-    // to whatever signed in or out while it was in flight.
-    const wasIn = state.signedIn;
-    if (state.hangSession) {
-      state.heldSession = { route, wasIn };
-      return;
-    }
+    // A held answer belongs to the session that asked for it, not to
+    // whatever signed in or out while it was in flight.
+    if (park("session", route)) return;
     // Like the real server, every answer carries the slid session back, so
     // the browser stores it — including one that lands after a sign-out.
     await route.fulfill({
       status: 200,
       contentType: "application/json",
-      ...sessionAnswer(wasIn),
+      ...sessionAnswer(state.signedIn),
     });
     return;
   }
@@ -413,10 +445,7 @@ export const stub = async (route: Route): Promise<void> => {
     const walked = (request.postDataJSON() as { walkBack?: number }).walkBack;
     if (walked) {
       state.walkCalls += 1;
-      if (state.hangWalk) {
-        state.heldWalk = route;
-        return;
-      }
+      if (park("walk", route)) return;
       await json({ statedFrom: state.semStartWalkFrom });
       return;
     }
@@ -440,10 +469,7 @@ export const stub = async (route: Route): Promise<void> => {
     // asked for.
     const allSubjects = register?.subject?.value === ALL_SUBJECTS.value;
     state.absentAsked ||= allSubjects;
-    if (state.hangProfile) {
-      state.heldProfile = route;
-      return;
-    }
+    if (park("profile", route)) return;
     await json(studentReply(asked));
     return;
   }

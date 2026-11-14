@@ -304,8 +304,11 @@ export const StudentDetails = ({
           ) : null}
         </>
       ) : null}
-      {/* The semester's own class counts and the way back to the line. */}
-      <SemesterClasses student={student} totals={totals} loading={busy} />
+      {/* The semester's own class counts and the way back to the line. The
+          totals read answers with the profile, so no block shows until it
+          does — a below-the-line figure must never wear a dash for data
+          still in flight. */}
+      {busy ? null : <SemesterClasses student={student} totals={totals} />}
       {/* The student's cumulative attendance month by month, after the
           semester's own counts: the same figures, walked forward, which is what
           a monthly counselling report quotes. */}

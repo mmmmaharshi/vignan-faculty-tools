@@ -1,12 +1,15 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  hold,
   resetStub,
   selectValue,
   signIn,
   signInAndSettle,
   state,
   stub,
+  take,
+  unhold,
 } from "./support/client-stub";
 
 test.describe("the app's own data layer", () => {
@@ -151,7 +154,7 @@ test.describe("the app's own data layer", () => {
   test("Load register waits for the settle-time walk, so the first load is Till Now", async ({
     page,
   }) => {
-    state.hangWalk = true;
+    hold("walk");
     state.semStartWalkFrom = "05/08/2026";
     await page.goto("/login");
     await signIn(page);
@@ -171,9 +174,8 @@ test.describe("the app's own data layer", () => {
       state.registerCalls,
       "no register goes out before the start is known"
     ).toBe(0);
-    const held = state.heldWalk;
-    state.heldWalk = null;
-    state.hangWalk = false;
+    const held = take("walk");
+    unhold("walk");
     expect(held, "the walk was asked").not.toBeNull();
     await held?.fulfill({
       status: 200,
@@ -195,7 +197,7 @@ test.describe("the app's own data layer", () => {
   test("a hand-typed range loads at once, without waiting for the walk", async ({
     page,
   }) => {
-    state.hangWalk = true;
+    hold("walk");
     state.semStartWalkFrom = "05/08/2026";
     await page.goto("/login");
     await signIn(page);
@@ -219,9 +221,8 @@ test.describe("the app's own data layer", () => {
     expect(state.lastRegisterFrom, "the typed range wins over the walk").toBe(
       "01/09/2026"
     );
-    const held = state.heldWalk;
-    state.heldWalk = null;
-    state.hangWalk = false;
+    const held = take("walk");
+    unhold("walk");
     expect(held, "the walk was asked").not.toBeNull();
     await held?.fulfill({
       status: 200,
@@ -233,7 +234,7 @@ test.describe("the app's own data layer", () => {
   test("editing only To keeps the gate: From is still unsettled", async ({
     page,
   }) => {
-    state.hangWalk = true;
+    hold("walk");
     state.semStartWalkFrom = "05/08/2026";
     await page.goto("/login");
     await signIn(page);
@@ -252,9 +253,8 @@ test.describe("the app's own data layer", () => {
       state.registerCalls,
       "a typed To alone must not take the unsettled From"
     ).toBe(0);
-    const held = state.heldWalk;
-    state.heldWalk = null;
-    state.hangWalk = false;
+    const held = take("walk");
+    unhold("walk");
     expect(held, "the walk was asked").not.toBeNull();
     await held?.fulfill({
       status: 200,
