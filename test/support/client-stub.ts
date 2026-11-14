@@ -78,6 +78,10 @@ export const state = {
    *  term start ECAP has not named yet while the picker is already settled. */
   hangWalk: false,
   heldWalk: null as Route | null,
+  /** When true, student profile reads are held for the test to answer: the
+   *  totals ECAP has not named yet while the panel is already open. */
+  hangProfile: false,
+  heldProfile: null as Route | null,
   optionsCalls: 0,
   /** The next that many `/api/options` calls answer 502, then answer again:
    *  consecutive portal failures, the way ECAP fails from the server. The loop
@@ -127,6 +131,8 @@ export const resetStub = (): void => {
   state.heldSession = null as { route: Route; wasIn: boolean } | null;
   state.hangWalk = false;
   state.heldWalk = null as Route | null;
+  state.hangProfile = false;
+  state.heldProfile = null as Route | null;
   state.optionsCalls = 0;
   state.optionsFailCount = 0;
   state.optionsFailAfterFirst = false;
@@ -281,6 +287,32 @@ export const profileFor = (roll: string): StudentProfile => ({
   phones: roll === "21C" ? [] : [{ label: "Mobile.No", number: "9876543210" }],
   backlogs: backlogsFor(roll),
 });
+/** One `/api/student` answer for the ask it answers: the profile, the
+ *  day-wise grid where the register states none, the semester's counts and
+ *  the month table. Exported so a test holding the read can answer it late
+ *  with the same body the stub would have sent. */
+export const studentReply = (
+  asked: StudentRequest
+): Record<string, unknown> => {
+  const { roll, register, semStart } = asked;
+  const allSubjects = register?.subject?.value === ALL_SUBJECTS.value;
+  return {
+    ...profileFor(roll),
+    ...(allSubjects ? { absent: ["02/09"] } : {}),
+    // The semester's counts, as the Cumulative register states them.
+    ...(semStart ? { totals: { held: 21, attend: 21, absent: 0 } } : {}),
+    // The month table, as the class report states it: cumulative from the
+    // semester start, one row per month, the figure climbing.
+    ...(semStart
+      ? {
+          months: [
+            { month: { from: "05/08/2026", to: "31/08/2026" }, pct: 65 },
+            { month: { from: "01/09/2026", to: "30/09/2026" }, pct: 75.5 },
+          ],
+        }
+      : {}),
+  };
+};
 /** The stored session answers carry, built the way the real server sends it. */
 export const storedSessionHeader = (): Record<string, string> => ({
   [SESSION_HEADER]: Buffer.from(
@@ -398,8 +430,8 @@ export const stub = async (route: Route): Promise<void> => {
     return;
   }
   if (path === "/api/student") {
-    const { roll, register, semStart } =
-      request.postDataJSON() as StudentRequest;
+    const asked = request.postDataJSON() as StudentRequest;
+    const { roll, register, semStart } = asked;
     profileRolls.push(roll);
     if (semStart) totalsAsked.push(semStart);
     // The All subjects report states no dates, so the panel asks for this
@@ -408,22 +440,11 @@ export const stub = async (route: Route): Promise<void> => {
     // asked for.
     const allSubjects = register?.subject?.value === ALL_SUBJECTS.value;
     state.absentAsked ||= allSubjects;
-    await json({
-      ...profileFor(roll),
-      ...(allSubjects ? { absent: ["02/09"] } : {}),
-      // The semester's counts, as the Cumulative register states them.
-      ...(semStart ? { totals: { held: 21, attend: 21, absent: 0 } } : {}),
-      // The month table, as the class report states it: cumulative from the
-      // semester start, one row per month, the figure climbing.
-      ...(semStart
-        ? {
-            months: [
-              { month: { from: "05/08/2026", to: "31/08/2026" }, pct: 65 },
-              { month: { from: "01/09/2026", to: "30/09/2026" }, pct: 75.5 },
-            ],
-          }
-        : {}),
-    });
+    if (state.hangProfile) {
+      state.heldProfile = route;
+      return;
+    }
+    await json(studentReply(asked));
     return;
   }
   if (path === "/api/find") {

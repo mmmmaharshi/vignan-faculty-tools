@@ -33,6 +33,10 @@ type SemesterClassesProps = {
   student: Student | null;
   /** The semester's own counts, or null where that reply never arrived. */
   totals: StudentTotals | null;
+  /** The totals read is still in flight: without an answer there is nothing
+   *  to show yet — not even the dash, which says ECAP refused, not that it
+   *  is still being asked. */
+  loading: boolean;
 };
 
 /**
@@ -42,14 +46,18 @@ type SemesterClassesProps = {
  * nothing to recover — and where neither counts nor a below-the-line figure
  * name this student.
  */
-export const SemesterClasses = ({ student, totals }: SemesterClassesProps) => {
+export const SemesterClasses = ({
+  student,
+  totals,
+  loading,
+}: SemesterClassesProps) => {
   const { below, critical } = bandsFor(student);
   /** Null where there is no number — no counts, or already at the line. */
   const need = totals ? classesToRegular(totals) : null;
   /** The way back shows when the counts name one, or when the figure sits
    *  below the line with no counts to reckon from. */
   const showNeed = need != null || below;
-  if (!totals && !showNeed) return null;
+  if (!totals && (loading || !showNeed)) return null;
   return (
     <>
       <Text c="dimmed" size="xs" tt="uppercase">

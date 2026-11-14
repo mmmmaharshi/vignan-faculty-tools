@@ -1,11 +1,14 @@
 import { expect, test } from "@playwright/test";
+import type { Route } from "@playwright/test";
 
+import type { StudentRequest } from "../shared/api";
 import {
   profileRolls,
   resetStub,
   selectValue,
   signInAndSettle,
   state,
+  studentReply,
   stub,
   totalsAsked,
 } from "./support/client-stub";
@@ -324,5 +327,40 @@ test.describe("the app's own data layer", () => {
     await expect
       .poll(() => profileRolls, { timeout: 15_000 })
       .toEqual(["21B", "21B", "21C"]);
+  });
+
+  test("the way-back row waits for ECAP's totals read", async ({ page }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    state.hangProfile = true;
+    await page
+      .getByRole("button", { name: "Show details for B student" })
+      .click();
+    const panel = page.getByRole("dialog");
+    await expect(panel.getByText("B Student")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(
+      panel.getByText("Semester classes", { exact: true }),
+      "no counts block while ECAP has not answered"
+    ).toHaveCount(0);
+    await expect(panel.getByText(/Need for 75%/)).toHaveCount(0);
+    const held: Route | null = state.heldProfile;
+    expect(held, "the panel asked for its totals").not.toBeNull();
+    state.hangProfile = false;
+    const asked = held?.request().postDataJSON() as StudentRequest;
+    await held?.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(studentReply(asked)),
+    });
+    await expect(
+      panel.getByText("Semester classes", { exact: true }),
+      "the block lands with the answer"
+    ).toBeVisible({ timeout: 15_000 });
+    await expect(panel.getByText(/Need for 75%/)).toBeVisible();
   });
 });

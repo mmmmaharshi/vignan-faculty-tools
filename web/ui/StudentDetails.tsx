@@ -305,7 +305,7 @@ export const StudentDetails = ({
         </>
       ) : null}
       {/* The semester's own class counts and the way back to the line. */}
-      <SemesterClasses student={student} totals={totals} />
+      <SemesterClasses student={student} totals={totals} loading={busy} />
       {/* The student's cumulative attendance month by month, after the
           semester's own counts: the same figures, walked forward, which is what
           a monthly counselling report quotes. */}
