@@ -79,9 +79,9 @@ export const state = {
   /** Reads parked for the test to answer late, by read. One mechanism for
    *  every holdable read: `hold` arms, the stub parks instead of answering,
    *  and `release` answers the oldest parked route with the test's answer.
-   *  The arm stays until the release because the settle loop can ask again
-   *  while the first answer is still held back; the queue keeps the
-   *  in-flight request first, so a revalidation can never stand in for it. */
+   *  The queue keeps the in-flight request first, so a revalidation can
+   *  never stand in for it; the release ends the hold, so whatever the
+   *  test does next is answered. Leftovers are discarded at reset. */
   armed: new Set<Holdable>(),
   holds: new Map<Holdable, Parked[]>(),
   optionsCalls: 0,
@@ -155,16 +155,19 @@ export const hold = (read: Holdable): void => {
 };
 /** Answers the oldest parked `read` with the test's answer. Fails fast
  *  where nothing is parked: a release without a hold is a broken test,
- *  not an empty reply. */
+ *  not an empty reply. The release ends the hold even when the queue still
+ *  has entries: the test held one answer back, and what it does next —
+ *  like the sign-out test's reload — must be answered, not parked. Queued
+ *  leftovers are discarded at the next reset. */
 export const release = async (
   read: Holdable,
-  answer: (held: Parked) => Promise<unknown>
+  answer: (held: Parked) => Promise<void>
 ): Promise<void> => {
   const queue = state.holds.get(read) ?? [];
   const held = queue.shift();
-  if (queue.length === 0) state.holds.delete(read);
   if (!held) throw new Error(`release with no parked ${read} read`);
   state.armed.delete(read);
+  if (queue.length === 0) state.holds.delete(read);
   await answer(held);
 };
 /** Parks `route` when `read` is armed. True where the caller must not also

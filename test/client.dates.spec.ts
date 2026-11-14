@@ -257,5 +257,15 @@ test.describe("the app's own data layer", () => {
         body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
       })
     );
+    // Typing To asked again while the first walk was held: the queue kept
+    // both, so a second release answers the next one. Answering the held
+    // walk early instead would have settled From before the click above.
+    await release("walk", (held) =>
+      held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
+      })
+    );
   });
 });
