@@ -99,8 +99,9 @@ function portalOf(
       return signInError ? Promise.reject(signInError) : Promise.resolve();
     },
     signOut: () => {
-      if (ended) ended.count += 1;
-      return ended?.error ? Promise.reject(ended.error) : Promise.resolve();
+      if (!ended) return Promise.resolve();
+      ended.count += 1;
+      return ended.error ? Promise.reject(ended.error) : Promise.resolve();
     },
   };
 }

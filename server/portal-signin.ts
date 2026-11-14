@@ -20,6 +20,37 @@ import {
  * same sign-in the app performs — a copy would drift the moment ECAP renames a
  * field, and the probe's whole job is to measure the wire the app speaks.
  */
+/** The hidden trio every WebForms postback carries, read off the page that
+ *  carries it. One rule because sign-in and sign-out post the same trio. */
+const viewStateTrio = (html: string): Record<string, string> => ({
+  __VIEWSTATE: hiddenValue(html, "__VIEWSTATE"),
+  __VIEWSTATEGENERATOR: hiddenValue(html, "__VIEWSTATEGENERATOR"),
+  __EVENTVALIDATION: hiddenValue(html, "__EVENTVALIDATION"),
+});
+/**
+ * One urlencoded postback. The GET that carried the view state stays with the
+ * caller — a bare fetch before there is a session, the jarred shell after —
+ * so this hides only what the two POSTs share. `origin` rides only where the
+ * current call sends it, so neither request changes shape.
+ */
+function postForm(
+  jar: CookieJar,
+  url: string,
+  referer: string,
+  fields: Record<string, string>,
+  origin?: string
+): Promise<Response> {
+  return portalRequest(jar, url, {
+    method: "POST",
+    headers: {
+      "content-type": "application/x-www-form-urlencoded",
+      referer,
+      ...(origin ? { origin } : {}),
+      "user-agent": UA,
+    },
+    body: new URLSearchParams(fields),
+  });
+}
 export async function signInTo(
   jar: CookieJar,
   userId: string,
@@ -31,25 +62,20 @@ export async function signInTo(
   });
   const html = await page.text();
   const cipher = portalEncrypt(password);
-  const res = await portalRequest(jar, LOGIN_POST, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      referer: LOGIN_PAGE,
-      origin: BASE,
-      "user-agent": UA,
-    },
-    body: new URLSearchParams({
-      __VIEWSTATE: hiddenValue(html, "__VIEWSTATE"),
-      __VIEWSTATEGENERATOR: hiddenValue(html, "__VIEWSTATEGENERATOR"),
-      __EVENTVALIDATION: hiddenValue(html, "__EVENTVALIDATION"),
+  const res = await postForm(
+    jar,
+    LOGIN_POST,
+    LOGIN_PAGE,
+    {
+      ...viewStateTrio(html),
       txtId1: userId,
       txtPwd1: cipher,
       hdnpwd1: cipher,
       "imgBtn1.x": "12",
       "imgBtn1.y": "12",
-    }),
-  });
+    },
+    BASE
+  );
   await res.text();
   if (!jar.signedIn) {
     throw new HttpError(
@@ -60,7 +86,8 @@ export async function signInTo(
 }
 /**
  * ECAP's own sign-out: the landing shell's `lnkLogOut` postback, measured off
- * an authenticated reply (scripts/portal-logout-link.ts) rather than guessed.
+ * an authenticated reply (`bun scripts/portal-probe.ts logout`) rather than
+ * guessed.
  * Dropping the browser's session leaves this one alive server-side, and a
  * second sign-in while it lives comes back dead — its first read 401s and
  * the app bounces to the sign-in form. May throw; the caller treats it as
@@ -71,20 +98,9 @@ export async function signOutFrom(jar: CookieJar): Promise<void> {
     headers: { "user-agent": UA, referer: LOGIN_PAGE },
   });
   const html = await page.text();
-  const body = new URLSearchParams({
-    __VIEWSTATE: hiddenValue(html, "__VIEWSTATE"),
-    __VIEWSTATEGENERATOR: hiddenValue(html, "__VIEWSTATEGENERATOR"),
-    __EVENTVALIDATION: hiddenValue(html, "__EVENTVALIDATION"),
+  await postForm(jar, LOGIN_PAGE, LOGIN_PAGE, {
+    ...viewStateTrio(html),
     __EVENTTARGET: "lnkLogOut",
     __EVENTARGUMENT: "",
-  });
-  await portalRequest(jar, LOGIN_PAGE, {
-    method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      referer: LOGIN_PAGE,
-      "user-agent": UA,
-    },
-    body,
   });
 }

@@ -187,7 +187,8 @@ docs/portal-wire.md  the Portal's per-method contracts: proxy, session marker,
                      parameters in declared order, reply shape, and the traps
                      measured against each. Read it before writing any ECAP call
 scripts/portal-probe.ts  one Portal call, measured: prints the signed-in proxy's
-                     own declarations, so a parameter name is never guessed
+                     own declarations, so a parameter name is never guessed;
+                     with `logout` it prints the sign-out control instead
 scripts/typecheck-staged.ts  the commit hook's typecheck, swallowing the filenames
                      lint-staged appends
 shared/api.ts        the server/client contract; both sides import it
