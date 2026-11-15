@@ -304,17 +304,23 @@ const App = (): React.JSX.Element => {
   };
   const gate = loadGate(gateInput);
   const loadNote = gateNote(gate);
-  const failure =
-    optionsError ??
-    register.error ??
-    profile.error ??
-    search.error ??
-    facultyProfile.error ??
-    today.error ??
-    unposted.error ??
-    semStart.error ??
-    preSemStart.error ??
-    semAbsences.error;
+  /** Every read's failure, in the order the screens ask for them. The note
+   *  names the first; the sign-out sweep looks at all of them, because a refusal
+   *  from an earlier pass — an options 502 SWR keeps until the next trigger —
+   *  would otherwise hide a 401 from every read after it. */
+  const failures = [
+    optionsError,
+    register.error,
+    profile.error,
+    search.error,
+    facultyProfile.error,
+    today.error,
+    unposted.error,
+    semStart.error,
+    preSemStart.error,
+    semAbsences.error,
+  ];
+  const expired = failures.find(isExpired);
   const filterNote: Note | null =
     formNote ?? refusalNote(optionsError ?? register.error);
   const profileNote: Note | null = refusalNote(profile.error);
@@ -354,42 +360,56 @@ const App = (): React.JSX.Element => {
     setUserId(name);
     setSaved(name ? { userId: name, list: savedSections(name) } : null);
   }, []);
+  /**
+   * Everything the previous session left on this screen: the Portal's answers,
+   * the stored dashboard, and every state derived from them. The stored
+   * credential is deliberately not one of them — an expired session and a boot
+   * probe that never answered both land on the same form, and one of them may
+   * still hold a working credential that signing out would throw away.
+   *
+   * This is the one place the hand-over is done, because both boot branches and
+   * the sign-out button have the same job: the next person on this browser must
+   * not open the previous one's roster.
+   */
+  const forgetSession = useCallback(() => {
+    cascadeRun.current?.abort();
+    // The Portal's answers belong to the session that read them, so they leave
+    // with it rather than waiting on the next person's screen. The cache sweep
+    // is not enough on its own: a mutation's failure is the hook's own state,
+    // so a 401 left there would sit in the next session's class picker.
+    resetCascade();
+    void forgetServerData();
+    // The dashboard memory holds the Portal's rows, so it goes with the rest.
+    forgetRegisterMemory();
+    setClick(null);
+    // A find ask left armed outlives the session: its key carries the epoch, so
+    // signing out changes the key and the ask is re-sent for a session that no
+    // longer exists. The roll is also the previous user's, so it leaves with
+    // them rather than opening the next person's Search screen on it.
+    setSearchClick(null);
+    setSearchRoll("");
+    setUserId("");
+    setPassword("");
+    setSel(EMPTY_SEL);
+    setOpts(EMPTY_OPTS);
+    setFilter(NO_FILTER);
+    setPanel(CLOSED_PANEL);
+    setUnpostedBranch(null);
+    // The saved section is the previous user's, so it leaves the screen with
+    // them. What is in storage is theirs to find again on sign-in.
+    setSaved(null);
+  }, [resetCascade, setClick, setSel, setFilter]);
   const signedOut = useCallback(
     (why: string) => {
-      cascadeRun.current?.abort();
-      // The Portal's answers belong to the session that read them, so they leave
-      // with it rather than waiting on the next person's screen. The cache sweep
-      // is not enough on its own: a mutation's failure is the hook's own state,
-      // so a 401 left there would sit in the next session's class picker.
-      resetCascade();
-      void forgetServerData();
-      // The dashboard memory holds the Portal's rows, so it goes with the rest.
-      forgetRegisterMemory();
+      forgetSession();
       // The session is the browser's to drop: the server keeps nothing.
       clearStoredSession();
-      setClick(null);
-      // A find ask left armed outlives the session: its key carries the epoch,
-      // so signing out changes the key and the ask is re-sent for a session that
-      // no longer exists. The roll is also the previous user's, so it leaves with
-      // them rather than opening the next person's Search screen on it.
-      setSearchClick(null);
-      setSearchRoll("");
-      setUserId("");
-      setPassword("");
       setView("signedOut");
       setLoginNote(why ? { kind: "warning", text: why } : null);
       setFormNote(null);
-      setSel(EMPTY_SEL);
-      setOpts(EMPTY_OPTS);
-      setFilter(NO_FILTER);
-      setPanel(CLOSED_PANEL);
-      setUnpostedBranch(null);
-      // The saved section is the previous user's, so it leaves the screen with
-      // them. What is in storage is theirs to find again on sign-in.
-      setSaved(null);
       navigate(LOGIN_PATH, { replace: true });
     },
-    [navigate, resetCascade, setClick, setSel, setFilter]
+    [forgetSession, navigate]
   );
   /** Settles the cascade for a selection. Both arguments are values rather than
    *  state read inside: a pass is built before React has committed the render that
@@ -594,6 +614,10 @@ const App = (): React.JSX.Element => {
         void reloadSession();
         return;
       }
+      // The probe never answered, so this may be a transport failure rather
+      // than a dead session — but the rows on screen are the last person's
+      // either way, and the next one to sign in must not open them.
+      forgetSession();
       setLoginNote({
         kind: "warning",
         text: "ECAP did not answer. Sign in again if this screen does not go away.",
@@ -605,14 +629,11 @@ const App = (): React.JSX.Element => {
     const alive = session.data.signedIn;
     if (!alive) {
       // A session that ends without the sign-out button — lapsed, or never
-      // restored — must take the stored dashboard with it, or the next person to
-      // sign in on this browser opens the previous one's roster with no Portal
-      // call to contradict it. Done here rather than through `signedOut` because
+      // restored — takes the stored dashboard with it, for the same reason the
+      // probe's failure does. Done here rather than through `signedOut` because
       // that clears the stored session, which bumps the generation and re-keys
       // the probe — one more request on every signed-out boot.
-      forgetRegisterMemory();
-      setClick(null);
-      setSel(EMPTY_SEL);
+      forgetSession();
       setView("signedOut");
       if (!onLogin) navigate(LOGIN_PATH, { replace: true });
       return;
@@ -637,8 +658,7 @@ const App = (): React.JSX.Element => {
     runRefresh,
     noteUserId,
     setLoginNote,
-    setClick,
-    setSel,
+    forgetSession,
     initialSel,
   ]);
   /** A 401 is ECAP refusing the session, from whichever request met it: the app
@@ -646,10 +666,10 @@ const App = (): React.JSX.Element => {
    *  session that no longer exists. A 502 evicts nothing — it is ambiguous, and
    *  ADR 0002 and ADR 0013 both refuse to treat it as an expiry. */
   useEffect(() => {
-    if (isExpired(failure)) {
+    if (expired) {
       signedOut("Your session expired. Please sign in again.");
     }
-  }, [failure, signedOut]);
+  }, [expired, signedOut]);
   /** After a load, the From input names where the register itself starts: the
    *  Portal keeps nothing before the semester began, so the figures on screen
    *  begin there even when an older date was asked for, and the input should

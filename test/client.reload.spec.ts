@@ -39,6 +39,39 @@ test.describe("the dashboard after a reload", () => {
     ).toBe(1);
   });
 
+  test("a boot whose probe never answers leaves no roster behind", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    // The load is on disk: this is what a reload would put back.
+    const stored = (): Promise<unknown> =>
+      page.evaluate(() => {
+        const raw = localStorage.getItem("dashboard-view");
+        return raw === null ? null : JSON.parse(raw);
+      });
+    expect(await stored(), "the rows are stored for the reload").not.toBeNull();
+
+    // ECAP unreachable at the next boot: both probes fail, so the app lands on
+    // the form rather than on a register. Whoever signs in next on this browser
+    // must not open the previous person's students, so the stored view goes too.
+    await page.route("**/api/session", (route) =>
+      route.fulfill({
+        status: 502,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "down" }),
+      })
+    );
+    await page.reload();
+    await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
+    expect(
+      await stored(),
+      "no stored view is left for the next sign-in to open"
+    ).toBeNull();
+  });
   test("a filter ticked before the reload is still ticked", async ({
     page,
   }) => {

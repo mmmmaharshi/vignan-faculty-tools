@@ -209,7 +209,7 @@ export async function readTotals(
   }
 }
 /**
- * How long the month table may take before the panel answers without it. The
+ * How long one month may take before the table answers without its figure. The
  * rest of the panel has already arrived by then, and a month still in flight is
  * the blank row a refused month already earns — not a reason to hold the GPA and
  * the phone numbers back, and not a reason to run the function into its own
@@ -254,29 +254,35 @@ export async function readMonths(
   const windows = monthToDateWindows(semStart, todayIST());
   if (!windows.length) return {};
   const levels = requireLevels(register);
-  const work = Promise.all(
-    windows.map(async (month) => {
-      try {
-        // Cumulative: every row is asked from the semester start, even though
-        // its dates label only the month it reports.
-        const report = await portal.classAttendance({
-          ...levels,
-          from: semStart,
-          to: month.month.to,
-        });
-        const row = parseClassAttendance(report).find((r) =>
-          sameRoll(r.roll, roll)
-        );
-        return row ? { ...month, pct: row.pct } : month;
-      } catch (error) {
-        rethrowExpired(error);
-        return month;
-      }
-    })
+  /** One row's figure, or the row without one. A refusal is that row's dash; a
+   *  401 still ends the session. */
+  const rowOf = async (month: StudentMonth): Promise<StudentMonth> => {
+    try {
+      // Cumulative: every row is asked from the semester start, even though
+      // its dates label only the month it reports.
+      const report = await portal.classAttendance({
+        ...levels,
+        from: semStart,
+        to: month.month.to,
+      });
+      const found = parseClassAttendance(report).find((r) =>
+        sameRoll(r.roll, roll)
+      );
+      return found ? { ...month, pct: found.pct } : month;
+    } catch (error) {
+      rethrowExpired(error);
+      return month;
+    }
+  };
+  // Each row carries its own deadline, so a slow report blanks that row and not
+  // the table: the rows are already in flight together, so the panel still
+  // answers inside one budget rather than one per row.
+  const months = await Promise.all(
+    windows.map(
+      async (month) => (await within(rowOf(month), MONTHS_BUDGET_MS)) ?? month
+    )
   );
-  // After the budget nobody is waiting; `within` holds the handler.
-  const months = await within(work, MONTHS_BUDGET_MS);
-  return months ? { months } : { months: windows };
+  return { months };
 }
 /**
  * One student's GPA and phone numbers, read on demand when their row is opened.
