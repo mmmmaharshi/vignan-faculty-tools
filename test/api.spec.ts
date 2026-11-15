@@ -136,6 +136,31 @@ async function signIn(api: Api): Promise<string> {
   return res.headers.get(SESSION_HEADER) ?? "";
 }
 test.describe("handleApi", () => {
+  test("each route answers through its own handler, not its neighbour's", async () => {
+    const api = createApi({
+      connect: () => portalOf(readerWith(), { count: 0 }),
+    });
+    const session = await signIn(api);
+    const said = async (path: string, body: unknown): Promise<string> => {
+      const res = await post(api, path, body, session);
+      const reply = (await res.json()) as { error?: string };
+      return `${res.status} ${reply.error ?? ""}`;
+    };
+    // Each refusal below belongs to one handler, so a row wired to another
+    // module answers something else and this fails.
+    expect(await said("/api/student", {})).toContain("Choose a student.");
+    expect(await said("/api/sem-absences", { roll: "21CS001" })).toContain(
+      "Open a register first."
+    );
+    expect(
+      await said("/api/find", { from: "01/07/2026", to: "15/07/2026" })
+    ).toContain("Enter a roll number.");
+    // The same body the register row takes: a roster there, one date here.
+    const start = await post(api, "/api/sem-start", REGISTER, session);
+    expect(start.status).toBe(200);
+    expect(await start.json()).toHaveProperty("statedFrom");
+  });
+
   test("a 401 mid-request signs in again, and the original call is retried", async () => {
     const revivals = { count: 0 };
     const expired = readerWith({

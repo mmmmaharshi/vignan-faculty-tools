@@ -129,6 +129,11 @@ api/[[...path]].ts   the Vercel function: rebuilds a fetch Request for handleApi
 server/portal-liveness.ts alive | dead | unknown: is this ECAP session still working?,
                      and the course list or the refusal that verdict earns
 server/portal-conventions.ts the portal's wire conventions: bodies, cipher, cookie jar; no I/O
+server/portal-transport.ts how one reply is fetched: the hosts, the two calling
+                     conventions, the timeout, and the follow-by-hand redirects
+server/portal-signin.ts the sign-in the portal actually wants, and what it answers
+server/session-verdict.ts alive | dead | unknown: what /api/session answers, from the
+                     liveness probe and the sign-in that tried to revive it
 server/portal-html.ts ECAP's reply primitives: the tags, the cell strippers, and the
                      one place a table becomes cell arrays
 server/portal-options.ts `<option>` replies, and the placeholder no class names
@@ -179,7 +184,7 @@ web/data/            the transport and the browser's own storage: client.ts (eve
                      keys each screen reads through), storage.ts (the one
                      localStorage walk every memory uses), sw-update.ts,
                      format.ts
-web/ui/              eleven presentational modules; only HomePanel holds state,
+web/ui/              presentational modules, one per surface; only HomePanel holds state,
                      and only its ticking clock — and UnpostedPanel, only which
                      period box stands open, and StudentDetails, only which
                      semester's grade modal stands open — the memories live in App
