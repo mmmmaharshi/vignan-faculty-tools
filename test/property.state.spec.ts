@@ -323,7 +323,11 @@ test.describe("the search result has one answer per case", () => {
       property(boolean(), boolean(), (hasClass, rollWhenClassed) => {
         // Without a class there is no register read, so there is no row either.
         const hasRoll = hasClass && rollWhenClassed;
-        const result = searchResult(undefined, searched(hasClass, hasRoll));
+        const result = searchResult(
+          undefined,
+          searched(hasClass, hasRoll),
+          false
+        );
         if (!hasClass)
           return result.scope === undefined && result.student === null;
         return (
@@ -333,12 +337,28 @@ test.describe("the search result has one answer per case", () => {
       { numRuns: 50 }
     );
   });
+  test("idle means no ask, pending means an ask in flight", () => {
+    assert(
+      property(
+        boolean(),
+        oneof(constant<FindReply | null>(null), constant(searched(true, true))),
+        (loading, data) => {
+          const { kind } = searchResult(undefined, data, loading);
+          return loading
+            ? kind === "pending"
+            : kind === (data ? "found" : "idle");
+        }
+      ),
+      { numRuns: 50 }
+    );
+  });
   test("a refused session never puts a note on the search panel", () => {
     assert(
       property(
         string(),
-        (message) =>
-          searchResult(new ApiError(401, message), null).note === null
+        boolean(),
+        (message, loading) =>
+          searchResult(new ApiError(401, message), null, loading).note === null
       ),
       { numRuns: 50 }
     );
@@ -544,11 +564,9 @@ test.describe("a presentational surface is never neither showing nor loading", (
           array(todayClassArb, { maxLength: 3 })
         ),
         boolean(),
-        boolean(),
-        (classes, busy, failed) => {
+        (classes, failed) => {
           const phase = todayPhase({
             classes,
-            busy,
             note: failed ? refusal : null,
           });
           if (classes === null) {
@@ -567,7 +585,7 @@ test.describe("a presentational surface is never neither showing nor loading", (
   test("a stated day never reads as cleared, and an empty one invents no periods", () => {
     assert(
       property(array(todayClassArb, { maxLength: 4 }), (classes) => {
-        const phase = todayPhase({ classes, busy: false, note: null });
+        const phase = todayPhase({ classes, note: null });
         return phase.kind === "cleared"
           ? classes.length === 0
           : phase.kind === "day" && classes.length > 0;
@@ -577,10 +595,9 @@ test.describe("a presentational surface is never neither showing nor loading", (
   });
   test("the note, never a blank, decides which no-data phase the timetable shows", () => {
     assert(
-      property(boolean(), boolean(), (busy, failed) => {
+      property(boolean(), (failed) => {
         const phase = todayPhase({
           classes: null,
-          busy,
           note: failed ? refusal : null,
         });
         return failed ? phase.kind === "failed" : phase.kind === "unread";
@@ -595,7 +612,7 @@ test.describe("a presentational surface is never neither showing nor loading", (
         string(),
         (sections, asked) => {
           const branches = reportBranches(sections);
-          const shown = shownBranch(sections, asked || null);
+          const shown = shownBranch(branches, asked || null);
           return shown === null
             ? branches.length === 0
             : branches.includes(shown);
@@ -615,7 +632,6 @@ test.describe("a presentational surface is never neither showing nor loading", (
         (sections, failed) => {
           const phase = postingsPhase({
             sections,
-            busy: false,
             note: failed ? refusal : null,
           });
           if (sections === null) {
@@ -660,6 +676,18 @@ test.describe("a presentational surface is never neither showing nor loading", (
 });
 
 test.describe("the installed update reaches one offer", () => {
+  test("a second updatefound never drops an offer already made", () => {
+    assert(
+      property(
+        constantFrom("installed-waiting" as const, "updating" as const),
+        (phase) => {
+          const step = updateStep(phase, { kind: "updatefound" });
+          return step.phase === phase && step.action === "none";
+        }
+      ),
+      { numRuns: 20 }
+    );
+  });
   test("no old controller means no offer and no apply, whatever arrives", () => {
     const silent = oneof(
       constant<UpdateEvent>({

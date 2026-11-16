@@ -1,9 +1,8 @@
 /**
- * The full-semester absences walk, as named outcomes instead of a nullable
- * range, a nullable list, a loop flag and a reason string beside them. The walk
- * reads one month at a time until a month states no meeting days, a month is
- * refused, or the twelve-month cap is reached; each way it ends is its own
- * answer, and the caller narrows once to the three fields the reply carries.
+ * The full-semester absences walk, as named outcomes. The walk reads one month
+ * at a time until a month states no meeting days, a month is refused, or the
+ * twelve-month cap is reached; each way it ends is its own answer, and the
+ * caller narrows once to the three fields the reply carries.
  */
 
 export type AbsenceStep =

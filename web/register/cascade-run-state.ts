@@ -1,19 +1,17 @@
 import type { CascadeOutcome } from "./cascade-run";
 
 /**
- * The cascade run as one named lifecycle, not an abort handle plus three
- * nullable values read at three call sites. Only the current run may ask the
+ * The cascade run as one named lifecycle. Only the current run may ask the
  * Portal further or write the screen; a newer change supersedes it, and a
- * failed run may still have partial options worth keeping beside the error.
+ * failed run hands its partial options back beside the error.
  */
 export type RunState =
   | { status: "idle" }
   | { status: "current"; controller: AbortController }
   | { status: "superseded" }
-  | { status: "failed"; partial: CascadeOutcome };
+  | { status: "failed" };
 
 export type CascadeRun = {
-  read: () => RunState;
   /** Takes over the screen, stopping the run before this one. */
   start: () => AbortSignal;
   /** Whether a run still owns the screen and may write to it. */
@@ -34,7 +32,6 @@ export function createCascadeRun(): CascadeRun {
   const owns = (signal: AbortSignal): boolean =>
     state.status === "current" && state.controller.signal === signal;
   return {
-    read: () => state,
     start: () => {
       if (state.status === "current") state.controller.abort();
       const controller = new AbortController();
@@ -48,7 +45,7 @@ export function createCascadeRun(): CascadeRun {
     },
     keepPartial: (signal, partial) => {
       if (!owns(signal) || !partial) return null;
-      state = { status: "failed", partial };
+      state = { status: "failed" };
       return partial;
     },
     finish: (signal) => {

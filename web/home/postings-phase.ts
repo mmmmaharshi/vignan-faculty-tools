@@ -15,7 +15,6 @@ export type PostingsPhase =
 
 export function postingsPhase(input: {
   sections: DayWorkSection[] | null;
-  busy: boolean;
   note: Note | null;
 }): PostingsPhase {
   if (input.sections !== null) {
@@ -42,14 +41,13 @@ export function reportBranches(
 /** The branch on show: the one asked for while the report still offers it,
  *  else the first the report names. Never a branch the report did not name. */
 export function shownBranch(
-  sections: readonly DayWorkSection[] | null | undefined,
+  branches: readonly string[],
   branch: string | null
 ): string | null {
-  const branches = reportBranches(sections);
   return branch && branches.includes(branch) ? branch : (branches[0] ?? null);
 }
 
-/** A period box's detail, as one typed status rather than a plain string. */
+/** A period box's detail, as one typed status. */
 export type SlotStatus = "posted" | "not-posted" | "no-class";
 
 export function slotStatus(cell: DayWorkCell | null): SlotStatus {

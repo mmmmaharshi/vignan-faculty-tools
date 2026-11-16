@@ -6,9 +6,8 @@
  * A shell that finished downloading while the page was open (a `waiting`
  * handle at boot) and one that downloads during the visit (the installing
  * worker reaching `installed`) are the same phase — installed and waiting —
- * and reach the same offer through one decision. The browser's raw state word,
- * the two nullable handles and the controller check all stop at this seam; the
- * native confirm and the reload stay in the caller.
+ * and reach the same offer through one decision. The native confirm and the
+ * reload stay in the caller.
  */
 export type UpdatePhase =
   | "first-install"
@@ -56,8 +55,13 @@ export function updateStep(phase: UpdatePhase, event: UpdateEvent): UpdateStep {
       action: "listen",
     };
   }
-  if (event.kind === "updatefound")
+  if (event.kind === "updatefound") {
+    // An offer already made, or an update being applied, owns the answer: a
+    // second worker found behind it must not drop that offer for a download.
+    if (phase === "installed-waiting" || phase === "updating")
+      return { phase, action: "none" };
     return { phase: "downloading", action: "watch" };
+  }
   if (event.kind === "worker-state") {
     if (event.state !== "installed") return { phase, action: "none" };
     return event.hasController

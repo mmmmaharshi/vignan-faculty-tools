@@ -7,12 +7,18 @@ import { searchScope } from "./search-scope";
 import type { ScopeRow } from "./search-scope";
 
 /**
- * The Student Search answer as one named outcome, not a nullable reply plus a
- * separate error and note. A refusal, an unstated class, a class without the
- * roll and a class with it are distinct answers. The wire reply is untouched;
- * this is the app's reading of it.
+ * The Student Search answer as one named outcome. Nothing asked, an ask in
+ * flight, a refusal, an unstated class, a class without the roll and a class
+ * with it are distinct answers. The wire reply is untouched; this is the app's
+ * reading of it.
  */
-export type SearchKind = "idle" | "refused" | "no-class" | "no-roll" | "found";
+export type SearchKind =
+  | "idle"
+  | "pending"
+  | "refused"
+  | "no-class"
+  | "no-roll"
+  | "found";
 
 export type SearchResult = { kind: SearchKind } & SearchShown;
 
@@ -26,7 +32,8 @@ type SearchShown = {
 
 export function searchResult(
   error: ApiError | undefined,
-  found: FindReply | null
+  found: FindReply | null,
+  loading: boolean
 ): SearchResult {
   // A 401 has already ended the session through the sweep, so it says nothing
   // here; the reply's own words still stand, as they do on the panel today.
@@ -43,6 +50,9 @@ export function searchResult(
     fullAbsent: found?.fullAbsent ?? null,
     scope: searchScope(found),
   };
+  // An ask in flight owns the screen before any earlier answer or refusal:
+  // the panel stays mounted so its loader is what the reader sees.
+  if (loading) return { kind: "pending", ...shown };
   if (error) return { kind: "refused", ...shown };
   if (!found) return { kind: "idle", ...shown };
   if (!found.class) return { kind: "no-class", ...shown };

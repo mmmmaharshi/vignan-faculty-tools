@@ -1,8 +1,8 @@
 /**
  * The two states of the backlogs cell cursor: a header is expected next, or
  * the subjects of the row just opened are expected next. The page never closes
- * its data row, so cells are read in order and one boolean used to carry that
- * expectation; naming the states keeps the rule in one decision.
+ * its data row, so cells are read in order and the cursor carries that
+ * expectation in one decision.
  */
 
 const BACKLOG_TOTAL = /Total backlogs:\s*(?<count>\d+)/i;

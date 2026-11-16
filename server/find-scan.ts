@@ -1,9 +1,7 @@
 /**
- * The Student Search section scan, as named outcomes instead of a boolean that
- * any section answered plus a nullable first failure beside it. The roll is
- * looked for section by section; once found the scan stops, and if every
- * section refuses with no answer the caller owes a portal failure rather than
- * a "no row" note.
+ * The Student Search section scan, as named outcomes. The roll is looked for
+ * section by section; once found the scan stops, and if every section refuses
+ * with no answer the caller owes a portal failure rather than a "no row" note.
  */
 import type { Option } from "../shared/api.js";
 

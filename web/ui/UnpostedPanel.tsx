@@ -32,7 +32,6 @@ export type UnpostedPanelProps = {
    *  when the report stated no sections at all — no classes that day, which
    *  is not the same as all posted. */
   sections: DayWorkSection[] | null;
-  busy: boolean;
   /** A read that failed says so here. A fully posted day is not this — it is
    *  an "all posted" line below. */
   note: Note | null;
@@ -249,7 +248,6 @@ const BranchPending = ({
 
 export const UnpostedPanel = ({
   sections,
-  busy,
   note,
   branch,
   onBranchChange,
@@ -260,9 +258,9 @@ export const UnpostedPanel = ({
   const inBranch = (b: string): DayWorkSection[] =>
     sections ? sections.filter((s) => s.branch === b) : [];
   // The branch on show is decided by the report, never guessed by a caller.
-  const shown = shownBranch(sections, branch);
+  const shown = shownBranch(branches, branch);
   // One phase names the surface, so it is never neither showing nor loading.
-  const phase = postingsPhase({ sections, busy, note });
+  const phase = postingsPhase({ sections, note });
   return (
     <Stack gap="md" mt="xl" pb="md">
       <Title order={4}>Today&apos;s Attendance</Title>

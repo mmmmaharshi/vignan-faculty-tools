@@ -62,7 +62,7 @@ export const profileRolls: string[] = [];
 /** The semester starts each student panel asked its totals over. */
 export const totalsAsked: string[] = [];
 /** A read the stub can park for the test to answer late. */
-export type Holdable = "session" | "walk" | "profile";
+export type Holdable = "session" | "walk" | "profile" | "find";
 /** A parked read: the route plus what the answer must remember about the
  *  moment of asking — a held session answer belongs to the session that
  *  asked for it, not to whatever signed in or out while it was in flight. */
@@ -352,6 +352,40 @@ export const releaseProfile = async (): Promise<void> => {
     });
   });
 };
+/** One `/api/find` answer for a roll, shared by the stub and a held release. */
+export const findReply = (roll: string) => {
+  const reply = registerReply(null, true);
+  const student = reply.students.find((row) => row.roll === roll) ?? null;
+  if (student) student.absent = ["02/09"];
+  return {
+    profile: profileFor(roll),
+    class: {
+      course: opt("1", "B.Tech"),
+      semester: opt("1", "I Semester", "2025"),
+      branch: opt("1", "IT"),
+      section: student ? opt("1", "Section-1") : null,
+      semesterInferred: true,
+    },
+    window: reply.summary.range,
+    student,
+    fullAbsent: student ? ["15/07"] : null,
+    fullRange: student
+      ? { from: "15/07/2026", to: reply.summary.range.to }
+      : null,
+    note: student ? "" : `No row for ${roll} in B.Tech · I Semester · IT.`,
+  };
+};
+/** Answers a parked find read the way an immediate one answers. */
+export const releaseFind = async (): Promise<void> => {
+  await release("find", async (held) => {
+    const { roll } = held.route.request().postDataJSON() as FindRequest;
+    await held.route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(findReply(roll)),
+    });
+  });
+};
 /** The stored session answers carry, built the way the real server sends it. */
 export const storedSessionHeader = (): Record<string, string> => ({
   [SESSION_HEADER]: Buffer.from(
@@ -479,26 +513,8 @@ export const stub = async (route: Route): Promise<void> => {
   if (path === "/api/find") {
     state.findCalls += 1;
     const { roll } = request.postDataJSON() as FindRequest;
-    const reply = registerReply(null, true);
-    const student = reply.students.find((row) => row.roll === roll) ?? null;
-    if (student) student.absent = ["02/09"];
-    await json({
-      profile: profileFor(roll),
-      class: {
-        course: opt("1", "B.Tech"),
-        semester: opt("1", "I Semester", "2025"),
-        branch: opt("1", "IT"),
-        section: student ? opt("1", "Section-1") : null,
-        semesterInferred: true,
-      },
-      window: reply.summary.range,
-      student,
-      fullAbsent: student ? ["15/07"] : null,
-      fullRange: student
-        ? { from: "15/07/2026", to: reply.summary.range.to }
-        : null,
-      note: student ? "" : `No row for ${roll} in B.Tech · I Semester · IT.`,
-    });
+    if (park("find", route)) return;
+    await json(findReply(roll));
     return;
   }
   if (path === "/api/today") {

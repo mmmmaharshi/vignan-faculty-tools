@@ -202,7 +202,11 @@ const App = (): React.JSX.Element => {
   const [searchRoll, setSearchRoll] = useState("");
   const [searchClick, setSearchClick] = useState<FindClick | null>(null);
   const search = useStudentSearch(searchClick);
-  const found = searchResult(search.error, search.data ?? null);
+  const found = searchResult(
+    search.error,
+    search.data ?? null,
+    search.isLoading
+  );
   /** A request the user is waiting on is already proving the session works, and
    *  the read that would probe it is one more thing competing with it. */
   const busy =
@@ -413,7 +417,12 @@ const App = (): React.JSX.Element => {
       setView("signedOut");
       setLoginNote(endNote(reason));
       setFormNote(null);
-      navigate(LOGIN_PATH, { replace: true });
+      // A boot that ends on the sign-in path is already there; the guard says
+      // so, so this hand-over never navigates a second time from that path.
+      // The path is read here rather than closed over, so a navigation does
+      // not feed a stale route into the decision.
+      const target = nextRoute(window.location.pathname, "signedOut");
+      if (target) navigate(target, { replace: true });
     },
     [forgetSession, navigate]
   );
@@ -793,13 +802,11 @@ const App = (): React.JSX.Element => {
           <>
             <HomePanel
               classes={todayShown}
-              busy={today.isLoading}
               note={todayNote}
               date={todayIST()}
             />
             <UnpostedPanel
               sections={unposted.data?.sections ?? null}
-              busy={unposted.isLoading}
               note={unpostedNote}
               branch={unpostedBranch}
               onBranchChange={setUnpostedBranch}
@@ -844,16 +851,20 @@ const App = (): React.JSX.Element => {
                 </Button>
               </Group>
             </form>
-            <StudentDetails
-              student={found.student}
-              inline
-              profile={found.profile}
-              busy={search.isLoading}
-              note={searchNote}
-              scope={scopeRows}
-              fullAbsent={found.fullAbsent}
-              fullTitle="Absent — full semester"
-            />
+            {/* Idle has no student, no note and no busy: nothing for the panel
+                to say until an ask has an answer. */}
+            {found.kind === "idle" ? null : (
+              <StudentDetails
+                student={found.student}
+                inline
+                profile={found.profile}
+                busy={search.isLoading}
+                note={searchNote}
+                scope={scopeRows}
+                fullAbsent={found.fullAbsent}
+                fullTitle="Absent — full semester"
+              />
+            )}
           </>
         );
       } else {

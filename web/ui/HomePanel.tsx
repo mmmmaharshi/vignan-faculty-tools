@@ -20,7 +20,6 @@ import { todayPhase } from "../home/today-phase";
 export type HomePanelProps = {
   /** Today's periods in the grid's own order. Null while unread. */
   classes?: TodayClass[] | null;
-  busy?: boolean;
   /** A read that failed says so here. An empty day is not this — it is the
    *  skeleton below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
@@ -90,7 +89,6 @@ const dayRows = (
 };
 export const HomePanel = ({
   classes,
-  busy,
   note,
   date,
 }: HomePanelProps): React.JSX.Element => {
@@ -106,7 +104,6 @@ export const HomePanel = ({
   // cleared or a stated day, and neither for a refusal, whose alert stands.
   const phase = todayPhase({
     classes: classes ?? null,
-    busy: Boolean(busy),
     note: note ?? null,
   });
 

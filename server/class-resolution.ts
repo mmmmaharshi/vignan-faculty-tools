@@ -1,8 +1,7 @@
 /**
- * The class a Student Search profile resolves to, as one named outcome instead
- * of a value that is either a class or a reason string. The inferred-semester
- * flag is carried by the branch that chose the semester, so a stated semester
- * cannot be printed as a guess or an inferred one as a fact.
+ * The class a Student Search profile resolves to, as one named outcome. The
+ * inferred-semester flag is carried by the branch that chose the semester, so
+ * a stated semester cannot be printed as a guess or an inferred one as a fact.
  */
 import type { Option } from "../shared/api.js";
 

@@ -3,9 +3,9 @@ import { bootNote } from "./session-view";
 import type { Note } from "./types";
 
 /**
- * Why the app's view of the session ended, as one named reason instead of a
- * note string standing in for "deliberate". One writer applies the reason; the
- * two policies below say what it owes the next screen and the stored credential.
+ * Why the app's view of the session ended, as one named reason. One writer
+ * applies the reason; the two policies below say what it owes the next screen
+ * and the stored credential.
  */
 export type SessionEnd =
   | { kind: "signed-out" }

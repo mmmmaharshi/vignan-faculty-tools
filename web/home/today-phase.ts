@@ -19,7 +19,6 @@ export function todayPhase(input: {
   /** The timetable to show, resolved with the remembered day, or null while
    *  nothing has been read. */
   classes: TodayClass[] | null;
-  busy: boolean;
   note: Note | null;
 }): TodayPhase {
   if (input.classes !== null) {

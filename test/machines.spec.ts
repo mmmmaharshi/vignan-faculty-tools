@@ -280,21 +280,33 @@ test.describe("explicit state machines", () => {
       "a class with no section states no section row"
     ).toBe(false);
   });
-  test("search result: a refusal, no class, no roll and a roll are distinct answers", () => {
-    expect(searchResult(undefined, null).kind, "nothing asked yet").toBe(
+  test("search result: idle, pending, a refusal, no class, no roll and a roll are distinct answers", () => {
+    expect(searchResult(undefined, null, false).kind, "nothing asked yet").toBe(
       "idle"
     );
-    const refused = searchResult(new ApiError(502, "ECAP is down"), null);
+    const pending = searchResult(undefined, null, true);
+    expect(pending.kind, "an ask is in flight").toBe("pending");
+    expect(pending.student, "no row has arrived yet").toBeNull();
+    expect(
+      searchResult(undefined, foundReply(), true).kind,
+      "a new ask owns the screen before the old answer"
+    ).toBe("pending");
+    const refused = searchResult(
+      new ApiError(502, "ECAP is down"),
+      null,
+      false
+    );
     expect(refused.kind).toBe("refused");
     expect(refused.note?.text).toBe("ECAP is down");
     expect(
-      searchResult(new ApiError(401, "expired"), null).note,
+      searchResult(new ApiError(401, "expired"), null, false).note,
       "a 401 is already said by the sign-out sweep"
     ).toBeNull();
 
     const noClass = searchResult(
       undefined,
-      foundReply({ class: null, note: "No class stated" })
+      foundReply({ class: null, note: "No class stated" }),
+      false
     );
     expect(noClass.kind).toBe("no-class");
     expect(noClass.note?.text).toBe("No class stated");
@@ -303,23 +315,22 @@ test.describe("explicit state machines", () => {
 
     const noRoll = searchResult(
       undefined,
-      foundReply({ student: null, note: "No row for 99Z" })
+      foundReply({ student: null, note: "No row for 99Z" }),
+      false
     );
     expect(noRoll.kind).toBe("no-roll");
     expect(noRoll.student).toBeNull();
     expect(noRoll.scope, "the class still names the window").toBeDefined();
     expect(noRoll.note?.text).toBe("No row for 99Z");
 
-    const foundOne = searchResult(undefined, foundReply());
+    const foundOne = searchResult(undefined, foundReply(), false);
     expect(foundOne.kind).toBe("found");
     expect(foundOne.student?.roll).toBe("1");
     expect(foundOne.note, "no reason to say anything").toBeNull();
   });
   test("cascade run: the four states are one lifecycle", () => {
     const run = createCascadeRun();
-    expect(run.read()).toEqual({ status: "idle" });
     const first = run.start();
-    expect(run.read().status).toBe("current");
     expect(run.owns(first)).toBe(true);
 
     const second = run.start();
@@ -332,7 +343,6 @@ test.describe("explicit state machines", () => {
 
     run.supersede();
     expect(second.aborted).toBe(true);
-    expect(run.read()).toEqual({ status: "superseded" });
     expect(run.owns(second)).toBe(false);
 
     const third = run.start();
@@ -341,12 +351,17 @@ test.describe("explicit state machines", () => {
       run.keepPartial(third, partial),
       "a failed run keeps what arrived"
     ).toBe(partial);
-    expect(run.read()).toEqual({ status: "failed", partial });
+    expect(run.owns(third), "a failed run no longer owns the screen").toBe(
+      false
+    );
 
     const fourth = run.start();
     expect(run.owns(fourth)).toBe(true);
     expect(run.finish(fourth)).toBe(true);
-    expect(run.read()).toEqual({ status: "idle" });
+    expect(run.owns(fourth), "a finished run released the screen").toBe(false);
+    expect(run.finish(fourth), "a finished run cannot finish again").toBe(
+      false
+    );
   });
   test("panel: open survives close until the slide-out finishes", () => {
     const opened = openPanel(student("1"));
@@ -431,34 +446,34 @@ test.describe("explicit state machines", () => {
     expect(sessionVerdict("dead", new Error("socket"))).toBe("unknown");
   });
   test("timetable: unread, a refusal, a cleared evening and a day are one phase", () => {
-    expect(todayPhase({ classes: null, busy: true, note: null })).toEqual({
+    expect(todayPhase({ classes: null, note: null })).toEqual({
       kind: "unread",
     });
-    expect(todayPhase({ classes: null, busy: false, note: refusal })).toEqual({
+    expect(todayPhase({ classes: null, note: refusal })).toEqual({
       kind: "failed",
     });
-    expect(todayPhase({ classes: [], busy: false, note: null })).toEqual({
+    expect(todayPhase({ classes: [], note: null })).toEqual({
       kind: "cleared",
       classes: [],
     });
     const day = [todayClass("Period 1")];
-    expect(todayPhase({ classes: day, busy: false, note: null })).toEqual({
+    expect(todayPhase({ classes: day, note: null })).toEqual({
       kind: "day",
       classes: day,
     });
   });
   test("postings: loader, a refusal, no classes and the grid are one phase", () => {
-    expect(postingsPhase({ sections: null, busy: true, note: null })).toEqual({
+    expect(postingsPhase({ sections: null, note: null })).toEqual({
       kind: "loading",
     });
-    expect(
-      postingsPhase({ sections: null, busy: false, note: refusal })
-    ).toEqual({ kind: "failed" });
-    expect(postingsPhase({ sections: [], busy: false, note: null })).toEqual({
+    expect(postingsPhase({ sections: null, note: refusal })).toEqual({
+      kind: "failed",
+    });
+    expect(postingsPhase({ sections: [], note: null })).toEqual({
       kind: "none",
     });
     const sections = [workSection("CSE")];
-    expect(postingsPhase({ sections, busy: false, note: null })).toEqual({
+    expect(postingsPhase({ sections, note: null })).toEqual({
       kind: "report",
       sections,
     });
@@ -469,11 +484,12 @@ test.describe("explicit state machines", () => {
       workSection("IT"),
       workSection("CSE"),
     ];
-    expect(reportBranches(sections)).toEqual(["CSE", "IT"]);
-    expect(shownBranch(sections, null)).toBe("CSE");
-    expect(shownBranch(sections, "IT")).toBe("IT");
-    expect(shownBranch(sections, "gone")).toBe("CSE");
-    expect(shownBranch(null, null)).toBeNull();
+    const branches = reportBranches(sections);
+    expect(branches).toEqual(["CSE", "IT"]);
+    expect(shownBranch(branches, null)).toBe("CSE");
+    expect(shownBranch(branches, "IT")).toBe("IT");
+    expect(shownBranch(branches, "gone")).toBe("CSE");
+    expect(shownBranch([], null)).toBeNull();
   });
   test("a period box's detail is one typed status, never a plain string", () => {
     expect(slotStatus(null)).toBe("no-class");
@@ -723,6 +739,16 @@ test.describe("explicit state machines", () => {
     expect(updateStep("downloading", { kind: "updatefound" })).toEqual({
       phase: "downloading",
       action: "watch",
+    });
+    // A second worker found after a decline cannot take the offer away, and
+    // one found after a yes cannot restart an update already applying.
+    expect(updateStep("installed-waiting", { kind: "updatefound" })).toEqual({
+      phase: "installed-waiting",
+      action: "none",
+    });
+    expect(updateStep("updating", { kind: "updatefound" })).toEqual({
+      phase: "updating",
+      action: "none",
     });
     // A worker in any other state decides nothing.
     expect(

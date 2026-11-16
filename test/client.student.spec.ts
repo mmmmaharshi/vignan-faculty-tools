@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   hold,
   profileRolls,
+  releaseFind,
   releaseProfile,
   resetStub,
   selectValue,
@@ -88,6 +89,30 @@ test.describe("the app's own data layer", () => {
     // naming it. The month's own list is not beside it.
     await expect(panel.getByText("Absent (1)", { exact: true })).toHaveCount(0);
     await expect(panel.getByText("Absent — full semester (1)")).toBeVisible();
+  });
+
+  test("Student Search mounts its loader while the find read is in flight", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.getByRole("button", { name: "Student Search" }).click();
+    const loader = page.getByText(
+      "Reading this student's profile from ECAP..."
+    );
+    await expect(loader, "no ask, no panel").toHaveCount(0);
+    hold("find");
+    await page.getByLabel("Roll number").fill("21B");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(
+      loader,
+      "the panel stays mounted with its loader during the ask"
+    ).toBeVisible();
+    await expect(page.getByText("Overall attendance")).toHaveCount(0);
+    await releaseFind();
+    await expect(page.getByText("Overall attendance")).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(loader, "the loader leaves with the answer").toHaveCount(0);
   });
 
   test("a roll in no section of that class still shows its profile", async ({
