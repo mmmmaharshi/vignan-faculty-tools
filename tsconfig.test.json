@@ -33,6 +33,7 @@
     "web/app/route-guard.ts",
     "web/app/session-view.ts",
     "web/data/sw-update.ts",
+    "web/data/update-lifecycle.ts",
     "server/session-verdict.ts",
     "playwright.config.ts",
     "vite.config.ts"
