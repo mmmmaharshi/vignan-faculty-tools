@@ -1,5 +1,7 @@
-import type { Option, StudentProfile } from "../shared/api.js";
+import type { StudentProfile } from "../shared/api.js";
 import { matchOption } from "../shared/portal-values.js";
+import { classResolution, unstatedReason } from "./class-resolution.js";
+import type { ClassResolution, ClassSemester } from "./class-resolution.js";
 import type { PortalReader } from "./portal-reader.js";
 import type { StatedClass } from "./portal-student.js";
 
@@ -37,67 +39,76 @@ function inferSemester(profile: StudentProfile): number | null {
   if (!done.length) return null;
   return Math.max(...done) + 1;
 }
-type StudentClass = {
-  levels: Record<"course" | "semester" | "branch", Option>;
-  sections: Option[];
-  label: string;
-  /** True when the semester came from the SGPA guess rather than the page. */
-  semesterInferred: boolean;
-};
-const unstated = (what: string, stated: string): string =>
-  stated
-    ? `ECAP's profile page states the ${what} "${stated}", which the Portal's own list does not offer.`
-    : `ECAP's profile page does not state a ${what}, so no class register can be read for this student.`;
 /** The class a student's own page puts them in, matched to the Portal's own
  *  option values, and the sections that class offers. A page that states a
  *  section names one section; one that states none names all of them, and the
- *  search reads each until the roll turns up. A string is the reason there is
- *  no class, which is an answer rather than a failure. */
+ *  search reads each until the roll turns up. The reason there is no class is
+ *  an outcome of its own, not a string standing beside a class-shaped value. */
 export async function resolveClass(
   portal: PortalReader,
   stated: StatedClass,
   profile: StudentProfile
-): Promise<StudentClass | string> {
+): Promise<ClassResolution> {
   const course = matchOption(stated.course, await portal.courses());
-  if (!course) return unstated("course", stated.course);
+  if (!course) {
+    return {
+      kind: "unstated",
+      reason: unstatedReason("course", stated.course),
+    };
+  }
   const [branches, semesters] = await portal.branchesAndSemesters(course.value);
   const branch = matchOption(stated.branch, branches);
-  if (!branch) return unstated("branch", stated.branch);
-  let semester: Option | null;
-  let semesterInferred = false;
+  if (!branch) {
+    return {
+      kind: "unstated",
+      reason: unstatedReason("branch", stated.branch),
+    };
+  }
+  let semester: ClassSemester;
   if (stated.semester) {
-    semester = matchOption(stated.semester, semesters);
-    if (!semester) return unstated("semester", stated.semester);
+    const matched = matchOption(stated.semester, semesters);
+    if (!matched) {
+      return {
+        kind: "unstated",
+        reason: unstatedReason("semester", stated.semester),
+      };
+    }
+    semester = { kind: "stated", option: matched };
   } else {
     // The page states no semester; infer the current one from the SGPAs it
     // does state — the highest completed, plus one. A guess, and it can be
     // wrong for a repeater; the only way to be sure is to ask.
     const inferred = inferSemester(profile);
     if (inferred === null) {
-      return "ECAP's profile page does not state a semester, and its SGPA list states no completed semester to infer one from.";
+      return {
+        kind: "unstated",
+        reason:
+          "ECAP's profile page does not state a semester, and its SGPA list states no completed semester to infer one from.",
+      };
     }
-    semester =
+    const matched =
       semesters.find((o) => semesterNumber(o.label) === inferred) ?? null;
-    if (!semester) {
-      return `ECAP's profile page does not state a semester, and the one inferred from its SGPA list (${inferred}) is not one the Portal offers.`;
+    if (!matched) {
+      return {
+        kind: "unstated",
+        reason: `ECAP's profile page does not state a semester, and the one inferred from its SGPA list (${inferred}) is not one the Portal offers.`,
+      };
     }
-    semesterInferred = true;
+    semester = { kind: "inferred", option: matched };
   }
   const listed = await portal.sections(
     course.value,
     branch.value,
-    semester.value,
-    semester.title
+    semester.option.value,
+    semester.option.title
   );
   const section = matchOption(stated.section, listed);
   const sections = section ? [section] : listed;
-  if (!sections.length) {
-    return `ECAP lists no sections for ${branch.label}, ${semester.label}, so there is no register to read.`;
-  }
-  return {
-    levels: { course, semester, branch },
+  return classResolution({
+    course,
+    branch,
+    semester,
     sections,
-    label: `${course.label} · ${semester.label} · ${branch.label}`,
-    semesterInferred,
-  };
+    noSectionsReason: `ECAP lists no sections for ${branch.label}, ${semester.option.label}, so there is no register to read.`,
+  });
 }

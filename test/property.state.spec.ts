@@ -12,7 +12,26 @@ import {
   string,
 } from "fast-check";
 
-import type { Student } from "../shared/api";
+import {
+  absenceResult,
+  advance,
+  endAtCap,
+  walking,
+} from "../server/absence-walk";
+import type { AbsenceStep } from "../server/absence-walk";
+import { backlogStep, startCursor } from "../server/backlog-cursor";
+import type { BacklogCursor } from "../server/backlog-cursor";
+import { classResolution } from "../server/class-resolution";
+import type { ClassSemester } from "../server/class-resolution";
+import { endScan, scanStep, startScan } from "../server/find-scan";
+import type { SectionRead, SectionScan } from "../server/find-scan";
+import { HttpError } from "../server/http-error";
+import {
+  livenessGuard,
+  markTouched,
+  untouched,
+} from "../server/liveness-guard";
+import type { Option, Student } from "../shared/api";
 import { loadGate } from "../web/app/load-gate";
 import {
   CLOSED_PANEL,
@@ -300,6 +319,224 @@ test.describe("the session view cannot be half-set", () => {
         (view) => !isSignedIn(view) || isBooted(view)
       ),
       { numRuns: 10 }
+    );
+  });
+});
+
+const anAbsenceStep = () =>
+  oneof(
+    constant<AbsenceStep>({ kind: "refused" }),
+    constant<AbsenceStep>({ kind: "dateless" }),
+    record({
+      start: string({ minLength: 1 }),
+      days: array(string({ maxLength: 3 }), { maxLength: 3 }),
+    }).map((r): AbsenceStep => ({ kind: "read", start: r.start, days: r.days }))
+  );
+
+test.describe("the full-semester absence walk keeps what it read", () => {
+  test("the answer is exactly the months read, oldest first", () => {
+    assert(
+      property(array(anAbsenceStep(), { maxLength: 14 }), (steps) => {
+        let walk = walking;
+        const readDays: string[] = [];
+        let monthsRead = 0;
+        let oldest: string | null = null;
+        let stopped = false;
+        for (const step of steps) {
+          if (stopped) continue;
+          walk = advance(walk, step);
+          if (step.kind === "read") {
+            readDays.unshift(...step.days);
+            monthsRead++;
+            oldest = step.start;
+          }
+          if (walk.kind !== "walking") stopped = true;
+        }
+        const answer = absenceResult(endAtCap(walk), "31/10/2026");
+        return (
+          JSON.stringify(answer.absent) ===
+            JSON.stringify(monthsRead ? readDays : null) &&
+          JSON.stringify(answer.range) ===
+            JSON.stringify(oldest ? { from: oldest, to: "31/10/2026" } : null)
+        );
+      }),
+      { numRuns: 200 }
+    );
+  });
+  test("a dateless month or a refusal ends the walk for good", () => {
+    assert(
+      property(anAbsenceStep(), anAbsenceStep(), (first, later) => {
+        const stopped = advance(walking, first);
+        if (stopped.kind === "walking") return true;
+        const after = advance(stopped, later);
+        const before = absenceResult(stopped, "31/10/2026");
+        const again = absenceResult(after, "31/10/2026");
+        return (
+          after.kind === stopped.kind &&
+          JSON.stringify(before) === JSON.stringify(again)
+        );
+      }),
+      { numRuns: 200 }
+    );
+  });
+});
+
+const aSectionRead = () =>
+  oneof(
+    constant<SectionRead<Student>>({
+      kind: "refused",
+      error: new HttpError(502, "bad shape"),
+    }),
+    record({ key: string(), found: boolean() }).map(
+      (r): SectionRead<Student> => ({
+        kind: "answered",
+        section: { value: r.key, label: r.key, title: "" },
+        row: r.found ? student("21CS001") : null,
+      })
+    )
+  );
+
+test.describe("the section scan has one outcome", () => {
+  test("a roll once found cannot be lost by later sections", () => {
+    const found: SectionRead<Student> = {
+      kind: "answered",
+      section: { value: "A", label: "A", title: "" },
+      row: student("21CS001"),
+    };
+    assert(
+      property(array(aSectionRead(), { maxLength: 8 }), (later) => {
+        const foundScan = scanStep(startScan<Student>(), found);
+        if (foundScan.kind !== "found") return false;
+        let scan: SectionScan<Student> = foundScan;
+        for (const read of later) scan = scanStep(scan, read);
+        return (
+          scan.kind === "found" &&
+          scan.section === foundScan.section &&
+          scan.row === foundScan.row
+        );
+      }),
+      { numRuns: 200 }
+    );
+  });
+  test("a refusal is reported only when no section answered", () => {
+    assert(
+      property(array(aSectionRead(), { maxLength: 10 }), (reads) => {
+        let scan = startScan<Student>();
+        let answered = false;
+        for (const read of reads) {
+          scan = scanStep(scan, read);
+          if (read.kind === "answered") answered = true;
+        }
+        return endScan(scan).kind !== "refused" || !answered;
+      }),
+      { numRuns: 300 }
+    );
+  });
+});
+
+const anOption = (label: string): Option => ({
+  value: label,
+  label,
+  title: "",
+});
+
+test.describe("class resolution ties the inferred flag to its branch", () => {
+  test("the flag is true exactly when the semester was inferred", () => {
+    assert(
+      property(boolean(), (inferred) => {
+        const semester: ClassSemester = {
+          kind: inferred ? "inferred" : "stated",
+          option: anOption("III Semester"),
+        };
+        const resolved = classResolution({
+          course: anOption("B.Tech"),
+          branch: anOption("IT"),
+          semester,
+          sections: [anOption("A")],
+          noSectionsReason: "none",
+        });
+        return (
+          resolved.kind === "resolved" &&
+          resolved.value.semesterInferred === inferred &&
+          resolved.value.levels.semester === semester.option
+        );
+      }),
+      { numRuns: 50 }
+    );
+  });
+  test("no section offered is always unstated with the given reason", () => {
+    assert(
+      property(string(), string(), (courseLabel, reason) => {
+        const resolved = classResolution({
+          course: anOption(courseLabel),
+          branch: anOption("IT"),
+          semester: {
+            kind: "stated",
+            option: anOption("III Semester"),
+          },
+          sections: [],
+          noSectionsReason: reason,
+        });
+        return resolved.kind === "unstated" && resolved.reason === reason;
+      }),
+      { numRuns: 100 }
+    );
+  });
+});
+
+test.describe("the liveness guard never answers an unprobed call", () => {
+  test("a call is probed exactly until it touches ECAP", () => {
+    assert(
+      property(nat(20), (reads) => {
+        let touch = untouched;
+        for (let i = 0; i < reads; i++) touch = markTouched();
+        return livenessGuard(touch).kind === (reads ? "answer" : "probe");
+      }),
+      { numRuns: 100 }
+    );
+  });
+});
+
+const aBacklogCell = () =>
+  oneof(
+    constant("I Semester"),
+    constant("II Semester"),
+    constant("MA101"),
+    constant("Total backlogs: 2"),
+    string({ maxLength: 8 })
+  );
+
+test.describe("the backlog cursor has two states", () => {
+  test("a subject cell is filled only after its semester header", () => {
+    assert(
+      property(array(aBacklogCell(), { maxLength: 14 }), (cells) => {
+        let cursor: BacklogCursor = startCursor;
+        let opened = false;
+        for (const text of cells) {
+          const wasAwaiting = cursor.kind === "awaiting-subjects";
+          const { cursor: next, kind } = backlogStep(cursor, text);
+          if (kind === "open-row") opened = true;
+          if (kind === "fill-subjects") {
+            if (!wasAwaiting || !opened) return false;
+            opened = false;
+          }
+          cursor = next;
+        }
+        return true;
+      }),
+      { numRuns: 300 }
+    );
+  });
+  test("a stated total ends the table with its own count", () => {
+    assert(
+      property(boolean(), nat(99), (awaiting, count) => {
+        const cursor: BacklogCursor = awaiting
+          ? { kind: "awaiting-subjects" }
+          : { kind: "awaiting-semester" };
+        const step = backlogStep(cursor, `Total backlogs: ${count}`);
+        return step.kind === "stop" && step.total === count;
+      }),
+      { numRuns: 100 }
     );
   });
 });

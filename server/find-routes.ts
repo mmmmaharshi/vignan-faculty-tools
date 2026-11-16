@@ -2,9 +2,16 @@
  *  page it states, the class report over that class, and the panel the register
  *  would show for the same roll. */
 import { ALL_SUBJECTS } from "../shared/api.js";
-import type { FindReply, FindRequest, RegisterReply } from "../shared/api.js";
+import type {
+  FindReply,
+  FindRequest,
+  RegisterReply,
+  Student,
+} from "../shared/api.js";
 import { sameRoll } from "../shared/portal-values.js";
 import { readRegister } from "./class-routes.js";
+import { endScan, scanStep, startScan } from "./find-scan.js";
+import type { SectionScan } from "./find-scan.js";
 import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";
 import type { PortalReader } from "./portal-reader.js";
 import { parseStudentClass, parseStudentProfile } from "./portal-student.js";
@@ -40,7 +47,7 @@ export async function handleFind(
     throw unreadablePage("student profile page");
   }
   const found = await resolveClass(portal, parseStudentClass(html), profile);
-  if (typeof found === "string") {
+  if (found.kind === "unstated") {
     return {
       profile,
       class: null,
@@ -48,24 +55,26 @@ export async function handleFind(
       student: null,
       fullAbsent: null,
       fullRange: null,
-      note: found,
+      note: found.reason,
     };
   }
+  const resolved = found.value;
   // The class report states no dates, so its window is whatever we ask for.
   const window = { from: b.from, to: b.to };
-  // A report no section could give is a portal failure, not an absent student:
-  // only a report that answered without the roll earns the "No row" note.
-  let reportFailed: unknown = null;
-  let reportAnswered = false;
-  for (const section of found.sections) {
+  // The scan owns the four ways this loop can end. Only a scan where no
+  // section answered and at least one refused owes a portal failure; a report
+  // that answered without the roll is the "No row" note instead.
+  let scan: SectionScan<Student> = startScan();
+  for (const section of resolved.sections) {
     const gridRequest = {
-      ...found.levels,
+      ...resolved.levels,
       section,
       subject: ALL_SUBJECTS,
       from: window.from,
       to: window.to,
     };
     let reply: RegisterReply | null = null;
+    let failure: unknown = null;
     try {
       // One roll's row is all this screen needs, so no subject's own report is
       // read for it: the columns it would fill are not shown here.
@@ -76,11 +85,17 @@ export async function handleFind(
       // A dead session must still sign out. Anything else is one section this
       // search can do without: the next one may hold the roll.
       rethrowExpired(error);
-      reportFailed ??= error;
+      failure = error;
     }
-    if (reply) reportAnswered = true;
-    const student = reply?.students.find((row) => sameRoll(row.roll, roll));
-    if (reply && student) {
+    scan = reply
+      ? scanStep(scan, {
+          kind: "answered",
+          section,
+          row: reply.students.find((row) => sameRoll(row.roll, roll)) ?? null,
+        })
+      : scanStep(scan, { kind: "refused", error: failure });
+    if (scan.kind === "found" && reply) {
+      const student = scan.row;
       // The class report states no dates, so the student's own grid is the only
       // place they exist — read them now, over the same window, the way the
       // panel does for a register row. The wider walk needs nothing from this
@@ -111,9 +126,9 @@ export async function handleFind(
       return {
         profile: { ...profile, ...totals, ...monthly },
         class: {
-          ...found.levels,
+          ...resolved.levels,
           section,
-          semesterInferred: found.semesterInferred,
+          semesterInferred: resolved.semesterInferred,
         },
         window: reply.summary.range,
         student,
@@ -123,8 +138,9 @@ export async function handleFind(
       };
     }
   }
-  if (!reportAnswered && reportFailed) {
-    if (reportFailed instanceof HttpError) throw reportFailed;
+  const ended = endScan(scan);
+  if (ended.kind === "refused") {
+    if (ended.error instanceof HttpError) throw ended.error;
     throw new HttpError(
       502,
       "ECAP's class attendance report came back in an unexpected shape, so no figure could be read for this student."
@@ -133,14 +149,14 @@ export async function handleFind(
   return {
     profile,
     class: {
-      ...found.levels,
+      ...resolved.levels,
       section: null,
-      semesterInferred: found.semesterInferred,
+      semesterInferred: resolved.semesterInferred,
     },
     window,
     student: null,
     fullAbsent: null,
     fullRange: null,
-    note: `No row for ${roll} in ${found.label} over ${window.from} to ${window.to}.`,
+    note: `No row for ${roll} in ${resolved.label} over ${window.from} to ${window.to}.`,
   };
 }

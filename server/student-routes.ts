@@ -13,6 +13,8 @@ import type {
   StudentTotals,
 } from "../shared/api.js";
 import { sameRoll, todayIST } from "../shared/portal-values.js";
+import { absenceResult, advance, endAtCap, walking } from "./absence-walk.js";
+import type { AbsenceWalk } from "./absence-walk.js";
 import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";
 import {
   MONTH_WALK_CAP,
@@ -138,11 +140,9 @@ export async function readFullSemesterAbsences(
   const [fd, fm, fy] = p.from.split("/").map(Number);
   const [td, tm, ty] = p.to.split("/").map(Number);
   if (!fd || !fm || !fy || !td || !tm || !ty || fm > 12 || tm > 12) {
-    return { absent: null, range: null, note: "" };
+    return absenceResult({ kind: "unparseable" }, p.to);
   }
-  const perMonth: string[][] = [];
-  let start: string | null = null;
-  let stoppedEarly = false;
+  let walk: AbsenceWalk = walking;
   let year = ty;
   let month = tm;
   for (let step = 0; step < MONTH_WALK_CAP; step++) {
@@ -152,29 +152,18 @@ export async function readFullSemesterAbsences(
       grid = await portal.studentWise(roll, name, { ...p, ...window });
     } catch (error) {
       rethrowExpired(error);
-      return {
-        absent: perMonth.length ? perMonth.flat() : null,
-        range: start ? { from: start, to: p.to } : null,
-        note: "ECAP would not give every month's absent days, so the full-semester list below may be incomplete.",
-      };
+      return absenceResult(advance(walk, { kind: "refused" }), p.to);
     }
-    const startOfMonth = monthStart(studentWiseDates(grid), year, month);
-    if (!startOfMonth) {
-      stoppedEarly = true;
-      break;
-    }
-    start = startOfMonth;
-    perMonth.unshift(parseStudentAbsences(grid) ?? []);
+    const start = monthStart(studentWiseDates(grid), year, month);
+    if (!start) return absenceResult(advance(walk, { kind: "dateless" }), p.to);
+    walk = advance(walk, {
+      kind: "read",
+      start,
+      days: parseStudentAbsences(grid) ?? [],
+    });
     ({ year, month } = previousMonth(year, month));
   }
-  if (!start) return { absent: null, range: null, note: "" };
-  return {
-    absent: perMonth.flat(),
-    range: { from: start, to: p.to },
-    note: stoppedEarly
-      ? ""
-      : "ECAP kept stating meeting days twelve months back, so the semester may have started earlier than shown.",
-  };
+  return absenceResult(endAtCap(walk), p.to);
 }
 /**
  * The semester's held / attended / absent counts, from the Cumulative
