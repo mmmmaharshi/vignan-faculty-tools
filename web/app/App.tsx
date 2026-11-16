@@ -98,7 +98,7 @@ import {
   SEARCH_PATH,
 } from "./paths";
 import { nextRoute } from "./route-guard";
-import { isBooted, isSignedIn } from "./session-view";
+import { bootNote, bootStep, isBooted, isSignedIn } from "./session-view";
 import type { SessionView } from "./session-view";
 import type { Note } from "./types";
 
@@ -607,33 +607,25 @@ const App = (): React.JSX.Element => {
    */
   const [bootRetried, setBootRetried] = useState(false);
   useEffect(() => {
-    if (booted || session.isLoading) return;
-    if (!session.data) {
-      if (!bootRetried) {
-        setBootRetried(true);
-        void reloadSession();
-        return;
-      }
-      // The probe never answered, so this may be a transport failure rather
-      // than a dead session — but the rows on screen are the last person's
-      // either way, and the next one to sign in must not open them.
-      forgetSession();
-      setLoginNote({
-        kind: "warning",
-        text: "ECAP did not answer. Sign in again if this screen does not go away.",
-      });
-      setView("signedOut");
-      if (!onLogin) navigate(LOGIN_PATH, { replace: true });
+    const action = bootStep({
+      booted,
+      loading: session.isLoading,
+      data: session.data,
+      retried: bootRetried,
+    });
+    if (action.kind === "wait") return;
+    if (action.kind === "retry") {
+      setBootRetried(true);
+      void reloadSession();
       return;
     }
-    const alive = session.data.signedIn;
-    if (!alive) {
-      // A session that ends without the sign-out button — lapsed, or never
-      // restored — takes the stored dashboard with it, for the same reason the
-      // probe's failure does. Done here rather than through `signedOut` because
-      // that clears the stored session, which bumps the generation and re-keys
-      // the probe — one more request on every signed-out boot.
+    if (action.kind === "signOut") {
+      // Both ends of the boot own the same hand-over: the rows on screen are
+      // the last person's either way. The stored credential stays, because a
+      // probe that never answered may still hold a working session, and
+      // clearing it would re-key the probe on every signed-out boot.
       forgetSession();
+      setLoginNote(bootNote(action.end));
       setView("signedOut");
       if (!onLogin) navigate(LOGIN_PATH, { replace: true });
       return;
@@ -642,7 +634,7 @@ const App = (): React.JSX.Element => {
     // A restored session never went through the sign-in form, so this is the
     // only place the name can arrive. Without it the rail and the profile panel
     // show a dash for a session that is working.
-    if (session.data.userId) noteUserId(session.data.userId);
+    if (action.userId) noteUserId(action.userId);
     if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }

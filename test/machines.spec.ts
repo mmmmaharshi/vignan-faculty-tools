@@ -11,7 +11,12 @@ import {
   openPanel,
 } from "../web/app/panel-state";
 import { nextRoute } from "../web/app/route-guard";
-import { isBooted, isSignedIn } from "../web/app/session-view";
+import {
+  bootNote,
+  bootStep,
+  isBooted,
+  isSignedIn,
+} from "../web/app/session-view";
 import {
   fullAbsenceList,
   windowAbsenceList,
@@ -34,6 +39,15 @@ const student = (roll: string): Student => ({
   absent: [],
 });
 
+const bootFrom = (over: Partial<Parameters<typeof bootStep>[0]>) =>
+  bootStep({
+    booted: false,
+    loading: false,
+    data: undefined,
+    retried: false,
+    ...over,
+  });
+
 test.describe("explicit state machines", () => {
   test("session view: the boot check and the sign-in are one state", () => {
     expect(isBooted("booting"), "nothing asked yet").toBe(false);
@@ -42,6 +56,34 @@ test.describe("explicit state machines", () => {
     expect(isSignedIn("signedOut")).toBe(false);
     expect(isBooted("signedIn")).toBe(true);
     expect(isSignedIn("signedIn")).toBe(true);
+  });
+  test("boot: the probe's answers are one transition table", () => {
+    expect(
+      bootFrom({ loading: true }),
+      "a probe in flight decides nothing"
+    ).toEqual({ kind: "wait" });
+    expect(bootFrom({ booted: true }), "the boot runs once").toEqual({
+      kind: "wait",
+    });
+    expect(bootFrom({}), "an unanswered probe gets one retry").toEqual({
+      kind: "retry",
+    });
+    expect(
+      bootFrom({ retried: true }),
+      "a second silence ends the boot with a reason"
+    ).toEqual({ kind: "signOut", end: "probe-unanswered" });
+    expect(
+      bootFrom({ data: { signedIn: false, userId: "" } }),
+      "an absent session is a quiet end"
+    ).toEqual({ kind: "signOut", end: "signed-out" });
+    expect(
+      bootFrom({ data: { signedIn: true, userId: " faculty " } }),
+      "the session's own name travels with the answer"
+    ).toEqual({ kind: "signIn", userId: " faculty " });
+  });
+  test("boot: only a probe that never answered puts a note on the form", () => {
+    expect(bootNote("probe-unanswered")?.text).toContain("did not answer");
+    expect(bootNote("signed-out")).toBeNull();
   });
   test("the panel shows one absent list, and never a window passed off as the semester", () => {
     const window = ["02/09"];

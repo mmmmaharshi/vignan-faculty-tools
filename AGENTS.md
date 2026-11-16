@@ -158,9 +158,10 @@ web/public/sw.js     the service worker: shell-only cache, /api/* never
 web/public/icons/    the three install icons, rasterized from one SVG tile by
                      a throwaway Playwright script (kept out of the repo)
 web/app/             the shell and the session: App.tsx (state, the three modes,
-                     and the session's own facts), session-view, route-guard,
-                     paths, panel-state, load-gate, types.ts (Note, the one
-                     shape three modules share)
+                     and the session's own facts), session-view (the view, the
+                     boot check's transition table, and the note it owes the
+                     form), route-guard, paths, panel-state, load-gate, types.ts
+                     (Note, the one shape three modules share)
 web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      when to keep looping, what a change clears, and the names
                      one selection is known by), cascade-run.ts (the loop that
@@ -342,6 +343,12 @@ reason.
   browser, and it showed the login form to someone who already had a session.
 - `booted` and `signedIn` are not screens. They are the two facts the URL cannot
   carry: whether `/api/session` has been asked, and what it said.
+- **`bootStep` is the boot check's whole decision.** The effect applies an action
+  and keeps none of the phases: waiting, the one retry, and the two ways the boot
+  ends are named in one pure table beside `session-view.ts`. Both ends hand over
+  through `forgetSession`; only a probe that never answered owes the form a note,
+  and the stored credential stays either way — a transport failure may still
+  hold a working session. The browser session and reload specs gate the table.
 
 **The selection does not live in the URL.** The path names the screen and nothing
 else travels; there are no query parameters. This replaced ADR 0010 and ADR 0011,

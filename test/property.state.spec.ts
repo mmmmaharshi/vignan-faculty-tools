@@ -23,7 +23,7 @@ import {
 } from "../web/app/panel-state";
 import { DASHBOARD_PATH, HOME_PATH, LOGIN_PATH } from "../web/app/paths";
 import { nextRoute } from "../web/app/route-guard";
-import { isBooted, isSignedIn } from "../web/app/session-view";
+import { bootStep, isBooted, isSignedIn } from "../web/app/session-view";
 import { createEpoch } from "../web/data/session-epoch";
 
 /**
@@ -99,6 +99,60 @@ test.describe("the redirect guard converges", () => {
         return next === null ? pathname === LOGIN_PATH : next === LOGIN_PATH;
       }),
       { numRuns: 200 }
+    );
+  });
+});
+
+test.describe("the boot decision is a total transition", () => {
+  const probe = oneof(
+    constant(undefined),
+    record({ signedIn: boolean(), userId: string() })
+  );
+
+  test("a boot that never answered asks at most once more", () => {
+    assert(
+      property(boolean(), (retried) => {
+        const action = bootStep({
+          booted: false,
+          loading: false,
+          data: undefined,
+          retried,
+        });
+        return retried
+          ? action.kind === "signOut" && action.end === "probe-unanswered"
+          : action.kind === "retry";
+      }),
+      { numRuns: 20 }
+    );
+  });
+  test("a boot that already answered decides nothing, and never retries", () => {
+    assert(
+      property(probe, boolean(), (data, booted) => {
+        const action = bootStep({
+          booted,
+          loading: false,
+          data,
+          retried: false,
+        });
+        if (booted) return action.kind === "wait";
+        if (data === undefined) return action.kind === "retry";
+        return action.kind === "signIn" || action.kind === "signOut";
+      }),
+      { numRuns: 100 }
+    );
+  });
+  test("a live session is never answered with a form", () => {
+    assert(
+      property(string(), (userId) => {
+        const action = bootStep({
+          booted: false,
+          loading: false,
+          data: { signedIn: true, userId },
+          retried: false,
+        });
+        return action.kind === "signIn" && action.userId === userId;
+      }),
+      { numRuns: 50 }
     );
   });
 });
