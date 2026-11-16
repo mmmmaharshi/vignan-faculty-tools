@@ -2,8 +2,9 @@ import { test, expect } from "@playwright/test";
 
 import { HttpError } from "../server/http-error";
 import { sessionVerdict } from "../server/session-verdict";
-import type { Student } from "../shared/api";
+import type { FindReply, Student } from "../shared/api";
 import { loadGate, loadNote } from "../web/app/load-gate";
+import { createLoadSnap } from "../web/app/load-snap";
 import {
   closePanel,
   finishClose,
@@ -11,16 +12,21 @@ import {
   openPanel,
 } from "../web/app/panel-state";
 import { nextRoute } from "../web/app/route-guard";
+import { endNote, keepsCredential } from "../web/app/session-end";
 import {
   bootNote,
   bootStep,
   isBooted,
   isSignedIn,
 } from "../web/app/session-view";
+import { ApiError } from "../web/data/client";
 import {
   fullAbsenceList,
   windowAbsenceList,
 } from "../web/register/absence-list";
+import { EMPTY_OPTS, EMPTY_SEL } from "../web/register/cascade";
+import { createCascadeRun } from "../web/register/cascade-run-state";
+import { searchResult } from "../web/register/search-result";
 import { searchScope } from "../web/register/search-scope";
 
 const student = (roll: string): Student => ({
@@ -37,6 +43,31 @@ const student = (roll: string): Student => ({
   overallCritical: false,
   subjects: [],
   absent: [],
+});
+
+const foundClass = {
+  course: { value: "1", label: "B.Tech", title: "" },
+  semester: { value: "1", label: "I Semester", title: "2025" },
+  branch: { value: "1", label: "IT", title: "" },
+  section: { value: "1", label: "Section-1", title: "" },
+  semesterInferred: true,
+};
+const foundReply = (over: Partial<FindReply> = {}): FindReply => ({
+  profile: {
+    cgpa: "",
+    credits: "",
+    cgpaPercent: "",
+    sgpa: [],
+    phones: [],
+    backlogs: { rows: [], total: null, note: "" },
+  },
+  class: foundClass,
+  window: { from: "01/07/2026", to: "31/07/2026" },
+  student: student("1"),
+  fullAbsent: null,
+  fullRange: null,
+  note: "",
+  ...over,
 });
 
 const bootFrom = (over: Partial<Parameters<typeof bootStep>[0]>) =>
@@ -84,6 +115,26 @@ test.describe("explicit state machines", () => {
   test("boot: only a probe that never answered puts a note on the form", () => {
     expect(bootNote("probe-unanswered")?.text).toContain("did not answer");
     expect(bootNote("signed-out")).toBeNull();
+  });
+  test("session end: one reason decides the note and the stored credential", () => {
+    expect(endNote({ kind: "signed-out" }), "leaving is silent").toBeNull();
+    expect(
+      endNote({ kind: "boot", end: "signed-out" }),
+      "a session that was never there is silent"
+    ).toBeNull();
+    expect(endNote({ kind: "expired" })?.text).toContain("expired");
+    expect(endNote({ kind: "boot", end: "probe-unanswered" })?.text).toContain(
+      "did not answer"
+    );
+    expect(
+      keepsCredential({ kind: "boot", end: "probe-unanswered" }),
+      "a silent probe may still hold a working session"
+    ).toBe(true);
+    expect(keepsCredential({ kind: "boot", end: "signed-out" })).toBe(true);
+    expect(keepsCredential({ kind: "signed-out" }), "leaving drops it").toBe(
+      false
+    );
+    expect(keepsCredential({ kind: "expired" }), "a 401 drops it").toBe(false);
   });
   test("the panel shows one absent list, and never a window passed off as the semester", () => {
     const window = ["02/09"];
@@ -170,6 +221,74 @@ test.describe("explicit state machines", () => {
       "a class with no section states no section row"
     ).toBe(false);
   });
+  test("search result: a refusal, no class, no roll and a roll are distinct answers", () => {
+    expect(searchResult(undefined, null).kind, "nothing asked yet").toBe(
+      "idle"
+    );
+    const refused = searchResult(new ApiError(502, "ECAP is down"), null);
+    expect(refused.kind).toBe("refused");
+    expect(refused.note?.text).toBe("ECAP is down");
+    expect(
+      searchResult(new ApiError(401, "expired"), null).note,
+      "a 401 is already said by the sign-out sweep"
+    ).toBeNull();
+
+    const noClass = searchResult(
+      undefined,
+      foundReply({ class: null, note: "No class stated" })
+    );
+    expect(noClass.kind).toBe("no-class");
+    expect(noClass.note?.text).toBe("No class stated");
+    expect(noClass.scope, "no class, nothing to scope").toBeUndefined();
+    expect(noClass.profile, "the profile is still an answer").not.toBeNull();
+
+    const noRoll = searchResult(
+      undefined,
+      foundReply({ student: null, note: "No row for 99Z" })
+    );
+    expect(noRoll.kind).toBe("no-roll");
+    expect(noRoll.student).toBeNull();
+    expect(noRoll.scope, "the class still names the window").toBeDefined();
+    expect(noRoll.note?.text).toBe("No row for 99Z");
+
+    const foundOne = searchResult(undefined, foundReply());
+    expect(foundOne.kind).toBe("found");
+    expect(foundOne.student?.roll).toBe("1");
+    expect(foundOne.note, "no reason to say anything").toBeNull();
+  });
+  test("cascade run: the four states are one lifecycle", () => {
+    const run = createCascadeRun();
+    expect(run.read()).toEqual({ status: "idle" });
+    const first = run.start();
+    expect(run.read().status).toBe("current");
+    expect(run.owns(first)).toBe(true);
+
+    const second = run.start();
+    expect(
+      first.aborted,
+      "a superseded run asks the Portal nothing further"
+    ).toBe(true);
+    expect(run.owns(first)).toBe(false);
+    expect(run.owns(second)).toBe(true);
+
+    run.supersede();
+    expect(second.aborted).toBe(true);
+    expect(run.read()).toEqual({ status: "superseded" });
+    expect(run.owns(second)).toBe(false);
+
+    const third = run.start();
+    const partial = { sel: EMPTY_SEL, opts: EMPTY_OPTS };
+    expect(
+      run.keepPartial(third, partial),
+      "a failed run keeps what arrived"
+    ).toBe(partial);
+    expect(run.read()).toEqual({ status: "failed", partial });
+
+    const fourth = run.start();
+    expect(run.owns(fourth)).toBe(true);
+    expect(run.finish(fourth)).toBe(true);
+    expect(run.read()).toEqual({ status: "idle" });
+  });
   test("panel: open survives close until the slide-out finishes", () => {
     const opened = openPanel(student("1"));
     expect(isPanelOpen(opened)).toBe(true);
@@ -182,6 +301,16 @@ test.describe("explicit state machines", () => {
     expect(closePanel({ status: "closed", student: null }).status).toBe(
       "closed"
     );
+  });
+  test("load snap: a real load arms it, an edit disarms it, and the snap fires once", () => {
+    const snap = createLoadSnap();
+    expect(snap.consume(), "no load yet").toBe(false);
+    snap.arm();
+    expect(snap.consume(), "the register answer snaps From once").toBe(true);
+    expect(snap.consume(), "a second effect run cannot snap again").toBe(false);
+    snap.arm();
+    snap.disarm();
+    expect(snap.consume(), "a hand-typed From survives the load").toBe(false);
   });
   test("load gate: a typed To alone still waits for the start probe", () => {
     expect(
