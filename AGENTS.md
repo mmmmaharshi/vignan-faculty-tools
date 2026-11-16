@@ -8,8 +8,10 @@ screens, not the whole.
 
 ## Standards
 
-**Always follow [CODING_STANDARDS.md](./CODING_STANDARDS.md).** Read it before
-writing code here. It is binding, and it wins over anything else in this file.
+**Always follow the `coding-standards` skill.** It is binding, and it wins over
+anything else in this file. `.agents/` is per-clone state, so a fresh clone needs
+`bunx skills@latest add mmmmaharshi/skills --skill coding-standards` once, the
+same way it needs `bunx vp hooks enable` once.
 
 **Maintainer-facing prose is about the code, never about how we arrived at it.**
 Our conversation, the prompt, and the iteration history stay out of code comments,
@@ -1096,8 +1098,8 @@ whatever the code does.
 `$thermo-nuclear-code-quality-review` on the same diff**, not the skill's own
 standards pass. Run one or the other, never both: two maintainability reads of
 one diff produce two lists to reconcile, and the stricter one is the one that
-finds the restructuring. The repo standards in `CODING_STANDARDS.md` still win
-where the two disagree.
+finds the restructuring. The `coding-standards` skill still wins where the two
+disagree.
 
 After every `$code-review`, run `$thermo-nuclear-code-quality-review`,
 `$vercel-composition-patterns`, and `$vercel-react-best-practices` as MUST.
