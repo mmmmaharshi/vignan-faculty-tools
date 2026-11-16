@@ -15,10 +15,12 @@ import {
 import type {
   DayWorkCell,
   DayWorkSection,
+  FindReply,
   Student,
   TodayClass,
 } from "../shared/api";
 import { loadGate } from "../web/app/load-gate";
+import { createLoadSnap } from "../web/app/load-snap";
 import {
   CLOSED_PANEL,
   closePanel,
@@ -28,7 +30,10 @@ import {
 } from "../web/app/panel-state";
 import { DASHBOARD_PATH, HOME_PATH, LOGIN_PATH } from "../web/app/paths";
 import { nextRoute } from "../web/app/route-guard";
+import { endNote, keepsCredential } from "../web/app/session-end";
+import type { SessionEnd } from "../web/app/session-end";
 import { bootStep, isBooted, isSignedIn } from "../web/app/session-view";
+import { ApiError } from "../web/data/client";
 import { createEpoch } from "../web/data/session-epoch";
 import { FIRST_PHASE, updateStep } from "../web/data/update-lifecycle";
 import type { UpdateEvent, UpdatePhase } from "../web/data/update-lifecycle";
@@ -40,6 +45,9 @@ import {
   SLOT_STATUS_LABEL,
 } from "../web/home/postings-phase";
 import { todayPhase } from "../web/home/today-phase";
+import { EMPTY_OPTS, EMPTY_SEL } from "../web/register/cascade";
+import { createCascadeRun } from "../web/register/cascade-run-state";
+import { searchResult } from "../web/register/search-result";
 
 /**
  * Properties over the app's own state, not examples of it.
@@ -81,6 +89,30 @@ const sectionArb = record({ branch: string(), section: string() }).map(
     cells: [],
   })
 );
+const searched = (hasClass: boolean, hasRoll: boolean): FindReply => ({
+  profile: {
+    cgpa: "",
+    credits: "",
+    cgpaPercent: "",
+    sgpa: [],
+    phones: [],
+    backlogs: { rows: [], total: null, note: "" },
+  },
+  class: hasClass
+    ? {
+        course: { value: "1", label: "B.Tech", title: "" },
+        semester: { value: "1", label: "I Semester", title: "2025" },
+        branch: { value: "1", label: "IT", title: "" },
+        section: null,
+        semesterInferred: true,
+      }
+    : null,
+  window: { from: "01/07/2026", to: "31/07/2026" },
+  student: hasRoll ? student("1") : null,
+  fullAbsent: null,
+  fullRange: null,
+  note: "",
+});
 
 test.describe("the redirect guard converges", () => {
   test("every path settles in at most two hops", () => {
@@ -190,6 +222,36 @@ test.describe("the boot decision is a total transition", () => {
   });
 });
 
+test.describe("the session end has one policy per reason", () => {
+  const reasons = constantFrom<SessionEnd>(
+    { kind: "signed-out" },
+    { kind: "expired" },
+    { kind: "boot", end: "probe-unanswered" },
+    { kind: "boot", end: "signed-out" }
+  );
+
+  test("the reader is told exactly when they must act or understand why", () => {
+    assert(
+      property(reasons, (end) => {
+        const explained =
+          end.kind === "expired" ||
+          (end.kind === "boot" && end.end === "probe-unanswered");
+        return (endNote(end) !== null) === explained;
+      }),
+      { numRuns: 20 }
+    );
+  });
+  test("only a boot end keeps the credential", () => {
+    assert(
+      property(
+        reasons,
+        (end) => keepsCredential(end) === (end.kind === "boot")
+      ),
+      { numRuns: 20 }
+    );
+  });
+});
+
 test.describe("the session generation is final", () => {
   type Command = { kind: "bump" } | { kind: "response"; at: number };
 
@@ -229,6 +291,122 @@ test.describe("the session generation is final", () => {
         const epoch = createEpoch();
         for (let i = 0; i < bumps; i++) epoch.bump();
         return epoch.admits(epoch.current());
+      }),
+      { numRuns: 50 }
+    );
+  });
+});
+
+test.describe("the search result has one answer per case", () => {
+  test("only a stated class gives a figure a scope", () => {
+    assert(
+      property(boolean(), boolean(), (hasClass, rollWhenClassed) => {
+        // Without a class there is no register read, so there is no row either.
+        const hasRoll = hasClass && rollWhenClassed;
+        const result = searchResult(undefined, searched(hasClass, hasRoll));
+        if (!hasClass)
+          return result.scope === undefined && result.student === null;
+        return (
+          result.scope !== undefined && (result.student !== null) === hasRoll
+        );
+      }),
+      { numRuns: 50 }
+    );
+  });
+  test("a refused session never puts a note on the search panel", () => {
+    assert(
+      property(
+        string(),
+        (message) =>
+          searchResult(new ApiError(401, message), null).note === null
+      ),
+      { numRuns: 50 }
+    );
+  });
+});
+
+test.describe("a superseded cascade run owns nothing further", () => {
+  type Command = "start" | "supersede" | "finish";
+
+  test("at most one run owns the screen, and an aborted run never does", () => {
+    assert(
+      property(
+        array(constantFrom<Command>("start", "supersede", "finish"), {
+          maxLength: 12,
+        }),
+        (steps) => {
+          const run = createCascadeRun();
+          const signals: AbortSignal[] = [];
+          let current: AbortSignal | null = null;
+          for (const step of steps) {
+            if (step === "start") {
+              current = run.start();
+              signals.push(current);
+            } else if (step === "supersede") run.supersede();
+            else if (current) run.finish(current);
+            const owners = signals.filter((signal) => run.owns(signal));
+            if (owners.length > 1 || owners.some((signal) => signal.aborted))
+              return false;
+          }
+          return true;
+        }
+      ),
+      { numRuns: 200 }
+    );
+  });
+  test("a failed run keeps partial options only while it still owns the screen", () => {
+    assert(
+      property(boolean(), (supersedeFirst) => {
+        const run = createCascadeRun();
+        const signal = run.start();
+        if (supersedeFirst) run.supersede();
+        const partial = { sel: EMPTY_SEL, opts: EMPTY_OPTS };
+        return supersedeFirst
+          ? run.keepPartial(signal, partial) === null
+          : run.keepPartial(signal, partial) === partial;
+      }),
+      { numRuns: 20 }
+    );
+  });
+});
+
+test.describe("the load snap is claimed once or not at all", () => {
+  type Command = "arm" | "edit" | "consume";
+  const commands = constantFrom<Command>("arm", "edit", "consume");
+
+  test("a typed edit and a finished load cannot both claim the snap", () => {
+    assert(
+      property(array(commands, { maxLength: 12 }), (steps) => {
+        const snap = createLoadSnap();
+        let armed = false;
+        let claimed = false;
+        for (const step of steps) {
+          if (step === "arm") {
+            snap.arm();
+            armed = true;
+            claimed = false;
+          } else if (step === "edit") {
+            snap.disarm();
+            armed = false;
+          } else {
+            const fired = snap.consume();
+            if (fired && (!armed || claimed)) return false;
+            if (fired) claimed = true;
+            armed = false;
+          }
+        }
+        return true;
+      }),
+      { numRuns: 200 }
+    );
+  });
+  test("a real load always arms the one snap it owes", () => {
+    assert(
+      property(nat(5), (edits) => {
+        const snap = createLoadSnap();
+        for (let i = 0; i < edits; i++) snap.disarm();
+        snap.arm();
+        return snap.consume();
       }),
       { numRuns: 50 }
     );
