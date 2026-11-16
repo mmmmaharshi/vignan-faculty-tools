@@ -18,6 +18,13 @@ import React, { useState } from "react";
 import type { DayWorkCell, DayWorkSection } from "../../shared/api";
 import type { Note } from "../app/types";
 import { PERIODS } from "../home/period-times";
+import {
+  postingsPhase,
+  reportBranches,
+  shownBranch,
+  slotStatus,
+  SLOT_STATUS_LABEL,
+} from "../home/postings-phase";
 import { FactsTable } from "./FactsTable";
 
 export type UnpostedPanelProps = {
@@ -34,15 +41,6 @@ export type UnpostedPanelProps = {
   /** Called when the user picks a branch. */
   onBranchChange: (branch: string | null) => void;
 };
-
-/** Branches named by the report, in first-seen order. */
-function branchesOf(sections: DayWorkSection[] | null | undefined): string[] {
-  const out: string[] = [];
-  for (const section of sections ?? []) {
-    if (!out.includes(section.branch)) out.push(section.branch);
-  }
-  return out;
-}
 
 /** One section's cells by period, in the report's order: the boxes and the
  *  detail modal read this one grouping, so a period cannot show posted in
@@ -106,14 +104,6 @@ const PeriodBox = ({
   </UnstyledButton>
 );
 
-/** What a period box opens onto: "Posted", "Not posted yet", or the honest
- *  third answer — a free period states no cell at all, which is not an
- *  unposted class. */
-const statusOf = (cell: DayWorkCell | null): string => {
-  if (cell == null) return "No class stated";
-  return cell.posted ? "Posted" : "Not posted yet";
-};
-
 /** One open box: the section and period it was opened from. A single modal
  *  serves the whole branch — one mounted dialog, not one per section. */
 type SlotSelection = {
@@ -149,7 +139,7 @@ const SlotDetails = ({
             value: cell?.subject || "No class stated",
           },
           { label: "Staff", value: cell?.staff || "—" },
-          { label: "Status", value: statusOf(cell) },
+          { label: "Status", value: SLOT_STATUS_LABEL[slotStatus(cell)] },
           // Counts exist only where posted: an unposted period has no
           // headcount to show, not a zero one.
           ...(cell?.posted
@@ -264,16 +254,15 @@ export const UnpostedPanel = ({
   branch,
   onBranchChange,
 }: UnpostedPanelProps): React.JSX.Element => {
-  const branches = branchesOf(sections);
+  const branches = reportBranches(sections);
   const shortOf = (b: string): string =>
     sections?.find((s) => s.branch === b)?.branchShort ?? b;
   const inBranch = (b: string): DayWorkSection[] =>
     sections ? sections.filter((s) => s.branch === b) : [];
-  // The branch on show: the one asked for while it is still offered, else the
-  // first the report names. Resolved here rather than by the caller, because
-  // this is the component that knows what the report offers.
-  const shown =
-    branch && branches.includes(branch) ? branch : (branches[0] ?? null);
+  // The branch on show is decided by the report, never guessed by a caller.
+  const shown = shownBranch(sections, branch);
+  // One phase names the surface, so it is never neither showing nor loading.
+  const phase = postingsPhase({ sections, busy, note });
   return (
     <Stack gap="md" mt="xl" pb="md">
       <Title order={4}>Today&apos;s Attendance</Title>
@@ -282,7 +271,7 @@ export const UnpostedPanel = ({
           {note.text}
         </Alert>
       ) : null}
-      {!sections && busy ? (
+      {phase.kind === "loading" ? (
         <Stack align="center" mt="xl" gap="sm">
           <Loader size="lg" />
           <Text c="dimmed" size="sm">
@@ -290,12 +279,12 @@ export const UnpostedPanel = ({
           </Text>
         </Stack>
       ) : null}
-      {sections && sections.length === 0 && !busy ? (
+      {phase.kind === "none" ? (
         <Paper withBorder p="lg">
           <Text c="dimmed">No classes today.</Text>
         </Paper>
       ) : null}
-      {sections && sections.length > 0 ? (
+      {phase.kind === "report" ? (
         <>
           <Select
             value={shown ?? ""}
