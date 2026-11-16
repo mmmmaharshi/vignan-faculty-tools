@@ -12,7 +12,12 @@ import {
   string,
 } from "fast-check";
 
-import type { Student } from "../shared/api";
+import type {
+  DayWorkCell,
+  DayWorkSection,
+  Student,
+  TodayClass,
+} from "../shared/api";
 import { loadGate } from "../web/app/load-gate";
 import {
   CLOSED_PANEL,
@@ -25,6 +30,14 @@ import { DASHBOARD_PATH, HOME_PATH, LOGIN_PATH } from "../web/app/paths";
 import { nextRoute } from "../web/app/route-guard";
 import { bootStep, isBooted, isSignedIn } from "../web/app/session-view";
 import { createEpoch } from "../web/data/session-epoch";
+import {
+  postingsPhase,
+  reportBranches,
+  shownBranch,
+  slotStatus,
+  SLOT_STATUS_LABEL,
+} from "../web/home/postings-phase";
+import { todayPhase } from "../web/home/today-phase";
 
 /**
  * Properties over the app's own state, not examples of it.
@@ -48,6 +61,24 @@ const student = (roll: string): Student => ({
   subjects: [],
   absent: [],
 });
+
+const refusal = { kind: "error" as const, text: "down" };
+const todayClassArb = record<TodayClass>({
+  period: constant("Period 1"),
+  time: constant("08:45 AM- 09:35 AM"),
+  subject: constant("AI"),
+  section: constant("3 IT-C"),
+  room: constant(""),
+});
+const sectionArb = record({ branch: string(), section: string() }).map(
+  ({ branch, section }): DayWorkSection => ({
+    branch,
+    branchShort: branch,
+    semester: "I Semester",
+    section,
+    cells: [],
+  })
+);
 
 test.describe("the redirect guard converges", () => {
   test("every path settles in at most two hops", () => {
@@ -300,6 +331,130 @@ test.describe("the session view cannot be half-set", () => {
         (view) => !isSignedIn(view) || isBooted(view)
       ),
       { numRuns: 10 }
+    );
+  });
+});
+
+test.describe("a presentational surface is never neither showing nor loading", () => {
+  test("the timetable phase carries exactly the classes it was given", () => {
+    assert(
+      property(
+        oneof(
+          constant<TodayClass[] | null>(null),
+          array(todayClassArb, { maxLength: 3 })
+        ),
+        boolean(),
+        boolean(),
+        (classes, busy, failed) => {
+          const phase = todayPhase({
+            classes,
+            busy,
+            note: failed ? refusal : null,
+          });
+          if (classes === null) {
+            return phase.kind === "unread" || phase.kind === "failed";
+          }
+          return (
+            (phase.kind === "day" || phase.kind === "cleared") &&
+            "classes" in phase &&
+            phase.classes === classes
+          );
+        }
+      ),
+      { numRuns: 200 }
+    );
+  });
+  test("a stated day never reads as cleared, and an empty one invents no periods", () => {
+    assert(
+      property(array(todayClassArb, { maxLength: 4 }), (classes) => {
+        const phase = todayPhase({ classes, busy: false, note: null });
+        return phase.kind === "cleared"
+          ? classes.length === 0
+          : phase.kind === "day" && classes.length > 0;
+      }),
+      { numRuns: 200 }
+    );
+  });
+  test("the note, never a blank, decides which no-data phase the timetable shows", () => {
+    assert(
+      property(boolean(), boolean(), (busy, failed) => {
+        const phase = todayPhase({
+          classes: null,
+          busy,
+          note: failed ? refusal : null,
+        });
+        return failed ? phase.kind === "failed" : phase.kind === "unread";
+      }),
+      { numRuns: 50 }
+    );
+  });
+  test("the branch on show is always one the report named", () => {
+    assert(
+      property(
+        array(sectionArb, { maxLength: 6 }),
+        string(),
+        (sections, asked) => {
+          const branches = reportBranches(sections);
+          const shown = shownBranch(sections, asked || null);
+          return shown === null
+            ? branches.length === 0
+            : branches.includes(shown);
+        }
+      ),
+      { numRuns: 200 }
+    );
+  });
+  test("the postings phase names a report only when the report stated sections", () => {
+    assert(
+      property(
+        oneof(
+          constant<DayWorkSection[] | null>(null),
+          array(sectionArb, { maxLength: 4 })
+        ),
+        boolean(),
+        (sections, failed) => {
+          const phase = postingsPhase({
+            sections,
+            busy: false,
+            note: failed ? refusal : null,
+          });
+          if (sections === null) {
+            return failed ? phase.kind === "failed" : phase.kind === "loading";
+          }
+          if (phase.kind === "report") {
+            return phase.sections === sections && sections.length > 0;
+          }
+          return sections.length === 0 && phase.kind === "none";
+        }
+      ),
+      { numRuns: 200 }
+    );
+  });
+  test("a period's typed status and its label are never blank", () => {
+    assert(
+      property(
+        boolean(),
+        oneof(constant<boolean | null>(null), boolean()),
+        (hasCell, posted) => {
+          const cell: DayWorkCell | null = hasCell
+            ? {
+                period: "1",
+                subject: "MFCS",
+                posted: posted ?? false,
+                staff: "",
+                present: "",
+                absent: "",
+                absentRolls: [],
+              }
+            : null;
+          const status = slotStatus(cell);
+          return (
+            SLOT_STATUS_LABEL[status].length > 0 &&
+            (status === "no-class") === (cell === null)
+          );
+        }
+      ),
+      { numRuns: 100 }
     );
   });
 });

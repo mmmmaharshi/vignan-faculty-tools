@@ -2,7 +2,12 @@ import { test, expect } from "@playwright/test";
 
 import { HttpError } from "../server/http-error";
 import { sessionVerdict } from "../server/session-verdict";
-import type { Student } from "../shared/api";
+import type {
+  DayWorkCell,
+  DayWorkSection,
+  Student,
+  TodayClass,
+} from "../shared/api";
 import { loadGate, loadNote } from "../web/app/load-gate";
 import {
   closePanel,
@@ -17,6 +22,14 @@ import {
   isBooted,
   isSignedIn,
 } from "../web/app/session-view";
+import {
+  postingsPhase,
+  reportBranches,
+  shownBranch,
+  slotStatus,
+  SLOT_STATUS_LABEL,
+} from "../web/home/postings-phase";
+import { todayPhase } from "../web/home/today-phase";
 import {
   fullAbsenceList,
   windowAbsenceList,
@@ -38,6 +51,31 @@ const student = (roll: string): Student => ({
   subjects: [],
   absent: [],
 });
+
+const todayClass = (period: string): TodayClass => ({
+  period,
+  time: "08:45 AM- 09:35 AM",
+  subject: "AI",
+  section: "3 IT-C",
+  room: "",
+});
+const workCell = (posted: boolean): DayWorkCell => ({
+  period: "1",
+  subject: "MFCS",
+  posted,
+  staff: "A Faculty",
+  present: "30",
+  absent: "5",
+  absentRolls: ["21B"],
+});
+const workSection = (branch: string): DayWorkSection => ({
+  branch,
+  branchShort: branch,
+  semester: "III Semester",
+  section: "B",
+  cells: [workCell(true)],
+});
+const refusal = { kind: "error" as const, text: "down" };
 
 const bootFrom = (over: Partial<Parameters<typeof bootStep>[0]>) =>
   bootStep({
@@ -241,5 +279,60 @@ test.describe("explicit state machines", () => {
     expect(sessionVerdict("dead", new HttpError(401, "expired"))).toBe("dead");
     expect(sessionVerdict("dead", new HttpError(502, "down"))).toBe("unknown");
     expect(sessionVerdict("dead", new Error("socket"))).toBe("unknown");
+  });
+  test("timetable: unread, a refusal, a cleared evening and a day are one phase", () => {
+    expect(todayPhase({ classes: null, busy: true, note: null })).toEqual({
+      kind: "unread",
+    });
+    expect(todayPhase({ classes: null, busy: false, note: refusal })).toEqual({
+      kind: "failed",
+    });
+    expect(todayPhase({ classes: [], busy: false, note: null })).toEqual({
+      kind: "cleared",
+      classes: [],
+    });
+    const day = [todayClass("Period 1")];
+    expect(todayPhase({ classes: day, busy: false, note: null })).toEqual({
+      kind: "day",
+      classes: day,
+    });
+  });
+  test("postings: loader, a refusal, no classes and the grid are one phase", () => {
+    expect(postingsPhase({ sections: null, busy: true, note: null })).toEqual({
+      kind: "loading",
+    });
+    expect(
+      postingsPhase({ sections: null, busy: false, note: refusal })
+    ).toEqual({ kind: "failed" });
+    expect(postingsPhase({ sections: [], busy: false, note: null })).toEqual({
+      kind: "none",
+    });
+    const sections = [workSection("CSE")];
+    expect(postingsPhase({ sections, busy: false, note: null })).toEqual({
+      kind: "report",
+      sections,
+    });
+  });
+  test("postings: the branch on show is always one the report named", () => {
+    const sections = [
+      workSection("CSE"),
+      workSection("IT"),
+      workSection("CSE"),
+    ];
+    expect(reportBranches(sections)).toEqual(["CSE", "IT"]);
+    expect(shownBranch(sections, null)).toBe("CSE");
+    expect(shownBranch(sections, "IT")).toBe("IT");
+    expect(shownBranch(sections, "gone")).toBe("CSE");
+    expect(shownBranch(null, null)).toBeNull();
+  });
+  test("a period box's detail is one typed status, never a plain string", () => {
+    expect(slotStatus(null)).toBe("no-class");
+    expect(slotStatus(workCell(true))).toBe("posted");
+    expect(slotStatus(workCell(false))).toBe("not-posted");
+    expect(SLOT_STATUS_LABEL[slotStatus(null)]).toBe("No class stated");
+    expect(SLOT_STATUS_LABEL[slotStatus(workCell(true))]).toBe("Posted");
+    expect(SLOT_STATUS_LABEL[slotStatus(workCell(false))]).toBe(
+      "Not posted yet"
+    );
   });
 });
