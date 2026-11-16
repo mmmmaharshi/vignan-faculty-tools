@@ -22,6 +22,7 @@ import {
   isBooted,
   isSignedIn,
 } from "../web/app/session-view";
+import { FIRST_PHASE, updateStep } from "../web/data/update-lifecycle";
 import {
   postingsPhase,
   reportBranches,
@@ -76,6 +77,9 @@ const workSection = (branch: string): DayWorkSection => ({
   cells: [workCell(true)],
 });
 const refusal = { kind: "error" as const, text: "down" };
+
+const bootPhase = (hasController: boolean, hasWaiting: boolean) =>
+  updateStep(FIRST_PHASE, { kind: "boot", hasController, hasWaiting });
 
 const bootFrom = (over: Partial<Parameters<typeof bootStep>[0]>) =>
   bootStep({
@@ -334,5 +338,62 @@ test.describe("explicit state machines", () => {
     expect(SLOT_STATUS_LABEL[slotStatus(workCell(false))]).toBe(
       "Not posted yet"
     );
+  });
+  test("installed update: both paths reach one offer, and only a yes reloads", () => {
+    // A shell that finished while the page was open: offered at once.
+    expect(bootPhase(true, true)).toEqual({
+      phase: "installed-waiting",
+      action: "offer",
+    });
+    // A first install has no old shell: silent, but it still listens.
+    expect(bootPhase(false, true)).toEqual({
+      phase: "first-install",
+      action: "listen",
+    });
+    // A return visit with no waiting shell watches for a download.
+    expect(bootPhase(true, false)).toEqual({
+      phase: "downloading",
+      action: "listen",
+    });
+    // A download found during the visit: watch the installing worker.
+    expect(updateStep("downloading", { kind: "updatefound" })).toEqual({
+      phase: "downloading",
+      action: "watch",
+    });
+    // A worker in any other state decides nothing.
+    expect(
+      updateStep("downloading", {
+        kind: "worker-state",
+        state: "activating",
+        hasController: true,
+      })
+    ).toEqual({ phase: "downloading", action: "none" });
+    // The downloading path reaches the same offer as the waiting path.
+    expect(
+      updateStep("downloading", {
+        kind: "worker-state",
+        state: "installed",
+        hasController: true,
+      })
+    ).toEqual({ phase: "installed-waiting", action: "offer" });
+    // ...unless there is no old shell to update from.
+    expect(
+      updateStep("downloading", {
+        kind: "worker-state",
+        state: "installed",
+        hasController: false,
+      })
+    ).toEqual({ phase: "first-install", action: "none" });
+    // Only a yes from the installed-and-waiting phase reloads.
+    expect(
+      updateStep("installed-waiting", { kind: "answered", confirmed: true })
+    ).toEqual({ phase: "updating", action: "apply" });
+    expect(
+      updateStep("installed-waiting", { kind: "answered", confirmed: false })
+    ).toEqual({ phase: "installed-waiting", action: "none" });
+    // An answer outside the offer phase cannot reload.
+    expect(
+      updateStep("downloading", { kind: "answered", confirmed: true })
+    ).toEqual({ phase: "downloading", action: "none" });
   });
 });

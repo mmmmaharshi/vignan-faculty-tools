@@ -37,6 +37,7 @@
     "web/home/today-phase.ts",
     "web/home/postings-phase.ts",
     "web/data/sw-update.ts",
+    "web/data/update-lifecycle.ts",
     "server/session-verdict.ts",
     "playwright.config.ts",
     "vite.config.ts"
