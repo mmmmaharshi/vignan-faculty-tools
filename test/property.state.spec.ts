@@ -44,6 +44,8 @@ import { DASHBOARD_PATH, HOME_PATH, LOGIN_PATH } from "../web/app/paths";
 import { nextRoute } from "../web/app/route-guard";
 import { bootStep, isBooted, isSignedIn } from "../web/app/session-view";
 import { createEpoch } from "../web/data/session-epoch";
+import { FIRST_PHASE, updateStep } from "../web/data/update-lifecycle";
+import type { UpdateEvent, UpdatePhase } from "../web/data/update-lifecycle";
 
 /**
  * Properties over the app's own state, not examples of it.
@@ -537,6 +539,47 @@ test.describe("the backlog cursor has two states", () => {
         return step.kind === "stop" && step.total === count;
       }),
       { numRuns: 100 }
+    );
+  });
+});
+
+test.describe("the installed update reaches one offer", () => {
+  test("no old controller means no offer and no apply, whatever arrives", () => {
+    const silent = oneof(
+      constant<UpdateEvent>({
+        kind: "boot",
+        hasController: false,
+        hasWaiting: true,
+      }),
+      constant<UpdateEvent>({
+        kind: "boot",
+        hasController: false,
+        hasWaiting: false,
+      }),
+      constant<UpdateEvent>({ kind: "updatefound" }),
+      constant<UpdateEvent>({
+        kind: "worker-state",
+        state: "installed",
+        hasController: false,
+      }),
+      constant<UpdateEvent>({
+        kind: "worker-state",
+        state: "activating",
+        hasController: false,
+      }),
+      constant<UpdateEvent>({ kind: "answered", confirmed: true })
+    );
+    assert(
+      property(array(silent, { maxLength: 12 }), (events) => {
+        let phase: UpdatePhase = FIRST_PHASE;
+        for (const event of events) {
+          const { phase: next, action } = updateStep(phase, event);
+          phase = next;
+          if (action === "offer" || action === "apply") return false;
+        }
+        return true;
+      }),
+      { numRuns: 300 }
     );
   });
 });

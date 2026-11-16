@@ -1,13 +1,10 @@
+import { FIRST_PHASE, updateStep } from "./update-lifecycle";
+import type { UpdateEvent, UpdatePhase } from "./update-lifecycle";
+
 /**
- * Offers an installed service worker update through the native confirm
- * dialog, and reloads onto it when the user says yes. Plain `window.confirm`
- * on purpose: the app is Mantine-only with no custom dialog chrome, and an
- * update prompt is one blocking question, not a screen.
- *
- * The worker itself already `skipWaiting` at install (see web/public/sw.js),
- * so by the time `installed` fires the new shell is active — the reload is
- * what puts the running page onto it. No controller means a first install,
- * which offers nothing.
+ * Wires the browser's update events through the lifecycle decision. The native
+ * confirm stays here on purpose: the app is Mantine-only with no custom dialog
+ * chrome, and an update prompt is one blocking question, not a screen.
  */
 export type UpdateWorker = {
   readonly state: string;
@@ -28,19 +25,34 @@ export function watchForUpdates(
     applyUpdate: () => void;
   }
 ): void {
-  const offerIfInstalled = (worker: UpdateWorker): void => {
-    worker.addEventListener("statechange", () => {
-      if (worker.state !== "installed" || !hooks.hasController()) return;
-      if (hooks.confirmUpdate()) hooks.applyUpdate();
-    });
+  let phase: UpdatePhase = FIRST_PHASE;
+
+  const run = (event: UpdateEvent, worker?: UpdateWorker | null): void => {
+    const { phase: next, action } = updateStep(phase, event);
+    phase = next;
+    if (action === "listen") {
+      registration.addEventListener("updatefound", () => {
+        run({ kind: "updatefound" }, registration.installing);
+      });
+    } else if (action === "watch" && worker) {
+      worker.addEventListener("statechange", () => {
+        run({
+          kind: "worker-state",
+          state: worker.state,
+          hasController: hooks.hasController(),
+        });
+      });
+    } else if (action === "offer") {
+      run({ kind: "answered", confirmed: hooks.confirmUpdate() });
+    } else if (action === "apply") {
+      hooks.applyUpdate();
+    }
+    // "none" has nothing to do.
   };
-  // An update that finished downloading while the page was already open.
-  if (registration.waiting && hooks.hasController()) {
-    if (hooks.confirmUpdate()) hooks.applyUpdate();
-    return;
-  }
-  registration.addEventListener("updatefound", () => {
-    const worker = registration.installing;
-    if (worker) offerIfInstalled(worker);
+
+  run({
+    kind: "boot",
+    hasController: hooks.hasController(),
+    hasWaiting: registration.waiting != null,
   });
 }
