@@ -1,11 +1,28 @@
 import { test, expect } from "@playwright/test";
 
+import {
+  absenceResult,
+  advance,
+  endAtCap,
+  walking,
+} from "../server/absence-walk";
+import type { AbsenceStep } from "../server/absence-walk";
+import { backlogStep, startCursor } from "../server/backlog-cursor";
+import { classResolution, unstatedReason } from "../server/class-resolution";
+import type { ClassSemester } from "../server/class-resolution";
+import { endScan, scanStep, startScan } from "../server/find-scan";
 import { HttpError } from "../server/http-error";
+import {
+  livenessGuard,
+  markTouched,
+  untouched,
+} from "../server/liveness-guard";
 import { sessionVerdict } from "../server/session-verdict";
 import type {
   DayWorkCell,
   DayWorkSection,
   FindReply,
+  Option,
   Student,
   TodayClass,
 } from "../shared/api";
@@ -467,6 +484,224 @@ test.describe("explicit state machines", () => {
     expect(SLOT_STATUS_LABEL[slotStatus(workCell(false))]).toBe(
       "Not posted yet"
     );
+  });
+  test("absence walk: a request that will not parse states nothing", () => {
+    expect(absenceResult({ kind: "unparseable" }, "31/10/2026")).toEqual({
+      absent: null,
+      range: null,
+      note: "",
+    });
+  });
+  test("absence walk: a refusal keeps what the walk read and says so", () => {
+    const read: AbsenceStep = {
+      kind: "read",
+      start: "02/09/2026",
+      days: ["03/09", "04/09"],
+    };
+    const refused = advance(advance(walking, read), { kind: "refused" });
+    expect(absenceResult(refused, "31/10/2026")).toEqual({
+      absent: ["03/09", "04/09"],
+      range: { from: "02/09/2026", to: "31/10/2026" },
+      note: "ECAP would not give every month's absent days, so the full-semester list below may be incomplete.",
+    });
+  });
+  test("absence walk: a refusal before any month has no list", () => {
+    expect(
+      absenceResult(advance(walking, { kind: "refused" }), "31/10/2026")
+    ).toEqual({
+      absent: null,
+      range: null,
+      note: "ECAP would not give every month's absent days, so the full-semester list below may be incomplete.",
+    });
+  });
+  test("absence walk: a dateless month stops early without a warning", () => {
+    const read: AbsenceStep = {
+      kind: "read",
+      start: "02/09/2026",
+      days: ["03/09"],
+    };
+    const stopped = advance(advance(walking, read), { kind: "dateless" });
+    expect(absenceResult(stopped, "31/10/2026")).toEqual({
+      absent: ["03/09"],
+      range: { from: "02/09/2026", to: "31/10/2026" },
+      note: "",
+    });
+  });
+  test("absence walk: reaching the cap is a warning, not a refusal", () => {
+    const read: AbsenceStep = {
+      kind: "read",
+      start: "01/07/2026",
+      days: ["05/07"],
+    };
+    expect(
+      absenceResult(endAtCap(advance(walking, read)), "31/10/2026")
+    ).toEqual({
+      absent: ["05/07"],
+      range: { from: "01/07/2026", to: "31/10/2026" },
+      note: "ECAP kept stating meeting days twelve months back, so the semester may have started earlier than shown.",
+    });
+  });
+  test("absence walk: months collect oldest first and the range opens at the oldest", () => {
+    let walk = advance(walking, {
+      kind: "read",
+      start: "02/09/2026",
+      days: ["03/09"],
+    } satisfies AbsenceStep);
+    walk = advance(walk, {
+      kind: "read",
+      start: "01/08/2026",
+      days: ["02/08"],
+    } satisfies AbsenceStep);
+    const answer = absenceResult(endAtCap(walk), "30/09/2026");
+    expect(answer.absent).toEqual(["02/08", "03/09"]);
+    expect(answer.range).toEqual({ from: "01/08/2026", to: "30/09/2026" });
+  });
+  test("section scan: finding the roll ends the scan with its section", () => {
+    const s1: Option = { value: "A", label: "A", title: "" };
+    const s2: Option = { value: "B", label: "B", title: "" };
+    let scan = scanStep(startScan<Student>(), {
+      kind: "answered",
+      section: s1,
+      row: null,
+    });
+    scan = scanStep(scan, {
+      kind: "answered",
+      section: s2,
+      row: student("21CS001"),
+    });
+    expect(endScan(scan)).toEqual({
+      kind: "found",
+      section: s2,
+      row: student("21CS001"),
+    });
+  });
+  test("section scan: no section answering and no refusal is unanswered", () => {
+    expect(endScan(startScan())).toEqual({ kind: "unanswered" });
+  });
+  test("section scan: an answered section without the roll is a no-row", () => {
+    const scan = scanStep(startScan<Student>(), {
+      kind: "answered",
+      section: { value: "A", label: "A", title: "" },
+      row: null,
+    });
+    expect(endScan(scan)).toEqual({ kind: "no-row" });
+  });
+  test("section scan: only a scan with no answer at all can be refused", () => {
+    const error = new HttpError(502, "bad shape");
+    expect(
+      endScan(scanStep(startScan<Student>(), { kind: "refused", error }))
+    ).toEqual({ kind: "refused", error });
+    const answered = scanStep(startScan<Student>(), {
+      kind: "answered",
+      section: { value: "A", label: "A", title: "" },
+      row: null,
+    });
+    expect(endScan(scanStep(answered, { kind: "refused", error }))).toEqual({
+      kind: "no-row",
+    });
+  });
+  test("section scan: the first refusal is the one reported", () => {
+    const first = new HttpError(502, "first");
+    const second = new HttpError(502, "second");
+    let scan = scanStep(startScan<Student>(), {
+      kind: "refused",
+      error: first,
+    });
+    scan = scanStep(scan, { kind: "refused", error: second });
+    expect(endScan(scan)).toEqual({ kind: "refused", error: first });
+  });
+  test("class resolution: a stated semester is not marked inferred", () => {
+    const course: Option = { value: "1", label: "B.Tech", title: "" };
+    const branch: Option = { value: "2", label: "IT", title: "" };
+    const semester: ClassSemester = {
+      kind: "stated",
+      option: { value: "3", label: "III Semester", title: "2025" },
+    };
+    const sections: Option[] = [{ value: "A", label: "A", title: "" }];
+    expect(
+      classResolution({
+        course,
+        branch,
+        semester,
+        sections,
+        noSectionsReason: "none",
+      })
+    ).toEqual({
+      kind: "resolved",
+      value: {
+        levels: { course, branch, semester: semester.option },
+        sections,
+        label: "B.Tech · III Semester · IT",
+        semesterInferred: false,
+      },
+    });
+  });
+  test("class resolution: the inferred flag comes from the inferred branch", () => {
+    const semester: ClassSemester = {
+      kind: "inferred",
+      option: { value: "3", label: "III Semester", title: "2025" },
+    };
+    const resolved = classResolution({
+      course: { value: "1", label: "B.Tech", title: "" },
+      branch: { value: "2", label: "IT", title: "" },
+      semester,
+      sections: [{ value: "A", label: "A", title: "" }],
+      noSectionsReason: "none",
+    });
+    expect(
+      resolved.kind === "resolved" && resolved.value.semesterInferred
+    ).toBe(true);
+  });
+  test("class resolution: no sections is an unstated outcome with the reason", () => {
+    expect(
+      classResolution({
+        course: { value: "1", label: "B.Tech", title: "" },
+        branch: { value: "2", label: "IT", title: "" },
+        semester: {
+          kind: "stated",
+          option: { value: "3", label: "III Semester", title: "2025" },
+        },
+        sections: [],
+        noSectionsReason: "no sections offered",
+      })
+    ).toEqual({ kind: "unstated", reason: "no sections offered" });
+  });
+  test("class resolution: the reason names what the page did or did not state", () => {
+    expect(unstatedReason("course", "B.Tech")).toContain('"B.Tech"');
+    expect(unstatedReason("course", "")).toContain("does not state a course");
+  });
+  test("liveness guard: only a call that touched ECAP may answer unprobed", () => {
+    expect(livenessGuard(untouched)).toEqual({ kind: "probe" });
+    expect(livenessGuard(markTouched())).toEqual({ kind: "answer" });
+  });
+  test("liveness guard: once touched, further reads keep it touched", () => {
+    let touch = markTouched();
+    touch = markTouched();
+    expect(livenessGuard(touch)).toEqual({ kind: "answer" });
+  });
+  test("backlog cursor: a semester header opens its subject row", () => {
+    expect(backlogStep(startCursor, "I Semester")).toEqual({
+      kind: "open-row",
+      cursor: { kind: "awaiting-subjects" },
+    });
+  });
+  test("backlog cursor: a subject cell fills only the open row", () => {
+    const open = backlogStep(startCursor, "II Semester").cursor;
+    expect(backlogStep(open, "MA101")).toEqual({
+      kind: "fill-subjects",
+      cursor: { kind: "awaiting-semester" },
+    });
+    expect(backlogStep(startCursor, "MA101")).toEqual({
+      kind: "ignore",
+      cursor: startCursor,
+    });
+  });
+  test("backlog cursor: the page's total ends the table with its count", () => {
+    expect(backlogStep(startCursor, "Total backlogs: 3")).toEqual({
+      kind: "stop",
+      total: 3,
+      cursor: startCursor,
+    });
   });
   test("installed update: both paths reach one offer, and only a yes reloads", () => {
     // A shell that finished while the page was open: offered at once.
