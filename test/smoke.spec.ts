@@ -294,7 +294,8 @@ test.describe("Vignan Faculty Tools", () => {
       timeout: 30_000,
     });
     // A reload starts from an empty dashboard: the picker is re-read and
-    // settled again, but no register is restored and none is fetched.
+    // settled again, but the register is not put back. The no-second-fetch
+    // half is pinned by the stubbed spec, which counts the requests.
     await expect(
       page.getByRole("row", { name: `Subject ${subject}` }),
       "the register is not put back by a reload"

@@ -918,7 +918,9 @@ test.describe("the backlog cursor has two states", () => {
         let opened = false;
         for (const text of cells) {
           const wasAwaiting = cursor.kind === "awaiting-subjects";
-          const { cursor: next, kind } = backlogStep(cursor, text);
+          const step = backlogStep(cursor, text);
+          if (step.kind === "stop") return step.total >= 0;
+          const { cursor: next, kind } = step;
           if (kind === "open-row") opened = true;
           if (kind === "fill-subjects") {
             if (!wasAwaiting || !opened) return false;

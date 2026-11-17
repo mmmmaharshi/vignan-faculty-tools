@@ -523,8 +523,9 @@ carries one also has its name in text.
   refuses with a 502 leaves that row a dash while the rest of the table stands,
   and a 401 from any month still signs out. No open register or no known start
   means no table, and a roll is matched the one way `sameRoll` matches it, so a
-  casing difference cannot blank the whole table. The months share a 15-second
-  budget, so a slow one is a blank row rather than a panel that never answers.
+  casing difference cannot blank the whole table. Each month's report is bounded
+  by the Portal's 12-second call timeout, so a slow one is a blank row rather
+  than a panel that never answers; the rows go out together, not one budget each.
   The Student Search screen reads
   the same table through `handleFind`, which knows its section and start by then,
   so the two panels never disagree. ADR 0029 records the cost: this is the
@@ -869,7 +870,8 @@ fill is a rule bug, two requests racing is a loop bug.
   on screen, which settles the same way a fresh run does; the button shows
   only while an options error sits, and a run that then starts clears it.
   There is deliberately no blind server-side retry of a judged refusal — the
-  single portal timeout is already 60s against a serverless budget. What
+  single Portal call is 12s, and one revival spends four of those inside the
+  60s serverless budget. What
   retries is the cascade loop itself: one stumble per pass is asked again
   before the run fails, because one failed call used to fail all five passes
   behind it. A judged 4xx is answered, never re-asked — the 401 still reaches

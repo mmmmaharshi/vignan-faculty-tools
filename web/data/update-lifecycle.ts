@@ -63,6 +63,10 @@ export function updateStep(phase: UpdatePhase, event: UpdateEvent): UpdateStep {
     return { phase: "downloading", action: "watch" };
   }
   if (event.kind === "worker-state") {
+    // Only the worker this visit is watching may make an offer. A state change
+    // after the offer was made or the update was accepted cannot ask a second
+    // time — one question, one answer.
+    if (phase !== "downloading") return { phase, action: "none" };
     if (event.state !== "installed") return { phase, action: "none" };
     return event.hasController
       ? { phase: "installed-waiting", action: "offer" }

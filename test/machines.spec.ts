@@ -711,7 +711,11 @@ test.describe("explicit state machines", () => {
     });
   });
   test("backlog cursor: a subject cell fills only the open row", () => {
-    const open = backlogStep(startCursor, "II Semester").cursor;
+    const open = { kind: "awaiting-subjects" } as const;
+    expect(backlogStep(startCursor, "II Semester")).toEqual({
+      kind: "open-row",
+      cursor: open,
+    });
     expect(backlogStep(open, "MA101")).toEqual({
       kind: "fill-subjects",
       cursor: { kind: "awaiting-semester" },
@@ -725,7 +729,6 @@ test.describe("explicit state machines", () => {
     expect(backlogStep(startCursor, "Total backlogs: 3")).toEqual({
       kind: "stop",
       total: 3,
-      cursor: startCursor,
     });
   });
   test("installed update: both paths reach one offer, and only a yes reloads", () => {
@@ -767,6 +770,22 @@ test.describe("explicit state machines", () => {
         hasController: true,
       })
     ).toEqual({ phase: "downloading", action: "none" });
+    // A worker reporting in after the offer stands, or after a yes, must not
+    // ask a second question: only the worker being watched may offer.
+    expect(
+      updateStep("installed-waiting", {
+        kind: "worker-state",
+        state: "installed",
+        hasController: true,
+      })
+    ).toEqual({ phase: "installed-waiting", action: "none" });
+    expect(
+      updateStep("updating", {
+        kind: "worker-state",
+        state: "installed",
+        hasController: true,
+      })
+    ).toEqual({ phase: "updating", action: "none" });
     // The downloading path reaches the same offer as the waiting path.
     expect(
       updateStep("downloading", {

@@ -189,8 +189,8 @@ export const reloadSession = (): Promise<SessionReply | undefined> =>
   mutate<SessionReply>([SESSION_PATH, epoch.current()]);
 /** One click on `Load register`: the request, and which click it was. */
 export type RegisterClick = { request: RegisterRequest; attempt: number };
-/** The cache key one click answers to. Exported so a register the browser kept
- *  from before a reload can be put back under the key the hook will look for. */
+/** The cache key one click answers to: its request, its number and the
+ *  generation it was asked in. */
 const registerKey = (
   click: RegisterClick
 ): [string, RegisterRequest, number, number] => [

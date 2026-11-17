@@ -45,8 +45,9 @@ and carries no parameters.**
 - `App.tsx` loses `useSearchParams`, the seed it read the selection from, the
   effect that wrote it back, the `wantedSubject` ref and its replay, and the tail
   of the refresh loop that opened a register on arrival.
-- `sel` starts as `EMPTY_SEL` and `range` as `defaultRange()`, unless a view of
-  this session was kept across a reload (ADR 0031).
+- `sel` starts as `EMPTY_SEL` and `range` as `defaultRange()`. ADR 0031 briefly
+  seeded them from a stored view; ADR 0032 removed that, so every load starts
+  from these values.
 - ADR 0010 and ADR 0011 are deleted rather than marked superseded, so a reader
   cannot find them and follow them.
 
@@ -54,17 +55,17 @@ and carries no parameters.**
 
 1. **A register cannot be shared or bookmarked.** There is no link to send a
    colleague and no address to come back to.
-2. **A refresh starts over — superseded by ADR 0031.** The cascade refilled from
-   the top and the subject was empty, with nothing on screen to say why; ADR 0031
-   keeps the view in the browser and puts it back on load, which is why `sel` can
-   now start from something other than `EMPTY_SEL`. What survives from this
-   decision is that the restore is the *browser's* memory, not the URL's: a link
-   to `/dashboard` from elsewhere still opens on the form.
+2. **A refresh starts over — briefly reversed by ADR 0031, restored by ADR
+   0032.** The cascade refills from the top and the subject is empty, with
+   nothing on screen to say why. ADR 0031 briefly kept the view in the browser;
+   ADR 0032 removed that, so `sel` starts as `EMPTY_SEL` again. What survived
+   both decisions is that the selection never travels in the URL: a link to
+   `/dashboard` from elsewhere opens on the form.
 3. **The subject is chosen by a person and never restored from the URL.**
    `applyOptions` still clears it on every pass, and nothing puts it back from the
    address bar. `Load register` is still the only way a register is ever
    *fetched*, so it is a decision every time — which is the property the smoke
-   test pins, and a reload restores a reply rather than asking for one.
+   test pins; a reload neither fetches nor restores one (ADR 0032).
 
 ## What this gains
 
@@ -87,8 +88,8 @@ and carries no parameters.**
 - **The main smoke test asserts an absence.** The query string must be empty
   after loading a register, so the feature cannot be reintroduced by accident —
   the same job the old assertions did in the other direction. It used to assert
-  that a reload left the subject blank; ADR 0031 changed that, and it now asserts
-  the opposite: the reload names the class that was loaded.
+  that a reload left the subject blank; ADR 0031 briefly changed that, and ADR
+  0032 restored the blank-on-reload rule.
 - **ADR 0009 is untouched.** The URL still names the screen, which was its whole
   subject. Dropping parameters from a route is not a reversal of it.
 

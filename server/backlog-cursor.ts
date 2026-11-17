@@ -15,7 +15,7 @@ export type BacklogCursor =
 export const startCursor: BacklogCursor = { kind: "awaiting-semester" };
 
 export type BacklogTransition =
-  | { kind: "stop"; total: number; cursor: BacklogCursor }
+  | { kind: "stop"; total: number }
   | { kind: "open-row"; cursor: BacklogCursor }
   | { kind: "fill-subjects"; cursor: BacklogCursor }
   | { kind: "ignore"; cursor: BacklogCursor };
@@ -27,7 +27,7 @@ export function backlogStep(
 ): BacklogTransition {
   const total = BACKLOG_TOTAL.exec(text);
   if (total) {
-    return { kind: "stop", total: Number(total.groups?.count), cursor };
+    return { kind: "stop", total: Number(total.groups?.count) };
   }
   if (BACKLOG_SEMESTER.test(text)) {
     return { kind: "open-row", cursor: { kind: "awaiting-subjects" } };

@@ -34,7 +34,7 @@ export type DashboardView = {
  */
 export function useDashboardView(): DashboardView {
   const [sel, setSel] = useState<Sel>(EMPTY_SEL);
-  const [range, setRange] = useState<Range>(startingRange());
+  const [range, setRange] = useState<Range>(() => startingRange());
   const [filter, setFilter] = useState<RowFilter>(NO_FILTER);
   const [rangeEdited, setRangeEdited] = useState<RangeEdited>("");
   const [click, setClick] = useState<RegisterClick | null>(null);

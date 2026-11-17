@@ -227,14 +227,6 @@ export async function readTotals(
   }
 }
 /**
- * How long one month may take before the table answers without its figure. The
- * rest of the panel has already arrived by then, and a month still in flight is
- * the blank row a refused month already earns — not a reason to hold the GPA and
- * the phone numbers back, and not a reason to run the function into its own
- * timeout.
- */
-const MONTHS_BUDGET_MS = 15_000;
-/**
  * One student's cumulative attendance month by month, from the semester's first
  * month through the current one: each row is the class report over
  * [semester start → that month's end], so the figure a monthly counselling
@@ -277,14 +269,7 @@ export async function readMonths(
       return month;
     }
   };
-  // Each row carries its own deadline, so a slow report blanks that row and not
-  // the table: the rows are already in flight together, so the panel still
-  // answers inside one budget rather than one per row.
-  const months = await Promise.all(
-    windows.map(
-      async (month) => (await within(rowOf(month), MONTHS_BUDGET_MS)) ?? month
-    )
-  );
+  const months = await Promise.all(windows.map(rowOf));
   return { months };
 }
 /**
