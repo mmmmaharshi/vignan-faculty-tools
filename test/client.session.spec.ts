@@ -168,6 +168,33 @@ test.describe("the app's own data layer", () => {
     ).toHaveValue("");
   });
 
+  test("a late options 401 cannot overwrite a deliberate sign-out", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    const before = state.optionsCalls;
+    hold("options");
+    await page.getByRole("button", { name: "Refresh" }).click();
+    await expect
+      .poll(() => state.optionsCalls, { timeout: 15_000 })
+      .toBe(before + 1);
+    await page.getByRole("button", { name: "Sign out" }).click();
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+    // The cascade run was asked under the session that is now gone. Its key
+    // carries that generation, so the refusal lands on a hook no screen reads.
+    await release("options", async (held) => {
+      await held.route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Your session has expired." }),
+      });
+    });
+    await page.waitForTimeout(500);
+    await expect(page.getByRole("alert")).toHaveCount(0);
+  });
+
   test("a signed-in visit to the sign-in path is sent back to the app", async ({
     page,
   }) => {

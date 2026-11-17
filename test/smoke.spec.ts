@@ -293,15 +293,13 @@ test.describe("Vignan Faculty Tools", () => {
     ).toBeVisible({
       timeout: 30_000,
     });
-    // A reload restores what the page was showing: the class the form named and
-    // the rows it read, with no Portal call to read them again (ADR 0031).
-    await expect
-      .poll(() => selectState(page, "Subject"), { timeout: 90_000 })
-      .toMatchObject({ value: subject });
+    // A reload starts from an empty dashboard: the picker is re-read and
+    // settled again, but the register is not put back. The no-second-fetch
+    // half is pinned by the stubbed spec, which counts the requests.
     await expect(
       page.getByRole("row", { name: `Subject ${subject}` }),
-      "the register is still the one that was loaded"
-    ).toBeVisible();
+      "the register is not put back by a reload"
+    ).toHaveCount(0);
     expect(
       new URL(page.url()).pathname,
       "reload should stay on the dashboard"

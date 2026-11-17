@@ -548,4 +548,42 @@ test.describe("the app's own data layer", () => {
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
   });
+
+  test("opening the same saved section twice reads the options once", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.evaluate(() => localStorage.removeItem("section-faculty"));
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(
+      page.getByRole("button", { name: "Open" }).first(),
+      "the card is saved once the register loads"
+    ).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole("button", { name: "Open" }).first().click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    const callsAfterFirstOpen = state.optionsCalls;
+    expect(
+      callsAfterFirstOpen,
+      "the first open asked the chain"
+    ).toBeGreaterThan(0);
+
+    await page.getByRole("button", { name: "Open" }).first().click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    expect(
+      state.optionsCalls,
+      "a second open settles from the cache, with no Portal call"
+    ).toBe(callsAfterFirstOpen);
+  });
 });

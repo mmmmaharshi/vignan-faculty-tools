@@ -15,6 +15,8 @@ import { statedStartDate, matchOption } from "../shared/portal-values.js";
 import type { OverallLookup } from "./attendance-bands.js";
 import { summarise } from "./attendance-bands.js";
 import { HttpError, rethrowExpired } from "./http-error.js";
+import { livenessGuard, markTouched, untouched } from "./liveness-guard.js";
+import type { OptionsTouch } from "./liveness-guard.js";
 import {
   MONTH_WALK_CAP,
   monthStart,
@@ -62,15 +64,20 @@ export async function handleOptions(
   // Whether ECAP was asked anything this call. A request holding every list
   // still proves the session the way any other call does: a dead session
   // refuses even with nothing left to fetch.
-  let fetched = false;
+  let touch: OptionsTouch = untouched;
   /** A held list reused as stated, or the Portal asked once. Marks which. */
-  const reuse = (
+  const reuse = async (
     list: Option[] | null,
     fetch: () => Promise<Option[]>
   ): Promise<Option[]> => {
-    if (list) return Promise.resolve(list);
-    fetched = true;
-    return fetch();
+    if (list) return list;
+    touch = markTouched();
+    const fetched = await fetch();
+    // The jQuery convention answers 200 with only a placeholder when the
+    // session is gone. An empty fetched list proves nothing, so the final
+    // guard still has to ask the course list.
+    if (!realOptions(fetched).length) touch = untouched;
+    return fetched;
   };
   take("course", await reuse(held("course"), () => requireCourses(portal)));
   if (b.course) {
@@ -83,8 +90,10 @@ export async function handleOptions(
     if (heldBranch && heldSemester) {
       [branches, semesters] = [heldBranch, heldSemester];
     } else {
-      fetched = true;
+      touch = markTouched();
       [branches, semesters] = await portal.branchesAndSemesters(b.course);
+      if (!realOptions(branches).length || !realOptions(semesters).length)
+        touch = untouched;
     }
     take("branch", branches);
     take("semester", semesters);
@@ -129,7 +138,7 @@ export async function handleOptions(
     // must stay empty, or the cascade would think it had nothing left to fetch.
     if (out.subject.length) out.subject = [ALL_SUBJECTS, ...out.subject];
   }
-  if (!fetched) {
+  if (livenessGuard(touch).kind === "probe") {
     // Every list travelled, so ECAP was asked nothing — but the call still
     // proves the session the way any other call does. A dead session refuses
     // even here, instead of answering 200 on a session that is gone.

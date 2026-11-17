@@ -47,6 +47,7 @@ import {
 } from "../register/cascade";
 import type { Level, Sel } from "../register/cascade";
 import { partialOf } from "../register/cascade-run";
+import { createCascadeRun } from "../register/cascade-run-state";
 import { useDashboardView } from "../register/dashboard-view";
 import { useOptionsChain } from "../register/options-chain";
 import {
@@ -57,10 +58,9 @@ import {
   toPortalDate,
   toInputDate,
 } from "../register/range";
-import { forgetRegisterMemory } from "../register/register-memory";
 import { savedSections } from "../register/saved-sections";
 import type { SavedSection } from "../register/saved-sections";
-import { searchScope } from "../register/search-scope";
+import { searchResult } from "../register/search-result";
 import { useSemStartSettle } from "../register/sem-start-settle";
 import { useSavedSections } from "../register/use-saved-sections";
 import {
@@ -80,6 +80,7 @@ import { SignInPanel } from "../ui/SignInPanel";
 import { StudentDetails } from "../ui/StudentDetails";
 import { UnpostedPanel } from "../ui/UnpostedPanel";
 import { loadGate, loadNote as gateNote } from "./load-gate";
+import { createLoadSnap } from "./load-snap";
 import {
   CLOSED_PANEL,
   closePanel,
@@ -98,7 +99,9 @@ import {
   SEARCH_PATH,
 } from "./paths";
 import { nextRoute } from "./route-guard";
-import { bootNote, bootStep, isBooted, isSignedIn } from "./session-view";
+import { endNote, keepsCredential } from "./session-end";
+import type { SessionEnd } from "./session-end";
+import { bootStep, isBooted, isSignedIn } from "./session-view";
 import type { SessionView } from "./session-view";
 import type { Note } from "./types";
 
@@ -130,10 +133,8 @@ const App = (): React.JSX.Element => {
    *  that failed says so on its own, from the hook that failed. */
   const [formNote, setFormNote] = useState<Note | null>(null);
   /** The dashboard's view of itself — the class, the window, the ticked bars and
-   *  the click whose reply the table shows — and the one thing that spans a
-   *  reload, which is all of them. See `dashboard-view.ts` (ADR 0031). */
+   *  the click whose reply the table shows. Every load starts it empty. */
   const {
-    initialSel,
     sel,
     setSel,
     range,
@@ -165,12 +166,12 @@ const App = (): React.JSX.Element => {
     userId: string;
     list: SavedSection[];
   } | null>(null);
-  /** The cascade run in flight, as the flag that says the screen has stopped
-   *  wanting it: a newer change aborts the one before. */
-  const cascadeRun = useRef<AbortController | null>(null);
-  /** Set true when a register load is initiated, consumed by the snap effect so
-   *  a manual range edit cannot be overridden by a stale register. */
-  const justLoaded = useRef(false);
+  /** The cascade run's one owner: which run holds the screen, which has been
+   *  superseded, and which failed keeping what it settled. */
+  const cascadeRun = useRef(createCascadeRun());
+  /** The one-shot snap: a real load arms it, a typed range disarms it, and the
+   *  settle effect consumes it once. One owner, so the two cannot race. */
+  const loadSnap = useRef(createLoadSnap());
   /* The two callbacks are stable and the state is not, so they are taken apart:
      a callback in a dependency list that changes every render would re-run every
      effect that names it. */
@@ -198,7 +199,11 @@ const App = (): React.JSX.Element => {
   const [searchRoll, setSearchRoll] = useState("");
   const [searchClick, setSearchClick] = useState<FindClick | null>(null);
   const search = useStudentSearch(searchClick);
-  const found = search.data ?? null;
+  const found = searchResult(
+    search.error,
+    search.data ?? null,
+    search.isLoading
+  );
   /** A request the user is waiting on is already proving the session works, and
    *  the read that would probe it is one more thing competing with it. */
   const busy =
@@ -338,9 +343,7 @@ const App = (): React.JSX.Element => {
   /** Student Search's own sentence: what the server refused, or why there is no
    *  class or no row for that roll. A 401 has already ended the session through
    *  the sweep above, so it says nothing here. */
-  const searchNote: Note | null =
-    refusalNote(search.error) ??
-    (found?.note ? { kind: "warning", text: found.note } : null);
+  const searchNote: Note | null = found.note;
   /** Home's own sentence: what the server refused. An empty day is not this —
    *  it is the skeleton table with blank classes. */
   const todayNote: Note | null = refusalNote(today.error);
@@ -351,7 +354,7 @@ const App = (): React.JSX.Element => {
   /** The class and window a searched figure belongs to, named on the panel: a
    *  percentage with no period under it invites being read as a semester's. An
    *  inferred semester is marked as one, so a guess never prints as a fact. */
-  const scopeRows = searchScope(found);
+  const scopeRows = found.scope;
   /** The name arriving is also the moment the saved sections become readable, so
    *  both are set together: a restore never went through the sign-in form. The
    *  stored values are not applied to the cascade here — filling the form is the
@@ -372,15 +375,13 @@ const App = (): React.JSX.Element => {
    * not open the previous one's roster.
    */
   const forgetSession = useCallback(() => {
-    cascadeRun.current?.abort();
+    cascadeRun.current.supersede();
     // The Portal's answers belong to the session that read them, so they leave
     // with it rather than waiting on the next person's screen. The cache sweep
     // is not enough on its own: a mutation's failure is the hook's own state,
     // so a 401 left there would sit in the next session's class picker.
     resetCascade();
     void forgetServerData();
-    // The dashboard memory holds the Portal's rows, so it goes with the rest.
-    forgetRegisterMemory();
     setClick(null);
     // A find ask left armed outlives the session: its key carries the epoch, so
     // signing out changes the key and the ask is re-sent for a session that no
@@ -399,15 +400,24 @@ const App = (): React.JSX.Element => {
     // them. What is in storage is theirs to find again on sign-in.
     setSaved(null);
   }, [resetCascade, setClick, setSel, setFilter]);
-  const signedOut = useCallback(
-    (why: string) => {
+  /** The one hand-over. Every path that ends the app's view of the session —
+   *  both boot ends, a 401, and the Sign-out button — goes through here, so
+   *  none can skip the sweep that clears the previous faculty member's view.
+   *  The reason alone decides the note and whether the stored credential stays. */
+  const endSession = useCallback(
+    (reason: SessionEnd) => {
       forgetSession();
       // The session is the browser's to drop: the server keeps nothing.
-      clearStoredSession();
+      if (!keepsCredential(reason)) clearStoredSession();
       setView("signedOut");
-      setLoginNote(why ? { kind: "warning", text: why } : null);
+      setLoginNote(endNote(reason));
       setFormNote(null);
-      navigate(LOGIN_PATH, { replace: true });
+      // A boot that ends on the sign-in path is already there; the guard says
+      // so, so this hand-over never navigates a second time from that path.
+      // The path is read here rather than closed over, so a navigation does
+      // not feed a stale route into the decision.
+      const target = nextRoute(window.location.pathname, "signedOut");
+      if (target) navigate(target, { replace: true });
     },
     [forgetSession, navigate]
   );
@@ -417,9 +427,7 @@ const App = (): React.JSX.Element => {
    *  about the selection before last. */
   const runRefresh = useCallback(
     async (seed: Sel, known: OptionsReply) => {
-      cascadeRun.current?.abort();
-      const run = new AbortController();
-      cascadeRun.current = run;
+      const signal = cascadeRun.current.start();
       // A new settle is a new class context: a range typed for the last one
       // no longer guards From against the settle-time snap.
       setRangeEdited("");
@@ -427,23 +435,23 @@ const App = (): React.JSX.Element => {
       const outcome = await triggerCascade({
         seed,
         known,
-        signal: run.signal,
+        signal,
       }).catch((error: unknown) => {
         // A run that failed after settling keeps what arrived on screen
         // beside the failure, so fetched courses are not discarded with the
         // failed pass. The error itself still reaches the alert and the
         // sign-out sweep unchanged.
-        const partial = partialOf(error);
-        if (partial && !run.signal.aborted) {
-          setSel(partial.sel);
-          setOpts(partial.opts);
+        const kept = cascadeRun.current.keepPartial(signal, partialOf(error));
+        if (kept) {
+          setSel(kept.sel);
+          setOpts(kept.opts);
         }
         return null;
       });
       // A run the screen stopped wanting answers null, and a run that was
       // superseded while it settled is dropped here: the newer one is the one on
       // screen.
-      if (!outcome || run.signal.aborted) return;
+      if (!outcome || !cascadeRun.current.finish(signal)) return;
       setSel(outcome.sel);
       setOpts(outcome.opts);
       // A new settle is a new class context for the ticked subject bars too:
@@ -517,7 +525,7 @@ const App = (): React.JSX.Element => {
     }
     // Armed only once the ask is real: a refused load that left it set would be
     // overridden by the previous register's first day on the next settle.
-    justLoaded.current = true;
+    loadSnap.current.arm();
     const request: RegisterRequest = {
       ...chosen.levels,
       from: toPortalDate(range.from),
@@ -578,7 +586,7 @@ const App = (): React.JSX.Element => {
   };
   const signOut = async () => {
     await logout.trigger(undefined).catch(() => null);
-    signedOut("");
+    endSession({ kind: "signed-out" });
   };
   /*
    * The three effects below are where the app's own view of the session meets
@@ -593,9 +601,9 @@ const App = (): React.JSX.Element => {
   useEffect(() => {
     if (!booted || !signedIn) return;
     if (session.data && !session.data.signedIn) {
-      signedOut("Your session expired. Please sign in again.");
+      endSession({ kind: "expired" });
     }
-  }, [booted, signedIn, session.data, signedOut]);
+  }, [booted, signedIn, session.data, endSession]);
   /**
    * The boot check: whether there is a session at all, and what it says.
    *
@@ -621,13 +629,8 @@ const App = (): React.JSX.Element => {
     }
     if (action.kind === "signOut") {
       // Both ends of the boot own the same hand-over: the rows on screen are
-      // the last person's either way. The stored credential stays, because a
-      // probe that never answered may still hold a working session, and
-      // clearing it would re-key the probe on every signed-out boot.
-      forgetSession();
-      setLoginNote(bootNote(action.end));
-      setView("signedOut");
-      if (!onLogin) navigate(LOGIN_PATH, { replace: true });
+      // the last person's either way. The reason keeps the stored credential.
+      endSession({ kind: "boot", end: action.end });
       return;
     }
     setView("signedIn");
@@ -638,7 +641,7 @@ const App = (): React.JSX.Element => {
     if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }
-    if (!onLogin) void runRefresh(initialSel, EMPTY_OPTS);
+    if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
   }, [
     booted,
     session.isLoading,
@@ -649,9 +652,7 @@ const App = (): React.JSX.Element => {
     navigate,
     runRefresh,
     noteUserId,
-    setLoginNote,
-    forgetSession,
-    initialSel,
+    endSession,
   ]);
   /** A 401 is ECAP refusing the session, from whichever request met it: the app
    *  signs out through the one path, so nothing goes on showing the numbers of a
@@ -659,17 +660,16 @@ const App = (): React.JSX.Element => {
    *  ADR 0002 and ADR 0013 both refuse to treat it as an expiry. */
   useEffect(() => {
     if (expired) {
-      signedOut("Your session expired. Please sign in again.");
+      endSession({ kind: "expired" });
     }
-  }, [expired, signedOut]);
+  }, [expired, endSession]);
   /** After a load, the From input names where the register itself starts: the
    *  Portal keeps nothing before the semester began, so the figures on screen
    *  begin there even when an older date was asked for, and the input should
    *  say the same thing the table does. The clicked request lives in the SWR
    *  key, so this state change cannot trigger a refetch. */
   useEffect(() => {
-    if (!justLoaded.current) return;
-    justLoaded.current = false;
+    if (!loadSnap.current.consume()) return;
     let stated = register.data?.summary.statedFrom ?? "";
     if (!stated && register.data?.summary.dates?.length) {
       stated = statedStartIso(register.data.summary.dates, range) ?? "";
@@ -718,7 +718,7 @@ const App = (): React.JSX.Element => {
     void runRefresh(next, opts);
   };
   const onRangeChange = (part: "from" | "to", value: string) => {
-    justLoaded.current = false;
+    loadSnap.current.disarm();
     setRangeEdited(part);
     setRange((r) => ({ ...r, [part]: value }));
   };
@@ -796,13 +796,11 @@ const App = (): React.JSX.Element => {
           <>
             <HomePanel
               classes={todayShown}
-              busy={today.isLoading}
               note={todayNote}
               date={todayIST()}
             />
             <UnpostedPanel
               sections={unposted.data?.sections ?? null}
-              busy={unposted.isLoading}
               note={unpostedNote}
               branch={unpostedBranch}
               onBranchChange={setUnpostedBranch}
@@ -847,16 +845,20 @@ const App = (): React.JSX.Element => {
                 </Button>
               </Group>
             </form>
-            <StudentDetails
-              student={found?.student ?? null}
-              inline
-              profile={found?.profile ?? null}
-              busy={search.isLoading}
-              note={searchNote}
-              scope={scopeRows}
-              fullAbsent={found?.fullAbsent ?? null}
-              fullTitle="Absent — full semester"
-            />
+            {/* Idle has no student, no note and no busy: nothing for the panel
+                to say until an ask has an answer. */}
+            {found.kind === "idle" ? null : (
+              <StudentDetails
+                student={found.student}
+                inline
+                profile={found.profile}
+                busy={search.isLoading}
+                note={searchNote}
+                scope={scopeRows}
+                fullAbsent={found.fullAbsent}
+                fullTitle="Absent — full semester"
+              />
+            )}
           </>
         );
       } else {

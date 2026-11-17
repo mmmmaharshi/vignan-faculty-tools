@@ -15,11 +15,11 @@ import type { Note } from "../app/types";
 import { capitalCase, isLive, pillsOf, splitSubject } from "../data/format";
 import { PERIOD_COUNT, usePeriodTimes } from "../home/period-times";
 import type { PeriodTimes } from "../home/period-times";
+import { todayPhase } from "../home/today-phase";
 
 export type HomePanelProps = {
   /** Today's periods in the grid's own order. Null while unread. */
   classes?: TodayClass[] | null;
-  busy?: boolean;
   /** A read that failed says so here. An empty day is not this — it is the
    *  skeleton below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
@@ -51,7 +51,7 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
 const hasClass = (entry: TodayClass): boolean =>
   Boolean(entry.subject || entry.section);
 const dayRows = (
-  classes: TodayClass[],
+  classes: readonly TodayClass[],
   known: PeriodTimes = {}
 ): TodayClass[] => {
   const rows: TodayClass[] = [];
@@ -89,7 +89,6 @@ const dayRows = (
 };
 export const HomePanel = ({
   classes,
-  busy,
   note,
   date,
 }: HomePanelProps): React.JSX.Element => {
@@ -101,6 +100,12 @@ export const HomePanel = ({
     return () => clearInterval(tick);
   }, []);
   const known = usePeriodTimes(classes);
+  // One phase names the surface: a loader while unread, the table for a
+  // cleared or a stated day, and neither for a refusal, whose alert stands.
+  const phase = todayPhase({
+    classes: classes ?? null,
+    note: note ?? null,
+  });
 
   return (
     <Stack gap="md">
@@ -110,7 +115,7 @@ export const HomePanel = ({
           {note.text}
         </Alert>
       ) : null}
-      {!classes && busy ? (
+      {phase.kind === "unread" ? (
         <Stack align="center" mt="xl" gap="sm">
           <Loader size="lg" />
           <Text c="dimmed" size="sm">
@@ -118,7 +123,7 @@ export const HomePanel = ({
           </Text>
         </Stack>
       ) : null}
-      {classes && !busy ? (
+      {phase.kind === "day" || phase.kind === "cleared" ? (
         <Table striped highlightOnHover withTableBorder withColumnBorders>
           <Table.Thead>
             <Table.Tr>
@@ -127,7 +132,7 @@ export const HomePanel = ({
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {dayRows(classes, known).map((entry, index) => (
+            {dayRows(phase.classes, known).map((entry, index) => (
               // The grid states no identifiers, so the order it gave is the key.
               // The live period carries the register's critical-row tint in
               // blue: it answers "where am I supposed to be" at a glance. A

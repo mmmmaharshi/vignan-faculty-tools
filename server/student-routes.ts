@@ -13,6 +13,8 @@ import type {
   StudentTotals,
 } from "../shared/api.js";
 import { sameRoll, todayIST } from "../shared/portal-values.js";
+import { absenceResult, advance, endAtCap, walking } from "./absence-walk.js";
+import type { AbsenceWalk } from "./absence-walk.js";
 import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";
 import {
   MONTH_WALK_CAP,
@@ -114,6 +116,25 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
   return out;
 }
 /**
+ * `work` if it finishes inside `ms`, else null. A deadline is a timer, and a
+ * timer is the only way to bound a wait; the promise raced here is left running,
+ * and `Promise.race` holds a handler for it, so a late refusal cannot surface
+ * as an unhandled rejection.
+ */
+function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  let timer!: ReturnType<typeof setTimeout>;
+  // oxlint-disable-next-line promise/avoid-new -- a deadline is a timer; there is no promise to await instead
+  const deadline = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+}
+/** One shared deadline for the whole walk, not one per month. The list already
+ *  read is worth keeping; a month still in flight is the partial answer a
+ *  refused month already gives, and the function must answer before its own
+ *  budget ends. */
+const ABSENCE_WALK_BUDGET_MS = 20_000;
+/**
  * One student's absent days over the whole semester: the section's Student
  * Wise grid walked back one month at a time from the asked window, unioned
  * oldest-first. Single-month windows are the only shape used — live runs show
@@ -129,7 +150,8 @@ export async function readFullSemesterAbsences(
   portal: PortalReader,
   roll: string,
   name: string,
-  p: Record<Level, Option> & { from: string; to: string }
+  p: Record<Level, Option> & { from: string; to: string },
+  budgetMs: number = ABSENCE_WALK_BUDGET_MS
 ): Promise<{
   absent: string[] | null;
   range: { from: string; to: string } | null;
@@ -138,43 +160,39 @@ export async function readFullSemesterAbsences(
   const [fd, fm, fy] = p.from.split("/").map(Number);
   const [td, tm, ty] = p.to.split("/").map(Number);
   if (!fd || !fm || !fy || !td || !tm || !ty || fm > 12 || tm > 12) {
-    return { absent: null, range: null, note: "" };
+    return absenceResult({ kind: "unparseable" }, p.to);
   }
-  const perMonth: string[][] = [];
-  let start: string | null = null;
-  let stoppedEarly = false;
+  let walk: AbsenceWalk = walking;
   let year = ty;
   let month = tm;
+  const deadline = Date.now() + budgetMs;
   for (let step = 0; step < MONTH_WALK_CAP; step++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0)
+      return absenceResult(advance(walk, { kind: "refused" }), p.to);
     const window = monthWindow(year, month);
-    let grid: string;
+    let grid: string | null;
     try {
-      grid = await portal.studentWise(roll, name, { ...p, ...window });
+      grid = await within(
+        portal.studentWise(roll, name, { ...p, ...window }),
+        remaining
+      );
     } catch (error) {
       rethrowExpired(error);
-      return {
-        absent: perMonth.length ? perMonth.flat() : null,
-        range: start ? { from: start, to: p.to } : null,
-        note: "ECAP would not give every month's absent days, so the full-semester list below may be incomplete.",
-      };
+      return absenceResult(advance(walk, { kind: "refused" }), p.to);
     }
-    const startOfMonth = monthStart(studentWiseDates(grid), year, month);
-    if (!startOfMonth) {
-      stoppedEarly = true;
-      break;
-    }
-    start = startOfMonth;
-    perMonth.unshift(parseStudentAbsences(grid) ?? []);
+    if (grid === null)
+      return absenceResult(advance(walk, { kind: "refused" }), p.to);
+    const start = monthStart(studentWiseDates(grid), year, month);
+    if (!start) return absenceResult(advance(walk, { kind: "dateless" }), p.to);
+    walk = advance(walk, {
+      kind: "read",
+      start,
+      days: parseStudentAbsences(grid) ?? [],
+    });
     ({ year, month } = previousMonth(year, month));
   }
-  if (!start) return { absent: null, range: null, note: "" };
-  return {
-    absent: perMonth.flat(),
-    range: { from: start, to: p.to },
-    note: stoppedEarly
-      ? ""
-      : "ECAP kept stating meeting days twelve months back, so the semester may have started earlier than shown.",
-  };
+  return absenceResult(endAtCap(walk), p.to);
 }
 /**
  * The semester's held / attended / absent counts, from the Cumulative
@@ -207,29 +225,6 @@ export async function readTotals(
     rethrowExpired(error);
     return {};
   }
-}
-/**
- * How long one month may take before the table answers without its figure. The
- * rest of the panel has already arrived by then, and a month still in flight is
- * the blank row a refused month already earns — not a reason to hold the GPA and
- * the phone numbers back, and not a reason to run the function into its own
- * timeout.
- */
-const MONTHS_BUDGET_MS = 15_000;
-/**
- * `work` if it finishes inside `ms`, else null. A deadline is a timer, and a
- * timer is the only way to bound a wait — the promise raced here is left
- * running, and `Promise.race` already holds a handler for it, so a late refusal
- * cannot surface as an unhandled rejection.
- */
-function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    work,
-    // oxlint-disable-next-line promise/avoid-new -- a deadline is a timer; there is no promise to await instead
-    new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), ms);
-    }),
-  ]);
 }
 /**
  * One student's cumulative attendance month by month, from the semester's first
@@ -274,14 +269,7 @@ export async function readMonths(
       return month;
     }
   };
-  // Each row carries its own deadline, so a slow report blanks that row and not
-  // the table: the rows are already in flight together, so the panel still
-  // answers inside one budget rather than one per row.
-  const months = await Promise.all(
-    windows.map(
-      async (month) => (await within(rowOf(month), MONTHS_BUDGET_MS)) ?? month
-    )
-  );
+  const months = await Promise.all(windows.map(rowOf));
   return { months };
 }
 /**

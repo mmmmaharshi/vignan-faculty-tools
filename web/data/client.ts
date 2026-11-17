@@ -96,6 +96,9 @@ const saveStoredSession = (encoded: string): void => {
 /** Rises every time the stored session is dropped, so a response that was
  *  already in flight cannot store back a session the screen just ended. */
 const epoch = createEpoch();
+/** The current session generation, for mutation keys that must not survive a
+ *  sign-out carrying an error from the session that made them. */
+export const currentEpoch = (): number => epoch.current();
 /** Drops the stored session. Signing out is this and the cache sweep. */
 export const clearStoredSession = (): void => {
   epoch.bump();
@@ -186,8 +189,8 @@ export const reloadSession = (): Promise<SessionReply | undefined> =>
   mutate<SessionReply>([SESSION_PATH, epoch.current()]);
 /** One click on `Load register`: the request, and which click it was. */
 export type RegisterClick = { request: RegisterRequest; attempt: number };
-/** The cache key one click answers to. Exported so a register the browser kept
- *  from before a reload can be put back under the key the hook will look for. */
+/** The cache key one click answers to: its request, its number and the
+ *  generation it was asked in. */
 const registerKey = (
   click: RegisterClick
 ): [string, RegisterRequest, number, number] => [
@@ -196,16 +199,6 @@ const registerKey = (
   click.attempt,
   epoch.current(),
 ];
-/**
- * Hands SWR a register the browser already holds, under the key that click
- * answers to, without a request. A reload restores the reply the screen last
- * showed: reading the Portal again would spend a call to learn what is already
- * here, and would make a reload a second way a register gets fetched.
- */
-export const keepRegister = (
-  click: RegisterClick,
-  reply: RegisterReply
-): Promise<unknown> => mutate(registerKey(click), reply, { revalidate: false });
 /**
  * The register: fetched when a click says so, and never otherwise.
  *

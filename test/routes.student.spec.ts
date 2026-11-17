@@ -6,6 +6,7 @@ import type { PortalReader } from "../server/portal-reader";
 import {
   handleSemAbsences,
   handleStudentProfile,
+  readFullSemesterAbsences,
 } from "../server/student-routes";
 import { ALL_SUBJECTS } from "../shared/api";
 import { todayIST } from "../shared/portal-values";
@@ -289,6 +290,26 @@ test.describe("the student profile handler", () => {
     }).catch((error: unknown) => error);
     expect((failure as HttpError).status).toBe(401);
   });
+});
+
+test("the full-semester walk stops at its deadline with the part it read", async () => {
+  let calls = 0;
+  const stalled = {
+    studentWise: () => {
+      calls += 1;
+      return Promise.withResolvers<string>().promise;
+    },
+  } as unknown as PortalReader;
+  const answer = await readFullSemesterAbsences(
+    stalled,
+    "21CS001",
+    "A Student",
+    levels(),
+    30
+  );
+  expect(calls, "the deadline stops the walk, it does not finish it").toBe(1);
+  expect(answer.absent).toBeNull();
+  expect(answer.note).toContain("incomplete");
 });
 
 test.describe("the full-semester absences read", () => {

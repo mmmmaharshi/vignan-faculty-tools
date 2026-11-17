@@ -54,5 +54,5 @@ dist/
 !/.scratch/*/
 /.scratch/*/*
 !/.scratch/*/spec.md
-/.scratch/*/issues/*
+!/.scratch/*/issues/
 !/.scratch/*/issues/*.md

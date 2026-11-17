@@ -2,6 +2,7 @@
 
 Date: 2026-11-10
 Status: Accepted
+Superseded by: 0032
 
 ## Context
 

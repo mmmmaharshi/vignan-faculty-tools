@@ -266,6 +266,22 @@ test.describe("the options ladder", () => {
     expect(reply.course.length).toBeGreaterThan(0);
     expect(reply.emptyLevels).not.toContain("course");
   });
+  test("a placeholder list fetched mid-cascade still probes the session", async () => {
+    // Pass 1 held the courses. ECAP drops the session before pass 2, and the
+    // jQuery convention answers 200 with only -Select- for branch and semester.
+    // The empty reply proves nothing, so the final guard asks the course list.
+    const { reader } = fake({
+      course: [],
+      branch: [opt("0", "-Select-")],
+      semester: [opt("0", "-Select-")],
+    });
+    const failure = await handleOptions(reader, {
+      course: "1",
+      held: { course: [opt("1", "B.Tech")] },
+    }).catch((error: unknown) => error);
+    expect(failure).toBeInstanceOf(HttpError);
+    expect((failure as HttpError).status).toBe(401);
+  });
 });
 
 test.describe("the levels a register needs", () => {

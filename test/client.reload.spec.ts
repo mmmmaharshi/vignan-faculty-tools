@@ -1,12 +1,14 @@
 import { expect, test } from "@playwright/test";
+import type { Page } from "@playwright/test";
 
-import {
-  resetStub,
-  selectValue,
-  signInAndSettle,
-  state,
-  stub,
-} from "./support/client-stub";
+import { resetStub, signInAndSettle, state, stub } from "./support/client-stub";
+
+/** The old dashboard view key, checked here so nothing starts storing rows again. */
+const storedView = (page: Page): Promise<unknown> =>
+  page.evaluate(() => {
+    const raw = localStorage.getItem("dashboard-view");
+    return raw === null ? null : JSON.parse(raw);
+  });
 
 test.describe("the dashboard after a reload", () => {
   test.beforeEach(async ({ page }) => {
@@ -14,7 +16,9 @@ test.describe("the dashboard after a reload", () => {
     await page.route("**/api/**", stub);
   });
 
-  test("the register that was on screen is still there", async ({ page }) => {
+  test("a reload starts with an empty dashboard and reads nothing again", async ({
+    page,
+  }) => {
     await signInAndSettle(page);
     await page.getByRole("combobox", { name: "Subject" }).click();
     await page.getByRole("option", { name: "MFCS", exact: true }).click();
@@ -28,18 +32,19 @@ test.describe("the dashboard after a reload", () => {
 
     await expect(
       page.locator("thead ~ tbody tr"),
-      "the rows the page last read are on screen again"
-    ).toHaveCount(3, { timeout: 15_000 });
-    await expect
-      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
-      .toBe("MFCS");
+      "no roster is put back by a reload"
+    ).toHaveCount(0, { timeout: 15_000 });
     expect(
       state.registerCalls,
       "and a reload does not read the register again"
     ).toBe(1);
+    expect(
+      await storedView(page),
+      "no student rows are kept in the browser"
+    ).toBeNull();
   });
 
-  test("a boot whose probe never answers leaves no roster behind", async ({
+  test("a failed boot lands on the form with no roster to restore", async ({
     page,
   }) => {
     await signInAndSettle(page);
@@ -47,17 +52,11 @@ test.describe("the dashboard after a reload", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
       timeout: 15_000,
     });
-    // The load is on disk: this is what a reload would put back.
-    const stored = (): Promise<unknown> =>
-      page.evaluate(() => {
-        const raw = localStorage.getItem("dashboard-view");
-        return raw === null ? null : JSON.parse(raw);
-      });
-    expect(await stored(), "the rows are stored for the reload").not.toBeNull();
+    expect(await storedView(page), "the roster is never written").toBeNull();
 
     // ECAP unreachable at the next boot: both probes fail, so the app lands on
-    // the form rather than on a register. Whoever signs in next on this browser
-    // must not open the previous person's students, so the stored view goes too.
+    // the form. Nothing from the last session is left in the browser for the
+    // next person, sign-in or no sign-in.
     await page.route("**/api/session", (route) =>
       route.fulfill({
         status: 502,
@@ -67,14 +66,10 @@ test.describe("the dashboard after a reload", () => {
     );
     await page.reload();
     await expect(page.getByRole("button", { name: "Sign in" })).toBeVisible();
-    expect(
-      await stored(),
-      "no stored view is left for the next sign-in to open"
-    ).toBeNull();
+    expect(await storedView(page)).toBeNull();
   });
-  test("a filter ticked before the reload is still ticked", async ({
-    page,
-  }) => {
+
+  test("a filter ticked before the reload is gone", async ({ page }) => {
     await signInAndSettle(page);
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
@@ -88,9 +83,9 @@ test.describe("the dashboard after a reload", () => {
 
     await expect(
       page.getByLabel("All irregular students"),
-      "the bar is still ticked"
-    ).toBeChecked({ timeout: 15_000 });
-    await expect(page.locator("thead ~ tbody tr")).toHaveCount(narrowed);
+      "no bar is carried into a new load — it belongs to a table that is gone"
+    ).toHaveCount(0, { timeout: 15_000 });
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(0);
   });
 
   test("a session that lapses while the page is closed leaves nothing behind", async ({
@@ -101,10 +96,7 @@ test.describe("the dashboard after a reload", () => {
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
       timeout: 15_000,
     });
-    // The tab is closed and the session lapses, so the next boot finds none. That
-    // is a session ending without the sign-out button, and the stored view must
-    // go with it — otherwise the next person to sign in on this browser opens
-    // somebody else's roster, with no Portal call to contradict it.
+    // The tab is closed and the session lapses, so the next boot finds none.
     state.signedIn = false;
     await page.reload();
     await expect(page.getByLabel("ECAP user name")).toBeVisible({
@@ -117,7 +109,7 @@ test.describe("the dashboard after a reload", () => {
     ).toHaveCount(0);
   });
 
-  test("signing out forgets it", async ({ page }) => {
+  test("signing out leaves no dashboard view behind", async ({ page }) => {
     await signInAndSettle(page);
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
@@ -127,10 +119,12 @@ test.describe("the dashboard after a reload", () => {
     await expect(page.getByLabel("ECAP user name")).toBeVisible({
       timeout: 15_000,
     });
+    expect(
+      await storedView(page),
+      "no view was stored at any point"
+    ).toBeNull();
     await page.reload();
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
-    // A new session starts on a blank dashboard: the previous session's rows are
-    // the Portal's, and they leave with it.
     await signInAndSettle(page);
     await expect(page.locator("thead ~ tbody tr"), "no table").toHaveCount(0);
   });

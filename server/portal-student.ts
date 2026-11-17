@@ -7,6 +7,8 @@ import type {
   StudentSgpa,
   StudentSubjectGrade,
 } from "../shared/api.js";
+import { backlogStep, startCursor } from "./backlog-cursor.js";
+import type { BacklogCursor } from "./backlog-cursor.js";
 import { ROW, TABLE, cellText, cellsOf } from "./portal-html.js";
 
 /** The container ECAP's StudentProfile page opens its BIO-DATA with. Its absence
@@ -18,10 +20,6 @@ const PHONE_LABEL = /(?:phone|mobile)/i;
 /** The page's own summary line: "CGPA: 5.61   Credits:16/19    48.55 %". */
 const GPA_LINE =
   /CGPA:\s*(?<cgpa>\S+)\s+Credits:\s*(?<credits>\S+)(?:\s+(?<pct>[\d.]+)\s*%)?/;
-/** The backlogs table's own total: "Total backlogs: 1". */
-const BACKLOG_TOTAL = /Total backlogs:\s*(?<count>\d+)/i;
-/** A backlogs row's first cell: the semester it is filed under. */
-const BACKLOG_SEMESTER = /^(?:I|II|III|IV|V|VI|VII|VIII)\s+Semester$/i;
 /** The per-semester grid: the header names its own SGPA column, the value sits
  *  on the row beginning "Grade", and the semester is named by the span above the
  *  table. */
@@ -103,22 +101,21 @@ export function parseStudentBacklogs(html: string): StudentBacklogs {
   const rows: StudentBacklog[] = [];
   let total: number | null = null;
   let current: StudentBacklog | null = null;
-  let expectSubjects = false;
+  let cursor: BacklogCursor = startCursor;
   for (const cell of table.matchAll(/<td[^>]*>(?<cell>[\s\S]*?)<\/td>/gi)) {
     const raw = cell.groups?.cell ?? "";
     const text = cellText(raw);
-    const stated = BACKLOG_TOTAL.exec(text);
-    if (stated) {
-      total = Number(stated.groups?.count);
+    const step = backlogStep(cursor, text);
+    if (step.kind === "stop") {
+      ({ total } = step);
       break;
     }
-    if (BACKLOG_SEMESTER.test(text)) {
+    ({ cursor } = step);
+    if (step.kind === "open-row") {
       current = { semester: text, subjects: [] };
       rows.push(current);
-      expectSubjects = true;
-    } else if (expectSubjects && current) {
+    } else if (step.kind === "fill-subjects" && current) {
       current.subjects = backlogSubjects(raw);
-      expectSubjects = false;
     }
   }
   return { rows, total, note: table ? "" : cellText(inner) };
