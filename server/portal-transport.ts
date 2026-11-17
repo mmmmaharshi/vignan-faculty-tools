@@ -104,11 +104,16 @@ type PortalPayload = any;
  * not store `Set-Cookie`, so redirects followed automatically would drop the
  * auth cookie mid-flow and a successful sign-in would look like a failure.
  */
-export async function portalRequest(
+/** One call that takes this long is worth a line in the function log: the
+ *  Portal is slow in normal use, so only the calls near the deadline say
+ *  anything about a session at risk. */
+const SLOW_CALL_MS = 8000;
+
+async function portalRequestWithin(
   jar: CookieJar,
   url: string,
-  init: RequestInit = {},
-  maxHops = 6
+  init: RequestInit,
+  maxHops: number
 ): Promise<Response> {
   const send = (target: string): Promise<Response> => {
     const cookie = jar.header();
@@ -133,6 +138,21 @@ export async function portalRequest(
     absorbResponse(jar, res);
   }
   return res;
+}
+export async function portalRequest(
+  jar: CookieJar,
+  url: string,
+  init: RequestInit = {},
+  maxHops = 6
+): Promise<Response> {
+  const started = Date.now();
+  try {
+    return await portalRequestWithin(jar, url, init, maxHops);
+  } finally {
+    const elapsed = Date.now() - started;
+    if (elapsed > SLOW_CALL_MS)
+      console.warn(`portal slow call ${new URL(url).pathname} ${elapsed}ms`);
+  }
 }
 /** The JQuery convention: a JSON body naming the method on `jqmethods.aspx`. */
 export async function portalJq(
