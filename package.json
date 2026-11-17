@@ -11,6 +11,7 @@
     "test": "playwright test",
     "test:fast": "playwright test --config=playwright.fast.config.ts",
     "test:fast:quiet": "playwright test --config=playwright.fast.config.ts --reporter=dot",
+    "test:probe": "bun run build && playwright test --config=playwright.fast.config.ts",
     "lint": "vp check",
     "lint:fix": "vp check --fix",
     "audit": "bun audit --audit-level high"
