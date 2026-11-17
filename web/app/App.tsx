@@ -58,7 +58,6 @@ import {
   toPortalDate,
   toInputDate,
 } from "../register/range";
-import { forgetRegisterMemory } from "../register/register-memory";
 import { savedSections } from "../register/saved-sections";
 import type { SavedSection } from "../register/saved-sections";
 import { searchResult } from "../register/search-result";
@@ -134,10 +133,8 @@ const App = (): React.JSX.Element => {
    *  that failed says so on its own, from the hook that failed. */
   const [formNote, setFormNote] = useState<Note | null>(null);
   /** The dashboard's view of itself — the class, the window, the ticked bars and
-   *  the click whose reply the table shows — and the one thing that spans a
-   *  reload, which is all of them. See `dashboard-view.ts` (ADR 0031). */
+   *  the click whose reply the table shows. Every load starts it empty. */
   const {
-    initialSel,
     sel,
     setSel,
     range,
@@ -385,8 +382,6 @@ const App = (): React.JSX.Element => {
     // so a 401 left there would sit in the next session's class picker.
     resetCascade();
     void forgetServerData();
-    // The dashboard memory holds the Portal's rows, so it goes with the rest.
-    forgetRegisterMemory();
     setClick(null);
     // A find ask left armed outlives the session: its key carries the epoch, so
     // signing out changes the key and the ask is re-sent for a session that no
@@ -646,7 +641,7 @@ const App = (): React.JSX.Element => {
     if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }
-    if (!onLogin) void runRefresh(initialSel, EMPTY_OPTS);
+    if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
   }, [
     booted,
     session.isLoading,
@@ -658,7 +653,6 @@ const App = (): React.JSX.Element => {
     runRefresh,
     noteUserId,
     endSession,
-    initialSel,
   ]);
   /** A 401 is ECAP refusing the session, from whichever request met it: the app
    *  signs out through the one path, so nothing goes on showing the numbers of a

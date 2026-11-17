@@ -200,16 +200,6 @@ const registerKey = (
   epoch.current(),
 ];
 /**
- * Hands SWR a register the browser already holds, under the key that click
- * answers to, without a request. A reload restores the reply the screen last
- * showed: reading the Portal again would spend a call to learn what is already
- * here, and would make a reload a second way a register gets fetched.
- */
-export const keepRegister = (
-  click: RegisterClick,
-  reply: RegisterReply
-): Promise<unknown> => mutate(registerKey(click), reply, { revalidate: false });
-/**
  * The register: fetched when a click says so, and never otherwise.
  *
  * The click number is part of the key, and that is what makes the rule hold

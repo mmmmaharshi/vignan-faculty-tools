@@ -175,8 +175,7 @@ web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      use-saved-sections.ts (the cards and their three actions,
                      out of App so it stays under the god-file line),
                      absence-list.ts (the panel's one absent list),
-                     register-memory.ts (the dashboard view a reload puts back),
-                     dashboard-view.ts (the view itself, and its one restore),
+                     dashboard-view.ts (the view itself; every load starts it empty),
                      search-scope.ts (the class a searched figure belongs to),
                      sem-start-settle.ts, sem-starts.ts, options-chain.ts (the
                      option chain's one run, and the cache key it answers to)
@@ -220,7 +219,7 @@ test/cascade.*.spec.ts  split by topic: the selection rules, the option loop ove
                      dates, and the saved sections
 test/client.*.spec.ts   split by topic: the session and its probe, the register
                      and its filters, the student panel and search, the dates a
-                     load settles, the dashboard a reload puts back, and the home
+                     load settles, the dashboard after a reload, and the home
                      screen - over a stub API in the browser
 test/support/        the three families' shared harness: the stub API and the
                      mutable `state` the browser tests drive (`client-stub.ts`),
@@ -357,19 +356,16 @@ else travels; there are no query parameters. This replaced ADR 0010 and ADR 0011
 both deleted — see ADR 0015 for what it cost. Consequences worth knowing before
 you touch the cascade:
 
-- **A register cannot be shared or bookmarked, and a reload keeps what the page
-  last showed.** A reload has a fresh JavaScript context, so the browser keeps the
-  view instead: the reply, the click that asked for it, the class, the window and
-  the ticked bars, put back under the cache key the click answers to before the
-  hook asks — with no Portal call, because nothing new is being read (ADR 0031).
-  The options are re-read, so a renamed subject still corrects itself. Signing out
-  clears the stored view with everything else the Portal answered, so a new
-  session starts blank. A link to `/dashboard` from elsewhere still shows the form
-  and no table, which is what keeps a register out of a shared URL.
+- **A register cannot be shared or bookmarked, and a reload starts empty.** The
+  path names the screen only, so nothing carries a selection into a new load.
+  `/dashboard` always opens on the form with no table: no reply, click, window or
+  ticked bar is kept in the browser, so no student rows survive a reload. The
+  options are re-read, so a renamed subject still corrects itself. A link to
+  `/dashboard` from elsewhere shows the same empty form, which is what keeps a
+  register out of a shared URL (ADR 0032).
 - **`Load register` is the only way `/api/register` is ever *fetched*.** Nothing
-  on the tail of the refresh loop asks for one, so a register is a decision every
-  time; a reload restores a reply the browser already holds and adds no request.
-  The smoke test pins this by counting requests on the wire.
+  on the tail of the refresh loop asks for one, and a reload neither fetches nor
+  restores one. The smoke test pins this by counting requests on the wire.
 - **The selection reaches the request as a value, never through state.** The
   cascade computes a selection before React commits a render for it, so a version
   closing over `sel` would send the previous one. That bug shipped once and said
@@ -685,12 +681,11 @@ carries one also has its name in text.
   dead portal session without asking again. Anyone holding the browser's
   storage holds the ECAP account with it. Do not log it, print it, or widen
   where it travels — it already goes on every request, which is exactly enough.
-- **The dashboard view is the one Portal answer that stays in the browser.**
-  `register-memory.ts` keeps the reply, the click, the class, the window and the
-  ticked bars so a reload shows what was on screen without a Portal call (ADR
-  0031). It is one key, cleared by `signedOut` with everything else, and it holds
-  student rows — so it must never be written anywhere but this browser, never
-  logged, and never handed to the server.
+- **No register rows are kept in the browser.** The dashboard view lives only in
+  memory for the current load; a reload or a new visit opens on the form with no
+  table. The session and its credential are still in localStorage by ADR 0024,
+  and the timetable's own periods and the semester starts are remembered as Portal
+  facts, but no student rows are written to storage (ADR 0032).
 - **There is deliberately no login rate limiter.** A limiter that works needs a
   shared store once more than one instance serves traffic, and an in-memory one
   on a serverless function silently becomes per-instance — false confidence. The
