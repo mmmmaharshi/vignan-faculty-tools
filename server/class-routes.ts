@@ -66,13 +66,18 @@ export async function handleOptions(
   // refuses even with nothing left to fetch.
   let touch: OptionsTouch = untouched;
   /** A held list reused as stated, or the Portal asked once. Marks which. */
-  const reuse = (
+  const reuse = async (
     list: Option[] | null,
     fetch: () => Promise<Option[]>
   ): Promise<Option[]> => {
-    if (list) return Promise.resolve(list);
+    if (list) return list;
     touch = markTouched();
-    return fetch();
+    const fetched = await fetch();
+    // The jQuery convention answers 200 with only a placeholder when the
+    // session is gone. An empty fetched list proves nothing, so the final
+    // guard still has to ask the course list.
+    if (!realOptions(fetched).length) touch = untouched;
+    return fetched;
   };
   take("course", await reuse(held("course"), () => requireCourses(portal)));
   if (b.course) {
@@ -87,6 +92,8 @@ export async function handleOptions(
     } else {
       touch = markTouched();
       [branches, semesters] = await portal.branchesAndSemesters(b.course);
+      if (!realOptions(branches).length || !realOptions(semesters).length)
+        touch = untouched;
     }
     take("branch", branches);
     take("semester", semesters);
