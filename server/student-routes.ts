@@ -116,6 +116,25 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
   return out;
 }
 /**
+ * `work` if it finishes inside `ms`, else null. A deadline is a timer, and a
+ * timer is the only way to bound a wait; the promise raced here is left running,
+ * and `Promise.race` holds a handler for it, so a late refusal cannot surface
+ * as an unhandled rejection.
+ */
+function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
+  let timer!: ReturnType<typeof setTimeout>;
+  // oxlint-disable-next-line promise/avoid-new -- a deadline is a timer; there is no promise to await instead
+  const deadline = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), ms);
+  });
+  return Promise.race([work, deadline]).finally(() => clearTimeout(timer));
+}
+/** One shared deadline for the whole walk, not one per month. The list already
+ *  read is worth keeping; a month still in flight is the partial answer a
+ *  refused month already gives, and the function must answer before its own
+ *  budget ends. */
+const ABSENCE_WALK_BUDGET_MS = 20_000;
+/**
  * One student's absent days over the whole semester: the section's Student
  * Wise grid walked back one month at a time from the asked window, unioned
  * oldest-first. Single-month windows are the only shape used — live runs show
@@ -131,7 +150,8 @@ export async function readFullSemesterAbsences(
   portal: PortalReader,
   roll: string,
   name: string,
-  p: Record<Level, Option> & { from: string; to: string }
+  p: Record<Level, Option> & { from: string; to: string },
+  budgetMs: number = ABSENCE_WALK_BUDGET_MS
 ): Promise<{
   absent: string[] | null;
   range: { from: string; to: string } | null;
@@ -145,15 +165,24 @@ export async function readFullSemesterAbsences(
   let walk: AbsenceWalk = walking;
   let year = ty;
   let month = tm;
+  const deadline = Date.now() + budgetMs;
   for (let step = 0; step < MONTH_WALK_CAP; step++) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0)
+      return absenceResult(advance(walk, { kind: "refused" }), p.to);
     const window = monthWindow(year, month);
-    let grid: string;
+    let grid: string | null;
     try {
-      grid = await portal.studentWise(roll, name, { ...p, ...window });
+      grid = await within(
+        portal.studentWise(roll, name, { ...p, ...window }),
+        remaining
+      );
     } catch (error) {
       rethrowExpired(error);
       return absenceResult(advance(walk, { kind: "refused" }), p.to);
     }
+    if (grid === null)
+      return absenceResult(advance(walk, { kind: "refused" }), p.to);
     const start = monthStart(studentWiseDates(grid), year, month);
     if (!start) return absenceResult(advance(walk, { kind: "dateless" }), p.to);
     walk = advance(walk, {
@@ -205,21 +234,6 @@ export async function readTotals(
  * timeout.
  */
 const MONTHS_BUDGET_MS = 15_000;
-/**
- * `work` if it finishes inside `ms`, else null. A deadline is a timer, and a
- * timer is the only way to bound a wait — the promise raced here is left
- * running, and `Promise.race` already holds a handler for it, so a late refusal
- * cannot surface as an unhandled rejection.
- */
-function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
-  return Promise.race([
-    work,
-    // oxlint-disable-next-line promise/avoid-new -- a deadline is a timer; there is no promise to await instead
-    new Promise<null>((resolve) => {
-      setTimeout(() => resolve(null), ms);
-    }),
-  ]);
-}
 /**
  * One student's cumulative attendance month by month, from the semester's first
  * month through the current one: each row is the class report over

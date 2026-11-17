@@ -62,7 +62,7 @@ export const profileRolls: string[] = [];
 /** The semester starts each student panel asked its totals over. */
 export const totalsAsked: string[] = [];
 /** A read the stub can park for the test to answer late. */
-export type Holdable = "session" | "walk" | "profile" | "find";
+export type Holdable = "session" | "walk" | "profile" | "find" | "options";
 /** A parked read: the route plus what the answer must remember about the
  *  moment of asking — a held session answer belongs to the session that
  *  asked for it, not to whatever signed in or out while it was in flight. */
@@ -439,6 +439,7 @@ export const stub = async (route: Route): Promise<void> => {
   }
   if (path === "/api/options") {
     state.optionsCalls += 1;
+    if (park("options", route)) return;
     if (state.optionsFailCount > 0) {
       state.optionsFailCount -= 1;
       await json(

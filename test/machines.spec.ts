@@ -42,7 +42,7 @@ import {
   isBooted,
   isSignedIn,
 } from "../web/app/session-view";
-import { ApiError } from "../web/data/client";
+import { ApiError, clearStoredSession } from "../web/data/client";
 import { FIRST_PHASE, updateStep } from "../web/data/update-lifecycle";
 import {
   postingsPhase,
@@ -58,6 +58,7 @@ import {
 } from "../web/register/absence-list";
 import { EMPTY_OPTS, EMPTY_SEL } from "../web/register/cascade";
 import { createCascadeRun } from "../web/register/cascade-run-state";
+import { optionsRunKey } from "../web/register/options-chain";
 import { searchResult } from "../web/register/search-result";
 import { searchScope } from "../web/register/search-scope";
 
@@ -435,6 +436,14 @@ test.describe("explicit state machines", () => {
     expect(nextRoute("/dashboard", "signedOut")).toBe("/login");
     expect(nextRoute("/nope", "signedIn")).toBe("/home");
     expect(nextRoute("/dashboard", "booting")).toBe(null);
+  });
+  test("the options run key belongs to one session generation", () => {
+    const before = optionsRunKey();
+    clearStoredSession();
+    expect(
+      optionsRunKey(),
+      "a run still in flight at Sign-out cannot answer the next session"
+    ).not.toBe(before);
   });
   test("session verdict: only a 401 evicts, a 502 stays unknown", () => {
     expect(sessionVerdict("alive", null)).toBe("alive");

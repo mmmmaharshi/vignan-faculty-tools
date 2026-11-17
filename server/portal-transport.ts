@@ -12,7 +12,10 @@ export const BASE = "https://webprosindia.com";
 export const UA =
   "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 " +
   "(KHTML, like Gecko) Chrome/152.0.0.0 Safari/537.36";
-export const HTTP_TIMEOUT_MS = 60_000;
+/** One Portal call's deadline. A revival can spend four calls in sequence —
+ *  the failed read, the sign-in page, the sign-in post and the retry — and the
+ *  deployed function ends at 60s, so four of these must fit inside it. */
+export const HTTP_TIMEOUT_MS = 12_000;
 export const LOGIN_PAGE = `${BASE}/vignanit/main.aspx`;
 export const LOGIN_POST = `${BASE}/vignanit/Default.aspx?ReturnUrl=%2fvignanit%2fmain.aspx`;
 const JQ = `${BASE}/vignanit/jqmethods.aspx`;

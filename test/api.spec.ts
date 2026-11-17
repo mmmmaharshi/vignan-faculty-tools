@@ -5,6 +5,7 @@ import type { PortalPort } from "../server/api";
 import { HttpError } from "../server/http-error";
 import { CookieJar } from "../server/portal-conventions";
 import type { PortalReader } from "../server/portal-reader";
+import { HTTP_TIMEOUT_MS } from "../server/portal-transport";
 import type {
   ClientSession,
   OptionsReply,
@@ -135,6 +136,13 @@ async function signIn(api: Api): Promise<string> {
   expect(res.status).toBe(200);
   return res.headers.get(SESSION_HEADER) ?? "";
 }
+test("one revival fits inside the deployed function budget", () => {
+  // A read, the sign-in page, the sign-in post and the retry are the four calls
+  // one revival can spend. Vercel ends the function at 60s; a slow Portal must
+  // answer with a refusal before then, not be killed into an opaque 504.
+  expect(HTTP_TIMEOUT_MS * 4).toBeLessThan(60_000);
+});
+
 test.describe("handleApi", () => {
   test("each route answers through its own handler, not its neighbour's", async () => {
     const api = createApi({

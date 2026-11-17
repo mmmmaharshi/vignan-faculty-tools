@@ -96,6 +96,9 @@ const saveStoredSession = (encoded: string): void => {
 /** Rises every time the stored session is dropped, so a response that was
  *  already in flight cannot store back a session the screen just ended. */
 const epoch = createEpoch();
+/** The current session generation, for mutation keys that must not survive a
+ *  sign-out carrying an error from the session that made them. */
+export const currentEpoch = (): number => epoch.current();
 /** Drops the stored session. Signing out is this and the cache sweep. */
 export const clearStoredSession = (): void => {
   epoch.bump();

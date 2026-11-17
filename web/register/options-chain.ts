@@ -5,11 +5,14 @@ import { mutate } from "swr";
 import useSWRMutation from "swr/mutation";
 
 import type { OptionsReply, OptionsRequest } from "../../shared/api";
-import { ApiError, OPTIONS_PATH, postJson } from "../data/client";
+import { ApiError, currentEpoch, OPTIONS_PATH, postJson } from "../data/client";
 import { runCascade } from "./cascade-run";
 import type { CascadeOutcome, CascadeSetup } from "./cascade-run";
 
-const OPTIONS_RUN = `${OPTIONS_PATH}#chain`;
+/** The generation is part of the key, so a cascade whose options call is still
+ *  in flight at Sign-out cannot leave its refusal in the next session's hook. */
+export const optionsRunKey = (): string =>
+  `${OPTIONS_PATH}#chain#${currentEpoch()}`;
 /**
  * One pass of the option chain. Cached under the request it answered, so the
  * same chain run twice — the same saved section opened again — costs no Portal
@@ -18,7 +21,7 @@ const OPTIONS_RUN = `${OPTIONS_PATH}#chain`;
  */
 const optionsFor = async (request: OptionsRequest): Promise<OptionsReply> => {
   const reply = await mutate(
-    [OPTIONS_PATH, request],
+    [OPTIONS_PATH, request, currentEpoch()],
     () => postJson<OptionsReply>(OPTIONS_PATH, request),
     { revalidate: false }
   );
@@ -31,7 +34,7 @@ const optionsFor = async (request: OptionsRequest): Promise<OptionsReply> => {
  *  Portal said, or null when the run was superseded before it settled. */
 export function useOptionsChain() {
   return useSWRMutation<CascadeOutcome | null, ApiError, string, CascadeSetup>(
-    OPTIONS_RUN,
+    optionsRunKey(),
     (_key, { arg }) => runCascade(arg, optionsFor)
   );
 }
