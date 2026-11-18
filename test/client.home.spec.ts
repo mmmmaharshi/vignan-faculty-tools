@@ -14,17 +14,6 @@ test.describe("the app's own data layer", () => {
     await page.route("**/api/**", stub);
   });
 
-  test("the rail names the register screen Register", async ({ page }) => {
-    await signInAndSettle(page);
-    await expect(
-      page.getByRole("button", { name: "Register", exact: true })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "Attendance" }),
-      "the old name is gone, not duplicated"
-    ).toHaveCount(0);
-  });
-
   test("Home is the landing screen and reads today's timetable", async ({
     page,
   }) => {

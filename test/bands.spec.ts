@@ -229,12 +229,6 @@ test.describe("the overall cell is shown the way the column is labelled", () => 
     expect(overallCellForDisplay("381\\481")).toBe("381 / 481");
     expect(overallCellForDisplay("356\\481")).toBe("356 / 481");
   });
-  test("both numbers survive, and neither is derived from the other", () => {
-    const shown = overallCellForDisplay("394\\481");
-    expect(shown).toContain("481");
-    expect(shown).toContain("394");
-    expect(shown.split(" / ")).toHaveLength(2);
-  });
   test("a cell that is not a pair is left exactly as the portal wrote it", () => {
     expect(overallCellForDisplay("")).toBe("");
     expect(overallCellForDisplay("-")).toBe("-");

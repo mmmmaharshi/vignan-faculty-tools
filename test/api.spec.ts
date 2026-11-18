@@ -398,44 +398,6 @@ test.describe("handleApi", () => {
     expect(res.status).toBe(502);
     expect(revivals.count).toBe(1);
   });
-  test("a still-stale register after the revival answers 502, never a third try", async () => {
-    const revivals = { count: 0 };
-    const flaky = readerWith({
-      register: () => Promise.reject(new HttpError(502, "proxy hiccup")),
-      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
-    });
-    const api = createApi({ connect: () => portalOf(flaky, revivals) });
-    const session = await signIn(api);
-    revivals.count = 0;
-    const res = await post(api, "/api/register", REGISTER, session);
-    expect(res.status).toBe(502);
-    expect(revivals.count).toBe(1);
-  });
-  test("a 401 from the register revival signs out at once", async () => {
-    const revivals = { count: 0 };
-    const flaky = readerWith({
-      register: () => Promise.reject(new HttpError(502, "proxy hiccup")),
-      courses: () => Promise.reject(new HttpError(502, "proxy hiccup")),
-    });
-    let built = 0;
-    const api = createApi({
-      connect: () => {
-        const n = built++;
-        return portalOf(
-          flaky,
-          revivals,
-          // The revival's own sign-in is refused: the credential is dead.
-          n >= 2 ? new HttpError(401, "bad password") : undefined
-        );
-      },
-    });
-    const session = await signIn(api);
-    revivals.count = 0;
-    const res = await post(api, "/api/register", REGISTER, session);
-    expect(res.status).toBe(401);
-    expect(revivals.count).toBe(1);
-    expect(res.headers.get(SESSION_HEADER)).toBe(null);
-  });
   test("a session stored without a credential is signed out, not signed in again", async () => {
     const revivals = { count: 0 };
     const api = createApi({

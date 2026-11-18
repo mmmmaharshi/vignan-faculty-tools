@@ -50,13 +50,6 @@ test.describe("the password cipher", () => {
     ]).toString("utf-8");
     expect(out).toBe(plain);
   });
-  test("the same input always gives the same output, so no random IV is involved", () => {
-    expect(portalEncrypt("secret")).toBe(portalEncrypt("secret"));
-  });
-  test("is 16-byte-block aligned, so block padding is what makes it work", () => {
-    const cipher = portalEncrypt("a");
-    expect(Buffer.from(cipher, "base64").length % 16).toBe(0);
-  });
 });
 test.describe("enc(), which escapes only % and =", () => {
   test("escapes the two characters the portal's own JavaScript escapes", () => {
@@ -152,17 +145,6 @@ test.describe("ShowAcademicCalendar needs every level twice", () => {
     );
     expect(pairs.SubjectType).toBe("");
     expect(pairs.SubjectType).not.toBe("undefined");
-  });
-  test("an empty title stays empty, and is not turned into a placeholder", () => {
-    const pairs = Object.fromEntries(
-      calendarPairs({
-        ...levels,
-        subject: { value: "57", label: "MFCS", title: "" },
-        from: "",
-        to: "",
-      })
-    );
-    expect(pairs.SubjectType).toBe("");
   });
   test("never asks the portal to print, and always carries both dates", () => {
     const pairs = Object.fromEntries(

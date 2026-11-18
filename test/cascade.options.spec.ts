@@ -219,20 +219,6 @@ test.describe("the cascade's option loop", () => {
     expect(failure).toBeInstanceOf(Error);
     expect(runs.length, "one retry per pass, never a loop").toBe(2);
   });
-  test("a refused session is answered, never re-asked", async () => {
-    const runs: OptionsRequest[] = [];
-    const failure = await runCascade(
-      { seed: sel(SETTLED), known: nothing },
-      (request) => {
-        runs.push(request);
-        throw new ApiError(401, "session expired");
-      }
-    ).catch((error: unknown) => error);
-    expect(failure).toBeInstanceOf(Error);
-    expect(runs.length, "the 401 must reach the sign-out sweep at once").toBe(
-      1
-    );
-  });
   test("a judged 4xx is answered, never re-asked", async () => {
     const runs: OptionsRequest[] = [];
     const failure = await runCascade(

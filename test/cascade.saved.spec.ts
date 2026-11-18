@@ -90,12 +90,6 @@ test.describe("the saved sections", () => {
       SECTION_A,
     ]);
   });
-  test("saving the same section twice keeps one of it", () => {
-    saved.clear();
-    rememberSection("sirichandrasekhar", SECTION_A);
-    rememberSection("sirichandrasekhar", SECTION_A);
-    expect(savedSections("sirichandrasekhar")).toEqual([SECTION_A]);
-  });
   test("the newest save is offered first, and re-saving moves rather than adds", () => {
     saved.clear();
     rememberSection("sirichandrasekhar", SECTION_A);

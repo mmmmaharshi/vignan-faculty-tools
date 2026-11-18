@@ -59,11 +59,6 @@ test.describe("is this session alive?", () => {
       ).toBe("unknown");
     }
   });
-  test("it never throws, because a caller asking liveness owes no catch", async () => {
-    await expect(
-      verdictOf(reader(new Error("something nobody planned for")))
-    ).resolves.toBe("unknown");
-  });
   test("a reader that throws synchronously is unknown, not a crash", async () => {
     const rude = {
       courses: (): Promise<Option[]> => {

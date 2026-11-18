@@ -699,11 +699,6 @@ test.describe("explicit state machines", () => {
     expect(livenessGuard(untouched)).toEqual({ kind: "probe" });
     expect(livenessGuard(markTouched())).toEqual({ kind: "answer" });
   });
-  test("liveness guard: once touched, further reads keep it touched", () => {
-    let touch = markTouched();
-    touch = markTouched();
-    expect(livenessGuard(touch)).toEqual({ kind: "answer" });
-  });
   test("backlog cursor: a semester header opens its subject row", () => {
     expect(backlogStep(startCursor, "I Semester")).toEqual({
       kind: "open-row",

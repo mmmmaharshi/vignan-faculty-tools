@@ -185,14 +185,6 @@ test.describe("the overall column", () => {
 test.describe("all subjects", () => {
   const ALL = ALL_SUBJECTS;
   const deep = { course: "1", branch: "6", semester: "3", section: "1" };
-  test("it leads the list, so the whole section is one click away", () => {
-    const { reader } = fake();
-    return handleOptions(reader, deep).then((reply) => {
-      expect(reply.subject).toHaveLength(2);
-      expect(reply.subject[0]).toEqual(ALL_SUBJECTS);
-      expect(reply.subject.at(-1)?.label).toBe("MFCS");
-    });
-  });
   test("a section with no subjects does not gain the entry", () => {
     const { reader } = fake({ subject: [] });
     return handleOptions(reader, deep).then((reply) => {

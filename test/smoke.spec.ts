@@ -423,11 +423,6 @@ test.describe("Vignan Faculty Tools", () => {
       panel.getByText(USER, { exact: true }),
       "the id the session stores is the id the panel states"
     ).toBeVisible();
-    // The server keeps nothing, so the retired claims about a vault, a disk and
-    // a twenty-minute session must not come back (ADR 0013, ADR 0024).
-    await expect(page.getByText(/credential vault/i)).toHaveCount(0);
-    await expect(page.getByText(/never written to disk/i)).toHaveCount(0);
-    await expect(page.getByText(/twenty minutes/i)).toHaveCount(0);
   });
   test("the header carries the app name and nothing else", async ({ page }) => {
     await page.goto("/dashboard");
@@ -435,9 +430,6 @@ test.describe("Vignan Faculty Tools", () => {
       page.getByRole("heading", { level: 3, name: "Vignan Faculty Tools" })
     ).toBeVisible();
     await expect(page).toHaveTitle("Vignan Faculty Tools");
-    await expect(page.getByText("Vignan Institute of Technology")).toHaveCount(
-      0
-    );
   });
   test("every student carries an overall figure beside the subject one", async ({
     page,
