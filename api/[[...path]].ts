@@ -1,4 +1,5 @@
 import { createApi } from "../server/api.js";
+import { safeHost } from "../shared/api.js";
 
 type NodeHeaders = Record<string, string | string[] | undefined>;
 type FunctionRequest = {
@@ -25,8 +26,10 @@ export default async function handler(
   req: FunctionRequest,
   res: FunctionResponse
 ): Promise<void> {
-  const host =
-    (typeof req.headers.host === "string" && req.headers.host) || "localhost";
+  const host = safeHost(
+    typeof req.headers.host === "string" ? req.headers.host : undefined,
+    "localhost"
+  );
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
     if (value === undefined) continue;

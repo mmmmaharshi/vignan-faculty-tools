@@ -1,16 +1,11 @@
-import path from "node:path";
-
 import type { ErrorReply } from "../shared/api.js";
 import { createApi, json } from "./api.js";
 import { SECURITY_HEADERS } from "./security-headers.js";
+import { resolveWithin } from "./static-path.js";
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
 const DIST = `${ROOT}/../dist`;
-/** The build output, normalised: `path.resolve` below normalises the request
- *  too, so the containment check must compare against this, not the raw
- *  `../dist` string — which no resolved path can ever start with. */
-const DIST_DIR = path.resolve(DIST);
 async function indexHtml(): Promise<Response> {
   const index = Bun.file(`${DIST}/index.html`);
   if (!(await index.exists())) {
@@ -45,15 +40,9 @@ const server = Bun.serve({
         return new Response(null, { status: 204 });
       }
       if (req.method === "GET" && !reqPath.startsWith("/api/")) {
-        // Keep the request inside dist/: resolve and reject anything that
-        // escapes it, so /../ cannot read files outside the build output.
-        const resolved = path.resolve(DIST, `.${reqPath}`);
-        if (
-          resolved !== DIST_DIR &&
-          !resolved.startsWith(DIST_DIR + path.sep)
-        ) {
+        const resolved = resolveWithin(DIST, reqPath);
+        if (!resolved)
           return json({ error: "Not found" } satisfies ErrorReply, 404);
-        }
         const asset = Bun.file(resolved);
         if (await asset.exists()) {
           // Bun's MIME table cannot be trusted for this one: Chrome wants the

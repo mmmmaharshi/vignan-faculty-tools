@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 
-import { createApi } from "../server/api";
+import { createApi, json } from "../server/api";
 import type { PortalPort } from "../server/api";
 import { HttpError } from "../server/http-error";
 import { CookieJar } from "../server/portal-conventions";
 import type { PortalReader } from "../server/portal-reader";
 import { HTTP_TIMEOUT_MS } from "../server/portal-transport";
+import { SECURITY_HEADERS } from "../server/security-headers";
 import type {
   ClientSession,
   OptionsReply,
@@ -13,6 +14,12 @@ import type {
   SessionReply,
 } from "../shared/api";
 import { SESSION_HEADER } from "../shared/api";
+
+test("every API answer carries the security headers", () => {
+  const answer = json({ ok: true });
+  for (const [key, value] of Object.entries(SECURITY_HEADERS))
+    expect(answer.headers.get(key), key).toBe(value);
+});
 
 type Api = ReturnType<typeof createApi>;
 const opt = (value: string, label: string) => ({ value, label, title: "" });

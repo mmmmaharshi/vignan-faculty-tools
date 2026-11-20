@@ -61,6 +61,7 @@ import {
   SUBJECT_ATTENDANCE_REMOTE,
   UA,
 } from "./portal-transport.js";
+import { SECURITY_HEADERS } from "./security-headers.js";
 import { sessionVerdict } from "./session-verdict.js";
 import { handleSemAbsences, handleStudentProfile } from "./student-routes.js";
 
@@ -289,7 +290,11 @@ export function json(
 ): Response {
   return Response.json(body, {
     status,
-    headers: { "content-type": "application/json; charset=utf-8", ...headers },
+    headers: {
+      "content-type": "application/json; charset=utf-8",
+      ...SECURITY_HEADERS,
+      ...headers,
+    },
   });
 }
 async function readJson<T>(req: Request): Promise<Partial<T>> {

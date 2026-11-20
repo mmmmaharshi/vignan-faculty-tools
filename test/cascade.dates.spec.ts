@@ -131,8 +131,22 @@ test.describe("the today-table memory", () => {
     saved.clear();
     const memory = noteTodayMemory(null, day, rows);
     if (!memory) throw new Error("expected a memory to persist");
-    writeTodayMemory(memory);
-    expect(readTodayMemory()).toEqual(memory);
+    writeTodayMemory("faculty-a", memory);
+    expect(readTodayMemory("faculty-a")).toEqual(memory);
+  });
+  test("one faculty member's timetable is not the next one's", () => {
+    const memory = noteTodayMemory(null, day, rows);
+    if (!memory) throw new Error("expected a memory to persist");
+    writeTodayMemory("faculty-a", memory);
+    expect(
+      readTodayMemory("faculty-b"),
+      "the second account has no memory"
+    ).toBeNull();
+    writeTodayMemory("faculty-b", { date: day, classes: [] });
+    expect(
+      readTodayMemory("faculty-a"),
+      "the first account keeps its own"
+    ).toEqual(memory);
   });
   test("a refused storage breaks neither the read nor the write", () => {
     const real = globalThis.localStorage;
@@ -146,9 +160,9 @@ test.describe("the today-table memory", () => {
     } as unknown as Storage;
     const memory = noteTodayMemory(null, day, rows);
     expect(() => {
-      if (memory) writeTodayMemory(memory);
+      if (memory) writeTodayMemory("faculty-a", memory);
     }).not.toThrow();
-    expect(readTodayMemory()).toBeNull();
+    expect(readTodayMemory("faculty-a")).toBeNull();
     globalThis.localStorage = real;
   });
 });

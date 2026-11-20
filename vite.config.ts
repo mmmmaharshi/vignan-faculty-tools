@@ -8,6 +8,7 @@ import type { Plugin } from "vite-plus";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
 import { createApi } from "./server/api";
+import { safeHost } from "./shared/api";
 
 /** The dev server's API; `createApi`'s default reaches the real ECAP. */
 const api = createApi();
@@ -25,7 +26,10 @@ async function serveApi(req: IncomingMessage, res: ServerResponse) {
   }
   const body = await readBody(req);
   const request = new Request(
-    new URL(req.url ?? "/", `http://${req.headers.host ?? "localhost"}`),
+    new URL(
+      req.url ?? "/",
+      `http://${safeHost(req.headers.host, "localhost")}`
+    ),
     {
       method: req.method,
       headers,

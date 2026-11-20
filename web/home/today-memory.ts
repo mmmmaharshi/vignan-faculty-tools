@@ -9,12 +9,13 @@ import { readStored, writeStored } from "../data/storage";
  * Today's timetable as last read with periods still in it, and the campus day
  * it belongs to. ECAP clears the day after ~4pm, so without this an evening
  * visit reads "No Classes Today" for a day that had them. Portal data, not
- * personal data, so it survives sign-out with the next user, like the period
- * hours. One slot: yesterday's table is useless after midnight, when the date
- * stops matching and the memory is ignored.
+ * personal data, so it survives sign-out — but under its own faculty member's
+ * key, so the next account does not inherit the previous timetable. One slot
+ * per user: yesterday's table is useless after midnight, when the date stops
+ * matching and the memory is ignored.
  */
 export type TodayMemory = { date: string; classes: TodayClass[] } | null;
-const MEMORY_KEY = "today-classes";
+const memoryKey = (userId: string): string => `today-classes-${userId}`;
 const isEntry = (entry: unknown): entry is TodayClass => {
   if (typeof entry !== "object" || entry === null) return false;
   const row = entry as Record<string, unknown>;
@@ -32,11 +33,14 @@ const isMemory = (value: unknown): value is Exclude<TodayMemory, null> => {
     classes.every(isEntry)
   );
 };
-export function readTodayMemory(): TodayMemory {
-  return readStored(MEMORY_KEY, isMemory);
+export function readTodayMemory(userId: string): TodayMemory {
+  return readStored(memoryKey(userId), isMemory);
 }
-export function writeTodayMemory(memory: Exclude<TodayMemory, null>): void {
-  writeStored(MEMORY_KEY, memory);
+export function writeTodayMemory(
+  userId: string,
+  memory: Exclude<TodayMemory, null>
+): void {
+  writeStored(memoryKey(userId), memory);
 }
 /**
  * Fold one timetable read into the memory: a read stating periods replaces
@@ -74,25 +78,35 @@ export function shownToday(
  * midnight. One hook, so the read, the fold, and the display rule cannot
  * drift apart across call sites.
  */
-export function useTodayTable(enabled: boolean): {
+export function useTodayTable(
+  enabled: boolean,
+  userId: string
+): {
   today: ReturnType<typeof useTodayClasses>;
   todayShown: TodayClass[] | null;
 } {
   const today = useTodayClasses(enabled);
-  const [todayMemory, setTodayMemory] = useState<TodayMemory>(() =>
-    readTodayMemory()
-  );
+  const [stored, setStored] = useState(() => ({
+    userId,
+    memory: readTodayMemory(userId),
+  }));
+  // A new account reads its own memory during render; no effect resets state
+  // and no other account's timetable can show through a stale render.
+  const todayMemory =
+    stored.userId === userId ? stored.memory : readTodayMemory(userId);
   /* oxlint-disable react/set-state-in-effect */
   useEffect(() => {
     const classes = today.data?.classes;
     if (!classes) return;
     const day = todayIST();
-    setTodayMemory((prev) => {
-      const next = noteTodayMemory(prev, day, classes);
-      if (next && next !== prev) writeTodayMemory(next);
-      return next;
+    setStored((prev) => {
+      const base =
+        prev.userId === userId ? prev.memory : readTodayMemory(userId);
+      const next = noteTodayMemory(base, day, classes);
+      if (next && next !== base) writeTodayMemory(userId, next);
+      return { userId, memory: next };
     });
-  }, [today.data]);
+  }, [today.data, userId]);
   /* oxlint-enable react/set-state-in-effect */
   const todayShown = shownToday(
     today.data?.classes ?? null,

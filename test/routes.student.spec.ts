@@ -195,6 +195,22 @@ test.describe("the student profile handler", () => {
       "a capped table starts on a month boundary, not on the stale start day"
     ).toBe(true);
   });
+  test("a start that is not a Portal date is no table, not a month walk", async () => {
+    const { reader, calls } = fake();
+    const reply = await handleStudentProfile(reader, {
+      roll: "21CS001",
+      register: levels(),
+      semStart: "01/01/-1000000000",
+    });
+    expect(
+      reply.months,
+      "a negative year is not a semester start"
+    ).toBeUndefined();
+    expect(
+      calls.classAttendance,
+      "and no report is asked for a guessed window"
+    ).toEqual([]);
+  });
   test("a month ECAP refuses reads blank, and the rest of the table stands", async () => {
     const semStart = "05/08/2026";
     const { reader } = fake({ classFailsMonths: ["30/09/2026"] });

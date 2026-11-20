@@ -1,5 +1,6 @@
 import { createDecipheriv } from "node:crypto";
 import { readFile } from "node:fs/promises";
+import path from "node:path";
 
 import { test, expect } from "@playwright/test";
 
@@ -16,7 +17,12 @@ import {
   webMethodBody,
 } from "../server/portal-conventions";
 import { portalRequest } from "../server/portal-transport";
-import { CONTENT_SECURITY_POLICY } from "../server/security-headers";
+import {
+  CONTENT_SECURITY_POLICY,
+  SECURITY_HEADERS,
+} from "../server/security-headers";
+import { resolveWithin } from "../server/static-path";
+import { safeHost } from "../shared/api";
 import type { CascadeLevel, Option } from "../shared/api";
 
 test.describe("the password cipher", () => {
@@ -51,7 +57,7 @@ test.describe("the password cipher", () => {
     expect(out).toBe(plain);
   });
 });
-test.describe("enc(), which escapes only % and =", () => {
+test.describe("enc(), which escapes the portal's delimiters and line breaks", () => {
   test("escapes the two characters the portal's own JavaScript escapes", () => {
     expect(enc("50%")).toBe("50%26");
     expect(enc("a=b")).toBe("a%3Db");
@@ -62,6 +68,11 @@ test.describe("enc(), which escapes only % and =", () => {
   });
   test("escapes every occurrence, not just the first", () => {
     expect(enc("a=b=c")).toBe("a%3Db%3Dc");
+  });
+  test("a line break cannot become a second body parameter", () => {
+    expect(webMethodBody([["studentName", "A\r\nrollNo=someone"]])).toBe(
+      "studentName=A%0D%0ArollNo%3Dsomeone"
+    );
   });
 });
 test.describe("convention A, the dropdown fillers", () => {
@@ -228,10 +239,14 @@ test.describe("following redirects by hand", () => {
   test("resolves a relative location against the URL that produced it", () => {
     expect(nextHop(at(301, "sub"), "https://x/a/b", 6)).toBe("https://x/a/sub");
   });
-  test("keeps an absolute location as it is", () => {
-    expect(nextHop(at(302, "https://other/x"), "https://x/a", 6)).toBe(
-      "https://other/x"
+  test("keeps a same-origin absolute location as it is", () => {
+    expect(nextHop(at(302, "https://x/other"), "https://x/a", 6)).toBe(
+      "https://x/other"
     );
+  });
+  test("refuses a redirect off the origin, so the jar cannot leave ECAP", () => {
+    expect(nextHop(at(302, "https://other/x"), "https://x/a", 6)).toBeNull();
+    expect(nextHop(at(302, "//other/x"), "https://x/a", 6)).toBeNull();
   });
   test("stops at the hop limit, so a redirect loop cannot hang the server", () => {
     expect(nextHop(at(302, "/again"), "https://x/", 0)).toBeNull();
@@ -284,8 +299,41 @@ test.describe("one request through the jar", () => {
   });
 });
 
+test.describe("static path containment", () => {
+  const root = path.resolve("C:/build/dist");
+  test("serves a path inside the build output", () => {
+    expect(resolveWithin(root, "/assets/app.js")).toBe(
+      path.join(root, "assets", "app.js")
+    );
+    expect(resolveWithin(root, "/")).toBe(root);
+  });
+  test("refuses a path that escapes, including a sibling directory", () => {
+    expect(resolveWithin(root, "/../secret.txt")).toBeNull();
+    expect(resolveWithin(root, "/../distsecret/app.js")).toBeNull();
+    expect(resolveWithin(root, "/..\\secret.txt")).toBeNull();
+  });
+  test("an encoded separator stays a literal name inside the output", () => {
+    expect(resolveWithin(root, "/%2e%2e/secret.txt")).toBe(
+      path.join(root, "%2e%2e", "secret.txt")
+    );
+  });
+});
+
+test.describe("the Host header the adapters trust", () => {
+  test("keeps a bare authority, including a port or an IPv6 literal", () => {
+    expect(safeHost("127.0.0.1:8787", "localhost")).toBe("127.0.0.1:8787");
+    expect(safeHost("[::1]:5173", "localhost")).toBe("[::1]:5173");
+  });
+  test("falls back when Host could turn the internal URL into another path", () => {
+    expect(safeHost("evil/api/session", "localhost")).toBe("localhost");
+    expect(safeHost("evil?x=1", "localhost")).toBe("localhost");
+    expect(safeHost("evil#x", "localhost")).toBe("localhost");
+    expect(safeHost(undefined, "localhost")).toBe("localhost");
+  });
+});
+
 test.describe("the two deployments", () => {
-  test("carry one content security policy", async () => {
+  test("carry every security header, not just the policy", async () => {
     // The local server holds it as a constant and the deployed front end as a
     // string in vercel.json. Nothing else links the two copies, so a policy
     // loosened in one place would ship in the other unnoticed.
@@ -299,5 +347,11 @@ test.describe("the two deployments", () => {
       (header) => header.key.toLowerCase() === "content-security-policy"
     );
     expect(stated?.value).toBe(CONTENT_SECURITY_POLICY);
+    for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
+      expect(
+        headers.find((header) => header.key.toLowerCase() === key)?.value,
+        key
+      ).toBe(value);
+    }
   });
 });

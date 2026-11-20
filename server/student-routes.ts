@@ -12,7 +12,11 @@ import type {
   StudentRequest,
   StudentTotals,
 } from "../shared/api.js";
-import { sameRoll, todayIST } from "../shared/portal-values.js";
+import {
+  parsePortalDate,
+  sameRoll,
+  todayIST,
+} from "../shared/portal-values.js";
 import { absenceResult, advance, endAtCap, walking } from "./absence-walk.js";
 import type { AbsenceWalk } from "./absence-walk.js";
 import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";
@@ -85,20 +89,22 @@ export async function readAbsences(
  * one built from a guess.
  */
 function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
-  const [sd, sm, sy] = semStart.split("/").map(Number);
-  const [, nm, ny] = now.split("/").map(Number);
-  if (!sd || !sm || !sy || !nm || !ny || sm > 12 || nm > 12) return [];
+  const start = parsePortalDate(semStart);
+  const current = parsePortalDate(now);
+  if (!start || !current) return [];
+  const { month: sm, year: sy } = start;
+  const { month: nm, year: ny } = current;
   // How many months the semester spans, both ends counted.
   const span = (ny - sy) * 12 + (nm - sm) + 1;
   if (span < 1) return [];
   // A span longer than the cap keeps its newest rows: the table exists to show
   // where the student stands now, so a stale start drops old months rather than
-  // stopping short of the month in progress.
-  let year = sy;
-  let month = sm;
-  for (let skipped = 0; skipped < span - MONTH_WALK_CAP; skipped++) {
-    ({ year, month } = nextMonth(year, month));
-  }
+  // stopping short of the month in progress. Skip straight to the first row
+  // instead of walking every month between — the start is a client value, so
+  // a walk would turn a crafted year into unbounded synchronous work.
+  const first = sy * 12 + (sm - 1) + span - Math.min(span, MONTH_WALK_CAP);
+  let year = Math.floor(first / 12);
+  let month = (first % 12) + 1;
   const out: StudentMonth[] = [];
   for (let step = 0; step < Math.min(span, MONTH_WALK_CAP); step++) {
     const running = year === ny && month === nm;

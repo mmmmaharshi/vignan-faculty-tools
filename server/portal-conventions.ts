@@ -15,7 +15,13 @@ export function portalEncrypt(plaintext: string): string {
   ]).toString("base64");
 }
 export const enc = (v: string | number): string =>
-  String(v).replaceAll("%", "%26").replaceAll("=", "%3D");
+  String(v)
+    .replaceAll("%", "%26")
+    .replaceAll("=", "%3D")
+    // webMethodBody joins pairs with CRLF, so a line break inside a value
+    // would otherwise add a parameter the caller never meant to send.
+    .replaceAll("\r", "%0D")
+    .replaceAll("\n", "%0A");
 export function jqBody(
   data: Record<string, string | number | boolean>
 ): string {
@@ -195,7 +201,11 @@ export function nextHop(
   if (maxHops <= 0) return null;
   const loc = res.headers.get("location");
   if (!loc) return null;
-  return new URL(loc, from).toString();
+  const target = new URL(loc, from);
+  // The jar is resent on every hop. Following a Location off ECAP's origin
+  // would hand that origin the faculty's auth cookies.
+  if (target.origin !== new URL(from).origin) return null;
+  return target.toString();
 }
 
 /** The three values both FillSubjects proxies take, in declared order. The

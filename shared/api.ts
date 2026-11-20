@@ -41,6 +41,13 @@ export interface ClientSession {
 /** Where the browser keeps its session, and the header that carries it. */
 export const SESSION_STORE_KEY = "ecap-session";
 export const SESSION_HEADER = "x-ecap-session";
+/**
+ * A Host header is a bare authority, never a path or a URL. Both adapters
+ * build the internal Request URL from it, so a slash or a `?` in a client-
+ * supplied Host would otherwise change which path `handleApi` dispatches.
+ */
+export const safeHost = (host: string | undefined, fallback: string): string =>
+  host && /^[A-Za-z0-9._:\-[\]]+$/.test(host) ? host : fallback;
 export interface OkReply {
   ok: true;
 }

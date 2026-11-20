@@ -188,7 +188,7 @@ const App = (): React.JSX.Element => {
    *  behind the cached answer on return, and the cleared evening shows the
    *  day's own table until midnight. ECAP clears the day after ~4pm, so the
    *  read is never older than the visit. */
-  const { today, todayShown } = useTodayTable(Boolean(onHome));
+  const { today, todayShown } = useTodayTable(Boolean(onHome), userId);
   /** Periods across the branch with no posted attendance today: read with the
    *  timetable when Home opens, and a refusal stays in its own section. */
   const unposted = useUnposted(Boolean(onHome));
