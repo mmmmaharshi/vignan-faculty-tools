@@ -26,7 +26,7 @@ import type {
   Student,
   TodayClass,
 } from "../shared/api";
-import { loadGate, loadNote } from "../web/app/load-gate";
+import { loadGate, loadNote, registerScreenReady } from "../web/app/load-gate";
 import { createLoadSnap } from "../web/app/load-snap";
 import {
   closePanel,
@@ -130,6 +130,9 @@ const foundReply = (over: Partial<FindReply> = {}): FindReply => ({
 
 const bootPhase = (hasController: boolean, hasWaiting: boolean) =>
   updateStep(FIRST_PHASE, { kind: "boot", hasController, hasWaiting });
+
+const screenShown = (input: Parameters<typeof loadGate>[0]): boolean =>
+  registerScreenReady(loadGate(input));
 
 const bootFrom = (over: Partial<Parameters<typeof bootStep>[0]>) =>
   bootStep({
@@ -387,6 +390,31 @@ test.describe("explicit state machines", () => {
     snap.arm();
     snap.disarm();
     expect(snap.consume(), "a hand-typed From survives the load").toBe(false);
+  });
+  test("the register screen waits for every read that can change it", () => {
+    // Saved cards, picker, summary and table are one screen: the reader sees
+    // none of it while any read that can change it is still in flight. Drive
+    // the rule from the reads, not from the gate's own labels.
+    const settled: Parameters<typeof loadGate>[0] = {
+      optionsLoading: false,
+      registerLoading: false,
+      preLoading: false,
+      rememberedStart: null,
+      rangeEdited: "",
+    };
+    expect(screenShown(settled), "nothing pending").toBe(true);
+    expect(
+      screenShown({ ...settled, optionsLoading: true }),
+      "options pending"
+    ).toBe(false);
+    expect(
+      screenShown({ ...settled, registerLoading: true }),
+      "register reply pending"
+    ).toBe(false);
+    expect(
+      screenShown({ ...settled, preLoading: true }),
+      "start walk pending"
+    ).toBe(false);
   });
   test("load gate: a typed To alone still waits for the start probe", () => {
     expect(

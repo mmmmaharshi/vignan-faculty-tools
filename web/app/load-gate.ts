@@ -45,3 +45,12 @@ const NOTES: Record<LoadGate, string> = {
 export function loadNote(gate: LoadGate): string {
   return NOTES[gate];
 }
+/**
+ * The whole Register screen waits for every server read that can change it:
+ * options, the semester-start walk and the clicked register. A refused read
+ * settles too — the gate returns to ready and the screen shows its own error
+ * note beside the form.
+ */
+export function registerScreenReady(gate: LoadGate): boolean {
+  return gate === "ready";
+}

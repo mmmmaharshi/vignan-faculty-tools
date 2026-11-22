@@ -79,7 +79,11 @@ import { SavedSections } from "../ui/SavedSections";
 import { SignInPanel } from "../ui/SignInPanel";
 import { StudentDetails } from "../ui/StudentDetails";
 import { UnpostedPanel } from "../ui/UnpostedPanel";
-import { loadGate, loadNote as gateNote } from "./load-gate";
+import {
+  loadGate,
+  loadNote as gateNote,
+  registerScreenReady,
+} from "./load-gate";
 import { createLoadSnap } from "./load-snap";
 import {
   CLOSED_PANEL,
@@ -886,6 +890,17 @@ const App = (): React.JSX.Element => {
               />
             )}
           </>
+        );
+      } else if (!registerScreenReady(gate)) {
+        // One screen, one wait: nothing of the register page is drawn while a
+        // read that can change it is still in flight.
+        body = (
+          <Stack align="center" mt="xl" gap="sm" role="status">
+            <Loader size="lg" />
+            <Text c="dimmed" size="sm">
+              {gateNote(gate)}
+            </Text>
+          </Stack>
         );
       } else {
         body = (

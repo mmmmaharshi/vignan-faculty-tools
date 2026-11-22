@@ -1,6 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  hold,
+  releaseRegister,
   resetStub,
   selectValue,
   signIn,
@@ -76,6 +78,22 @@ test.describe("the app's own data layer", () => {
       "nothing below the failed pass is shown"
     ).toBe("");
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
+  });
+
+  test("the whole register page waits for the register reply", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    hold("register");
+    await page.getByRole("button", { name: "Load register" }).click();
+    // Not just the table: the form and saved cards wait too, so no half-drawn
+    // register page can be read while the reply is still on the wire.
+    await expect(page.getByRole("status")).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Course" })).toHaveCount(0);
+    await releaseRegister();
+    await expect(page.getByRole("status")).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Course" })).toBeVisible();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3);
   });
 
   test("the click is what fetches a register, every time it is clicked", async ({

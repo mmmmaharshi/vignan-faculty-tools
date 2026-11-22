@@ -62,7 +62,13 @@ export const profileRolls: Array<string> = [];
 /** The semester starts each student panel asked its totals over. */
 export const totalsAsked: Array<string> = [];
 /** A read the stub can park for the test to answer late. */
-export type Holdable = "session" | "walk" | "profile" | "find" | "options";
+export type Holdable =
+  | "session"
+  | "walk"
+  | "profile"
+  | "find"
+  | "options"
+  | "register";
 /** A parked read: the route plus what the answer must remember about the
  *  moment of asking — a held session answer belongs to the session that
  *  asked for it, not to whatever signed in or out while it was in flight. */
@@ -278,6 +284,28 @@ export const registerReply = (
     subjectColumns: overall ? ["MFCS", "WT TEST"] : [],
   },
 });
+/** Answers a parked register read with the same body and remembered window
+ *  as an immediate one, including its refusal switch. */
+export const releaseRegister = async (): Promise<void> => {
+  await release("register", async (held) => {
+    const asked = held.route.request().postDataJSON() as RegisterRequest;
+    state.lastRegisterFrom = asked.from;
+    if (state.registerFails) {
+      await held.route.fulfill({
+        status: 401,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Your session has expired." }),
+      });
+      return;
+    }
+    const overall = asked.subject?.value === ALL_SUBJECTS.value;
+    await held.route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(registerReply(overall ? null : 6, overall)),
+    });
+  });
+};
 /** The backlogs section of each student's page: one with backlogs, one that says
  *  in words there are none, and one that says nothing about them. */
 export const backlogsFor = (roll: string): StudentBacklogs => {
@@ -474,6 +502,9 @@ export const stub = async (route: Route): Promise<void> => {
   }
   if (path === "/api/register") {
     state.registerCalls += 1;
+    if (park("register", route)) {
+      return;
+    }
     if (state.registerFails) {
       await json({ error: "Your session has expired." }, 401);
       return;
