@@ -8,19 +8,21 @@ export type Level = CascadeLevel;
  * over a fake portal and the real one is an implementation of the same shape.
  */
 export type PortalReader = {
-  courses: () => Promise<Option[]>;
-  branchesAndSemesters: (courseId: string) => Promise<[Option[], Option[]]>;
+  courses: () => Promise<Array<Option>>;
+  branchesAndSemesters: (
+    courseId: string
+  ) => Promise<[Array<Option>, Array<Option>]>;
   sections: (
     courseId: string,
     branchId: string,
     semester: string,
     semesterTitle?: string
-  ) => Promise<Option[]>;
+  ) => Promise<Array<Option>>;
   subjects: (
     courseId: string,
     branchId: string,
     semesterId: string
-  ) => Promise<Option[]>;
+  ) => Promise<Array<Option>>;
   register: (
     p: Record<Level, Option> & { from: string; to: string }
   ) => Promise<string>;
@@ -32,7 +34,7 @@ export type PortalReader = {
     courseId: string | number,
     branchId: string | number,
     semesterId: string | number
-  ) => Promise<Option[]>;
+  ) => Promise<Array<Option>>;
   /** One subject's attendance report for the whole section. */
   subjectReport: (
     p: Record<Level, Option> & { from: string; to: string },

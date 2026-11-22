@@ -26,7 +26,7 @@ import { defaultRange, toInputDate, toPortalDate } from "../web/register/range";
 /**
  * Oracles over the Portal's replies, fed by a grammar rather than by examples.
  *
- * `portal-replies.ts` exists because ECAP states the same fact in shapes nobody
+ * The reply parsers exist because ECAP states the same fact in shapes nobody
  * predicted: a dash where a count belongs, a blank where a zero would be, a
  * leading zero that is part of a code. Each of those was found by a human
  * squinting at a capture. These properties state the invariant the parser owes
@@ -168,7 +168,9 @@ test.describe("the cumulative counts add up", () => {
           const totals = parseCumulativeTotals(
             `${legend}<table><tr><td>Date</td><td>1 Hour</td></tr>${rows}</table>`
           );
-          if (!totals) return true; // refused, which is the honest answer
+          if (!totals) {
+            return true;
+          } // refused, which is the honest answer
           expect(totals.held).toBeGreaterThanOrEqual(totals.attend);
           expect(totals.held).toBeGreaterThanOrEqual(
             totals.attend + totals.absent
@@ -245,7 +247,9 @@ test.describe("portal dates survive the round trip", () => {
             `${String(start.d).padStart(2, "0")}/${String(start.m).padStart(2, "0")}`,
           ];
           const stated = statedStartDate(dates, { from, to });
-          if (stated === null) return true;
+          if (stated === null) {
+            return true;
+          }
           return (
             dateCode(stated) >= dateCode(from) &&
             dateCode(stated) <= dateCode(to)

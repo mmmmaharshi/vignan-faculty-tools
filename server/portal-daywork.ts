@@ -34,7 +34,7 @@ const ROLLS_COLUMN = 7;
 const isCount = (value: string): boolean => /^\d+$/.test(value);
 /** The missing rolls the report lists, in its own order, as written. A dash is
  *  not a roll number: it is ECAP's own way of stating nothing here. */
-const rollsOf = (cell: string): string[] =>
+const rollsOf = (cell: string): Array<string> =>
   cell
     .split(",")
     .map((roll) => roll.trim())
@@ -50,18 +50,20 @@ const rollsOf = (cell: string): string[] =>
 export function parseDayClassWork(
   html: string,
   shorts: Record<string, string> = {}
-): DayWorkSection[] {
+): Array<DayWorkSection> {
   const blocks = html.split(SECTION_BLOCK).slice(1);
-  const sections: DayWorkSection[] = [];
+  const sections: Array<DayWorkSection> = [];
   for (const block of blocks) {
     const branch = block.match(BLOCK_BRANCH)?.groups?.branch?.trim() ?? "";
     const semester =
       block.match(BLOCK_SEMESTER)?.groups?.semester?.trim() ?? "";
     const section = block.match(BLOCK_SECTION)?.groups?.section?.trim() ?? "";
-    const cells: DayWorkCell[] = [];
+    const cells: Array<DayWorkCell> = [];
     for (const row of block.match(ROW) ?? []) {
       const rowCells = cellsOf(row);
-      if (rowCells.length < 8 || !/^\d+$/.test(rowCells[0] ?? "")) continue;
+      if (rowCells.length < 8 || !/^\d+$/.test(rowCells[0] ?? "")) {
+        continue;
+      }
       // A row with exactly one count still reads posted: every posted period in
       // every live reply states both, so half-blank is malformed, not unposted.
       const present = rowCells[PRESENT_COLUMN] ?? "";
@@ -95,13 +97,17 @@ export function parseDayClassWork(
   return sections;
 }
 /** The dashboard's schedule grid as today's periods, in the grid's own order. */
-export function parseTodayClasses(html: string): TodayClass[] {
+export function parseTodayClasses(html: string): Array<TodayClass> {
   const grid = html.match(SCHEDULE_GRID)?.groups?.grid ?? "";
-  if (!grid) return [];
-  const out: TodayClass[] = [];
+  if (!grid) {
+    return [];
+  }
+  const out: Array<TodayClass> = [];
   for (const row of grid.match(ROW) ?? []) {
     const [timeCell, stackCell] = rawCells(row);
-    if (timeCell === undefined || stackCell === undefined) continue;
+    if (timeCell === undefined || stackCell === undefined) {
+      continue;
+    }
     // "Period-1" over its hours: the name leads bold, the hours dimmed under
     // it, so the hyphen reads better as a space. Split before the tags are
     // stripped — afterwards the break is just another space.
@@ -110,7 +116,7 @@ export function parseTodayClasses(html: string): TodayClass[] {
       period: (period ?? "").replace("-", " "),
       time: hours.join(" "),
     };
-    const stacked: TodayClass[] = [];
+    const stacked: Array<TodayClass> = [];
     for (const entry of stackCell.split(NEXT_SUBJECT)) {
       const [subject, ...rest] = entry.split(NEXT_LINE).map(cellText);
       const section = rest.join(" ");

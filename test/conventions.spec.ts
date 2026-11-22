@@ -47,13 +47,13 @@ test.describe("the password cipher", () => {
     const plain = "a password with spaces & symbols";
     const decipher = createDecipheriv(
       "aes-128-cbc",
-      Buffer.from(AES_KEY, "utf-8"),
-      Buffer.from(AES_KEY, "utf-8")
+      Buffer.from(AES_KEY, "utf8"),
+      Buffer.from(AES_KEY, "utf8")
     );
     const out = Buffer.concat([
       decipher.update(Buffer.from(portalEncrypt(plain), "base64")),
       decipher.final(),
-    ]).toString("utf-8");
+    ]).toString("utf8");
     expect(out).toBe(plain);
   });
 });
@@ -91,8 +91,8 @@ test.describe("convention A, the dropdown fillers", () => {
       "{'a':'1','b':'2','c':'3'}"
     );
   });
-  test("escapes a single quote inside a value as \\'", () => {
-    expect(jqBody({ title: "O'Brien" })).toBe("{'title':'O\\'Brien'}");
+  test(String.raw`escapes a single quote inside a value as \'`, () => {
+    expect(jqBody({ title: "O'Brien" })).toBe(String.raw`{'title':'O\'Brien'}`);
   });
 });
 test.describe("convention B, the static web methods", () => {
@@ -267,7 +267,7 @@ test.describe("one request through the jar", () => {
     // a correct password answers "Sign-in failed". Removing the in-loop
     // `absorbResponse` is invisible to `nextHop`'s own tests.
     const jar = new CookieJar();
-    const sent: (string | null)[] = [];
+    const sent: Array<string | null> = [];
     const real = globalThis.fetch;
     let hop = 0;
     globalThis.fetch = ((_url: string, init?: RequestInit) => {
@@ -310,7 +310,7 @@ test.describe("static path containment", () => {
   test("refuses a path that escapes, including a sibling directory", () => {
     expect(resolveWithin(root, "/../secret.txt")).toBeNull();
     expect(resolveWithin(root, "/../distsecret/app.js")).toBeNull();
-    expect(resolveWithin(root, "/..\\secret.txt")).toBeNull();
+    expect(resolveWithin(root, String.raw`/..\secret.txt`)).toBeNull();
   });
   test("an encoded separator stays a literal name inside the output", () => {
     expect(resolveWithin(root, "/%2e%2e/secret.txt")).toBe(
@@ -337,11 +337,11 @@ test.describe("the two deployments", () => {
     // The local server holds it as a constant and the deployed front end as a
     // string in vercel.json. Nothing else links the two copies, so a policy
     // loosened in one place would ship in the other unnoticed.
-    const deployed: unknown = JSON.parse(
-      await readFile("vercel.json", "utf-8")
-    );
+    const deployed: unknown = JSON.parse(await readFile("vercel.json", "utf8"));
     const headers = (
-      deployed as { headers: { headers: { key: string; value: string }[] }[] }
+      deployed as {
+        headers: Array<{ headers: Array<{ key: string; value: string }> }>;
+      }
     ).headers.flatMap((entry) => entry.headers);
     const stated = headers.find(
       (header) => header.key.toLowerCase() === "content-security-policy"

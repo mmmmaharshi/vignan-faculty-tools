@@ -19,7 +19,7 @@ const headNumber = (v: string) => v.match(/^\d+(?:\.\d+)?/)?.[0] ?? v;
  *  Pending | Declined | Available`. The counts sit inside clickable divs and
  *  the first cell holds a radio button, so neither cell shape nor row shape
  *  can tell this grid apart — only its header can. */
-export function parseLeaveStatus(html: string): LeaveStatus[] {
+export function parseLeaveStatus(html: string): Array<LeaveStatus> {
   const grid = gridTables(html).find((rows) =>
     rows.some(
       (cells) =>
@@ -28,7 +28,9 @@ export function parseLeaveStatus(html: string): LeaveStatus[] {
         cells.includes("Declined")
     )
   );
-  if (!grid) return [];
+  if (!grid) {
+    return [];
+  }
   return grid
     .filter(
       (cells) =>

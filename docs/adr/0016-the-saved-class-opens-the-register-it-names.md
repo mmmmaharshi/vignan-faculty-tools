@@ -18,6 +18,11 @@ the URL). Touches ADR 0014 (the vault) and repairs a gap it left.
 
 Accepted, amended
 
+**Clarification.** The rule that a card is saved only after a register loaded
+governs the automatic save. The Save this section button is a deliberate
+override: it writes the card immediately, before any register read. Both paths
+live in `web/register/use-saved-sections.ts`.
+
 ## Context
 
 Every session began the same way: sign in, wait for the cascade to fill, pick a

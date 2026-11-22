@@ -183,7 +183,9 @@ test.describe("the app's own data layer", () => {
         }
         scroller = scroller.parentElement;
       }
-      if (!scroller) return null;
+      if (!scroller) {
+        return null;
+      }
       scroller.scrollLeft = scroller.scrollWidth;
       const cellLeft = cell.getBoundingClientRect().left;
       const edgeLeft = scroller.getBoundingClientRect().left;

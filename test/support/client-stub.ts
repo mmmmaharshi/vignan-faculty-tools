@@ -25,42 +25,42 @@ import type {
  */
 
 /** A clock time, so a stubbed period can name hours the panel can read. */
-export const clockTime = (d: Date): string => {
+const clockTime = (d: Date): string => {
   const hour = d.getHours() % 12 || 12;
   const minute = String(d.getMinutes()).padStart(2, "0");
   return `${hour}:${minute} ${d.getHours() < 12 ? "AM" : "PM"}`;
 };
 /** An hour each way from a moment, so a stubbed period spans "now" whenever
  *  the test runs: the highlight is asserted, not the hour. */
-export const aroundNow = (at: number): string =>
+const aroundNow = (at: number): string =>
   `${clockTime(new Date(at - 30 * 60_000))}- ${clockTime(new Date(at + 30 * 60_000))}`;
 /** The slid session an answer carries, the way the real server sends it. */
-export const sessionAnswer = (
-  wasIn: boolean
-): { headers: Record<string, string>; body: string } => ({
-  headers: wasIn
-    ? {
-        [SESSION_HEADER]: Buffer.from(
-          JSON.stringify({
-            userId: "faculty",
-            password: "secret",
-            cookies: [["frmAuth", "ok"]],
-            at: Date.now(),
-          }),
-          "utf-8"
-        ).toString("base64url"),
-      }
-    : {},
-  body: JSON.stringify({
-    signedIn: wasIn,
-    userId: wasIn ? "faculty" : "",
-  }),
-});
+export const sessionAnswer = (wasIn: boolean) => {
+  const encoded = Buffer.from(
+    JSON.stringify({
+      userId: "faculty",
+      password: "secret",
+      cookies: [["frmAuth", "ok"]],
+      at: Date.now(),
+    }),
+    "utf8"
+  ).toString("base64url");
+  const headers = Object.fromEntries(
+    wasIn ? [[SESSION_HEADER, encoded] as const] : []
+  );
+  return {
+    headers,
+    body: JSON.stringify({
+      signedIn: wasIn,
+      userId: wasIn ? "faculty" : "",
+    }),
+  };
+};
 
 /** The rolls the student panel asked for, in the order it asked. */
-export const profileRolls: string[] = [];
+export const profileRolls: Array<string> = [];
 /** The semester starts each student panel asked its totals over. */
-export const totalsAsked: string[] = [];
+export const totalsAsked: Array<string> = [];
 /** A read the stub can park for the test to answer late. */
 export type Holdable = "session" | "walk" | "profile" | "find" | "options";
 /** A parked read: the route plus what the answer must remember about the
@@ -83,7 +83,7 @@ export const state = {
    *  never stand in for it; the release ends the hold, so whatever the
    *  test does next is answered. Leftovers are discarded at reset. */
   armed: new Set<Holdable>(),
-  holds: new Map<Holdable, Parked[]>(),
+  holds: new Map<Holdable, Array<Parked>>(),
   optionsCalls: 0,
   /** The next that many `/api/options` calls answer 502, then answer again:
    *  consecutive portal failures, the way ECAP fails from the server. The loop
@@ -165,16 +165,22 @@ export const release = async (
 ): Promise<void> => {
   const queue = state.holds.get(read) ?? [];
   const held = queue.shift();
-  if (!held) throw new Error(`release with no parked ${read} read`);
+  if (!held) {
+    throw new Error(`release with no parked ${read} read`);
+  }
   state.armed.delete(read);
-  if (queue.length === 0) state.holds.delete(read);
+  if (queue.length === 0) {
+    state.holds.delete(read);
+  }
   await answer(held);
 };
 /** Parks `route` when `read` is armed. True where the caller must not also
  *  answer: one mechanism for every holdable read. The snapshot rides along
  *  because a held answer belongs to the session that asked for it. */
 const park = (read: Holdable, route: Route): boolean => {
-  if (!state.armed.has(read)) return false;
+  if (!state.armed.has(read)) {
+    return false;
+  }
   const queue = state.holds.get(read) ?? [];
   queue.push({ route, wasIn: state.signedIn });
   state.holds.set(read, queue);
@@ -324,22 +330,18 @@ export const profileFor = (roll: string): StudentProfile => ({
 export const studentReply = (asked: StudentRequest): StudentProfile => {
   const { roll, register, semStart } = asked;
   const allSubjects = register?.subject?.value === ALL_SUBJECTS.value;
-  return {
-    ...profileFor(roll),
-    ...(allSubjects ? { absent: ["02/09"] } : {}),
-    // The semester's counts, as the Cumulative register states them.
-    ...(semStart ? { totals: { held: 21, attend: 21, absent: 0 } } : {}),
-    // The month table, as the class report states it: cumulative from the
-    // semester start, one row per month, the figure climbing.
-    ...(semStart
-      ? {
-          months: [
-            { month: { from: "05/08/2026", to: "31/08/2026" }, pct: 65 },
-            { month: { from: "01/09/2026", to: "30/09/2026" }, pct: 75.5 },
-          ],
-        }
-      : {}),
-  };
+  const reply: StudentProfile = { ...profileFor(roll) };
+  if (allSubjects) {
+    reply.absent = ["02/09"];
+  }
+  if (semStart) {
+    reply.totals = { held: 21, attend: 21, absent: 0 };
+    reply.months = [
+      { month: { from: "05/08/2026", to: "31/08/2026" }, pct: 65 },
+      { month: { from: "01/09/2026", to: "30/09/2026" }, pct: 75.5 },
+    ];
+  }
+  return reply;
 };
 /** Answers a parked profile read the way an immediate one answers. */
 export const releaseProfile = async (): Promise<void> => {
@@ -356,7 +358,9 @@ export const releaseProfile = async (): Promise<void> => {
 export const findReply = (roll: string) => {
   const reply = registerReply(null, true);
   const student = reply.students.find((row) => row.roll === roll) ?? null;
-  if (student) student.absent = ["02/09"];
+  if (student) {
+    student.absent = ["02/09"];
+  }
   return {
     profile: profileFor(roll),
     class: {
@@ -387,7 +391,7 @@ export const releaseFind = async (): Promise<void> => {
   });
 };
 /** The stored session answers carry, built the way the real server sends it. */
-export const storedSessionHeader = (): Record<string, string> => ({
+export const storedSessionHeader = () => ({
   [SESSION_HEADER]: Buffer.from(
     JSON.stringify({
       userId: "faculty",
@@ -395,7 +399,7 @@ export const storedSessionHeader = (): Record<string, string> => ({
       cookies: [["frmAuth", "ok"]],
       at: Date.now(),
     }),
-    "utf-8"
+    "utf8"
   ).toString("base64url"),
 });
 export const stub = async (route: Route): Promise<void> => {
@@ -411,7 +415,9 @@ export const stub = async (route: Route): Promise<void> => {
     state.sessionCalls += 1;
     // A held answer belongs to the session that asked for it, not to
     // whatever signed in or out while it was in flight.
-    if (park("session", route)) return;
+    if (park("session", route)) {
+      return;
+    }
     // Like the real server, every answer carries the slid session back, so
     // the browser stores it — including one that lands after a sign-out.
     await route.fulfill({
@@ -439,7 +445,9 @@ export const stub = async (route: Route): Promise<void> => {
   }
   if (path === "/api/options") {
     state.optionsCalls += 1;
-    if (park("options", route)) return;
+    if (park("options", route)) {
+      return;
+    }
     if (state.optionsFailCount > 0) {
       state.optionsFailCount -= 1;
       await json(
@@ -483,7 +491,9 @@ export const stub = async (route: Route): Promise<void> => {
     const walked = (request.postDataJSON() as { walkBack?: number }).walkBack;
     if (walked) {
       state.walkCalls += 1;
-      if (park("walk", route)) return;
+      if (park("walk", route)) {
+        return;
+      }
       await json({ statedFrom: state.semStartWalkFrom });
       return;
     }
@@ -500,21 +510,27 @@ export const stub = async (route: Route): Promise<void> => {
     const asked = request.postDataJSON() as StudentRequest;
     const { roll, register, semStart } = asked;
     profileRolls.push(roll);
-    if (semStart) totalsAsked.push(semStart);
+    if (semStart) {
+      totalsAsked.push(semStart);
+    }
     // The All subjects report states no dates, so the panel asks for this
     // student's own grid over the same range; the stub answers as that report
     // would. A subject register's rows already carry their dates, so nothing is
     // asked for.
     const allSubjects = register?.subject?.value === ALL_SUBJECTS.value;
     state.absentAsked ||= allSubjects;
-    if (park("profile", route)) return;
+    if (park("profile", route)) {
+      return;
+    }
     await json(studentReply(asked));
     return;
   }
   if (path === "/api/find") {
     state.findCalls += 1;
     const { roll } = request.postDataJSON() as FindRequest;
-    if (park("find", route)) return;
+    if (park("find", route)) {
+      return;
+    }
     await json(findReply(roll));
     return;
   }
@@ -647,7 +663,9 @@ export async function selectValue(
       );
     });
   }, label.toLowerCase());
-  if (index < 0) return null;
+  if (index < 0) {
+    return null;
+  }
   return page.locator("input.mantine-Select-input").nth(index).inputValue();
 }
 export async function signIn(page: Page): Promise<void> {

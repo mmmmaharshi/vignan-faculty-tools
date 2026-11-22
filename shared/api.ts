@@ -33,7 +33,7 @@ export interface ClientSession {
    *  server with no per-user state. Anyone holding the browser's storage
    *  holds the ECAP account with it. */
   password: string;
-  cookies: [string, string][];
+  cookies: Array<[string, string]>;
   /** When the server last saw this session. Requests older than thirty days
    *  of not using it are refused. */
   at: number;
@@ -62,12 +62,12 @@ export type CascadeLevel =
   | "section"
   | "subject";
 export interface OptionsReply {
-  course: Option[];
-  semester: Option[];
-  branch: Option[];
-  section: Option[];
-  subject: Option[];
-  emptyLevels: CascadeLevel[];
+  course: Array<Option>;
+  semester: Array<Option>;
+  branch: Array<Option>;
+  section: Array<Option>;
+  subject: Array<Option>;
+  emptyLevels: Array<CascadeLevel>;
 }
 export interface Student {
   sl: string;
@@ -85,13 +85,13 @@ export interface Student {
    *  subjectColumns order — read from ECAP's own subject reports, never
    *  recomputed. Null is no figure, never a zero. Empty on a subject
    *  register, whose own figure the register grid already states. */
-  subjects: (number | null)[];
+  subjects: Array<number | null>;
   /** Dates (dd/mm) the register states "A" for this student. Read from the
    *  register's own grid — no extra Portal call. */
-  absent: string[];
+  absent: Array<string>;
 }
 export interface RegisterReply {
-  students: Student[];
+  students: Array<Student>;
   summary: {
     total: number;
     irregular: number;
@@ -116,11 +116,11 @@ export interface RegisterReply {
     /** The register's own date columns (dd/mm), for client-side fallback when
      *  statedFrom could not be resolved server-side. Empty on the All subjects
      *  path and wherever the grid states no dates. */
-    dates: string[];
+    dates: Array<string>;
     /** The class report's subject column headers, in order — the names each
      *  student's subjects list below is read under. Empty where the report
      *  aggregates without stating any, and on a subject register. */
-    subjectColumns: string[];
+    subjectColumns: Array<string>;
   };
 }
 export interface ErrorReply {
@@ -140,7 +140,7 @@ export interface StudentSgpa {
   /** One grade per subject in that semester's own table, in the table's order —
    *  ECAP's letter grades (A, B, …), never marks. Empty where the grade row
    *  states none. */
-  subjects: StudentSubjectGrade[];
+  subjects: Array<StudentSubjectGrade>;
 }
 /** One subject's grade in a past semester, as that semester's own table states
  *  it: the header's code beside the Grade row's mark. */
@@ -159,14 +159,14 @@ export interface StudentBacklogSubject {
 export interface StudentBacklog {
   /** The semester the page names the row under ("I Semester"). */
   semester: string;
-  subjects: StudentBacklogSubject[];
+  subjects: Array<StudentBacklogSubject>;
 }
 /** The backlogs the StudentProfile page states, as that page's section states
  *  them. A page with none says so in words on one build and leaves the section
  *  empty on another, so its words are carried rather than lost. */
 export interface StudentBacklogs {
   /** One entry per semester the page lists. */
-  rows: StudentBacklog[];
+  rows: Array<StudentBacklog>;
   /** The page's own total, where it states one ("Total backlogs: 1"). */
   total: number | null;
   /** The page's own words where it states there are none ("Student have no
@@ -212,22 +212,22 @@ export interface StudentProfile {
   cgpa: string;
   credits: string;
   cgpaPercent: string;
-  sgpa: StudentSgpa[];
-  phones: StudentPhone[];
+  sgpa: Array<StudentSgpa>;
+  phones: Array<StudentPhone>;
   /** The backlogs the page's own backlogs section states. */
   backlogs: StudentBacklogs;
   /** The dates this student missed, unioned over every subject, out of the
    *  Student Wise report — read only when the register on screen is the All
    *  subjects view, whose own report aggregates by subject and states no dates.
    *  Left out when ECAP would not give it, which is not a clean sheet. */
-  absent?: string[];
+  absent?: Array<string>;
   /** The semester's held / attended / absent class counts, from the Cumulative
    *  student-wise register. Left out when ECAP would not give that reply. */
   totals?: StudentTotals;
   /** The student's cumulative attendance month by month, from the semester's
    *  first month through the current one. Left out when no register is open or
    *  the semester start is unknown: the section cannot be named without them. */
-  months?: StudentMonth[];
+  months?: Array<StudentMonth>;
 }
 /** One student's absent days over a wider window than the register on screen —
  *  asked with the remembered semester start so the panel can name a full-sem
@@ -243,7 +243,7 @@ export interface SemAbsencesRequest {
 }
 export interface SemAbsencesReply {
   /** Absent when ECAP would not give the wider read — not a clean sheet. */
-  absent?: string[];
+  absent?: Array<string>;
 }
 /** The earliest day ECAP holds for one subject inside the asked window: the
  *  register's own first date column, resolved to a full dd/mm/yyyy date. Null
@@ -295,7 +295,7 @@ export interface FacultyProfile {
   designation: string;
   /** One entry per leave type in the `showLeaves` grid. Empty when ECAP did
    *  not state any, which is not the same as all zeros. */
-  leaveStatus: LeaveStatus[];
+  leaveStatus: Array<LeaveStatus>;
 }
 /** One period ECAP's GetToDayClasses states for the signed-in faculty member:
  *  today's own timetable, read off the faculty dashboard's schedule grid. */
@@ -314,7 +314,7 @@ export interface TodayClass {
 export interface TodayClassesReply {
   /** Today's periods in the grid's own order. Empty when ECAP states none —
    *  a cleared evening or a day with no periods, never a failed read. */
-  classes: TodayClass[];
+  classes: Array<TodayClass>;
 }
 /** One held period out of ECAP's day-class-work report: posted or not, with
  *  the subject stated for it, who was to take it, the present/absent counts, and
@@ -328,7 +328,7 @@ export interface DayWorkCell {
   staff: string;
   present: string;
   absent: string;
-  absentRolls: string[];
+  absentRolls: Array<string>;
 }
 /** One section's block of the day-class-work report. */
 export interface DayWorkSection {
@@ -336,7 +336,7 @@ export interface DayWorkSection {
   branchShort: string;
   semester: string;
   section: string;
-  cells: DayWorkCell[];
+  cells: Array<DayWorkCell>;
 }
 export interface UnpostedReply {
   /** The day asked, dd/mm/yyyy on the campus clock. */
@@ -344,7 +344,7 @@ export interface UnpostedReply {
   /** Every section's cells in the report's order. Empty when the report
    *  stated no sections at all — no classes that day, which is not the same
    *  as all posted. */
-  sections: DayWorkSection[];
+  sections: Array<DayWorkSection>;
 }
 export interface StudentRequest {
   roll: string;
@@ -397,7 +397,7 @@ export interface FindReply {
   /** The same student's absent days over the whole semester, walked back
    *  month by month so no range wider than a month is ever asked. Null when
    *  ECAP would give none of it. */
-  fullAbsent: string[] | null;
+  fullAbsent: Array<string> | null;
   /** The period fullAbsent covers. Null with it. */
   fullRange: { from: string; to: string } | null;
   /** Why there is no class or no row, in words; empty when both are there. */
@@ -418,7 +418,7 @@ export interface OptionsRequest {
    * is asked. Never carried across runs: a new run refetches, which is what
    * lets a renamed option correct itself.
    */
-  held?: Partial<Record<CascadeLevel, Option[]>>;
+  held?: Partial<Record<CascadeLevel, Array<Option>>>;
 }
 export interface RegisterRequest {
   course: Option;

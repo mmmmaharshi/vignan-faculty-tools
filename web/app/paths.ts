@@ -20,7 +20,7 @@ export const SCREENS = [
 ] as const;
 export type Screen = (typeof SCREENS)[number];
 export const isScreen = (pathname: string): boolean =>
-  (SCREENS as readonly string[]).includes(pathname);
+  (SCREENS as ReadonlyArray<string>).includes(pathname);
 /** Which screen the address bar names. Anything else is the register screen:
  *  unknown paths render its body before the guard sends them on, so the
  *  highlight agrees with the screen rather than going dark. */

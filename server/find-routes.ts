@@ -12,15 +12,15 @@ import { sameRoll } from "../shared/portal-values.js";
 import { readRegister } from "./class-routes.js";
 import { endScan, scanStep, startScan } from "./find-scan.js";
 import type { SectionScan } from "./find-scan.js";
-import { HttpError, rethrowExpired, unreadablePage } from "./http-error.js";
+import { HttpError, rethrowExpired } from "./http-error.js";
 import type { PortalReader } from "./portal-reader.js";
-import { parseStudentClass, parseStudentProfile } from "./portal-student.js";
+import { parseStudentClass } from "./portal-student.js";
 import { resolveClass } from "./student-class.js";
 import {
+  panelReads,
+  profilePageOrThrow,
   readAbsences,
   readFullSemesterAbsences,
-  readMonths,
-  readTotals,
 } from "./student-routes.js";
 
 /**
@@ -38,14 +38,15 @@ export async function handleFind(
   portal: PortalReader,
   b: Partial<FindRequest>
 ): Promise<FindReply> {
-  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
-  const roll = b.roll?.trim();
-  if (!roll) throw new HttpError(400, "Enter a roll number.");
-  const html = await portal.studentProfile(roll);
-  const profile = parseStudentProfile(html);
-  if (!profile) {
-    throw unreadablePage("student profile page");
+  if (!b.from || !b.to) {
+    throw new HttpError(400, "Choose a date range.");
   }
+  const roll = b.roll?.trim();
+  if (!roll) {
+    throw new HttpError(400, "Enter a roll number.");
+  }
+  const html = await portal.studentProfile(roll);
+  const profile = profilePageOrThrow(html);
   const found = await resolveClass(portal, parseStudentClass(html), profile);
   if (found.kind === "unstated") {
     return {
@@ -74,7 +75,7 @@ export async function handleFind(
       to: window.to,
     };
     let reply: RegisterReply | null = null;
-    let failure: unknown = null;
+    let failure: Error | null = null;
     try {
       // One roll's row is all this screen needs, so no subject's own report is
       // read for it: the columns it would fill are not shown here.
@@ -85,7 +86,7 @@ export async function handleFind(
       // A dead session must still sign out. Anything else is one section this
       // search can do without: the next one may hold the roll.
       rethrowExpired(error);
-      failure = error;
+      failure = error instanceof Error ? error : new Error(String(error));
     }
     scan = reply
       ? scanStep(scan, {
@@ -99,7 +100,8 @@ export async function handleFind(
       // The class report states no dates, so the student's own grid is the only
       // place they exist — read them now, over the same window, the way the
       // panel does for a register row. The wider walk needs nothing from this
-      // window's own read, so the two go out together.
+      // window's own read, so the two go out together, and either refusal ends
+      // the session rather than leaving a promise to fail on its own.
       const [absences, full] = await Promise.all([
         readAbsences(portal, roll, {
           name: student.name,
@@ -107,7 +109,6 @@ export async function handleFind(
         }),
         readFullSemesterAbsences(portal, roll, student.name, gridRequest),
       ]);
-      if (absences.absent) student.absent = absences.absent;
       // The semester's class counts, over the same start the absent walk found —
       // the window ECAP's Cumulative screen uses. The Search screen has no
       // register picker, so this is the only place its panel can get them. The
@@ -119,12 +120,17 @@ export async function handleFind(
         register: gridRequest,
         semStart: full.range?.from ?? window.from,
       };
-      const [totals, monthly] = await Promise.all([
-        readTotals(portal, roll, asked),
-        readMonths(portal, roll, asked),
-      ]);
+      const reads = await panelReads(
+        portal,
+        roll,
+        asked,
+        Promise.resolve(absences)
+      );
+      if (reads.absent) {
+        student.absent = reads.absent;
+      }
       return {
-        profile: { ...profile, ...totals, ...monthly },
+        profile: { ...profile, ...reads },
         class: {
           ...resolved.levels,
           section,
@@ -140,7 +146,9 @@ export async function handleFind(
   }
   const ended = endScan(scan);
   if (ended.kind === "refused") {
-    if (ended.error instanceof HttpError) throw ended.error;
+    if (ended.error instanceof HttpError) {
+      throw ended.error;
+    }
     throw new HttpError(
       502,
       "ECAP's class attendance report came back in an unexpected shape, so no figure could be read for this student."

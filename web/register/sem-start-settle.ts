@@ -46,14 +46,7 @@ export function useSemStartSettle(setup: {
   result: RegisterReply | null;
   overallMode: boolean;
   click: RegisterClick | null;
-}): {
-  semStart: ReturnType<typeof useSemStart>;
-  preSemStart: ReturnType<typeof useSemStart>;
-  semStartShown: string | null;
-  /** The start remembered for the settled class, if any load ever taught it:
-   *  the screen snaps to it with no probe, so no load ever waits for it. */
-  rememberedStart: string | null;
-} {
+}) {
   const {
     opts,
     sel,
@@ -161,13 +154,16 @@ export function useSemStartSettle(setup: {
    *  guessed one. (The just-loaded register snaps in the caller: the figures
    *  begin where it states even over a manual edit.) */
   const selKey = selKeyOf(sel);
-  /* oxlint-disable react/set-state-in-effect */
   useEffect(() => {
     const snap = (source: string, stated: string | null): void => {
       const iso = stated ? toInputDate(stated) : "";
-      if (!iso || iso === range.from) return;
+      if (!iso || iso === range.from) {
+        return;
+      }
       const stamp = `${source}|${iso}`;
-      if (stamp === snapMarks.current.stamp) return;
+      if (stamp === snapMarks.current.stamp) {
+        return;
+      }
       snapMarks.current.stamp = stamp;
       openRangeAt(iso, range, setRange);
     };
@@ -193,16 +189,19 @@ export function useSemStartSettle(setup: {
     setRange,
     rangeEdited,
   ]);
-  /* oxlint-enable react/set-state-in-effect */
   /** Fold the window's first day into the earliest-start memory: without this a
    *  later From would move "Sem Start Date" forward to the window's first day
    *  instead of the semester's (the memory lives in `sem-starts.ts`). */
   /* oxlint-disable react/set-state-in-effect */
   useEffect(() => {
-    if (!semKey || !semSeen) return;
+    if (!semKey || !semSeen) {
+      return;
+    }
     setSemStarts((prev) => {
       const next = noteSemStart(prev, semKey, semSeen);
-      if (next !== prev) writeSemStarts(next);
+      if (next !== prev) {
+        writeSemStarts(next);
+      }
       return next;
     });
   }, [semKey, semSeen]);

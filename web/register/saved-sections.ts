@@ -42,8 +42,12 @@ const STORE_PREFIX = "section-";
  *  missing section label is not a fault: an entry written before labels were kept
  *  still opens, it just says its value until this session offers the name. */
 function readClass(value: unknown): SavedSection | null {
-  if (typeof value !== "object" || value === null) return null;
-  const values = value as Record<string, unknown>;
+  if (typeof value !== "object" || value === null) {
+    return null;
+  }
+  const values = value as Partial<
+    Record<(typeof LEVEL_KEYS)[number] | "sectionLabel", string>
+  >;
   const read = (key: (typeof LEVEL_KEYS)[number]): string => {
     const found = values[key];
     return typeof found === "string" ? found : "";
@@ -55,7 +59,9 @@ function readClass(value: unknown): SavedSection | null {
     section: read("section"),
     subject: ALL_SUBJECTS.value,
   };
-  if (!LEVEL_KEYS.every((key) => cls[key])) return null;
+  if (!LEVEL_KEYS.every((key) => cls[key])) {
+    return null;
+  }
   const { sectionLabel } = values;
   if (typeof sectionLabel === "string" && sectionLabel) {
     cls.sectionLabel = sectionLabel;
@@ -65,25 +71,31 @@ function readClass(value: unknown): SavedSection | null {
 const storeKey = (userId: string): string => `${STORE_PREFIX}${userId}`;
 /** A stored list, or a single class from an earlier build, which is still
  *  offered. Anything that is not an object is no classes at all. */
-const isStoredList = (
-  value: unknown
-): value is unknown[] | Record<string, unknown> =>
+const isStoredList = (value: unknown): value is object =>
   typeof value === "object" && value !== null;
-function writeClasses(userId: string, list: readonly SavedSection[]): void {
+function writeClasses(userId: string, list: ReadonlyArray<SavedSection>): void {
   writeStored(storeKey(userId), list);
 }
-export function savedSections(userId: string): SavedSection[] {
-  if (!userId) return [];
+export function savedSections(userId: string): Array<SavedSection> {
+  if (!userId) {
+    return [];
+  }
   const parsed = readStored(storeKey(userId), isStoredList);
-  if (!parsed) return [];
+  if (!parsed) {
+    return [];
+  }
   const entries = Array.isArray(parsed) ? parsed : [parsed];
   const seen = new Set<string>();
-  const list: SavedSection[] = [];
+  const list: Array<SavedSection> = [];
   for (const entry of entries) {
     const cls = readClass(entry);
-    if (!cls) continue;
+    if (!cls) {
+      continue;
+    }
     const key = selKeyOf(cls);
-    if (seen.has(key)) continue;
+    if (seen.has(key)) {
+      continue;
+    }
     seen.add(key);
     list.push(cls);
   }
@@ -94,10 +106,16 @@ export function rememberSection(
   sel: Sel,
   sectionLabel = ""
 ): void {
-  if (!userId) return;
+  if (!userId) {
+    return;
+  }
   const cls = readClass(sel);
-  if (!cls) return;
-  if (sectionLabel) cls.sectionLabel = sectionLabel;
+  if (!cls) {
+    return;
+  }
+  if (sectionLabel) {
+    cls.sectionLabel = sectionLabel;
+  }
   // Re-saving moves the section to the front rather than duplicating it: the one
   // just used is the one most likely to be wanted again.
   const kept = savedSections(userId).filter(
@@ -106,9 +124,13 @@ export function rememberSection(
   writeClasses(userId, [cls, ...kept]);
 }
 export function forgetSection(userId: string, sel: Sel): void {
-  if (!userId) return;
+  if (!userId) {
+    return;
+  }
   const cls = readClass(sel);
-  if (!cls) return;
+  if (!cls) {
+    return;
+  }
   writeClasses(
     userId,
     savedSections(userId).filter(
@@ -118,7 +140,7 @@ export function forgetSection(userId: string, sel: Sel): void {
 }
 const CONNECTING_WORDS = new Set(["and", "of", "the", "for", "in", "a", "to"]);
 /** The initials of a phrase, or the phrase itself when it has too few words. */
-function initialsOf(words: readonly string[], fallback: string): string {
+function initialsOf(words: ReadonlyArray<string>, fallback: string): string {
   const initials = words.map((word) => word[0]?.toUpperCase() ?? "").join("");
   // A lone capital reads as a typo rather than as an abbreviation.
   return initials.length < 2 ? fallback : initials;
@@ -158,7 +180,9 @@ export function abbreviate(name: string): string {
         .filter((w) => w.length > 0 && INITIALS.test(w[0] ?? "")),
       raw
     );
-    if (!inside) return before;
+    if (!inside) {
+      return before;
+    }
     // The Portal sometimes writes the short form already: "… (CSE)". Repeating
     // the head beside it would print "CSE(CSE)", so the bracket stands alone.
     return inside === raw && inside === before

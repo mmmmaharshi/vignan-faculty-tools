@@ -7,7 +7,9 @@ the pointers in AGENTS.md name when to do so.
 - **The portal is a client-side shell.** Its Academic Register page renders no
   dropdowns at all; the page's own JavaScript builds them by calling remote
   methods. There are two different calling conventions and using the wrong one
-  returns an empty result with no error. `api.ts` documents both.
+  returns an empty result with no error. `server/portal-conventions.ts` and
+  `server/portal-transport.ts` implement them; `docs/portal-wire.md` states each
+  method's contract.
 - **The password is AES-encrypted client-side before it is posted**, as bare
   ciphertext — not the OpenSSL `Salted__` form stock CryptoJS produces. This
   portal's `JSFiles/jsaes.js` is a custom build, and a wrong ciphertext never
@@ -289,10 +291,13 @@ the pointers in AGENTS.md name when to do so.
   on a serverless function silently becomes per-instance — false confidence. The
   attempts proxy straight to ECAP, whose own lockout policy is the real gate.
   Do not add one without a store both runtimes share.
-- **One module decides whether a session is alive: `portal-liveness.ts`.** It
-  answers `alive | dead | unknown` and both callers ask it — `handleOptions` and
-  the `/api/session` probe. It was written twice, in two layers, and the copy with
-  no test coverage is the one that shipped the bug.
+- **One module probes, one module decides: `portal-liveness.ts` and
+  `session-verdict.ts`.** The probe answers `alive | dead | unknown` from ECAP's
+  course list; `sessionVerdict` combines that with the one revival's failure into
+  the answer `/api/session` gives. `handleOptions` calls `requireCourses` for the
+  probe directly; the liveness guard makes an all-held options request prove the
+  session before it answers. The two rules were once written in one layer, and
+  the copy without test coverage was the one that shipped the bug.
 - **`unknown` is not `dead`, and a 502 must never sign anyone out.** A signed-out
   request to convention A answers **HTTP 200 with valid JSON** whose `<select>`
   holds only `-Select-` — every sign of life looks good, which is why the check is
@@ -394,7 +399,11 @@ the pointers in AGENTS.md name when to do so.
 - **`vp check` is the only lint and format command.** `oxlint.config.ts` and
   `oxfmt.config.ts` are gone: Vite+ disables nested lint and format configs, so
   a file Oxlint never reads is a file that silently stops applying. Their content
-  is in the `lint` and `fmt` blocks of `vite.config.ts`.
+  is in the `lint` and `fmt` blocks of `vite.config.ts`. The lint block spreads
+  `@cloudflare/oxlint-config` with no rules turned off; the preset and Vite+
+  declare two copies of oxlint's config types, so the preset is asserted once to
+  Vite+'s `lint` type before it is spread. Keeping that assertion is cheaper than
+  forcing both toolchains onto one oxlint version.
 - **`overrides.vite` is a bare key, and that is deliberate.** The migration rules
   want `vite@*` under pnpm, because a bare key matches a `catalog:` reference and
   `vp up` then rewrites it to a concrete version. This project is Bun with no

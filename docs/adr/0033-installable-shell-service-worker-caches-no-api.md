@@ -1,4 +1,4 @@
-# ADR 0026 — Installable shell; service worker caches no API
+# ADR 0033 — Installable shell; service worker caches no API
 
 ## Status
 Accepted.

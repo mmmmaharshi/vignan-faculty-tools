@@ -30,7 +30,9 @@ export const optionsFor =
     const cached = cache.get(unstable_serialize(key))?.data as
       | OptionsReply
       | undefined;
-    if (cached) return cached;
+    if (cached) {
+      return cached;
+    }
     const reply = await mutate(
       key,
       () => postJson<OptionsReply>(OPTIONS_PATH, request),
@@ -38,7 +40,9 @@ export const optionsFor =
     );
     // A reply that is not options is a failure, the same way a register reply
     // without its roster is: the caller's next pass cannot be built from nothing.
-    if (!reply) throw new ApiError(502, "ECAP sent no options for that class.");
+    if (!reply) {
+      throw new ApiError(502, "ECAP sent no options for that class.");
+    }
     return reply;
   };
 /** The cascade, as one run: `trigger` settles a selection and answers what the

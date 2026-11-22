@@ -17,7 +17,7 @@ test.describe("the installable shell", () => {
       short_name?: string;
       start_url?: string;
       display?: string;
-      icons?: { src: string; sizes: string }[];
+      icons?: Array<{ src: string; sizes: string }>;
     };
     expect(manifest.name).toBeTruthy();
     expect(manifest.short_name).toBeTruthy();
@@ -63,10 +63,12 @@ test.describe("the installable shell", () => {
       })
       .toContain("/login");
     const cached = await page.evaluate(async () => {
-      const urls: string[] = [];
+      const urls: Array<string> = [];
       for (const name of await caches.keys()) {
         const cache = await caches.open(name);
-        for (const entry of await cache.keys()) urls.push(entry.url);
+        for (const entry of await cache.keys()) {
+          urls.push(entry.url);
+        }
       }
       return urls;
     });

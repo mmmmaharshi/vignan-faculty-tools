@@ -35,16 +35,20 @@ const SEMESTER_SPAN = /<span[^>]*>(?<semester>[^<]*semester[^<]*)<\/span>/gi;
  * because the Portal's markup never closes the Grade row: a last cell there is the
  * next row's total, which would print 16/19 where 5.61 belongs.
  */
-function sgpaBySemester(html: string): StudentSgpa[] {
-  const out: StudentSgpa[] = [];
+function sgpaBySemester(html: string): Array<StudentSgpa> {
+  const out: Array<StudentSgpa> = [];
   for (const table of html.matchAll(TABLE)) {
     const rows = (table[0].match(ROW) ?? []).map(cellsOf);
     const header = rows.find((cells) => cells.some((c) => SGPA_HEADER.test(c)));
-    if (!header) continue;
+    if (!header) {
+      continue;
+    }
     const column = header.findIndex((c) => SGPA_HEADER.test(c));
     const grade = rows.find((cells) => GRADE_ROW.test(cells[0] ?? ""));
     const value = grade?.[column] ?? "";
-    if (!value) continue;
+    if (!value) {
+      continue;
+    }
     let semester = "";
     for (const span of html.slice(0, table.index).matchAll(SEMESTER_SPAN)) {
       semester = span.groups?.semester?.trim() ?? semester;
@@ -53,10 +57,12 @@ function sgpaBySemester(html: string): StudentSgpa[] {
     // so the pairs between the leading blank and the trailing SGPA are the
     // semester's own subject grades. Sliced by the header's length: the
     // unclosed Grade row carries the Credit row's cells after its own.
-    const subjects: StudentSubjectGrade[] = [];
+    const subjects: Array<StudentSubjectGrade> = [];
     for (let i = 1; i < header.length - 1; i++) {
       const code = (header[i] ?? "").trim();
-      if (!code) continue;
+      if (!code) {
+        continue;
+      }
       subjects.push({ code, grade: (grade?.[i] ?? "").trim() });
     }
     out.push({ semester, value, subjects });
@@ -65,14 +71,18 @@ function sgpaBySemester(html: string): StudentSgpa[] {
 }
 /** The subject codes in one backlogs cell: one per line, each keeping the red
  *  asterisk the page put before it. */
-function backlogSubjects(raw: string): StudentBacklogSubject[] {
-  const out: StudentBacklogSubject[] = [];
+function backlogSubjects(raw: string): Array<StudentBacklogSubject> {
+  const out: Array<StudentBacklogSubject> = [];
   for (const line of raw.split(/<br\s*\/?>/i)) {
     const text = cellText(line);
-    if (!text) continue;
+    if (!text) {
+      continue;
+    }
     const marked = text.startsWith("*");
     const code = (marked ? text.replace(/^\*\s*/, "") : text).trim();
-    if (!code) continue;
+    if (!code) {
+      continue;
+    }
     out.push({ code, marked });
   }
   return out;
@@ -98,7 +108,7 @@ export function parseStudentBacklogs(html: string): StudentBacklogs {
   );
   const inner = div?.groups?.inner ?? "";
   const table = inner.match(/<table[\s\S]*?<\/table>/i)?.[0] ?? "";
-  const rows: StudentBacklog[] = [];
+  const rows: Array<StudentBacklog> = [];
   let total: number | null = null;
   let current: StudentBacklog | null = null;
   let cursor: BacklogCursor = startCursor;
@@ -132,16 +142,22 @@ export function parseStudentBacklogs(html: string): StudentBacklogs {
  * is a different thing from a student whose GPA the page states as NA.
  */
 export function parseStudentProfile(html: string): StudentProfile | null {
-  if (!html.includes(BIO_DATA)) return null;
-  const phones: StudentPhone[] = [];
+  if (!html.includes(BIO_DATA)) {
+    return null;
+  }
+  const phones: Array<StudentPhone> = [];
   const seen = new Set<string>();
   for (const tr of html.match(ROW) ?? []) {
     const cells = cellsOf(tr);
     for (let i = 0; i + 1 < cells.length; i++) {
       const label = cells[i] ?? "";
       const number = cells[i + 2] ?? "";
-      if (cells[i + 1] !== SEPARATOR) continue;
-      if (!PHONE_LABEL.test(label) || !number || seen.has(number)) continue;
+      if (cells[i + 1] !== SEPARATOR) {
+        continue;
+      }
+      if (!PHONE_LABEL.test(label) || !number || seen.has(number)) {
+        continue;
+      }
       seen.add(number);
       phones.push({ label, number });
     }
@@ -167,7 +183,7 @@ export interface StatedClass {
 /** Which `Label : Value` row is which level. The bio-data block writes the class
  *  in the same shape as the phone numbers, so the label is the only thing that
  *  says what a value means. */
-const CLASS_LABELS: [keyof StatedClass, RegExp][] = [
+const CLASS_LABELS: Array<[keyof StatedClass, RegExp]> = [
   ["course", /\bcourse\b/i],
   ["branch", /\bbranch\b|\bdepartment\b/i],
   ["semester", /\bsemester\b|\bsem\b/i],
@@ -182,13 +198,19 @@ export function parseStudentClass(html: string): StatedClass {
   };
   for (const tr of html.match(ROW) ?? []) {
     const cells = cellsOf(tr);
-    if (cells[1] !== SEPARATOR) continue;
+    if (cells[1] !== SEPARATOR) {
+      continue;
+    }
     const value = (cells[2] ?? "").trim();
-    if (!value) continue;
+    if (!value) {
+      continue;
+    }
     const key = CLASS_LABELS.find(([, pattern]) =>
       pattern.test(cells[0] ?? "")
     )?.[0];
-    if (key && !out[key]) out[key] = value;
+    if (key && !out[key]) {
+      out[key] = value;
+    }
   }
   return out;
 }

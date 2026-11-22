@@ -11,10 +11,10 @@ export type PostingsPhase =
   | { kind: "loading" }
   | { kind: "failed" }
   | { kind: "none" }
-  | { kind: "report"; sections: readonly DayWorkSection[] };
+  | { kind: "report"; sections: ReadonlyArray<DayWorkSection> };
 
 export function postingsPhase(input: {
-  sections: DayWorkSection[] | null;
+  sections: Array<DayWorkSection> | null;
   note: Note | null;
 }): PostingsPhase {
   if (input.sections !== null) {
@@ -29,11 +29,13 @@ export function postingsPhase(input: {
 
 /** Branches the report names, in first-seen order. */
 export function reportBranches(
-  sections: readonly DayWorkSection[] | null | undefined
-): string[] {
-  const out: string[] = [];
+  sections: ReadonlyArray<DayWorkSection> | null | undefined
+): Array<string> {
+  const out: Array<string> = [];
   for (const section of sections ?? []) {
-    if (!out.includes(section.branch)) out.push(section.branch);
+    if (!out.includes(section.branch)) {
+      out.push(section.branch);
+    }
   }
   return out;
 }
@@ -41,7 +43,7 @@ export function reportBranches(
 /** The branch on show: the one asked for while the report still offers it,
  *  else the first the report names. Never a branch the report did not name. */
 export function shownBranch(
-  branches: readonly string[],
+  branches: ReadonlyArray<string>,
   branch: string | null
 ): string | null {
   return branch && branches.includes(branch) ? branch : (branches[0] ?? null);
@@ -51,8 +53,24 @@ export function shownBranch(
 export type SlotStatus = "posted" | "not-posted" | "no-class";
 
 export function slotStatus(cell: DayWorkCell | null): SlotStatus {
-  if (cell == null) return "no-class";
+  if (cell === null || cell === undefined) {
+    return "no-class";
+  }
   return cell.posted ? "posted" : "not-posted";
+}
+/**
+ * A period box and the detail it opens read the same status. A period the
+ * report states no cell for is a free period, not a missing posting.
+ */
+export function periodStatus(
+  cells: ReadonlyArray<DayWorkCell>,
+  period: string
+): SlotStatus {
+  const group = cells.filter((cell) => cell.period === period);
+  if (group.length === 0) {
+    return "no-class";
+  }
+  return group.every((cell) => cell.posted) ? "posted" : "not-posted";
 }
 
 export const SLOT_STATUS_LABEL: Record<SlotStatus, string> = {

@@ -6,7 +6,7 @@ import { readStringMap, writeStringMap } from "../data/storage";
 /** How many periods an ECAP day holds. The timetable and the pending-postings
  *  boxes both name every slot of this length, so the count lives once. */
 export const PERIOD_COUNT = 7;
-export const PERIODS: readonly string[] = Array.from(
+export const PERIODS: ReadonlyArray<string> = Array.from(
   { length: PERIOD_COUNT },
   (_, index) => String(index + 1)
 );
@@ -38,13 +38,17 @@ function writePeriodTimes(times: PeriodTimes): void {
  */
 export function notePeriodTimes(
   prev: PeriodTimes,
-  classes: readonly TodayClass[]
+  classes: ReadonlyArray<TodayClass>
 ): PeriodTimes {
   const next = { ...prev };
   let changed = false;
   for (const entry of classes) {
-    if (!entry.period || !CLOCK.test(entry.time)) continue;
-    if (next[entry.period] === entry.time) continue;
+    if (!entry.period || !CLOCK.test(entry.time)) {
+      continue;
+    }
+    if (next[entry.period] === entry.time) {
+      continue;
+    }
     next[entry.period] = entry.time;
     changed = true;
   }
@@ -60,17 +64,21 @@ export function notePeriodTimes(
  * one taught.
  */
 export function usePeriodTimes(
-  classes: TodayClass[] | null | undefined
+  classes: Array<TodayClass> | null | undefined
 ): PeriodTimes {
   const known = useMemo(
     () => notePeriodTimes(readPeriodTimes(), classes ?? []),
     [classes]
   );
   useEffect(() => {
-    if (!classes) return;
+    if (!classes) {
+      return;
+    }
     const prev = readPeriodTimes();
     const next = notePeriodTimes(prev, classes);
-    if (next !== prev) writePeriodTimes(next);
+    if (next !== prev) {
+      writePeriodTimes(next);
+    }
   }, [classes]);
   return known;
 }

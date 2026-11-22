@@ -4,7 +4,7 @@ import { realOptions } from "./portal-options.js";
 
 export type Liveness = "alive" | "dead" | "unknown";
 export type CourseReader = {
-  courses: () => Promise<Option[]>;
+  courses: () => Promise<Array<Option>>;
 };
 /**
  * Is this ECAP session still working? A signed-out request to the course list
@@ -15,7 +15,7 @@ export type CourseReader = {
  */
 export async function courseVerdict(
   portal: CourseReader
-): Promise<{ verdict: Liveness; courses: Option[] }> {
+): Promise<{ verdict: Liveness; courses: Array<Option> }> {
   try {
     const courses = await portal.courses();
     return {
@@ -34,9 +34,13 @@ export async function courseVerdict(
  * that start from the course list ask this, so the 401, the 502 and their
  * sentences live once.
  */
-export async function requireCourses(portal: CourseReader): Promise<Option[]> {
+export async function requireCourses(
+  portal: CourseReader
+): Promise<Array<Option>> {
   const { verdict, courses } = await courseVerdict(portal);
-  if (verdict === "dead") throw sessionExpired();
+  if (verdict === "dead") {
+    throw sessionExpired();
+  }
   if (verdict === "unknown") {
     throw new HttpError(502, "ECAP did not answer the course list. Try again.");
   }

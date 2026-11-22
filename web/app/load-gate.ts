@@ -20,14 +20,19 @@ export function loadGate(input: {
   rememberedStart: string | null;
   rangeEdited: RangeEdited;
 }): LoadGate {
-  if (input.optionsLoading) return "loading-options";
-  if (input.registerLoading) return "reading-register";
+  if (input.optionsLoading) {
+    return "loading-options";
+  }
+  if (input.registerLoading) {
+    return "reading-register";
+  }
   if (
     input.preLoading &&
     !input.rememberedStart &&
     input.rangeEdited !== "from"
-  )
+  ) {
     return "finding-start";
+  }
   return "ready";
 }
 

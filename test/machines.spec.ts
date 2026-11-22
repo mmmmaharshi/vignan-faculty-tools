@@ -45,6 +45,7 @@ import {
 import { ApiError, clearStoredSession } from "../web/data/client";
 import { FIRST_PHASE, updateStep } from "../web/data/update-lifecycle";
 import {
+  periodStatus,
   postingsPhase,
   reportBranches,
   shownBranch,
@@ -510,6 +511,13 @@ test.describe("explicit state machines", () => {
       "Not posted yet"
     );
   });
+  test("a period the report does not state is no class, not a missing posting", () => {
+    // The box and the detail it opens must agree: a free period is grey for a
+    // reason, not an unposted class the faculty should chase.
+    expect(periodStatus([], "2")).toBe("no-class");
+    expect(periodStatus([workCell(true)], "1")).toBe("posted");
+    expect(periodStatus([workCell(false)], "1")).toBe("not-posted");
+  });
   test("absence walk: a request that will not parse states nothing", () => {
     expect(absenceResult({ kind: "unparseable" }, "31/10/2026")).toEqual({
       absent: null,
@@ -642,7 +650,7 @@ test.describe("explicit state machines", () => {
       kind: "stated",
       option: { value: "3", label: "III Semester", title: "2025" },
     };
-    const sections: Option[] = [{ value: "A", label: "A", title: "" }];
+    const sections: Array<Option> = [{ value: "A", label: "A", title: "" }];
     expect(
       classResolution({
         course,

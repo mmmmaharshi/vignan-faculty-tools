@@ -1,7 +1,7 @@
 import { createApi } from "../server/api.js";
 import { safeHost } from "../shared/api.js";
 
-type NodeHeaders = Record<string, string | string[] | undefined>;
+type NodeHeaders = Record<string, string | Array<string> | undefined>;
 type FunctionRequest = {
   url?: string;
   method?: string;
@@ -32,7 +32,9 @@ export default async function handler(
   );
   const headers = new Headers();
   for (const [name, value] of Object.entries(req.headers)) {
-    if (value === undefined) continue;
+    if (value === undefined) {
+      continue;
+    }
     headers.set(name, Array.isArray(value) ? value.join(", ") : value);
   }
   // Vercel parses JSON bodies before the function sees them; handing
@@ -50,7 +52,9 @@ export default async function handler(
   );
   res.status(response.status);
   for (const [name, value] of response.headers) {
-    if (name.toLowerCase() === "content-length") continue;
+    if (name.toLowerCase() === "content-length") {
+      continue;
+    }
     res.setHeader(name, value);
   }
   // As text, not bytes: res.send would JSON-serialise a Uint8Array into an

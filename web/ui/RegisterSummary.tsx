@@ -34,7 +34,7 @@ export const RegisterSummary = ({
     <SimpleGrid cols={{ base: 2, sm: 4 }} mb="md">
       <Card figure={summary.total} caption="Students" />
       <Card
-        figure={average == null ? "—" : `${average}%`}
+        figure={average === null || average === undefined ? "—" : `${average}%`}
         caption={overall ? "Overall class average" : "Class average"}
       />
       <Card

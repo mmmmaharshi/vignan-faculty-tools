@@ -91,11 +91,11 @@ Both have a mutation check.
 - Three assertions added, each proven to fail by breaking the thing it describes:
   the cookie lasts about thirty days, the sign-in form says thirty days, and both
   bugs above stay fixed.
-- **Sessions are still in memory.** A server restart signs everyone out, which at
-  thirty days is more surprising than it was at twelve hours. Persisting them would
-  mean writing session material to disk, and this app is bound to 127.0.0.1 and
-  serves one user. Not built; the honest answer is that "a month" is a month of not
-  restarting the server.
+- **Sessions were still in memory when this decision was made.** A server restart
+  then signed everyone out, which at thirty days was more surprising than it was
+  at twelve hours. ADR 0024 later removed the server-side session entirely: the
+  browser carries it, so a restart no longer signs anyone out. The month remains
+  a ceiling on not using the session, not a promise from ECAP.
 
 ## Alternatives considered
 

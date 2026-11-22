@@ -4,20 +4,24 @@ import { readStoredString, writeStoredString } from "../data/storage";
 export type Range = { from: string; to: string };
 /** A dd/mm/yyyy Portal date as the `yyyy-mm-dd` a date input takes. */
 export function toPortalDate(iso: string): string {
-  if (!iso) return "";
+  if (!iso) {
+    return "";
+  }
   const [y, m, d] = iso.split("-");
-  if (!y || !m || !d) return "";
+  if (!y || !m || !d) {
+    return "";
+  }
   return `${d}/${m}/${y}`;
 }
 export function toInputDate(portal: string): string {
-  if (!portal) return "";
+  if (!portal) {
+    return "";
+  }
   const [d, m, y] = portal.split("/");
-  if (!d || !m || !y) return "";
+  if (!d || !m || !y) {
+    return "";
+  }
   return `${y}-${m}-${d}`;
-}
-/** The window a register request asked for, in the shape the date inputs hold. */
-export function rangeOfRequest(request: { from: string; to: string }): Range {
-  return { from: toInputDate(request.from), to: toInputDate(request.to) };
 }
 /**
  * The register's own first day as an input date, or null where it states none
@@ -26,7 +30,7 @@ export function rangeOfRequest(request: { from: string; to: string }): Range {
  * resolves the same day for the summary; this is only the ISO edge.
  */
 export function statedStartIso(
-  dates: readonly string[],
+  dates: ReadonlyArray<string>,
   range: Range
 ): string | null {
   const stated = statedStartDate(dates, {
@@ -46,6 +50,10 @@ export function defaultRange(now: Date = new Date()): Range {
     from: isoDay(new Date(now.getFullYear(), now.getMonth(), 1)),
   };
 }
+/** The window the reader last opened, not the class's semester start. The
+ *  earliest held day for a class lives in `sem-starts.ts`; this one only makes
+ *  a reload open where the reader left off. They are deliberately different
+ *  memories and must not be merged without deciding which one wins. */
 const START_KEY = "range-from";
 /**
  * The portal has no semester start date to give, so the only way to find one is
@@ -56,7 +64,9 @@ const START_KEY = "range-from";
  * the app on last month's numbers, which is the failure this exists to avoid.
  */
 export function rememberRangeStart(from: string): void {
-  if (!from) return;
+  if (!from) {
+    return;
+  }
   writeStoredString(START_KEY, from);
 }
 /** Opens the window at `iso`, unless it already opens there, and remembers
@@ -68,7 +78,9 @@ export function openRangeAt(
   range: Range,
   setRange: (update: (r: Range) => Range) => void
 ): void {
-  if (!iso || iso === range.from) return;
+  if (!iso || iso === range.from) {
+    return;
+  }
   rememberRangeStart(iso);
   setRange((r) => ({ ...r, from: iso }));
 }
@@ -84,10 +96,14 @@ export function startingRange(now: Date = new Date()): Range {
 export function calendarDays(from: string, to: string): number | null {
   const start = parsePortalDate(from);
   const end = parsePortalDate(to);
-  if (!start || !end) return null;
+  if (!start || !end) {
+    return null;
+  }
   // UTC, so a daylight-saving hour cannot make one day 23 or 25 hours long.
   const startAt = Date.UTC(start.year, start.month - 1, start.day);
   const endAt = Date.UTC(end.year, end.month - 1, end.day);
-  if (endAt < startAt) return null;
+  if (endAt < startAt) {
+    return null;
+  }
   return Math.round((endAt - startAt) / 86_400_000) + 1;
 }

@@ -45,7 +45,9 @@ export type CascadeSetup = {
  * which is the old behaviour exactly.
  */
 export function partialOf(error: unknown): CascadeOutcome | null {
-  if (typeof error !== "object" || error === null) return null;
+  if (typeof error !== "object" || error === null) {
+    return null;
+  }
   return (error as { partial?: CascadeOutcome }).partial ?? null;
 }
 /**
@@ -57,8 +59,12 @@ export function partialOf(error: unknown): CascadeOutcome | null {
  * is driven by the client's error class in the app and by fakes in tests.
  */
 export function isRetriable(error: unknown): boolean {
-  if (!(error instanceof Error)) return true;
-  if (!("status" in error) || typeof error.status !== "number") return true;
+  if (!(error instanceof Error)) {
+    return true;
+  }
+  if (!("status" in error) || typeof error.status !== "number") {
+    return true;
+  }
   return error.status >= 500;
 }
 /**
@@ -75,7 +81,9 @@ async function fetchWithOneRetry(
   try {
     return await fetchOptions(request);
   } catch (error) {
-    if (!isRetriable(error) || signal?.aborted) throw error;
+    if (!isRetriable(error) || signal?.aborted) {
+      throw error;
+    }
     return fetchOptions(request);
   }
 }
@@ -92,10 +100,12 @@ export async function runCascade(
   // run refetches, which is what lets a renamed option correct itself. Only
   // non-empty lists travel — an empty list states nothing, so that level is
   // asked for again.
-  const fresh: Partial<Record<Level, Option[]>> = {};
+  const fresh: Partial<Record<Level, Array<Option>>> = {};
   try {
     for (const _pass of LEVEL_KEYS) {
-      if (signal?.aborted) return null;
+      if (signal?.aborted) {
+        return null;
+      }
       const semesterTitle = draft.semester
         ? semesterTitleOf(opts, draft.semester) || undefined
         : undefined;
@@ -112,13 +122,19 @@ export async function runCascade(
         },
         signal
       );
-      if (signal?.aborted) return null;
+      if (signal?.aborted) {
+        return null;
+      }
       draft = applyOptions(draft, reply);
       opts = reply;
       for (const key of LEVEL_KEYS) {
-        if (reply[key].length) fresh[key] = reply[key];
+        if (reply[key].length) {
+          fresh[key] = reply[key];
+        }
       }
-      if (!shouldContinue(draft, before, reply)) break;
+      if (!shouldContinue(draft, before, reply)) {
+        break;
+      }
     }
   } catch (error) {
     // The same error the run would have thrown, carrying what arrived: its

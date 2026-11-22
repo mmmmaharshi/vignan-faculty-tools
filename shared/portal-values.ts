@@ -27,10 +27,13 @@ export function classesToRegular(counts: {
   attend: number;
 }): number | null {
   const { held, attend } = counts;
-  if (!Number.isFinite(held) || !Number.isFinite(attend) || held <= 0)
+  if (!Number.isFinite(held) || !Number.isFinite(attend) || held <= 0) {
     return null;
+  }
   const need = (IRREGULAR_BELOW / 100) * held - attend;
-  if (need <= 0) return null;
+  if (need <= 0) {
+    return null;
+  }
   return Math.ceil(need / (1 - IRREGULAR_BELOW / 100));
 }
 /**
@@ -41,7 +44,9 @@ export function classesToRegular(counts: {
  */
 export function statedPercent(cell: string): number | null {
   const stated = cell.replace("%", "").trim();
-  if (!/^\d+(?:\.\d+)?$/.test(stated)) return null;
+  if (!/^\d+(?:\.\d+)?$/.test(stated)) {
+    return null;
+  }
   const num = Number(stated);
   return num <= 100 ? num : null;
 }
@@ -55,12 +60,18 @@ export function parsePortalDate(
   date: string
 ): { day: number; month: number; year: number } | null {
   const match = PORTAL_DATE.exec(date.trim());
-  if (!match) return null;
+  if (!match) {
+    return null;
+  }
   const day = Number(match.groups?.day);
   const month = Number(match.groups?.month);
   const year = Number(match.groups?.year);
-  if (month < 1 || month > 12 || day < 1) return null;
-  if (day > new Date(year, month, 0).getDate()) return null;
+  if (month < 1 || month > 12 || day < 1) {
+    return null;
+  }
+  if (day > new Date(year, month, 0).getDate()) {
+    return null;
+  }
   return { day, month, year };
 }
 /**
@@ -75,13 +86,15 @@ export function parsePortalDate(
  * could not. One implementation, because they must agree on the day.
  */
 export function statedStartDate(
-  dates: readonly string[],
+  dates: ReadonlyArray<string>,
   range: { from: string; to: string }
 ): string | null {
   const [d, m] = (dates[0] ?? "").split("/").map(Number);
   const from = parsePortalDate(range.from);
   const to = parsePortalDate(range.to);
-  if (!d || !m || !from || !to) return null;
+  if (!d || !m || !from || !to) {
+    return null;
+  }
   const code = (y: number): number => y * 10_000 + m * 100 + d;
   const low = from.year * 10_000 + from.month * 100 + from.day;
   const high = to.year * 10_000 + to.month * 100 + to.day;
@@ -101,7 +114,9 @@ export function statedStartDate(
  */
 export function overallCellForDisplay(cell: string): string {
   const halves = cell.split("\\");
-  if (halves.length < 2) return cell;
+  if (halves.length < 2) {
+    return cell;
+  }
   return `${halves[0]} / ${halves[1]}`;
 }
 /** The message an error carries, for the panel that shows it. Both runtimes
@@ -154,18 +169,26 @@ const bareLabel = (label: string): string =>
  *  figure's own label is the only sign of it. */
 export function matchOption(
   text: string,
-  list: readonly Option[]
+  list: ReadonlyArray<Option>
 ): Option | null {
   const t = text.trim();
-  if (!t) return null;
+  if (!t) {
+    return null;
+  }
   const byValue = list.find(
     (o) => o.value.trim().toLowerCase() === t.toLowerCase()
   );
-  if (byValue) return byValue;
+  if (byValue) {
+    return byValue;
+  }
   const bare = bareLabel(t);
-  if (!bare) return null;
+  if (!bare) {
+    return null;
+  }
   const exact = list.filter((o) => bareLabel(o.label) === bare);
-  if (exact.length === 1) return exact[0] ?? null;
+  if (exact.length === 1) {
+    return exact[0] ?? null;
+  }
   const partial = list.filter((o) => bareLabel(o.label).includes(bare));
   return partial.length === 1 ? (partial[0] ?? null) : null;
 }

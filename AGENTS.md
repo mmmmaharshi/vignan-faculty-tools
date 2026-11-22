@@ -115,6 +115,8 @@ server/student-routes.ts one roll number's own page, and the reads its panel nee
                      counts, and the month table
 server/find-routes.ts the Search screen: one roll in, the class ECAP states for it,
                      and that class's report read for the same panel
+server/find-scan.ts  the section scan's four outcomes, with its early exit
+server/class-resolution.ts the class a profile states, and the inferred-semester flag
 server/home-routes.ts the Home screen's reads and the rail's: today's timetable, the
                      day-class-work report, and the signed-in faculty
 server/register-levels.ts the five levels a register-shaped request names, and the
@@ -122,6 +124,11 @@ server/register-levels.ts the five levels a register-shaped request names, and t
 server/month-windows.ts one calendar month as the window ECAP reliably answers, the
                      month either side, a month's own first held day, and the
                      twelve-month cap every walk stops at
+server/absence-walk.ts the full-semester absences walk, as named outcomes
+server/backlog-cursor.ts the backlogs table's one header-to-subject cursor
+server/liveness-guard.ts the guard that makes an all-held options request prove
+                     the session before it answers
+server/static-path.ts the pure containment check for files served from dist/
 server/security-headers.ts the headers every answer carries, named once for the
                      local server and the deployed front end both
 server/portal-reader.ts what a handler may ask ECAP for, one method per screen
@@ -148,6 +155,9 @@ server/student-class.ts the class a student's own page names, matched to the
                      Portal's own option values
 server/attendance-bands.ts the Regular / Irregular / Critical rule, and the summary
 web/index.html       Vite entry point
+web/fonts.css        the one font-face declaration Scoutie Sans loads through
+web/public/offline.html the document the worker serves when a navigation cannot
+                     reach the network
 web/main.tsx         React root + MantineProvider + the one <SWRConfig> holding
                      the read defaults; the only createTheme call
 web/public/manifest.webmanifest  the install prompt's facts: names, start URL,
@@ -162,8 +172,9 @@ web/public/icons/    the three install icons, rasterized from one SVG tile by
 web/app/             the shell and the session: App.tsx (state, the three modes,
                      and the session's own facts), session-view (the view, the
                      boot check's transition table, and the note it owes the
-                     form), route-guard, paths, panel-state, load-gate, types.ts
-                     (Note, the one shape three modules share)
+                     form), route-guard, paths, panel-state, load-gate,
+                     load-snap (the one-shot From snap), types.ts (Note, the one
+                     shape three modules share)
 web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      when to keep looping, what a change clears, and the names
                      one selection is known by), cascade-run.ts (the loop that
@@ -178,15 +189,19 @@ web/register/        the cascade and its storage: cascade.ts (what auto-fills,
                      dashboard-view.ts (the view itself; every load starts it empty),
                      search-scope.ts (the class a searched figure belongs to),
                      sem-start-settle.ts, sem-starts.ts, options-chain.ts (the
-                     option chain's one run, and the cache key it answers to)
+                     option chain's one run, and the cache key it answers to),
+                     search-result.ts (the Search panel's typed answers)
 web/home/            the timetable's memory: today-memory.ts, period-times.ts
                      (the hours each read teaches, and the hook that folds them)
 web/data/            the transport and the browser's own storage: client.ts (every
                      fetch the app makes: one JSON wrapper, and the SWR hooks and
                      keys each screen reads through), storage.ts (the one
-                     localStorage walk every memory uses), sw-update.ts,
+                     localStorage walk every memory uses), session-epoch.ts (the
+                     generation that drops a response landing after sign-out),
+                     sw-update.ts, update-lifecycle.ts (the one update offer),
                      format.ts
-web/ui/              presentational modules, one per surface; only HomePanel holds state,
+web/ui/              presentational modules, one per surface (SignInPanel is the
+                     sign-in form); only HomePanel holds state,
                      and only its ticking clock — and UnpostedPanel, only which
                      period box stands open, and StudentDetails, only which
                      semester's grade modal stands open — the memories live in App
@@ -203,8 +218,8 @@ shared/portal-values.ts  the rules both runtimes apply to a Portal value, and th
                      campus clock: the bands, the stated percentage, the register's
                      stated start, the attended-of-held cell, the roll comparison,
                      and matching a page's own words to one option
-vite.config.ts       build, lint and fmt config; both blocks come from the
-                     Ultracite preset, 15 rules off, markdown excluded
+vite.config.ts       build, lint and fmt config; lint from the Cloudflare oxlint
+                     preset, fmt from Ultracite, markdown excluded, no rules off
 playwright.config.ts test runner config
 test/seam.spec.ts    the reply parsers over fixture markup
 test/conventions.spec.ts  the wire conventions, the cipher, the cookie jar
@@ -521,7 +536,7 @@ fill is a rule bug, two requests racing is a loop bug.
   the answer.
 - **`/api/session` is one decision.** `server/session-verdict.ts` maps the
   liveness probe plus the re-auth failure to `alive | dead | unknown`: only a
-  401 evicts, a 502 stays unknown (ADR 0019). `portal-liveness.ts` still owns
+  401 evicts, a 502 stays unknown (ADR 0013 and 0002). `portal-liveness.ts` still owns
   the probe itself; the verdict owns what the probe plus the re-auth mean.
 - **Independent portal reads go out together; dependent ones stay sequential.**
   Reads that need nothing from each other — the register grid beside its

@@ -335,7 +335,9 @@ test.describe("the app's own data layer", () => {
           page.getByRole("table").evaluate((table) => {
             let node: HTMLElement | null = table.parentElement;
             while (node && node !== document.body) {
-              if (node.scrollWidth > node.clientWidth + 1) return true;
+              if (node.scrollWidth > node.clientWidth + 1) {
+                return true;
+              }
               node = node.parentElement;
             }
             return false;

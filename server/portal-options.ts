@@ -7,8 +7,8 @@ const PLACEHOLDER = /^-?\s*select\s*-?$/i;
  *  missing either half is dropped: the Portal's reports are asked by value, so
  *  a value-less label cannot name anything. The label goes through the same
  *  strip every other reply goes through, so a markup fix reaches it. */
-export function options(html: unknown): Option[] {
-  const out: Option[] = [];
+export function options(html: unknown): Array<Option> {
+  const out: Array<Option> = [];
   for (const m of String(html ?? "").matchAll(OPTION)) {
     const attrs = m.groups?.attrs ?? "";
     const label = cellText(m.groups?.text ?? "");
@@ -21,5 +21,5 @@ export function options(html: unknown): Option[] {
 }
 const isPlaceholder = (o: Option): boolean =>
   o.value === "0" || PLACEHOLDER.test(o.label);
-export const realOptions = (list: Option[]): Option[] =>
+export const realOptions = (list: Array<Option>): Array<Option> =>
   list.filter((o) => !isPlaceholder(o));

@@ -43,7 +43,9 @@ _Avoid_: Choice, entry, item
 
 **Calling convention**:
 The portal has two mutually incompatible ways of invoking a remote method, and
-using the wrong one returns an empty result with no error. See `api.ts`.
+using the wrong one returns an empty result with no error. See
+`server/portal-conventions.ts`, `server/portal-transport.ts` and
+`docs/portal-wire.md`.
 _Avoid_: API, endpoint style
 
 ## Attendance

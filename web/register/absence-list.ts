@@ -12,16 +12,20 @@ import type { Student } from "../../shared/api";
  */
 export function fullAbsenceList(input: {
   /** The wider read's answer, when ECAP gave one. */
-  wider: string[] | undefined;
+  wider: Array<string> | undefined;
   semesterStart: string | null;
   /** Whether the window starts after the remembered start. */
   windowStartsAfterStart: boolean;
   /** The window's own dates, from the row or the Student Wise report. */
-  window: string[];
-}): string[] | null {
+  window: Array<string>;
+}): Array<string> | null {
   const { wider, semesterStart, windowStartsAfterStart, window: dates } = input;
-  if (wider) return wider;
-  if (!semesterStart || windowStartsAfterStart) return null;
+  if (wider) {
+    return wider;
+  }
+  if (!semesterStart || windowStartsAfterStart) {
+    return null;
+  }
   return dates.length ? dates : null;
 }
 
@@ -29,8 +33,10 @@ export function fullAbsenceList(input: {
  *  otherwise the Student Wise report the panel reads for this student. */
 export function windowAbsenceList(
   student: Student | null,
-  fromProfile: string[] | undefined
-): string[] {
-  if (student && student.absent.length > 0) return student.absent;
+  fromProfile: Array<string> | undefined
+): Array<string> {
+  if (student && student.absent.length > 0) {
+    return student.absent;
+  }
   return fromProfile ?? [];
 }

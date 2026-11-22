@@ -16,11 +16,13 @@ export const SavedSections = ({
   onOpen,
   onForget,
 }: {
-  classes: readonly SavedSectionCard[];
+  classes: ReadonlyArray<SavedSectionCard>;
   onOpen: (sel: Sel) => void;
   onForget: (sel: Sel) => void;
 }): React.JSX.Element | null => {
-  if (!classes.length) return null;
+  if (!classes.length) {
+    return null;
+  }
   return (
     <>
       <Title order={5} mb="xs">

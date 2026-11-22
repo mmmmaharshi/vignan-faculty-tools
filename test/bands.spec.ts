@@ -139,7 +139,10 @@ test.describe("where the register itself begins", () => {
     expect(statedStartDate(["nonsense"], { from: "", to: "" })).toBe(null);
   });
 });
-const figure = (pct: number | null, held = "381\\481"): OverallFigure => ({
+const figure = (
+  pct: number | null,
+  held = String.raw`381\481`
+): OverallFigure => ({
   attendedOfHeld: held,
   pct,
 });
@@ -170,15 +173,15 @@ test.describe("the overall bands sit where the subject bands do", () => {
     expect(withBands(row(90), figure(null)).overallPct).toBeNull();
   });
   test("the overall combined cell is carried whole, never split", () => {
-    const s = withBands(row(90), figure(79.21, "381\\481"));
-    expect(s.overallAttendedOfHeld).toBe("381\\481");
+    const s = withBands(row(90), figure(79.21, String.raw`381\481`));
+    expect(s.overallAttendedOfHeld).toBe(String.raw`381\481`);
   });
 });
 test.describe("the overall counts come from the overall figure", () => {
   test("a student the portal gave no overall figure for is left out of the average", () => {
     const lookup = new Map([
-      ["A", { attendedOfHeld: "381\\481", pct: 90 }],
-      ["C", { attendedOfHeld: "100\\481", pct: 50 }],
+      ["A", { attendedOfHeld: String.raw`381\481`, pct: 90 }],
+      ["C", { attendedOfHeld: String.raw`100\481`, pct: 50 }],
     ]);
     const { summary } = summarise(
       [named(90, "A"), named(null, "B"), named(50, "C")],
@@ -226,8 +229,8 @@ test.describe("the overall counts come from the overall figure", () => {
 });
 test.describe("the overall cell is shown the way the column is labelled", () => {
   test("attended first, then every class, with a plain slash between them", () => {
-    expect(overallCellForDisplay("381\\481")).toBe("381 / 481");
-    expect(overallCellForDisplay("356\\481")).toBe("356 / 481");
+    expect(overallCellForDisplay(String.raw`381\481`)).toBe("381 / 481");
+    expect(overallCellForDisplay(String.raw`356\481`)).toBe("356 / 481");
   });
   test("a cell that is not a pair is left exactly as the portal wrote it", () => {
     expect(overallCellForDisplay("")).toBe("");

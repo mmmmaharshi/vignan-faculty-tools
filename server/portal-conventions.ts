@@ -6,11 +6,11 @@ export const AES_KEY = "8701661282118308";
 export function portalEncrypt(plaintext: string): string {
   const cipher = createCipheriv(
     "aes-128-cbc",
-    Buffer.from(AES_KEY, "utf-8"),
-    Buffer.from(AES_KEY, "utf-8")
+    Buffer.from(AES_KEY, "utf8"),
+    Buffer.from(AES_KEY, "utf8")
   );
   return Buffer.concat([
-    cipher.update(Buffer.from(plaintext, "utf-8")),
+    cipher.update(Buffer.from(plaintext, "utf8")),
     cipher.final(),
   ]).toString("base64");
 }
@@ -28,17 +28,17 @@ export function jqBody(
   const body = Object.entries(data)
     .map(
       ([k, v]) =>
-        `'${k}':${typeof v === "string" ? `'${v.replaceAll("'", "\\'")}'` : v}`
+        `'${k}':${typeof v === "string" ? `'${v.replaceAll("'", String.raw`\'`)}'` : v}`
     )
     .join(",");
   return `{${body}}`;
 }
-export function webMethodBody(pairs: [string, string | number][]): string {
+export function webMethodBody(pairs: Array<[string, string | number]>): string {
   return pairs.map(([k, v]) => `${k}=${enc(v)}`).join("\r\n");
 }
 export function calendarPairs(
   p: Record<CascadeLevel, Option> & { from: string; to: string }
-): [string, string | number][] {
+): Array<[string, string | number]> {
   return [
     ["SubjectId", p.subject.value],
     ["Section", p.section.value],
@@ -66,7 +66,7 @@ export function studentPairs(
   roll: string,
   name: string,
   p: Record<CascadeLevel, Option> & { from: string; to: string }
-): [string, string | number][] {
+): Array<[string, string | number]> {
   return [
     ["rollNo", roll],
     ["sectionId", p.section.value],
@@ -89,8 +89,8 @@ export function studentPairs(
  */
 export interface DayWorkRequest {
   course: Option;
-  branches: Option[];
-  semesters: Option[];
+  branches: Array<Option>;
+  semesters: Array<Option>;
   date: string;
 }
 /**
@@ -100,7 +100,9 @@ export interface DayWorkRequest {
  * the whole branch — and the two name arrays travel as JSON, exactly as the
  * page's `json_from_object` sends them. Section is always all of them.
  */
-export function dayWorkPairs(p: DayWorkRequest): [string, string | number][] {
+export function dayWorkPairs(
+  p: DayWorkRequest
+): Array<[string, string | number]> {
   return [
     ["courseid", p.course.value],
     ["arrbranchid", p.branches.map((b) => b.value).join(",")],
@@ -121,7 +123,7 @@ export function dayWorkPairs(p: DayWorkRequest): [string, string | number][] {
  */
 export function classPairs(
   p: Record<CascadeLevel, Option> & { from: string; to: string }
-): [string, string | number][] {
+): Array<[string, string | number]> {
   return [
     ["courseId", p.course.value],
     ["branchId", p.branch.value],
@@ -147,7 +149,7 @@ export function classPairs(
 export function subjectReportPairs(
   p: Record<CascadeLevel, Option> & { from: string; to: string },
   subject: Option
-): [string, string | number][] {
+): Array<[string, string | number]> {
   return [
     ["courseId", p.course.value],
     ["branchId", p.branch.value],
@@ -167,7 +169,9 @@ export class CookieJar {
     return this.entries.has("frmAuth");
   }
   header(): string | null {
-    if (!this.entries.size) return null;
+    if (!this.entries.size) {
+      return null;
+    }
     return [...this.entries].map(([k, v]) => `${k}=${v}`).join("; ");
   }
 }
@@ -175,20 +179,30 @@ export function absorbSetCookie(
   jar: CookieJar,
   raw: string | null | undefined
 ): boolean {
-  if (!raw) return false;
+  if (!raw) {
+    return false;
+  }
   const [pair] = raw.split(";");
-  if (!pair) return false;
+  if (!pair) {
+    return false;
+  }
   const eq = pair.indexOf("=");
-  if (eq <= 0) return false;
+  if (eq <= 0) {
+    return false;
+  }
   const name = pair.slice(0, eq).trim();
-  if (!name) return false;
+  if (!name) {
+    return false;
+  }
   jar.entries.set(name, pair.slice(eq + 1).trim());
   return true;
 }
 export function absorbResponse(jar: CookieJar, res: Response): number {
   let taken = 0;
   for (const raw of res.headers.getSetCookie?.() ?? []) {
-    if (absorbSetCookie(jar, raw)) taken += 1;
+    if (absorbSetCookie(jar, raw)) {
+      taken += 1;
+    }
   }
   return taken;
 }
@@ -197,14 +211,22 @@ export function nextHop(
   from: string,
   maxHops: number
 ): string | null {
-  if (res.status < 300 || res.status >= 400) return null;
-  if (maxHops <= 0) return null;
+  if (res.status < 300 || res.status >= 400) {
+    return null;
+  }
+  if (maxHops <= 0) {
+    return null;
+  }
   const loc = res.headers.get("location");
-  if (!loc) return null;
+  if (!loc) {
+    return null;
+  }
   const target = new URL(loc, from);
   // The jar is resent on every hop. Following a Location off ECAP's origin
   // would hand that origin the faculty's auth cookies.
-  if (target.origin !== new URL(from).origin) return null;
+  if (target.origin !== new URL(from).origin) {
+    return null;
+  }
   return target.toString();
 }
 
@@ -215,7 +237,7 @@ export function subjectFilterPairs(
   courseId: string | number,
   branchId: string | number,
   semesterId: string | number
-): [string, string | number][] {
+): Array<[string, string | number]> {
   return [
     ["CourseId", courseId],
     ["BranchId", branchId],

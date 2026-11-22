@@ -50,7 +50,7 @@ test.describe("the semester start walk", () => {
     "<tr><td>1</td><td>21CS001</td><td>A Student</td><td>0/0</td><td>0</td></tr></table>";
   const walking = (grids: Record<string, string>) => {
     const { reader } = fake();
-    const months: { from: string; to: string }[] = [];
+    const months: Array<{ from: string; to: string }> = [];
     const walkingReader: PortalReader = {
       ...reader,
       register: (p) => {

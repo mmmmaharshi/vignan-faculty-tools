@@ -66,7 +66,7 @@ produced the flags.
   parsing failure is not evidence of bad attendance, and averaging it in as zero
   would drag the class figure down and misdescribe every other student in the
   room.
-- **`RegisterRow` is declared once**, in this module, and `portal-replies.ts`
+- **`RegisterRow` is declared once**, in this module, and `server/portal-register.ts`
   re-exports it. The parser and the bander cannot now disagree about what a row
   is.
 - `server.ts`'s `/api/register` body lost 31 lines and gained one call. Its

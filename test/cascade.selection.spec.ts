@@ -189,7 +189,9 @@ test.describe("the register, before it is sent", () => {
       sel({ course: "1", semester: "3" })
     );
     expect(chosen.ok).toBe(false);
-    if (!chosen.ok) expect(chosen.label).toBe("Branch");
+    if (!chosen.ok) {
+      expect(chosen.label).toBe("Branch");
+    }
   });
   test("returns each level whole, labels included, not as a bare value", () => {
     const opts = reply({

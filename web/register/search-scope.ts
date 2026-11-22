@@ -11,8 +11,12 @@ export type ScopeRow = { label: string; value: string };
  * guess never prints as a fact. Null where the search found no class: there is
  * nothing to scope, which is not an empty class.
  */
-export function searchScope(found: FindReply | null): ScopeRow[] | undefined {
-  if (!found?.class) return undefined;
+export function searchScope(
+  found: FindReply | null
+): Array<ScopeRow> | undefined {
+  if (!found?.class) {
+    return undefined;
+  }
   const { class: found0, window } = found;
   return [
     { label: "Course", value: found0.course.label },

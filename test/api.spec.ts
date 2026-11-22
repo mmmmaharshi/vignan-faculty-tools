@@ -17,8 +17,9 @@ import { SESSION_HEADER } from "../shared/api";
 
 test("every API answer carries the security headers", () => {
   const answer = json({ ok: true });
-  for (const [key, value] of Object.entries(SECURITY_HEADERS))
+  for (const [key, value] of Object.entries(SECURITY_HEADERS)) {
     expect(answer.headers.get(key), key).toBe(value);
+  }
 });
 
 type Api = ReturnType<typeof createApi>;
@@ -57,7 +58,7 @@ function stored(over: Partial<ClientSession> = {}): string {
     at: Date.now(),
     ...over,
   };
-  return Buffer.from(JSON.stringify(full), "utf-8").toString("base64url");
+  return Buffer.from(JSON.stringify(full), "utf8").toString("base64url");
 }
 function readerWith(over: Partial<PortalReader> = {}): PortalReader {
   return {
@@ -107,7 +108,9 @@ function portalOf(
       return signInError ? Promise.reject(signInError) : Promise.resolve();
     },
     signOut: () => {
-      if (!ended) return Promise.resolve();
+      if (!ended) {
+        return Promise.resolve();
+      }
       ended.count += 1;
       return ended.error ? Promise.reject(ended.error) : Promise.resolve();
     },
@@ -126,12 +129,13 @@ function post(
   body: unknown,
   session?: string
 ): Promise<Response> {
+  const headers = new Headers({ "content-type": "application/json" });
+  if (session) {
+    headers.set(SESSION_HEADER, session);
+  }
   return call(api, path, {
     method: "POST",
-    headers: {
-      "content-type": "application/json",
-      ...(session ? { [SESSION_HEADER]: session } : {}),
-    },
+    headers,
     body: JSON.stringify(body),
   });
 }
@@ -143,7 +147,9 @@ async function signIn(api: Api): Promise<string> {
   expect(res.status).toBe(200);
   return res.headers.get(SESSION_HEADER) ?? "";
 }
-test("one revival fits inside the deployed function budget", () => {
+// A config tripwire, not revival coverage: it can only fail if the Portal call
+// timeout changes. The revival's behaviour is pinned by the cases below.
+test("the Portal timeout leaves four calls inside the deployed function budget", () => {
   // A read, the sign-in page, the sign-in post and the retry are the four calls
   // one revival can spend. Vercel ends the function at 60s; a slow Portal must
   // answer with a refusal before then, not be killed into an opaque 504.
@@ -542,14 +548,14 @@ test.describe("handleApi", () => {
     });
     for (const bad of [
       "not-base64!!!",
-      Buffer.from("[]", "utf-8").toString("base64url"),
+      Buffer.from("[]", "utf8").toString("base64url"),
       Buffer.from(
         JSON.stringify({ userId: "", cookies: [], at: Date.now() }),
-        "utf-8"
+        "utf8"
       ).toString("base64url"),
       Buffer.from(
         JSON.stringify({ userId: "x", cookies: [["a"]], at: Date.now() }),
-        "utf-8"
+        "utf8"
       ).toString("base64url"),
     ]) {
       const res = await post(api, "/api/options", { course: "1" }, bad);

@@ -24,9 +24,13 @@ export const badgeFor = (
   critical: boolean,
   irregular: boolean,
   kind: FigureKind
-): { badge: string; color: string } => {
-  if (critical) return { badge: "critical", color: "red" };
-  if (irregular) return { badge: "low", color: FIGURE_STYLE[kind].low };
+) => {
+  if (critical) {
+    return { badge: "critical", color: "red" };
+  }
+  if (irregular) {
+    return { badge: "low", color: FIGURE_STYLE[kind].low };
+  }
   return { badge: "", color: "red" };
 };
 /**
@@ -84,9 +88,9 @@ export type SubjectBar = { code: string; below: BarBelow };
  * caller dropping unknown codes, not here.
  */
 export function cycleSubjectBar(
-  bars: readonly SubjectBar[],
+  bars: ReadonlyArray<SubjectBar>,
   code: string
-): SubjectBar[] {
+): Array<SubjectBar> {
   const rest = bars.filter((b) => b.code !== code);
   const current = bars.findIndex((b) => b.code === code);
   if (current === -1 || bars[current] === undefined) {
@@ -107,9 +111,9 @@ export function cycleSubjectBar(
  * reply's own words with, not a string equality that would drop a live bar.
  */
 export function pruneSubjectBars(
-  bars: readonly SubjectBar[],
-  offered: readonly Option[]
-): SubjectBar[] {
+  bars: ReadonlyArray<SubjectBar>,
+  offered: ReadonlyArray<Option>
+): Array<SubjectBar> {
   return bars.filter((bar) => matchOption(bar.code, offered) !== null);
 }
 /**
@@ -123,22 +127,29 @@ export type RowFilter = {
   /** Free text matched against name and roll number. Blank means no search. */
   search: string;
   /** Per-subject thresholds, in the order they were ticked. */
-  subjectBars: SubjectBar[];
+  subjectBars: Array<SubjectBar>;
 } & Record<FixedBarKey, boolean>;
+/** The unticked shape of the fixed bars, built from the bars themselves so a
+ *  third bar is off by default without another literal to remember. */
+const noFixedBars = (): Record<FixedBarKey, boolean> => {
+  const off = {} as Record<FixedBarKey, boolean>;
+  for (const bar of BARS) {
+    off[bar.key] = false;
+  }
+  return off;
+};
 export const NO_FILTER: RowFilter = {
   irregular: false,
-  below75: false,
-  below65: false,
   search: "",
   subjectBars: [],
+  ...noFixedBars(),
 };
 /** Whether any bar is ticked or any search is typed: the table is a worklist
  *  then, sorted worst-first. */
 export function isFiltering(filter: RowFilter): boolean {
   return (
     filter.irregular ||
-    filter.below75 ||
-    filter.below65 ||
+    BARS.some(({ key }) => filter[key]) ||
     filter.subjectBars.length > 0 ||
     filter.search.trim() !== ""
   );
@@ -150,7 +161,10 @@ export function isFiltering(filter: RowFilter): boolean {
  * panel row cannot drift apart on what "has an overall" means.
  */
 export function carriesOverall(s: StudentRow): boolean {
-  return s.overallPct != null || s.overallAttendedOfHeld !== "";
+  return (
+    (s.overallPct !== null && s.overallPct !== undefined) ||
+    s.overallAttendedOfHeld !== ""
+  );
 }
 /**
  * The figure a row is judged on, and the one the worklist is ordered by: the
@@ -176,11 +190,11 @@ function figureFor(s: StudentRow, overallMode: boolean): number | null {
  * figure is an absence, not a low one, so it clears no fixed bar.
  */
 export function visibleStudents(
-  students: readonly StudentRow[],
+  students: ReadonlyArray<StudentRow>,
   filter: RowFilter,
   overallMode: boolean,
-  subjectColumns: readonly string[] = []
-): StudentRow[] {
+  subjectColumns: ReadonlyArray<string> = []
+): Array<StudentRow> {
   // Rolls are typed as remembered and names show upper-cased, so both halves
   // of the match read lower-cased: the match cannot care about case. A blank
   // needle matches every row, so a bare roster needs no early return here.
@@ -194,17 +208,26 @@ export function visibleStudents(
     if (
       !s.name.toLowerCase().includes(needle) &&
       !s.roll.toLowerCase().includes(needle)
-    )
+    ) {
       return false;
-    if (filter.irregular && !(overallMode ? s.overallIrregular : s.irregular))
+    }
+    if (filter.irregular && !(overallMode ? s.overallIrregular : s.irregular)) {
       return false;
+    }
     const figure = figureFor(s, overallMode);
     for (const { key, below } of BARS) {
-      if (filter[key] && !(figure != null && figure < below)) return false;
+      if (
+        filter[key] &&
+        !(figure !== null && figure !== undefined && figure < below)
+      ) {
+        return false;
+      }
     }
     for (const { at, below } of bars) {
       const value = s.subjects[at];
-      if (!(value != null && value < below)) return false;
+      if (!(value !== null && value !== undefined && value < below)) {
+        return false;
+      }
     }
     return true;
   });
@@ -234,18 +257,24 @@ export function visibleStudents(
  * component is a rule that survives the change that makes it wrong.
  */
 export function registerRows(
-  students: readonly StudentRow[],
+  students: ReadonlyArray<StudentRow>,
   filter: RowFilter,
   overallMode: boolean,
-  subjectColumns: readonly string[] = []
-): StudentRow[] {
+  subjectColumns: ReadonlyArray<string> = []
+): Array<StudentRow> {
   const shown = visibleStudents(students, filter, overallMode, subjectColumns);
-  if (!isFiltering(filter)) return shown;
+  if (!isFiltering(filter)) {
+    return shown;
+  }
   return shown.toSorted((a, b) => {
     const left = figureFor(a, overallMode);
     const right = figureFor(b, overallMode);
-    if (left == null) return right == null ? 0 : 1;
-    if (right == null) return -1;
+    if (left === null || left === undefined) {
+      return right === null || right === undefined ? 0 : 1;
+    }
+    if (right === null || right === undefined) {
+      return -1;
+    }
     return left - right;
   });
 }
@@ -268,15 +297,21 @@ export function emptyRegisterText(
   // neither is explained by both: naming only the search would leave a ticked bar
   // looking as if it had done nothing.
   const matching = needle === "" ? "" : ` matching "${needle}"`;
-  if (bar) return `No students${matching} below ${bar.below}%.`;
+  if (bar) {
+    return `No students${matching} below ${bar.below}%.`;
+  }
   const [subject] = filter.subjectBars;
-  if (subject)
+  if (subject) {
     return `No students${matching} below ${subject.below}% in ${subject.code}.`;
-  if (filter.irregular)
+  }
+  if (filter.irregular) {
     return needle === ""
       ? `No irregular students. Everyone is at or above ${irregularBelow}%.`
       : `No irregular students${matching}.`;
-  if (needle !== "") return `No students match "${needle}".`;
+  }
+  if (needle !== "") {
+    return `No students match "${needle}".`;
+  }
   return "No students in this register.";
 }
 /**
@@ -286,24 +321,19 @@ export function emptyRegisterText(
  * filters are deliberately not part of the bargain: the boxes name the
  * section-wide bars, and a column threshold narrows beneath them.
  */
-export type BarCounts = { irregular: number; below75: number; below65: number };
+export type BarCounts = { irregular: number } & Record<FixedBarKey, number>;
 export function barCounts(
-  students: readonly StudentRow[],
+  students: ReadonlyArray<StudentRow>,
   search: string,
   overallMode: boolean
 ): BarCounts {
-  const base: RowFilter = {
-    irregular: false,
-    below75: false,
-    below65: false,
-    search,
-    subjectBars: [],
-  };
+  const base: RowFilter = { ...NO_FILTER, search };
   const count = (patch: Partial<RowFilter>): number =>
     visibleStudents(students, { ...base, ...patch }, overallMode, []).length;
-  return {
-    irregular: count({ irregular: true }),
-    below75: count({ below75: true }),
-    below65: count({ below65: true }),
-  };
+  const counts = { irregular: count({ irregular: true }) } as BarCounts;
+  for (const bar of BARS) {
+    const patch: Partial<RowFilter> = { [bar.key]: true };
+    counts[bar.key] = count(patch);
+  }
+  return counts;
 }

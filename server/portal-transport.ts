@@ -117,12 +117,15 @@ async function portalRequestWithin(
 ): Promise<Response> {
   const send = (target: string): Promise<Response> => {
     const cookie = jar.header();
+    const headers: Record<string, string> = Object.fromEntries(
+      new Headers(init.headers).entries()
+    );
+    if (cookie) {
+      headers.cookie = cookie;
+    }
     return fetch(target, {
       ...init,
-      headers: {
-        ...Object.fromEntries(new Headers(init.headers).entries()),
-        ...(cookie ? { cookie } : {}),
-      },
+      headers,
       redirect: "manual",
       signal: AbortSignal.timeout(HTTP_TIMEOUT_MS),
     });
@@ -132,7 +135,9 @@ async function portalRequestWithin(
   absorbResponse(jar, res);
   for (let hops = 0; hops < maxHops; hops++) {
     const next = nextHop(res, target, maxHops - hops);
-    if (!next) break;
+    if (!next) {
+      break;
+    }
     target = next;
     res = await send(target);
     absorbResponse(jar, res);
@@ -150,8 +155,11 @@ export async function portalRequest(
     return await portalRequestWithin(jar, url, init, maxHops);
   } finally {
     const elapsed = Date.now() - started;
-    if (elapsed > SLOW_CALL_MS)
-      console.warn(`portal slow call ${new URL(url).pathname} ${elapsed}ms`);
+    if (elapsed > SLOW_CALL_MS) {
+      process.stderr.write(
+        `portal slow call ${new URL(url).pathname} ${elapsed}ms\n`
+      );
+    }
   }
 }
 /** The JQuery convention: a JSON body naming the method on `jqmethods.aspx`. */
@@ -186,10 +194,11 @@ export async function portalJq(
   }
   const reply =
     parsed !== null && typeof parsed === "object"
-      ? (parsed as Record<string, unknown>)
+      ? (parsed as { error?: unknown; d?: unknown })
       : {};
-  if (reply.error)
+  if (reply.error) {
     throw new HttpError(502, `ECAP reported: ${String(reply.error)}`);
+  }
   return reply.d;
 }
 /** The generated-proxy convention: a `.ashx` named for the page, a `_method`
@@ -199,7 +208,7 @@ export async function portalWebMethod(
   jar: CookieJar,
   remote: Remote,
   name: string,
-  pairs: [string, string | number][]
+  pairs: Array<[string, string | number]>
 ): Promise<string> {
   const res = await portalRequest(
     jar,
@@ -215,8 +224,9 @@ export async function portalWebMethod(
     }
   );
   const text = await res.text();
-  if (!res.ok)
+  if (!res.ok) {
     throw new HttpError(502, `ECAP rejected ${name} (HTTP ${res.status}).`);
+  }
   if (looksLikeHtml(text)) {
     throw sessionExpired();
   }

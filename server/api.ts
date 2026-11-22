@@ -80,7 +80,7 @@ class Portal {
   async signOut(): Promise<void> {
     await signOutFrom(this.jar);
   }
-  async courses(): Promise<Option[]> {
+  async courses(): Promise<Array<Option>> {
     return options(
       await portalJq(this.jar, REGISTER_PAGE_URL, "LoadCourses", {
         controlid: "ddlcourse",
@@ -91,7 +91,7 @@ class Portal {
   }
   async branchesAndSemesters(
     courseId: string | number
-  ): Promise<[Option[], Option[]]> {
+  ): Promise<[Array<Option>, Array<Option>]> {
     const d = await portalJq(
       this.jar,
       REGISTER_PAGE_URL,
@@ -114,7 +114,7 @@ class Portal {
     branchId: string | number,
     semester: string | number,
     semesterTitle?: string
-  ): Promise<Option[]> {
+  ): Promise<Array<Option>> {
     const batch = semesterTitle || semester;
     return options(
       await portalJq(this.jar, REGISTER_PAGE_URL, "LoadBranchSections", {
@@ -130,7 +130,7 @@ class Portal {
     courseId: string | number,
     branchId: string | number,
     semesterId: string | number
-  ): Promise<Option[]> {
+  ): Promise<Array<Option>> {
     return options(
       await portalWebMethod(
         this.jar,
@@ -166,7 +166,7 @@ class Portal {
     courseId: string | number,
     branchId: string | number,
     semesterId: string | number
-  ): Promise<Option[]> {
+  ): Promise<Array<Option>> {
     return options(
       await portalWebMethod(
         this.jar,
@@ -225,7 +225,7 @@ class Portal {
       ).catch(() => "-1"),
       portalWebMethod(this.jar, LEAVE_STATUS_REMOTE, "showLeaves", [])
         .then(parseLeaveStatus)
-        .catch((): LeaveStatus[] => []),
+        .catch((): Array<LeaveStatus> => []),
     ]);
     return {
       name,
@@ -313,9 +313,9 @@ async function readJson<T>(req: Request): Promise<Partial<T>> {
  * The body is read here, once, before any revival: a `Request` body can only be
  * read once, and `withRevival` runs the work again on a fresh portal.
  */
-type Work = (portal: PortalReader) => Promise<unknown>;
+type Work = (portal: PortalReader) => Promise<object>;
 type Read = (req: Request) => Work | Promise<Work>;
-const READS: Record<string, Read> = {
+const READS = {
   "/api/options": async (req) => {
     const body = await readJson<OptionsRequest>(req);
     return (p) => handleOptions(p, body);
@@ -343,7 +343,7 @@ const READS: Record<string, Read> = {
   "/api/faculty-profile": () => (p) => handleFacultyProfile(p),
   "/api/today": () => (p) => handleTodayClasses(p),
   "/api/unposted": () => (p) => handleUnposted(p),
-};
+} satisfies Record<string, Read>;
 /**
  * Everything a signed-in call needs from ECAP: the procedure responses a route
  * handler reads, plus the jar its session is rebuilt into, the liveness
@@ -386,14 +386,14 @@ const encodeSession = (s: Session): string =>
       cookies: [...s.portal.jar.entries],
       at: Date.now(),
     } satisfies ClientSession),
-    "utf-8"
+    "utf8"
   ).toString("base64url");
 /** The one signed-out reply, so the places that say it cannot drift apart. */
 function signedOutReply(): SessionReply {
   return { signedIn: false, userId: "" };
 }
 /** The answer's slid session, or nothing on a request that refused. */
-const sessionHeader = (s: Session): Record<string, string> => ({
+const sessionHeader = (s: Session) => ({
   [SESSION_HEADER]: encodeSession(s),
 });
 export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
@@ -402,18 +402,22 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
    *  session at all. Never throws. */
   function readSession(req: Request): Session | null {
     const raw = req.headers.get(SESSION_HEADER);
-    if (!raw) return null;
+    if (!raw) {
+      return null;
+    }
     try {
       const parsed = JSON.parse(
-        Buffer.from(raw, "base64url").toString("utf-8")
+        Buffer.from(raw, "base64url").toString("utf8")
       ) as Partial<ClientSession>;
-      if (!parsed || typeof parsed.userId !== "string" || !parsed.userId)
+      if (!parsed || typeof parsed.userId !== "string" || !parsed.userId) {
         return null;
+      }
       if (
         typeof parsed.at !== "number" ||
         Date.now() - parsed.at > SESSION_TTL_MS
-      )
+      ) {
         return null;
+      }
       if (
         !Array.isArray(parsed.cookies) ||
         parsed.cookies.some(
@@ -423,11 +427,13 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
             typeof pair[0] !== "string" ||
             typeof pair[1] !== "string"
         )
-      )
+      ) {
         return null;
+      }
       const portal = connect();
-      for (const [name, value] of parsed.cookies as [string, string][])
+      for (const [name, value] of parsed.cookies as Array<[string, string]>) {
         portal.jar.entries.set(name, value);
+      }
       // A session stored before the credential existed carries none: it can
       // still be probed, it just cannot be revived.
       const password =
@@ -439,7 +445,9 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
   }
   function requireSession(req: Request): Session {
     const s = readSession(req);
-    if (!s || !s.portal.signedIn) throw sessionExpired();
+    if (!s || !s.portal.signedIn) {
+      throw sessionExpired();
+    }
     return s;
   }
   /**
@@ -448,7 +456,9 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
    * works.
    */
   async function reauthenticate(s: Session): Promise<void> {
-    if (!s.password) throw sessionExpired();
+    if (!s.password) {
+      throw sessionExpired();
+    }
     const portal = connect();
     try {
       await portal.signIn(s.userId, s.password);
@@ -471,8 +481,12 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
     try {
       return await run(s.portal);
     } catch (error) {
-      if (!(error instanceof HttpError)) throw error;
-      if (error.status !== 401 && error.status !== 502) throw error;
+      if (!(error instanceof HttpError)) {
+        throw error;
+      }
+      if (error.status !== 401 && error.status !== 502) {
+        throw error;
+      }
       await reauthenticate(s);
       return await run(s.portal);
     }
@@ -483,8 +497,9 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
     try {
       if (req.method === "POST" && path === "/api/login") {
         const { userId, password } = await readJson<LoginRequest>(req);
-        if (!userId || !password)
+        if (!userId || !password) {
           throw new HttpError(400, "Enter your user name and password.");
+        }
         const portal = connect();
         try {
           await portal.signIn(String(userId), String(password));
@@ -510,9 +525,11 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       }
       if (path === "/api/session") {
         const s = readSession(req);
-        if (!s) return json(signedOutReply(), 200);
+        if (!s) {
+          return json(signedOutReply(), 200);
+        }
         // One decision, not nested ifs: only a 401 evicts, a 502 stays
-        // `unknown` (ADR 0019). Either way nothing is evicted server-side.
+        // `unknown` (ADR 0013 and 0002). Either way nothing is evicted server-side.
         const verdictOfPortal = await courseVerdict(s.portal);
         const probe = verdictOfPortal.verdict;
         const failure: unknown =
@@ -520,7 +537,9 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
             ? await reauthenticate(s).catch((error: unknown) => error)
             : null;
         const verdict = sessionVerdict(probe, failure);
-        if (verdict === "dead") return json(signedOutReply(), 200);
+        if (verdict === "dead") {
+          return json(signedOutReply(), 200);
+        }
         return json(
           {
             signedIn: s.portal.signedIn,
@@ -531,7 +550,8 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
         );
       }
       const s = await requireSession(req);
-      const read = req.method === "POST" ? READS[path] : undefined;
+      const read: Read | undefined =
+        req.method === "POST" ? READS[path as keyof typeof READS] : undefined;
       if (read) {
         const work = await read(req);
         return json(
@@ -543,7 +563,9 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
       return json({ error: "Not found" } satisfies ErrorReply, 404);
     } catch (error) {
       const status = error instanceof HttpError ? error.status : 500;
-      if (status === 500) console.error("[error]", messageOf(error));
+      if (status === 500) {
+        process.stderr.write("[error] " + messageOf(error) + "\n");
+      }
       // A refusal carries no session header, so the browser drops what it
       // holds. There is nothing server-side to evict: a 401 from signing in
       // is about the password just typed, and any other 401 is about the

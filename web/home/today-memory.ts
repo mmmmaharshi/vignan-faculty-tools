@@ -14,17 +14,27 @@ import { readStored, writeStored } from "../data/storage";
  * per user: yesterday's table is useless after midnight, when the date stops
  * matching and the memory is ignored.
  */
-export type TodayMemory = { date: string; classes: TodayClass[] } | null;
+export type TodayMemory = { date: string; classes: Array<TodayClass> } | null;
 const memoryKey = (userId: string): string => `today-classes-${userId}`;
 const isEntry = (entry: unknown): entry is TodayClass => {
-  if (typeof entry !== "object" || entry === null) return false;
-  const row = entry as Record<string, unknown>;
+  if (typeof entry !== "object" || entry === null) {
+    return false;
+  }
+  const row = entry as {
+    period?: unknown;
+    time?: unknown;
+    subject?: unknown;
+    section?: unknown;
+    room?: unknown;
+  };
   return ["period", "time", "subject", "section", "room"].every(
-    (key) => typeof row[key] === "string"
+    (key) => typeof row[key as keyof typeof row] === "string"
   );
 };
 const isMemory = (value: unknown): value is Exclude<TodayMemory, null> => {
-  if (typeof value !== "object" || value === null) return false;
+  if (typeof value !== "object" || value === null) {
+    return false;
+  }
   const { date, classes } = value as { date?: unknown; classes?: unknown };
   return (
     typeof date === "string" &&
@@ -51,9 +61,11 @@ export function writeTodayMemory(
 export function noteTodayMemory(
   prev: TodayMemory,
   date: string,
-  classes: readonly TodayClass[]
+  classes: ReadonlyArray<TodayClass>
 ): TodayMemory {
-  if (!date || classes.length === 0) return prev;
+  if (!date || classes.length === 0) {
+    return prev;
+  }
   return { date, classes: [...classes] };
 }
 /**
@@ -64,12 +76,16 @@ export function noteTodayMemory(
  * Pure, so the midnight rule is pinnable without storage.
  */
 export function shownToday(
-  fresh: TodayClass[] | null,
+  fresh: Array<TodayClass> | null,
   memory: TodayMemory,
   date: string
-): TodayClass[] | null {
-  if (fresh && fresh.length > 0) return fresh;
-  if (fresh !== null && memory?.date === date) return memory.classes;
+): Array<TodayClass> | null {
+  if (fresh && fresh.length > 0) {
+    return fresh;
+  }
+  if (fresh !== null && memory?.date === date) {
+    return memory.classes;
+  }
   return fresh;
 }
 /**
@@ -78,13 +94,7 @@ export function shownToday(
  * midnight. One hook, so the read, the fold, and the display rule cannot
  * drift apart across call sites.
  */
-export function useTodayTable(
-  enabled: boolean,
-  userId: string
-): {
-  today: ReturnType<typeof useTodayClasses>;
-  todayShown: TodayClass[] | null;
-} {
+export function useTodayTable(enabled: boolean, userId: string) {
   const today = useTodayClasses(enabled);
   const [stored, setStored] = useState(() => ({
     userId,
@@ -97,13 +107,17 @@ export function useTodayTable(
   /* oxlint-disable react/set-state-in-effect */
   useEffect(() => {
     const classes = today.data?.classes;
-    if (!classes) return;
+    if (!classes) {
+      return;
+    }
     const day = todayIST();
     setStored((prev) => {
       const base =
         prev.userId === userId ? prev.memory : readTodayMemory(userId);
       const next = noteTodayMemory(base, day, classes);
-      if (next && next !== base) writeTodayMemory(userId, next);
+      if (next && next !== base) {
+        writeTodayMemory(userId, next);
+      }
       return { userId, memory: next };
     });
   }, [today.data, userId]);

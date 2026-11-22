@@ -53,6 +53,7 @@ export function watchForUpdates(
   run({
     kind: "boot",
     hasController: hooks.hasController(),
-    hasWaiting: registration.waiting != null,
+    hasWaiting:
+      registration.waiting !== null && registration.waiting !== undefined,
   });
 }

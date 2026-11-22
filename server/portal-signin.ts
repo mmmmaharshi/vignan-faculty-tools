@@ -22,7 +22,7 @@ import {
  */
 /** The hidden trio every WebForms postback carries, read off the page that
  *  carries it. One rule because sign-in and sign-out post the same trio. */
-const viewStateTrio = (html: string): Record<string, string> => ({
+const viewStateTrio = (html: string) => ({
   __VIEWSTATE: hiddenValue(html, "__VIEWSTATE"),
   __VIEWSTATEGENERATOR: hiddenValue(html, "__VIEWSTATEGENERATOR"),
   __EVENTVALIDATION: hiddenValue(html, "__EVENTVALIDATION"),
@@ -40,14 +40,17 @@ function postForm(
   fields: Record<string, string>,
   origin?: string
 ): Promise<Response> {
+  const headers = new Headers({
+    "content-type": "application/x-www-form-urlencoded",
+    referer,
+    "user-agent": UA,
+  });
+  if (origin) {
+    headers.set("origin", origin);
+  }
   return portalRequest(jar, url, {
     method: "POST",
-    headers: {
-      "content-type": "application/x-www-form-urlencoded",
-      referer,
-      ...(origin ? { origin } : {}),
-      "user-agent": UA,
-    },
+    headers,
     body: new URLSearchParams(fields),
   });
 }

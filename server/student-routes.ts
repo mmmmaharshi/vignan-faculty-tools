@@ -46,7 +46,7 @@ async function studentWiseAbsent(
   roll: string,
   name: string,
   p: Record<Level, Option> & { from: string; to: string }
-): Promise<{ absent?: string[] }> {
+): Promise<{ absent?: Array<string> }> {
   const absent = parseStudentAbsences(await portal.studentWise(roll, name, p));
   return absent ? { absent } : {};
 }
@@ -64,9 +64,11 @@ export async function readAbsences(
   portal: PortalReader,
   roll: string,
   b: Partial<StudentRequest>
-): Promise<{ absent?: string[] }> {
+): Promise<{ absent?: Array<string> }> {
   const { register } = b;
-  if (!register || !isAllSubjects(register.subject)) return {};
+  if (!register || !isAllSubjects(register.subject)) {
+    return {};
+  }
   try {
     return await studentWiseAbsent(portal, roll, b.name ?? "", {
       ...requireLevels(register),
@@ -88,15 +90,22 @@ export async function readAbsences(
  * Empty when either date will not parse, so the panel shows no table rather than
  * one built from a guess.
  */
-function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
+function monthToDateWindows(
+  semStart: string,
+  now: string
+): Array<StudentMonth> {
   const start = parsePortalDate(semStart);
   const current = parsePortalDate(now);
-  if (!start || !current) return [];
+  if (!start || !current) {
+    return [];
+  }
   const { month: sm, year: sy } = start;
   const { month: nm, year: ny } = current;
   // How many months the semester spans, both ends counted.
   const span = (ny - sy) * 12 + (nm - sm) + 1;
-  if (span < 1) return [];
+  if (span < 1) {
+    return [];
+  }
   // A span longer than the cap keeps its newest rows: the table exists to show
   // where the student stands now, so a stale start drops old months rather than
   // stopping short of the month in progress. Skip straight to the first row
@@ -105,7 +114,7 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
   const first = sy * 12 + (sm - 1) + span - Math.min(span, MONTH_WALK_CAP);
   let year = Math.floor(first / 12);
   let month = (first % 12) + 1;
-  const out: StudentMonth[] = [];
+  const out: Array<StudentMonth> = [];
   for (let step = 0; step < Math.min(span, MONTH_WALK_CAP); step++) {
     const running = year === ny && month === nm;
     const opening = monthWindow(year, month);
@@ -129,7 +138,6 @@ function monthToDateWindows(semStart: string, now: string): StudentMonth[] {
  */
 function within<T>(work: Promise<T>, ms: number): Promise<T | null> {
   let timer!: ReturnType<typeof setTimeout>;
-  // oxlint-disable-next-line promise/avoid-new -- a deadline is a timer; there is no promise to await instead
   const deadline = new Promise<null>((resolve) => {
     timer = setTimeout(() => resolve(null), ms);
   });
@@ -159,7 +167,7 @@ export async function readFullSemesterAbsences(
   p: Record<Level, Option> & { from: string; to: string },
   budgetMs: number = ABSENCE_WALK_BUDGET_MS
 ): Promise<{
-  absent: string[] | null;
+  absent: Array<string> | null;
   range: { from: string; to: string } | null;
   note: string;
 }> {
@@ -174,8 +182,9 @@ export async function readFullSemesterAbsences(
   const deadline = Date.now() + budgetMs;
   for (let step = 0; step < MONTH_WALK_CAP; step++) {
     const remaining = deadline - Date.now();
-    if (remaining <= 0)
+    if (remaining <= 0) {
       return absenceResult(advance(walk, { kind: "refused" }), p.to);
+    }
     const window = monthWindow(year, month);
     let grid: string | null;
     try {
@@ -187,10 +196,13 @@ export async function readFullSemesterAbsences(
       rethrowExpired(error);
       return absenceResult(advance(walk, { kind: "refused" }), p.to);
     }
-    if (grid === null)
+    if (grid === null) {
       return absenceResult(advance(walk, { kind: "refused" }), p.to);
+    }
     const start = monthStart(studentWiseDates(grid), year, month);
-    if (!start) return absenceResult(advance(walk, { kind: "dateless" }), p.to);
+    if (!start) {
+      return absenceResult(advance(walk, { kind: "dateless" }), p.to);
+    }
     walk = advance(walk, {
       kind: "read",
       start,
@@ -218,7 +230,9 @@ export async function readTotals(
   b: Partial<StudentRequest>
 ): Promise<{ totals?: StudentTotals }> {
   const { register, semStart } = b;
-  if (!register || !semStart) return {};
+  if (!register || !semStart) {
+    return {};
+  }
   try {
     const html = await portal.studentCumulative(roll, b.name ?? "", {
       ...requireLevels(register),
@@ -249,11 +263,15 @@ export async function readMonths(
   portal: PortalReader,
   roll: string,
   b: Partial<StudentRequest>
-): Promise<{ months?: StudentMonth[] }> {
+): Promise<{ months?: Array<StudentMonth> }> {
   const { register, semStart } = b;
-  if (!register || !semStart) return {};
+  if (!register || !semStart) {
+    return {};
+  }
   const windows = monthToDateWindows(semStart, todayIST());
-  if (!windows.length) return {};
+  if (!windows.length) {
+    return {};
+  }
   const levels = requireLevels(register);
   /** One row's figure, or the row without one. A refusal is that row's dash; a
    *  401 still ends the session. */
@@ -278,6 +296,36 @@ export async function readMonths(
   const months = await Promise.all(windows.map(rowOf));
   return { months };
 }
+/** The profile page is the one answer a roll number alone is enough for. Both
+ *  screens that open a student's panel fail the same way when it is not that
+ *  page, so the parse and its refusal live here once. */
+export function profilePageOrThrow(page: string): StudentProfile {
+  const profile = parseStudentProfile(page);
+  if (!profile) {
+    throw unreadablePage("student profile page");
+  }
+  return profile;
+}
+/**
+ * The three reads behind a student's panel: the absent dates, the semester's
+ * class counts and the month table. One owner, so Register and Student Search
+ * cannot disagree about what the panel holds. They need nothing from each
+ * other, so they go out together; a caller whose window walk already started
+ * the absent read passes that promise in rather than asking twice.
+ */
+export async function panelReads(
+  portal: PortalReader,
+  roll: string,
+  asked: Partial<StudentRequest>,
+  absences?: Promise<Pick<StudentProfile, "absent">>
+): Promise<Pick<StudentProfile, "absent" | "totals" | "months">> {
+  const [absent, totals, monthly] = await Promise.all([
+    absences ?? readAbsences(portal, roll, asked),
+    readTotals(portal, roll, asked),
+    readMonths(portal, roll, asked),
+  ]);
+  return { ...absent, ...totals, ...monthly };
+}
 /**
  * One student's GPA and phone numbers, read on demand when their row is opened.
  * The register states neither, so the Portal is asked about a single student here
@@ -291,23 +339,18 @@ export async function handleStudentProfile(
   b: Partial<StudentRequest>
 ): Promise<StudentProfile> {
   const roll = b.roll?.trim();
-  if (!roll) throw new HttpError(400, "Choose a student.");
-  // The GPA page, the absent-dates read, the semester's totals and the month
-  // table need nothing from each other — the roll, the name and the open
-  // register all arrive in the request — so they go out together. A 401 from
-  // any still ends the session, and a page that is not the profile still fails
-  // named instead of half-read.
-  const [page, absences, totals, monthly] = await Promise.all([
-    portal.studentProfile(roll),
-    readAbsences(portal, roll, b),
-    readTotals(portal, roll, b),
-    readMonths(portal, roll, b),
-  ]);
-  const profile = parseStudentProfile(page);
-  if (!profile) {
-    throw unreadablePage("student profile page");
+  if (!roll) {
+    throw new HttpError(400, "Choose a student.");
   }
-  return { ...profile, ...absences, ...totals, ...monthly };
+  // The profile page and the panel's three reads need nothing from each other:
+  // the roll, the name and the open register all arrive in the request. A 401
+  // from any still ends the session, and a page that is not the profile still
+  // fails named instead of half-read.
+  const [page, reads] = await Promise.all([
+    portal.studentProfile(roll),
+    panelReads(portal, roll, b),
+  ]);
+  return { ...profilePageOrThrow(page), ...reads };
 }
 /**
  * One student's absent days over a wider window than the register on screen —
@@ -326,12 +369,20 @@ export async function handleSemAbsences(
   b: Partial<SemAbsencesRequest>
 ): Promise<SemAbsencesReply> {
   const roll = b.roll?.trim();
-  if (!roll) throw new HttpError(400, "Choose a student.");
-  if (!b.register) throw new HttpError(400, "Open a register first.");
-  if (!b.from) throw new HttpError(400, "Choose a date range.");
+  if (!roll) {
+    throw new HttpError(400, "Choose a student.");
+  }
+  if (!b.register) {
+    throw new HttpError(400, "Open a register first.");
+  }
+  if (!b.from) {
+    throw new HttpError(400, "Choose a date range.");
+  }
   const p = requireLevels(b.register);
   const { to } = b.register;
-  if (!to) throw new HttpError(400, "Choose a date range.");
+  if (!to) {
+    throw new HttpError(400, "Choose a date range.");
+  }
   const { from } = b;
   if (isAllSubjects(p.subject)) {
     return await studentWiseAbsent(portal, roll, b.name ?? "", {

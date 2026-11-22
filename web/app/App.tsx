@@ -164,7 +164,7 @@ const App = (): React.JSX.Element => {
    *  values the browser already has. */
   const [saved, setSaved] = useState<{
     userId: string;
-    list: SavedSection[];
+    list: Array<SavedSection>;
   } | null>(null);
   /** The cascade run's one owner: which run holds the screen, which has been
    *  superseded, and which failed keeping what it settled. */
@@ -408,7 +408,9 @@ const App = (): React.JSX.Element => {
     (reason: SessionEnd) => {
       forgetSession();
       // The session is the browser's to drop: the server keeps nothing.
-      if (!keepsCredential(reason)) clearStoredSession();
+      if (!keepsCredential(reason)) {
+        clearStoredSession();
+      }
       setView("signedOut");
       setLoginNote(endNote(reason));
       setFormNote(null);
@@ -417,7 +419,9 @@ const App = (): React.JSX.Element => {
       // The path is read here rather than closed over, so a navigation does
       // not feed a stale route into the decision.
       const target = nextRoute(window.location.pathname, "signedOut");
-      if (target) navigate(target, { replace: true });
+      if (target) {
+        navigate(target, { replace: true });
+      }
     },
     [forgetSession, navigate]
   );
@@ -451,14 +455,18 @@ const App = (): React.JSX.Element => {
       // A run the screen stopped wanting answers null, and a run that was
       // superseded while it settled is dropped here: the newer one is the one on
       // screen.
-      if (!outcome || !cascadeRun.current.finish(signal)) return;
+      if (!outcome || !cascadeRun.current.finish(signal)) {
+        return;
+      }
       setSel(outcome.sel);
       setOpts(outcome.opts);
       // A new settle is a new class context for the ticked subject bars too:
       // a bar naming a subject this class does not offer would narrow a
       // roster with no column on screen saying so.
       setFilter((f) => {
-        if (!f.subjectBars.length) return f;
+        if (!f.subjectBars.length) {
+          return f;
+        }
         const offered = outcome.opts.subject.filter((o) => !isAllSubjects(o));
         const kept = pruneSubjectBars(f.subjectBars, offered);
         return kept.length === f.subjectBars.length
@@ -493,7 +501,9 @@ const App = (): React.JSX.Element => {
    *  nothing the picker holds is lost. The register is never re-read here:
    *  the click stays its only fetch. */
   const refreshScreen = async (): Promise<void> => {
-    if (refreshing || busy) return;
+    if (refreshing || busy) {
+      return;
+    }
     setRefreshing(true);
     try {
       // Independent re-reads, asked together: neither waits on the other,
@@ -509,7 +519,9 @@ const App = (): React.JSX.Element => {
   const loadRegister = () => {
     // The button is busy while the gate holds, so this is unreachable through
     // it; it stays as the rule's second half for any other caller.
-    if (gate === "finding-start") return;
+    if (gate === "finding-start") {
+      return;
+    }
     setFormNote(null);
     if (!range.from || !range.to) {
       setFormNote({ kind: "warning", text: "Choose a date range." });
@@ -552,7 +564,9 @@ const App = (): React.JSX.Element => {
   const findStudent = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const roll = searchRoll.trim();
-    if (!roll) return;
+    if (!roll) {
+      return;
+    }
     const window = startingRange();
     setSearchClick((previous) => ({
       request: {
@@ -599,7 +613,9 @@ const App = (): React.JSX.Element => {
    *  session that was never there is the boot check's business, which says
    *  nothing. */
   useEffect(() => {
-    if (!booted || !signedIn) return;
+    if (!booted || !signedIn) {
+      return;
+    }
     if (session.data && !session.data.signedIn) {
       endSession({ kind: "expired" });
     }
@@ -621,7 +637,9 @@ const App = (): React.JSX.Element => {
       data: session.data,
       retried: bootRetried,
     });
-    if (action.kind === "wait") return;
+    if (action.kind === "wait") {
+      return;
+    }
     if (action.kind === "retry") {
       setBootRetried(true);
       void reloadSession();
@@ -637,11 +655,15 @@ const App = (): React.JSX.Element => {
     // A restored session never went through the sign-in form, so this is the
     // only place the name can arrive. Without it the rail and the profile panel
     // show a dash for a session that is working.
-    if (action.userId) noteUserId(action.userId);
+    if (action.userId) {
+      noteUserId(action.userId);
+    }
     if (!onLogin && !isScreen(pathname)) {
       navigate(HOME_PATH, { replace: true });
     }
-    if (!onLogin) void runRefresh(EMPTY_SEL, EMPTY_OPTS);
+    if (!onLogin) {
+      void runRefresh(EMPTY_SEL, EMPTY_OPTS);
+    }
   }, [
     booted,
     session.isLoading,
@@ -669,7 +691,9 @@ const App = (): React.JSX.Element => {
    *  say the same thing the table does. The clicked request lives in the SWR
    *  key, so this state change cannot trigger a refetch. */
   useEffect(() => {
-    if (!loadSnap.current.consume()) return;
+    if (!loadSnap.current.consume()) {
+      return;
+    }
     let stated = register.data?.summary.statedFrom ?? "";
     if (!stated && register.data?.summary.dates?.length) {
       stated = statedStartIso(register.data.summary.dates, range) ?? "";
@@ -734,7 +758,9 @@ const App = (): React.JSX.Element => {
     savedSectionsView.apply(target);
   };
   let screen: "booting" | "login" | "app" = "booting";
-  if (booted) screen = onLogin ? "login" : "app";
+  if (booted) {
+    screen = onLogin ? "login" : "app";
+  }
   const picker = (
     <ClassPicker
       levels={LEVELS}

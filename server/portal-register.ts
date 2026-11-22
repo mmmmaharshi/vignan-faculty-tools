@@ -18,24 +18,32 @@ import {
  *  official working-days figure for the range — calendar arithmetic misaligns
  *  the moment a holiday falls inside, so it is read, never subtracted. A grid
  *  whose headers state no dates yields nothing rather than a wrong count. */
-export function registerDates(html: string): string[] {
+export function registerDates(html: string): Array<string> {
   return (
     firstHeaded(gridTables(html))?.[0]
       ?.filter((c) => DATE_CELL.test(c))
       .map((c) => c.split("/").slice(0, 2).join("/")) ?? []
   );
 }
-export function parseRegister(html: string): RegisterRow[] {
+export function parseRegister(html: string): Array<RegisterRow> {
   const grid = firstHeaded(gridTables(html));
-  if (!grid) return [];
+  if (!grid) {
+    return [];
+  }
   const [header] = grid;
-  if (!header) return [];
-  const rows: RegisterRow[] = [];
+  if (!header) {
+    return [];
+  }
+  const rows: Array<RegisterRow> = [];
   const dates = header.filter((c) => DATE_CELL.test(c));
   for (const cells of grid.slice(1)) {
-    if (cells.length < 4) continue;
+    if (cells.length < 4) {
+      continue;
+    }
     const roll = cells[1] ?? "";
-    if (!roll) continue;
+    if (!roll) {
+      continue;
+    }
     const attendedOfHeld = cells.at(-2) ?? "";
     const pct = cells.at(-1) ?? "";
     rows.push({
@@ -55,12 +63,14 @@ export function parseRegister(html: string): RegisterRow[] {
 /** The Student Wise grid's own header row and body rows, or null when the reply
  *  is not that report at all. */
 function studentWiseParts(html: string): {
-  header: string[];
-  body: string[][];
+  header: Array<string>;
+  body: Array<Array<string>>;
 } | null {
   const grid = subjectHeaded(gridTables(html));
   const header = grid?.[0];
-  if (!grid || !header) return null;
+  if (!grid || !header) {
+    return null;
+  }
   return { header, body: grid.slice(1) };
 }
 /**
@@ -72,12 +82,14 @@ function studentWiseParts(html: string): {
  * `null` when the reply is not that report — which is not a clean sheet, so the
  * caller states nothing rather than claiming no absences.
  */
-export function parseStudentAbsences(html: string): string[] | null {
+export function parseStudentAbsences(html: string): Array<string> | null {
   const parts = studentWiseParts(html);
-  if (!parts) return null;
+  if (!parts) {
+    return null;
+  }
   const { header } = parts;
   const body = parts.body.filter((cells) => /^\d+$/.test(cells[0] ?? ""));
-  const absent: string[] = [];
+  const absent: Array<string> = [];
   for (const date of header.filter((c) => DATE_CELL.test(c))) {
     const column = header.indexOf(date);
     if (body.some((cells) => /\bA\b/.test(cells[column] ?? ""))) {
@@ -89,9 +101,11 @@ export function parseStudentAbsences(html: string): string[] | null {
 /** The meeting days a Student Wise grid states across its own header, in the
  *  grid's order — the section's days, not one student's absences. The month
  *  walk reads the start off these, so a clean month still counts as met. */
-export function studentWiseDates(html: string): string[] {
+export function studentWiseDates(html: string): Array<string> {
   const parts = studentWiseParts(html);
-  if (!parts) return [];
+  if (!parts) {
+    return [];
+  }
   return parts.header
     .filter((c) => DATE_CELL.test(c))
     .map((c) => c.split("/").slice(0, 2).join("/"));
@@ -112,7 +126,7 @@ interface SubjectRow {
  * header, in order — the names a per-subject breakdown is read under. Empty
  * where the report aggregates without stating any, which is not a failure.
  */
-export function classReportSubjects(html: string): string[] {
+export function classReportSubjects(html: string): Array<string> {
   const grid = anyHeaded(gridTables(html));
   const header =
     grid?.find((row) => row.some((c) => ROLL_HEADER.test(c))) ?? [];
@@ -120,15 +134,21 @@ export function classReportSubjects(html: string): string[] {
 }
 /** The class attendance report's rows: one per student, the figure read as the
  *  report's own last cell. */
-export function parseClassAttendance(html: string): OverallRow[] {
-  const rows: OverallRow[] = [];
+export function parseClassAttendance(html: string): Array<OverallRow> {
+  const rows: Array<OverallRow> = [];
   const grid = anyHeaded(gridTables(html));
-  if (!grid) return rows;
+  if (!grid) {
+    return rows;
+  }
   for (const cells of grid) {
-    if (cells.length < 4) continue;
+    if (cells.length < 4) {
+      continue;
+    }
     const sl = cells[0] ?? "";
     const roll = cells[1] ?? "";
-    if (!/^\d+$/.test(sl) || !roll) continue;
+    if (!/^\d+$/.test(sl) || !roll) {
+      continue;
+    }
     rows.push({
       sl,
       roll,
@@ -145,7 +165,7 @@ export function parseClassAttendance(html: string): OverallRow[] {
  * walk is the class report's: a row shape change lands in one place instead of
  * two that must agree.
  */
-export function parseSubjectReport(html: string): SubjectRow[] {
+export function parseSubjectReport(html: string): Array<SubjectRow> {
   return parseClassAttendance(html).map(({ roll, pct }) => ({ roll, pct }));
 }
 /** The Cumulative student-wise register's own marks, by the colour the reply
@@ -173,16 +193,22 @@ export function parseCumulativeTotals(html: string): StudentTotals | null {
   const legend = new Map<string, string>();
   for (const m of html.matchAll(CUMULATIVE_LEGEND)) {
     const label = cellText(m.groups?.label ?? "");
-    if (label) legend.set((m.groups?.colour ?? "").toLowerCase(), label);
+    if (label) {
+      legend.set((m.groups?.colour ?? "").toLowerCase(), label);
+    }
   }
-  if (!legend.size) return null;
+  if (!legend.size) {
+    return null;
+  }
   let present = 0;
   let absent = 0;
   let notEntered = 0;
   let dated = 0;
   for (const row of html.matchAll(ROW)) {
     const cells = [...row[0].matchAll(CELL)];
-    if (!DATE_CELL.test(cellText(cells[0]?.groups?.cell ?? ""))) continue;
+    if (!DATE_CELL.test(cellText(cells[0]?.groups?.cell ?? ""))) {
+      continue;
+    }
     dated += 1;
     for (const cell of cells.slice(1)) {
       const text = cellText(cell.groups?.cell ?? "");
@@ -190,12 +216,18 @@ export function parseCumulativeTotals(html: string): StudentTotals | null {
       if (NO_COLOUR.test(colour)) {
         // An unmarked cell is an attended period; an unmarked empty cell is no
         // period at all.
-        if (text) present += 1;
+        if (text) {
+          present += 1;
+        }
         continue;
       }
       const label = legend.get(colour.toLowerCase()) ?? "";
-      if (!label) return null;
-      if (/holiday|no class/i.test(label)) continue;
+      if (!label) {
+        return null;
+      }
+      if (/holiday|no class/i.test(label)) {
+        continue;
+      }
       // The two held-but-not-attended marks count even when ECAP leaves the
       // cell's text empty, which is exactly what "not entered" looks like.
       if (/absent/i.test(label)) {
@@ -207,6 +239,8 @@ export function parseCumulativeTotals(html: string): StudentTotals | null {
       }
     }
   }
-  if (!dated) return null;
+  if (!dated) {
+    return null;
+  }
   return { held: present + absent + notEntered, attend: present, absent };
 }

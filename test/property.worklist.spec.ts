@@ -60,7 +60,7 @@ const row = (i: number): StudentRow =>
     absent: [],
   }) as StudentRow;
 
-const rows: Arbitrary<StudentRow[]> = array(
+const rows: Arbitrary<Array<StudentRow>> = array(
   record({
     pct: option(integer({ min: 0, max: 100 }), { nil: null }),
     overallPct: option(integer({ min: 0, max: 100 }), { nil: null }),
@@ -74,7 +74,8 @@ const rows: Arbitrary<StudentRow[]> = array(
   specs.map((spec, i) => ({
     ...row(i),
     ...spec,
-    overallAttendedOfHeld: spec.overallPct == null ? "" : "1/2",
+    overallAttendedOfHeld:
+      spec.overallPct === null || spec.overallPct === undefined ? "" : "1/2",
   }))
 );
 
@@ -121,14 +122,22 @@ test.describe("a worklist is a subset of the roster", () => {
   test("a filtered register never puts a missing figure above a known one", () => {
     assert(
       property(rows, filter, boolean(), (students, f, overallMode) => {
-        if (!isFiltering(f)) return true;
+        if (!isFiltering(f)) {
+          return true;
+        }
         const shown = registerRows(students, f, overallMode);
         const figure = (s: StudentRow) => (overallMode ? s.overallPct : s.pct);
-        const firstMissing = shown.findIndex((s) => figure(s) == null);
-        if (firstMissing === -1) return true;
+        const firstMissing = shown.findIndex(
+          (s) => figure(s) === null || figure(s) === undefined
+        );
+        if (firstMissing === -1) {
+          return true;
+        }
         // Everything from the first absence of evidence onwards is missing one:
         // an unknown figure never sorts above a known one.
-        return shown.slice(firstMissing).every((s) => figure(s) == null);
+        return shown
+          .slice(firstMissing)
+          .every((s) => figure(s) === null || figure(s) === undefined);
       }),
       { numRuns: 200 }
     );
@@ -181,7 +190,9 @@ test.describe("a column threshold cycles in place", () => {
             labels.map((label) => ({ value: label, label, title: "" }))
           );
           expect(kept.length).toBeLessThanOrEqual(bars.length);
-          for (const bar of kept) expect(labels).toContain(bar.code);
+          for (const bar of kept) {
+            expect(labels).toContain(bar.code);
+          }
           return true;
         }
       ),
@@ -257,7 +268,9 @@ test.describe("the cascade loop keeps what it settled", () => {
           expect(outcome?.sel.course).not.toBe("");
         } catch (error) {
           const partial = partialOf(error);
-          if (!partial) return true; // failed before anything arrived
+          if (!partial) {
+            return true;
+          } // failed before anything arrived
           // Pass 1 always arrives first, so a run that dies on pass 1 keeps
           // nothing and a run that dies later keeps at least the course.
           expect(partial.sel.course === "").toBe(failAt === 1);

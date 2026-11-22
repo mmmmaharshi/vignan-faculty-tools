@@ -1,4 +1,4 @@
-# 0027 - The commit hook type-checks, after it lints and formats
+# 0034 - The commit hook type-checks, after it lints and formats
 
 Date: 2026-11-04
 Status: Accepted

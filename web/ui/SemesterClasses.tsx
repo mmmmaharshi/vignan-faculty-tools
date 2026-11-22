@@ -11,11 +11,11 @@ import { IRREGULAR_BELOW, classesToRegular } from "../../shared/portal-values";
  * lines live. The semester-wide figure wins where the register carries it,
  * else the subject's own.
  */
-const bandsFor = (
-  student: Student | null
-): { below: boolean; critical: boolean } => {
-  if (!student) return { below: false, critical: false };
-  if (student.overallPct != null) {
+const bandsFor = (student: Student | null) => {
+  if (!student) {
+    return { below: false, critical: false };
+  }
+  if (student.overallPct !== null && student.overallPct !== undefined) {
     return {
       below: student.overallIrregular || student.overallCritical,
       critical: student.overallCritical,
@@ -48,8 +48,10 @@ export const SemesterClasses = ({ student, totals }: SemesterClassesProps) => {
   const need = totals ? classesToRegular(totals) : null;
   /** The way back shows when the counts name one, or when the figure sits
    *  below the line with no counts to reckon from. */
-  const showNeed = need != null || below;
-  if (!totals && !showNeed) return null;
+  const showNeed = (need !== null && need !== undefined) || below;
+  if (!totals && !showNeed) {
+    return null;
+  }
   return (
     <>
       <Text c="dimmed" size="xs" tt="uppercase">
@@ -93,7 +95,7 @@ export const SemesterClasses = ({ student, totals }: SemesterClassesProps) => {
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="sm" fw={600}>
-                  {need == null
+                  {need === null || need === undefined
                     ? "—"
                     : `Attend next ${need} class${need === 1 ? "" : "es"}`}
                 </Text>

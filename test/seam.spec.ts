@@ -70,7 +70,7 @@ test.describe("portal replies", () => {
     expect(unquoteJs('{"value":42}')).toBe('{"value":42}');
     expect(typeof unquoteJs('{"error":"nope"}')).toBe("string");
     expect(unquoteJs("")).toBe("");
-    expect(unquoteJs("'a\\'b'")).toBe("a'b");
+    expect(unquoteJs(String.raw`'a\'b'`)).toBe("a'b");
   });
   test("options drops placeholders and entries with no identifier", () => {
     const all = options(SELECT);
@@ -164,12 +164,12 @@ test.describe("portal replies", () => {
       sl: "1",
       roll: "24L31A1201",
       name: "ADARI LASYA SHREE",
-      attendedOfHeld: "381\\481",
+      attendedOfHeld: String.raw`381\481`,
       pct: 79.21,
     });
     expect(rows[1]).toMatchObject({ roll: "24L31A1202", pct: 74.01 });
     expect(rows[2]?.pct).toBeNull();
-    expect(rows[2]?.attendedOfHeld).toBe("20\\30");
+    expect(rows[2]?.attendedOfHeld).toBe(String.raw`20\30`);
   });
   test("a subject report states each student's percentage for that subject", () => {
     const html = `<table>

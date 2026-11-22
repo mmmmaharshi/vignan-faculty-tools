@@ -40,7 +40,7 @@ export async function handleOptions(
   portal: PortalReader,
   b: OptionsRequest
 ): Promise<OptionsReply> {
-  const emptyLevels: Level[] = [];
+  const emptyLevels: Array<Level> = [];
   const out: OptionsReply = {
     course: [],
     semester: [],
@@ -49,15 +49,17 @@ export async function handleOptions(
     subject: [],
     emptyLevels,
   };
-  const take = (key: Level, list: Option[]): void => {
+  const take = (key: Level, list: Array<Option>): void => {
     const choices = realOptions(list);
     out[key] = choices;
-    if (!choices.length) emptyLevels.push(key);
+    if (!choices.length) {
+      emptyLevels.push(key);
+    }
   };
   // A list held from an earlier pass of the same run is the Portal's own
   // answer under these same parents, so it is used as stated instead of
   // asked for again. An empty held list states nothing and is refetched.
-  const held = (key: Level): Option[] | null => {
+  const held = (key: Level): Array<Option> | null => {
     const list = b.held?.[key];
     return list?.length ? list : null;
   };
@@ -67,16 +69,20 @@ export async function handleOptions(
   let touch: OptionsTouch = untouched;
   /** A held list reused as stated, or the Portal asked once. Marks which. */
   const reuse = async (
-    list: Option[] | null,
-    fetch: () => Promise<Option[]>
-  ): Promise<Option[]> => {
-    if (list) return list;
+    list: Array<Option> | null,
+    fetch: () => Promise<Array<Option>>
+  ): Promise<Array<Option>> => {
+    if (list) {
+      return list;
+    }
     touch = markTouched();
     const fetched = await fetch();
     // The jQuery convention answers 200 with only a placeholder when the
     // session is gone. An empty fetched list proves nothing, so the final
     // guard still has to ask the course list.
-    if (!realOptions(fetched).length) touch = untouched;
+    if (!realOptions(fetched).length) {
+      touch = untouched;
+    }
     return fetched;
   };
   take("course", await reuse(held("course"), () => requireCourses(portal)));
@@ -85,15 +91,16 @@ export async function handleOptions(
     // stand in for the pair: both travel or the Portal is asked.
     const heldBranch = held("branch");
     const heldSemester = held("semester");
-    let branches: Option[];
-    let semesters: Option[];
+    let branches: Array<Option>;
+    let semesters: Array<Option>;
     if (heldBranch && heldSemester) {
       [branches, semesters] = [heldBranch, heldSemester];
     } else {
       touch = markTouched();
       [branches, semesters] = await portal.branchesAndSemesters(b.course);
-      if (!realOptions(branches).length || !realOptions(semesters).length)
+      if (!realOptions(branches).length || !realOptions(semesters).length) {
         touch = untouched;
+      }
     }
     take("branch", branches);
     take("semester", semesters);
@@ -136,7 +143,9 @@ export async function handleOptions(
     // First, so the whole section is one click away, and upper-cased so it reads
     // as a mode rather than as one of the portal's short codes. An empty level
     // must stay empty, or the cascade would think it had nothing left to fetch.
-    if (out.subject.length) out.subject = [ALL_SUBJECTS, ...out.subject];
+    if (out.subject.length) {
+      out.subject = [ALL_SUBJECTS, ...out.subject];
+    }
   }
   if (livenessGuard(touch).kind === "probe") {
     // Every list travelled, so ECAP was asked nothing — but the call still
@@ -155,7 +164,11 @@ export async function handleOptions(
 async function readOverall(
   portal: PortalReader,
   p: Record<Level, Option> & { from: string; to: string }
-): Promise<{ rows: OverallRow[]; byRoll: OverallLookup; subjects: string[] }> {
+): Promise<{
+  rows: Array<OverallRow>;
+  byRoll: OverallLookup;
+  subjects: Array<string>;
+}> {
   try {
     const reply = await portal.classAttendance(p);
     const rows = parseClassAttendance(reply);
@@ -182,7 +195,7 @@ async function readOverall(
 async function listOfferedSubjects(
   portal: PortalReader,
   p: Record<Level, Option>
-): Promise<Option[] | null> {
+): Promise<Array<Option> | null> {
   try {
     return realOptions(
       await portal.subjectOptions(
@@ -207,10 +220,10 @@ async function listOfferedSubjects(
 async function readSubjectPercents(
   portal: PortalReader,
   p: Record<Level, Option> & { from: string; to: string },
-  columns: string[],
-  offered: Option[] | null
+  columns: Array<string>,
+  offered: Array<Option> | null
 ): Promise<{
-  labels: string[];
+  labels: Array<string>;
   byColumn: Map<string, Map<string, number | null>>;
 }> {
   if (offered === null) {
@@ -219,12 +232,10 @@ async function readSubjectPercents(
     // subject report earns.
     return { labels: columns, byColumn: new Map() };
   }
-  const pairs = columns
-    .map((label) => ({ label, subject: matchOption(label, offered) }))
-    .filter(
-      (pair): pair is { label: string; subject: Option } =>
-        pair.subject !== null
-    );
+  const pairs = columns.flatMap((label) => {
+    const subject = matchOption(label, offered);
+    return subject === null ? [] : [{ label, subject }];
+  });
   const byColumn = new Map<string, Map<string, number | null>>();
   await Promise.all(
     pairs.map(async ({ label, subject }) => {
@@ -308,7 +319,9 @@ export async function readRegister(
     portal.register({ ...p, from, to }),
     readOverall(portal, { ...p, from, to }),
   ]);
-  if (registerSettled.status === "rejected") throw registerSettled.reason;
+  if (registerSettled.status === "rejected") {
+    throw registerSettled.reason;
+  }
   const rows = parseRegister(registerSettled.value);
   if (!rows.length) {
     throw new HttpError(
@@ -316,7 +329,9 @@ export async function readRegister(
       "The register came back empty. Either the subject has no classes in that date range, or ECAP's page layout has changed."
     );
   }
-  if (overallSettled.status === "rejected") throw overallSettled.reason;
+  if (overallSettled.status === "rejected") {
+    throw overallSettled.reason;
+  }
   const { byRoll } = overallSettled.value;
   // The grid's own date columns are the working-days count: a grid that
   // states none leaves the summary bare rather than printing a zero. The
@@ -337,7 +352,9 @@ export async function handleRegister(
 ): Promise<RegisterReply> {
   // Async so a refused request rejects rather than throwing at the call site:
   // the route table calls this and awaits it.
-  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
+  if (!b.from || !b.to) {
+    throw new HttpError(400, "Choose a date range.");
+  }
   return await readRegister(portal, requireLevels(b), {
     from: b.from,
     to: b.to,
@@ -359,7 +376,9 @@ async function walkSemStart(
   steps: number
 ): Promise<SemStartReply> {
   const [, tm, ty] = to.split("/").map(Number);
-  if (!tm || !ty || tm > 12) throw new HttpError(400, "Choose a date range.");
+  if (!tm || !ty || tm > 12) {
+    throw new HttpError(400, "Choose a date range.");
+  }
   let start: string | null = null;
   let year = ty;
   let month = tm;
@@ -370,7 +389,9 @@ async function walkSemStart(
       year,
       month
     );
-    if (!startOfMonth) break;
+    if (!startOfMonth) {
+      break;
+    }
     start = startOfMonth;
     ({ year, month } = previousMonth(year, month));
   }
@@ -392,7 +413,9 @@ export async function handleSemStart(
   portal: PortalReader,
   b: Partial<SemStartRequest>
 ): Promise<SemStartReply> {
-  if (!b.from || !b.to) throw new HttpError(400, "Choose a date range.");
+  if (!b.from || !b.to) {
+    throw new HttpError(400, "Choose a date range.");
+  }
   const p = requireLevels(b);
   const steps = Math.min(
     Math.max(Math.floor(b.walkBack ?? 0), 0),
@@ -402,7 +425,9 @@ export async function handleSemStart(
     const dates = registerDates(
       await portal.register({ ...p, from: b.from, to: b.to })
     );
-    if (!dates.length) return { statedFrom: null };
+    if (!dates.length) {
+      return { statedFrom: null };
+    }
     return { statedFrom: statedStartDate(dates, { from: b.from, to: b.to }) };
   }
   return walkSemStart(portal, p, b.to, steps);

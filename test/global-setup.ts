@@ -5,7 +5,7 @@ const PROJECTS = [
   "tsconfig.server.json",
   "tsconfig.test.json",
 ];
-const run = (command: string, args: string[]): void => {
+const run = (command: string, args: Array<string>): void => {
   execFileSync("bunx", [command, ...args], { stdio: "inherit" });
 };
 export default function globalSetup(): void {

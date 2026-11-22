@@ -17,7 +17,7 @@ import type { Level, Sel } from "../register/cascade";
 import type { Range } from "../register/range";
 
 type ClassPickerProps = {
-  levels: readonly (readonly [Level, string])[];
+  levels: ReadonlyArray<readonly [Level, string]>;
   opts: OptionsReply;
   sel: Sel;
   disabled: Record<Level, boolean>;
@@ -40,7 +40,9 @@ type ClassPickerProps = {
    *  on the same line as Load register rather than under it. */
   trailing: React.ReactNode;
 };
-function toSelectData(list: Option[]): { value: string; label: string }[] {
+function toSelectData(
+  list: Array<Option>
+): Array<{ value: string; label: string }> {
   return list.map((o) => ({ value: String(o.value), label: o.label }));
 }
 function labelFor(
@@ -76,7 +78,9 @@ export const ClassPicker = ({
             data={toSelectData(opts[key])}
             value={sel[key] || null}
             onChange={(value) => {
-              if (value !== null) onSelect(key, value);
+              if (value !== null) {
+                onSelect(key, value);
+              }
             }}
             disabled={disabled[key] || busy}
             searchable={false}

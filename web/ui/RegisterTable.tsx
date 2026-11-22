@@ -30,7 +30,7 @@ import type { FigureKind, RowFilter, BarCounts } from "../register/worklist";
 import { FactsTable } from "./FactsTable";
 
 type RegisterTableProps = {
-  rows: Student[];
+  rows: Array<Student>;
   total: number;
   summary: RegisterReply["summary"];
   filter: RowFilter;
@@ -44,7 +44,7 @@ type RegisterTableProps = {
    *  its own cycle — so no control has to know the patch shape. */
   onFilterChange: (next: RowFilter) => void;
   onShowDetails: (student: Student) => void;
-  chosen: ChosenFact[];
+  chosen: Array<ChosenFact>;
   /** The All subjects path: no subject was chosen, so there are no subject columns
    *  and the bands on show — and the row tint — are the overall ones. One prop,
    *  because a subject was either chosen or not; two names for it could disagree. */
@@ -231,7 +231,11 @@ export const RegisterTable = ({
                           }
                         >
                           <Head
-                            label={bar == null ? code : `${code} <${bar}%`}
+                            label={
+                              bar === null || bar === undefined
+                                ? code
+                                : `${code} <${bar}%`
+                            }
                           />
                         </UnstyledButton>
                       </Table.Th>
@@ -280,7 +284,7 @@ export const RegisterTable = ({
                     </Table.Td>
                     {showOverall && (
                       <Table.Td ta="center" bg="blue.0">
-                        {s.overallPct == null ? (
+                        {s.overallPct === null || s.overallPct === undefined ? (
                           <Text c="dimmed" size="sm">
                             —
                           </Text>
@@ -299,7 +303,8 @@ export const RegisterTable = ({
                     )}
                     {subjectColumns.map((code, i) => (
                       <Table.Td key={`${code}-${i}`} ta="center">
-                        {s.subjects[i] == null ? (
+                        {s.subjects[i] === null ||
+                        s.subjects[i] === undefined ? (
                           <Text c="dimmed" size="sm">
                             —
                           </Text>
@@ -313,7 +318,7 @@ export const RegisterTable = ({
                     )}
                     {!overallMode && (
                       <Table.Td ta="center">
-                        {s.pct == null ? (
+                        {s.pct === null || s.pct === undefined ? (
                           "—"
                         ) : (
                           <Figure

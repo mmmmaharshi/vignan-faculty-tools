@@ -12,7 +12,7 @@ export const CONTENT_SECURITY_POLICY =
   "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; " +
   "img-src 'self' data: https://webprosindia.com; font-src 'self' data:; " +
   "connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'";
-export const SECURITY_HEADERS: Record<string, string> = {
+export const SECURITY_HEADERS = {
   "content-security-policy": CONTENT_SECURITY_POLICY,
   "x-content-type-options": "nosniff",
   "x-frame-options": "DENY",

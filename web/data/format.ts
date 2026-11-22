@@ -22,7 +22,7 @@ export const splitSubject = (
 /** The section's pieces, each riding its own pill: the comma separates the
  *  section from the course line, a "B.Tech V Semester" course line splits
  *  into its course and a short "V Sem", and anything else stays one pill. */
-export const pillsOf = (section: string): string[] =>
+export const pillsOf = (section: string): Array<string> =>
   section
     .split(",")
     .flatMap((piece) => {
@@ -34,7 +34,9 @@ export const pillsOf = (section: string): string[] =>
         return [full.course, `${full.numeral} Sem`];
       }
       const bare = words.match(/^(?<numeral>[IVX]+)\s+Semester$/i)?.groups;
-      if (bare?.numeral) return [`${bare.numeral} Sem`];
+      if (bare?.numeral) {
+        return [`${bare.numeral} Sem`];
+      }
       return [words];
     })
     .filter(Boolean);
@@ -48,7 +50,9 @@ const toMinutes = (clock: string): number | null => {
   const parts = clock
     .trim()
     .match(/^(?<hour>\d{1,2}):(?<minute>\d{2})\s*(?<half>[AP])M$/i)?.groups;
-  if (!parts?.hour || !parts.minute || !parts.half) return null;
+  if (!parts?.hour || !parts.minute || !parts.half) {
+    return null;
+  }
   const hour =
     (Number(parts.hour) % 12) + (parts.half.toUpperCase() === "P" ? 12 : 0);
   return hour * 60 + Number(parts.minute);
@@ -66,7 +70,9 @@ export const isLive = (time: string, now: Date): boolean => {
   const range = time.match(TIME_RANGE)?.groups;
   const from = range?.from ? toMinutes(range.from) : null;
   const to = range?.to ? toMinutes(range.to) : null;
-  if (from === null || to === null) return false;
+  if (from === null || to === null) {
+    return false;
+  }
   const at = now.getHours() * 60 + now.getMinutes();
   return from <= to ? from <= at && at < to : at >= from || at < to;
 };

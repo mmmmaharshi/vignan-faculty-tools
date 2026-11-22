@@ -7,14 +7,14 @@ export { isAllSubjects } from "../../shared/api";
 
 export type Level = CascadeLevel;
 export type Sel = Record<Level, string>;
-export const LEVELS: readonly (readonly [Level, string])[] = [
+export const LEVELS: ReadonlyArray<readonly [Level, string]> = [
   ["course", "Course"],
   ["semester", "Semester"],
   ["branch", "Branch"],
   ["section", "Section"],
   ["subject", "Subject"],
 ];
-export const LEVEL_KEYS: readonly Level[] = LEVELS.map(([k]) => k);
+export const LEVEL_KEYS: ReadonlyArray<Level> = LEVELS.map(([k]) => k);
 export const EMPTY_SEL: Sel = {
   course: "",
   semester: "",
@@ -54,18 +54,12 @@ export function chosenLevels(
   const levels = {} as Record<Level, Option>;
   for (const [key, label] of LEVELS) {
     const hit = opts[key].find((o) => String(o.value) === String(sel[key]));
-    if (!hit) return { ok: false, label };
+    if (!hit) {
+      return { ok: false, label };
+    }
     levels[key] = hit;
   }
   return { ok: true, levels };
-}
-/** The five values a register request names, in the selection's own shape: the
- *  inverse of `chosenLevels`, so a stored view can say which class its rows are
- *  for without trusting the picker to still be on that class. */
-export function selOfRequest(request: Record<Level, Option>): Sel {
-  const sel = {} as Sel;
-  for (const key of LEVEL_KEYS) sel[key] = String(request[key].value);
-  return sel;
 }
 /**
  * Which levels a changed level invalidates. A change that arrives carrying a
@@ -78,10 +72,13 @@ export function selOfRequest(request: Record<Level, Option>): Sel {
  * An empty list means nothing below is cleared: the selection arrived whole, so
  * the loop keeps it and only refetches the options for it.
  */
-export function resetFor(changed: Level, arriving?: Sel): readonly Level[] {
-  if (changed === "course") return ["semester", "branch", "section", "subject"];
-  if (changed === "semester" || changed === "branch")
+export function resetFor(changed: Level, arriving?: Sel): ReadonlyArray<Level> {
+  if (changed === "course") {
+    return ["semester", "branch", "section", "subject"];
+  }
+  if (changed === "semester" || changed === "branch") {
     return ["section", "subject"];
+  }
   if (changed === "section") {
     // A card arrives with its subject decided; a manual pick does not.
     return arriving?.subject ? [] : ["subject"];
@@ -104,9 +101,13 @@ export function selectionAfter(
   arriving?: Sel
 ): Sel {
   const cleared = changed ? resetFor(changed, arriving) : [];
-  if (!cleared.length) return seed;
+  if (!cleared.length) {
+    return seed;
+  }
   const next = { ...seed };
-  for (const key of cleared) next[key] = "";
+  for (const key of cleared) {
+    next[key] = "";
+  }
   return next;
 }
 export function isReady(sel: Sel, key: Level): boolean {
@@ -155,7 +156,7 @@ export function selKeyOf(sel: Sel): string {
  * section offers no subject at all, which is what keeps the probe honest.
  */
 export function probeSubject(
-  subjects: Option[],
+  subjects: Array<Option>,
   subject: Option
 ): Option | null {
   return isAllSubjects(subject)
@@ -196,7 +197,7 @@ export function chosenFacts(
      *  window. Named on its own row. */
     semStart?: string | null;
   }
-): ChosenFact[] {
+): Array<ChosenFact> {
   const { range, classesHeld, statedFrom, semStart } = tail ?? {};
   const facts = LEVELS.flatMap(([key, label]) => {
     const chosen = request[key];
@@ -216,7 +217,12 @@ export function chosenFacts(
   if (facts.length && range?.from) {
     const from = statedFrom || range.from;
     const total = calendarDays(from, range.to);
-    if (classesHeld == null || total == null) {
+    if (
+      classesHeld === null ||
+      classesHeld === undefined ||
+      total === null ||
+      total === undefined
+    ) {
       facts.push({ label: "Date Range", value: `${from} to ${range.to}` });
     } else {
       facts.push({

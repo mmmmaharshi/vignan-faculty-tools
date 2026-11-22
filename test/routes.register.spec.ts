@@ -93,8 +93,8 @@ test.describe("the overall column", () => {
     const { reader, calls } = fake({
       register: twoRows,
       classAttendance: classGrid([
-        ["21CS001", "381\\481", "79.21"],
-        ["21CS002", "356\\481", "74.01"],
+        ["21CS001", String.raw`381\481`, "79.21"],
+        ["21CS002", String.raw`356\481`, "74.01"],
       ]),
     });
     const reply = await handleRegister(reader, levels());
@@ -117,8 +117,8 @@ test.describe("the overall column", () => {
     const { reader } = fake({
       register: oneRow,
       classAttendance: classGrid([
-        ["21CS001", "381\\481", "79.21"],
-        ["21CS999", "100\\481", "20.79"],
+        ["21CS001", String.raw`381\481`, "79.21"],
+        ["21CS999", String.raw`100\481`, "20.79"],
       ]),
     });
     const reply = await handleRegister(reader, levels());
@@ -172,8 +172,8 @@ test.describe("the overall column", () => {
     const { reader, calls } = fake({
       register: twoRows,
       classAttendance: classGrid([
-        ["21CS001", "381\\481", "79.21"],
-        ["21CS002", "356\\481", "74.01"],
+        ["21CS001", String.raw`381\481`, "79.21"],
+        ["21CS002", String.raw`356\481`, "74.01"],
       ]),
     });
     await handleRegister(reader, levels());
@@ -201,8 +201,8 @@ test.describe("all subjects", () => {
   test("its rows are the class report's own students, with no subject figure", async () => {
     const { reader } = fake({
       classAttendance: classGrid([
-        ["21CS001", "381\\481", "79.21"],
-        ["21CS002", "356\\481", "74.01"],
+        ["21CS001", String.raw`381\481`, "79.21"],
+        ["21CS002", String.raw`356\481`, "74.01"],
       ]),
     });
     const reply = await handleRegister(reader, levels({ subject: ALL }));
@@ -218,8 +218,8 @@ test.describe("all subjects", () => {
   test("the overall figures are in the summary and the subject ones are empty", async () => {
     const { reader } = fake({
       classAttendance: classGrid([
-        ["21CS001", "381\\481", "90"],
-        ["21CS002", "356\\481", "74.01"],
+        ["21CS001", String.raw`381\481`, "90"],
+        ["21CS002", String.raw`356\481`, "74.01"],
       ]),
     });
     const reply = await handleRegister(reader, levels({ subject: ALL }));
@@ -305,7 +305,7 @@ test.describe("all subjects", () => {
   });
   test("the class report states no dates, so the all-subjects summary names none", async () => {
     const { reader } = fake({
-      classAttendance: classGrid([["21CS001", "381\\481", "90"]]),
+      classAttendance: classGrid([["21CS001", String.raw`381\481`, "90"]]),
     });
     const reply = await handleRegister(reader, levels({ subject: ALL }));
     expect(reply.summary.classesHeld).toBeNull();

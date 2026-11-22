@@ -46,7 +46,9 @@ export function bootStep(input: {
   data: SessionReply | undefined;
   retried: boolean;
 }): BootAction {
-  if (input.booted || input.loading) return { kind: "wait" };
+  if (input.booted || input.loading) {
+    return { kind: "wait" };
+  }
   if (!input.data) {
     return input.retried
       ? { kind: "signOut", end: "probe-unanswered" }

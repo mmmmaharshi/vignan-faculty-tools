@@ -8,6 +8,9 @@
  * - `/assets/*` filenames carry a content hash, so cache-first is safe there
  *   and nowhere else is cached blindly.
  */
+// Bump this name whenever a new shell changes a document's shape: the cache is
+// keyed by it, and activate deletes every other cache. Leaving it unchanged can
+// serve an old index.html offline after a deploy.
 const SHELL = "vignan-shell-v2";
 
 // The one page allowed to work with no connection: cached up front so it is
@@ -36,22 +39,30 @@ self.addEventListener("activate", (event) => {
 const serveAsset = async (request) => {
   const cache = await caches.open(SHELL);
   const hit = await cache.match(request);
-  if (hit) return hit;
+  if (hit) {
+    return hit;
+  }
   const res = await fetch(request);
-  if (res.ok) void cache.put(request, res.clone());
+  if (res.ok) {
+    void cache.put(request, res.clone());
+  }
   return res;
 };
 
 const serveDocument = async (request) => {
   try {
     const res = await fetch(request);
-    if (!res.ok) return res;
+    if (!res.ok) {
+      return res;
+    }
     const cache = await caches.open(SHELL);
     void cache.put(request, res.clone());
     return res;
   } catch {
     const hit = await caches.match(request);
-    if (hit) return hit;
+    if (hit) {
+      return hit;
+    }
     // Nothing cached for this address and no connection to fetch it: the
     // offline page, which install cached up front for exactly this moment.
     const offline = await caches.match(
@@ -63,9 +74,13 @@ const serveDocument = async (request) => {
 
 self.addEventListener("fetch", (event) => {
   const url = new URL(event.request.url);
-  if (url.origin !== self.location.origin) return;
+  if (url.origin !== self.location.origin) {
+    return;
+  }
   // Session-bound reads: always the network, never the cache.
-  if (url.pathname.startsWith("/api/")) return;
+  if (url.pathname.startsWith("/api/")) {
+    return;
+  }
   if (url.pathname.startsWith("/assets/")) {
     event.respondWith(serveAsset(event.request));
     return;

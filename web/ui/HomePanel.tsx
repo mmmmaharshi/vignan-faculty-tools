@@ -19,7 +19,7 @@ import { todayPhase } from "../home/today-phase";
 
 export type HomePanelProps = {
   /** Today's periods in the grid's own order. Null while unread. */
-  classes?: TodayClass[] | null;
+  classes?: Array<TodayClass> | null;
   /** A read that failed says so here. An empty day is not this — it is the
    *  skeleton below, because ECAP clears the day after ~4pm. */
   note?: Note | null;
@@ -51,10 +51,10 @@ const ClassCell = ({ entry }: { entry: TodayClass }): React.JSX.Element => {
 const hasClass = (entry: TodayClass): boolean =>
   Boolean(entry.subject || entry.section);
 const dayRows = (
-  classes: readonly TodayClass[],
+  classes: ReadonlyArray<TodayClass>,
   known: PeriodTimes = {}
-): TodayClass[] => {
-  const rows: TodayClass[] = [];
+): Array<TodayClass> => {
+  const rows: Array<TodayClass> = [];
   for (let index = 1; index <= PERIOD_COUNT; index += 1) {
     const slot = `Period ${index}`;
     const stated = classes.filter((entry) => entry.period === slot);
@@ -82,7 +82,9 @@ const dayRows = (
   // identity check would push every stated period a second time.
   const named = new Set(rows.map((row) => row.period));
   for (const entry of classes) {
-    if (named.has(entry.period)) continue;
+    if (named.has(entry.period)) {
+      continue;
+    }
     rows.push({ ...entry, time: entry.time || known[entry.period] || "" });
   }
   return rows;

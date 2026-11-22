@@ -6,25 +6,30 @@ import type { PortalReader } from "./portal-reader.js";
 import type { StatedClass } from "./portal-student.js";
 
 /** Roman/Arabic numeral for a semester label: "III Semester" -> 3. */
-const ROMAN: Record<string, number> = {
-  I: 1,
-  II: 2,
-  III: 3,
-  IV: 4,
-  V: 5,
-  VI: 6,
-  VII: 7,
-  VIII: 8,
-};
+const ROMAN = new Map<string, number>([
+  ["I", 1],
+  ["II", 2],
+  ["III", 3],
+  ["IV", 4],
+  ["V", 5],
+  ["VI", 6],
+  ["VII", 7],
+  ["VIII", 8],
+]);
 function semesterNumber(text: string): number | null {
   const t = text.trim().toUpperCase();
   const roman = t.match(/^(?<r>[IVX]+)\b/);
   if (roman?.groups?.r) {
     const { r } = roman.groups;
-    if (ROMAN[r] !== undefined) return ROMAN[r];
+    const numeral = ROMAN.get(r);
+    if (numeral !== undefined) {
+      return numeral;
+    }
   }
   const arabic = t.match(/(?<n>\d+)/);
-  if (arabic?.groups?.n) return Number(arabic.groups.n);
+  if (arabic?.groups?.n) {
+    return Number(arabic.groups.n);
+  }
   return null;
 }
 /** The semester the student is in now, guessed from the SGPAs the page
@@ -36,7 +41,9 @@ function inferSemester(profile: StudentProfile): number | null {
   const done = profile.sgpa
     .map((s) => semesterNumber(s.semester))
     .filter((n): n is number => n !== null);
-  if (!done.length) return null;
+  if (!done.length) {
+    return null;
+  }
   return Math.max(...done) + 1;
 }
 /** The class a student's own page puts them in, matched to the Portal's own

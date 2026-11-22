@@ -10,11 +10,19 @@ import type { SessionView } from "./session-view";
  * decision reads whole, and only the back-button effect acts on them.
  */
 export function nextRoute(pathname: string, view: SessionView): string | null {
-  if (!isBooted(view)) return null;
+  if (!isBooted(view)) {
+    return null;
+  }
   const onLogin = pathname === LOGIN_PATH;
-  if (!isSignedIn(view)) return onLogin ? null : LOGIN_PATH;
-  if (onLogin) return HOME_PATH;
+  if (!isSignedIn(view)) {
+    return onLogin ? null : LOGIN_PATH;
+  }
+  if (onLogin) {
+    return HOME_PATH;
+  }
   // "/" is a second way in rather than a fifth screen, so it lands on Home too.
-  if (pathname === "/" || isScreen(pathname)) return null;
+  if (pathname === "/" || isScreen(pathname)) {
+    return null;
+  }
   return HOME_PATH;
 }

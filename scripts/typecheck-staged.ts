@@ -15,6 +15,6 @@ const result = Bun.spawnSync(["bun", "run", "typecheck"], {
   stdio: ["ignore", "inherit", "inherit"],
 });
 if (result.exitCode !== 0) {
-  console.error("\nType check failed — the commit was not made.");
+  process.stderr.write("\nType check failed — the commit was not made.\n");
   process.exit(result.exitCode ?? 1);
 }

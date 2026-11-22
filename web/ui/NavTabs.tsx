@@ -26,7 +26,7 @@ const CHROME: Record<Screen, { label: string; Icon: Icon }> = {
 };
 /** Every screen both surfaces show, in tab order. */
 const TABS = SCREENS.map((path) => ({ path, ...CHROME[path] }));
-export type Navigate = (path: string) => void;
+type Navigate = (path: string) => void;
 /** The desktop rail's tab buttons: stock `Button`s, the current screen a
  *  variant, and nothing else. `Button` has no `active` prop, so the variant
  *  is what cannot drift from the URL. */

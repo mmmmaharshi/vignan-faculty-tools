@@ -31,7 +31,9 @@ export const unreadablePage = (what: string): HttpError =>
  * so the readers cannot drift apart on it.
  */
 export function rethrowExpired(error: unknown): void {
-  if (error instanceof HttpError && error.status === 401) throw error;
+  if (error instanceof HttpError && error.status === 401) {
+    throw error;
+  }
 }
 
 /**

@@ -19,10 +19,10 @@ import type { DayWorkCell, DayWorkSection } from "../../shared/api";
 import type { Note } from "../app/types";
 import { PERIODS } from "../home/period-times";
 import {
+  periodStatus,
   postingsPhase,
   reportBranches,
   shownBranch,
-  slotStatus,
   SLOT_STATUS_LABEL,
 } from "../home/postings-phase";
 import { FactsTable } from "./FactsTable";
@@ -31,7 +31,7 @@ export type UnpostedPanelProps = {
   /** Every section's cells in the report's order. Null while unread; empty
    *  when the report stated no sections at all — no classes that day, which
    *  is not the same as all posted. */
-  sections: DayWorkSection[] | null;
+  sections: Array<DayWorkSection> | null;
   /** A read that failed says so here. A fully posted day is not this — it is
    *  an "all posted" line below. */
   note: Note | null;
@@ -44,8 +44,10 @@ export type UnpostedPanelProps = {
 /** One section's cells by period, in the report's order: the boxes and the
  *  detail modal read this one grouping, so a period cannot show posted in
  *  one and unposted in the other. */
-function cellsByPeriod(cells: DayWorkCell[]): Map<string, DayWorkCell[]> {
-  const map = new Map<string, DayWorkCell[]>();
+function cellsByPeriod(
+  cells: Array<DayWorkCell>
+): Map<string, Array<DayWorkCell>> {
+  const map = new Map<string, Array<DayWorkCell>>();
   for (const cell of cells) {
     const list = map.get(cell.period) ?? [];
     list.push(cell);
@@ -54,21 +56,11 @@ function cellsByPeriod(cells: DayWorkCell[]): Map<string, DayWorkCell[]> {
   return map;
 }
 
-/** Postedness per period for one section: a period is posted only when every
- *  cell the section has for it is posted. */
-function postedByPeriod(cells: DayWorkCell[]): Map<string, boolean> {
-  const map = new Map<string, boolean>();
-  for (const [period, group] of cellsByPeriod(cells)) {
-    map.set(
-      period,
-      group.every((cell) => cell.posted)
-    );
-  }
-  return map;
-}
-
 /** The cell a period box opens onto: the first the report states for it. */
-function firstCell(cells: DayWorkCell[], period: string): DayWorkCell | null {
+function firstCell(
+  cells: Array<DayWorkCell>,
+  period: string
+): DayWorkCell | null {
   return cellsByPeriod(cells).get(period)?.[0] ?? null;
 }
 
@@ -138,7 +130,13 @@ const SlotDetails = ({
             value: cell?.subject || "No class stated",
           },
           { label: "Staff", value: cell?.staff || "—" },
-          { label: "Status", value: SLOT_STATUS_LABEL[slotStatus(cell)] },
+          {
+            label: "Status",
+            value:
+              SLOT_STATUS_LABEL[
+                periodStatus(selection.section.cells, selection.period)
+              ],
+          },
           // Counts exist only where posted: an unposted period has no
           // headcount to show, not a zero one.
           ...(cell?.posted
@@ -189,7 +187,6 @@ const SectionBoxes = ({
   section: DayWorkSection;
   onOpen: (period: string) => void;
 }): React.JSX.Element => {
-  const posted = postedByPeriod(section.cells);
   return (
     <Stack gap="xs">
       <Text fw={600} size="sm">
@@ -200,7 +197,7 @@ const SectionBoxes = ({
           <PeriodBox
             key={period}
             period={period}
-            posted={posted.get(period) === true}
+            posted={periodStatus(section.cells, period) === "posted"}
             label={`Period ${period}, Section ${section.section}`}
             onOpen={() => onOpen(period)}
           />
@@ -216,9 +213,9 @@ const SectionBoxes = ({
 const BranchPending = ({
   sections,
 }: {
-  sections: DayWorkSection[];
+  sections: Array<DayWorkSection>;
 }): React.JSX.Element => {
-  const bySemester = new Map<string, DayWorkSection[]>();
+  const bySemester = new Map<string, Array<DayWorkSection>>();
   for (const section of sections) {
     const list = bySemester.get(section.semester) ?? [];
     list.push(section);
@@ -255,7 +252,7 @@ export const UnpostedPanel = ({
   const branches = reportBranches(sections);
   const shortOf = (b: string): string =>
     sections?.find((s) => s.branch === b)?.branchShort ?? b;
-  const inBranch = (b: string): DayWorkSection[] =>
+  const inBranch = (b: string): Array<DayWorkSection> =>
     sections ? sections.filter((s) => s.branch === b) : [];
   // The branch on show is decided by the report, never guessed by a caller.
   const shown = shownBranch(branches, branch);

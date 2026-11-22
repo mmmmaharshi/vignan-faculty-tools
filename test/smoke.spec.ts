@@ -95,7 +95,9 @@ function storedSession(page: Page): Promise<ClientSession | null> {
   return page.evaluate((key) => {
     try {
       const raw = localStorage.getItem(key);
-      if (!raw) return null;
+      if (!raw) {
+        return null;
+      }
       const bin = atob(raw.replaceAll("-", "+").replaceAll("_", "/"));
       const bytes = Uint8Array.from(bin, (c) => c.codePointAt(0) ?? 0);
       return JSON.parse(new TextDecoder().decode(bytes)) as ClientSession;
@@ -112,12 +114,14 @@ test.describe("Vignan Faculty Tools", () => {
   test("loads a class register in the Portal's own row order", async ({
     page,
   }) => {
-    const problems: string[] = [];
+    const problems: Array<string> = [];
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     page.on("console", (m) => {
-      if (m.type() === "error") problems.push(`console.error: ${m.text()}`);
+      if (m.type() === "error") {
+        problems.push(`console.error: ${m.text()}`);
+      }
     });
-    const optionBodies: string[] = [];
+    const optionBodies: Array<string> = [];
     page.on("request", (r) => {
       if (r.url().includes("/api/options") && r.method() === "POST") {
         optionBodies.push(r.postData() ?? "");
@@ -209,15 +213,18 @@ test.describe("Vignan Faculty Tools", () => {
           name: text(2),
           attendedOfHeld: text(heldIdx),
           pct: num(pctIdx),
-          badges: [...(pctCell?.querySelectorAll(".mantine-Badge-root") ?? [])]
-            .map((b) => b.textContent?.trim().toLowerCase() ?? "")
-            .filter(Boolean),
+          badges: [
+            ...(pctCell?.querySelectorAll(".mantine-Badge-root") ?? []),
+          ].flatMap((b) => {
+            const text = b.textContent?.trim().toLowerCase();
+            return text ? [text] : [];
+          }),
         };
       });
     });
     expect(table.length, "the register should have rows").toBeGreaterThan(0);
     expect(
-      table.filter((r) => r.pct != null).length,
+      table.filter((r) => r.pct !== null && r.pct !== undefined).length,
       "every row should carry a percentage"
     ).toBe(table.length);
     /* The table is not sorted: the rows are the Portal's own roster order, and the
@@ -232,12 +239,10 @@ test.describe("Vignan Faculty Tools", () => {
       "every row should carry a Sl.No to order by"
     ).toBe(true);
     for (let i = 1; i < slNos.length; i++) {
-      /* oxlint-disable typescript/no-non-null-assertion -- loop bound */
       expect(
         slNos[i],
         `row ${i} has Sl.No ${slNos[i]}, which does not follow ${slNos[i - 1]}`
       ).toBeGreaterThan(slNos[i - 1]!);
-      /* oxlint-enable typescript/no-non-null-assertion */
     }
     for (const row of table.slice(0, 5)) {
       expect(
@@ -263,7 +268,9 @@ test.describe("Vignan Faculty Tools", () => {
           continue;
         }
         const n = Number(p.previousElementSibling?.textContent?.trim() ?? "");
-        if (!Number.isNaN(n)) out[caption] = n;
+        if (!Number.isNaN(n)) {
+          out[caption] = n;
+        }
       }
       return out;
     });
@@ -434,7 +441,7 @@ test.describe("Vignan Faculty Tools", () => {
   test("every student carries an overall figure beside the subject one", async ({
     page,
   }) => {
-    const problems: string[] = [];
+    const problems: Array<string> = [];
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     await page.goto("/dashboard");
     await submitSignIn(page);
@@ -486,7 +493,7 @@ test.describe("Vignan Faculty Tools", () => {
   test("all subjects shows the class overall, and the cards count it", async ({
     page,
   }) => {
-    const problems: string[] = [];
+    const problems: Array<string> = [];
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     await page.goto("/dashboard");
     await submitSignIn(page);
@@ -516,7 +523,7 @@ test.describe("Vignan Faculty Tools", () => {
       const overallIdx = head.indexOf("Overall Attendance %");
       const cellIdx = head.indexOf("Attended / Total");
       const cells = [...rows].map(
-        (tr) => [...tr.querySelectorAll("td")] as Element[]
+        (tr) => [...tr.querySelectorAll("td")] as Array<Element>
       );
       const flagged = rows.filter((tr) =>
         [...tr.querySelectorAll(".mantine-Badge-root")].some((b) => {
@@ -582,7 +589,7 @@ test.describe("Vignan Faculty Tools", () => {
   test("a row's Show Details opens that student's own panel", async ({
     page,
   }) => {
-    const problems: string[] = [];
+    const problems: Array<string> = [];
     page.on("pageerror", (e) => problems.push(`uncaught: ${e.message}`));
     await signInAndLoad(page);
     const head = await page.evaluate(() =>
@@ -698,7 +705,9 @@ test.describe("Vignan Faculty Tools", () => {
        * its own first day. A table that restarted every row at the semester
        * start would look like the same month several times over. */
       for (const [index, cells] of (monthRows?.body ?? []).entries()) {
-        if (index === 0) continue;
+        if (index === 0) {
+          continue;
+        }
         expect(
           (cells[0] ?? "").trim().startsWith("01/"),
           `row ${index + 1} starts on its own first day: ${cells[0]}`
@@ -724,7 +733,9 @@ test.describe("Vignan Faculty Tools", () => {
     for (const path of ["/", "/dashboard", "/nonsense", "/profile"]) {
       let calls = 0;
       const countApi = (req: { url: () => string }) => {
-        if (new URL(req.url()).pathname.startsWith("/api/")) calls += 1;
+        if (new URL(req.url()).pathname.startsWith("/api/")) {
+          calls += 1;
+        }
       };
       await page.goto(path, { waitUntil: "domcontentloaded" });
       // "/" and "/nonsense" land on Home; the register keeps its own screen.
@@ -760,7 +771,7 @@ test.describe("Vignan Faculty Tools", () => {
   test("the click is the only way a register is ever fetched", async ({
     page,
   }) => {
-    const registerCalls: unknown[] = [];
+    const registerCalls: Array<unknown> = [];
     page.on("request", (r) => {
       if (r.url().includes("/api/register") && r.method() === "POST") {
         registerCalls.push(r.postData());
@@ -878,7 +889,9 @@ test.describe("Vignan Faculty Tools", () => {
     await page.evaluate(
       ([key, at]) => {
         const raw = localStorage.getItem(key);
-        if (!raw) return;
+        if (!raw) {
+          return;
+        }
         const bin = atob(raw.replaceAll("-", "+").replaceAll("_", "/"));
         const bytes = Uint8Array.from(bin, (c) => c.codePointAt(0) ?? 0);
         const session = JSON.parse(new TextDecoder().decode(bytes)) as {
@@ -908,7 +921,9 @@ test.describe("Vignan Faculty Tools", () => {
             headers: stored ? { [header as string]: stored } : {},
           });
           const slid = res.headers.get(header as string);
-          if (slid) localStorage.setItem(key as string, slid);
+          if (slid) {
+            localStorage.setItem(key as string, slid);
+          }
           return { status: res.status, body: await res.json() };
         };
         return run();

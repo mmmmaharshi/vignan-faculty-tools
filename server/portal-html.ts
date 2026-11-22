@@ -40,24 +40,26 @@ export function looksLikeHtml(text: string): boolean {
   const t = text.trimStart().toLowerCase();
   return t.startsWith("<!doctype html") || t.startsWith("<html");
 }
-function parseOrUndefined(t: string): unknown {
-  try {
-    return JSON.parse(t);
-  } catch {
-    return undefined;
-  }
-}
 /** The payload a generated proxy wraps its answer in: a bare string, a quoted
  *  string, or a `{value}` / `{d}` object. */
 export function unquoteJs(text: string): string {
   const t = text.trim();
-  if (!t) return "";
+  if (!t) {
+    return "";
+  }
   if (t.startsWith("{") || t.startsWith("[")) {
-    const j = parseOrUndefined(t);
-    if (j !== undefined && j !== null && typeof j === "object") {
-      const rec = j as Record<string, unknown>;
+    let j: unknown;
+    try {
+      j = JSON.parse(t);
+    } catch {
+      return t;
+    }
+    if (j !== null && typeof j === "object") {
+      const rec = j as { value?: unknown; d?: unknown };
       const payload = rec.value ?? rec.d;
-      if (typeof payload === "string") return payload;
+      if (typeof payload === "string") {
+        return payload;
+      }
     }
     return t;
   }
@@ -68,8 +70,8 @@ export function unquoteJs(text: string): string {
     return t
       .slice(1, -1)
       .replaceAll(/\\(?<escaped>['"\\])/g, "$<escaped>")
-      .replaceAll("\\r", "\r")
-      .replaceAll("\\n", "\n");
+      .replaceAll(String.raw`\r`, "\r")
+      .replaceAll(String.raw`\n`, "\n");
   }
   return t;
 }
@@ -92,17 +94,20 @@ export function cellText(html: string): string {
 }
 /** A row's cells with their markup intact, beside `cellsOf`: a grid whose cells
  *  stack lines on `<br/>` needs to split before the tags are stripped. */
-export const rawCells = (row: string): string[] =>
+export const rawCells = (row: string): Array<string> =>
   [...row.matchAll(CELL)].map((m) => m.groups?.cell ?? "");
-export const cellsOf = (row: string): string[] => rawCells(row).map(cellText);
+export const cellsOf = (row: string): Array<string> =>
+  rawCells(row).map(cellText);
 /** Every table in a reply, head first, as cell arrays. */
-export function gridTables(html: string): string[][][] {
+export function gridTables(html: string): Array<Array<Array<string>>> {
   return (html.match(TABLE) ?? []).map((t) =>
     (t.match(ROW) ?? []).map(cellsOf)
   );
 }
 /** Grids whose first row is the roll-number header: the subject register. */
-export function firstHeaded(grids: string[][][]): string[][] | null {
+export function firstHeaded(
+  grids: Array<Array<Array<string>>>
+): Array<Array<string>> | null {
   return (
     grids.find((rows) => (rows[0] ?? []).some((c) => ROLL_HEADER.test(c))) ??
     null
@@ -110,7 +115,9 @@ export function firstHeaded(grids: string[][][]): string[][] | null {
 }
 /** Grids holding a roll-number header anywhere: the class attendance report,
  *  whose title and held-band rows sit above its header. */
-export function anyHeaded(grids: string[][][]): string[][] | null {
+export function anyHeaded(
+  grids: Array<Array<Array<string>>>
+): Array<Array<string>> | null {
   return (
     grids.find((rows) =>
       rows.some((cells) => cells.some((c) => ROLL_HEADER.test(c)))
@@ -118,7 +125,9 @@ export function anyHeaded(grids: string[][][]): string[][] | null {
   );
 }
 /** Grids headed by a Subject column: the Student Wise report. */
-export function subjectHeaded(grids: string[][][]): string[][] | null {
+export function subjectHeaded(
+  grids: Array<Array<Array<string>>>
+): Array<Array<string>> | null {
   return (
     grids.find((rows) => (rows[0] ?? []).some((c) => SUBJECT_HEADER.test(c))) ??
     null

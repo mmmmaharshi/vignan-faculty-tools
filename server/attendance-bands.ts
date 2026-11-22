@@ -1,4 +1,4 @@
-import type { RegisterReply, Student } from "../shared/api.js";
+import type { Student } from "../shared/api.js";
 import { CRITICAL_BELOW, IRREGULAR_BELOW } from "../shared/portal-values.js";
 
 /**
@@ -22,15 +22,19 @@ export type RegisterRow = Omit<
 > & {
   /** The dates whose column says "A" for this student. Read from the register's
    *  own grid — no extra Portal call. */
-  absent: string[];
+  absent: Array<string>;
 };
 type Band = ReturnType<typeof band>;
 const isBelow = (b: Band): boolean => b === "Irregular" || b === "Critical";
 export function band(
   pct: number | null
 ): "Regular" | "Irregular" | "Critical" | null {
-  if (pct == null) return null;
-  if (pct < CRITICAL_BELOW) return "Critical";
+  if (pct === null || pct === undefined) {
+    return null;
+  }
+  if (pct < CRITICAL_BELOW) {
+    return "Critical";
+  }
   return pct < IRREGULAR_BELOW ? "Irregular" : "Regular";
 }
 export function withBands(
@@ -52,15 +56,15 @@ export function withBands(
 const oneDecimal = (total: number, n: number): number | null =>
   n ? Math.round((total / n) * 10) / 10 : null;
 export function summarise(
-  rows: readonly RegisterRow[],
+  rows: ReadonlyArray<RegisterRow>,
   range: { from: string; to: string },
   overall: OverallLookup = new Map(),
   classesHeld: number | null = null,
   statedFrom: string | null = null,
-  dates: readonly string[] = [],
-  subjectColumns: readonly string[] = []
-): { students: Student[]; summary: RegisterReply["summary"] } {
-  const students: Student[] = [];
+  dates: ReadonlyArray<string> = [],
+  subjectColumns: ReadonlyArray<string> = []
+) {
+  const students: Array<Student> = [];
   let irregular = 0;
   let critical = 0;
   let counted = 0;
@@ -72,15 +76,23 @@ export function summarise(
   for (const row of rows) {
     const s = withBands(row, overall.get(row.roll) ?? null);
     students.push(s);
-    if (s.irregular) irregular += 1;
-    if (s.critical) critical += 1;
-    if (s.pct != null) {
+    if (s.irregular) {
+      irregular += 1;
+    }
+    if (s.critical) {
+      critical += 1;
+    }
+    if (s.pct !== null && s.pct !== undefined) {
       counted += 1;
       sum += s.pct;
     }
-    if (s.overallIrregular) overallIrregular += 1;
-    if (s.overallCritical) overallCritical += 1;
-    if (s.overallPct != null) {
+    if (s.overallIrregular) {
+      overallIrregular += 1;
+    }
+    if (s.overallCritical) {
+      overallCritical += 1;
+    }
+    if (s.overallPct !== null && s.overallPct !== undefined) {
       overallCounted += 1;
       overallSum += s.overallPct;
     }

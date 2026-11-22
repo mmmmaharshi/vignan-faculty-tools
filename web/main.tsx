@@ -9,7 +9,9 @@ import { SWRConfig } from "swr";
 import App from "./app/App";
 import { watchForUpdates } from "./data/sw-update";
 
-if (import.meta.env.DEV) void import("react-grab");
+if (import.meta.env.DEV) {
+  void import("react-grab");
+}
 
 /** The service worker caches the app shell and nothing else — and only in
  *  production builds. Registering it in dev would serve yesterday's bundle
@@ -27,7 +29,6 @@ async function registerWorker(): Promise<void> {
       confirmUpdate: () =>
         // Native dialog on purpose: one blocking question, and the app
         // holds no custom dialog chrome for it (Mantine-only, no CSS).
-        // oxlint-disable-next-line no-alert -- native confirm is the requested update prompt
         window.confirm(
           "A new version of Vignan Faculty Tools is available. Update now?"
         ),
@@ -38,14 +39,16 @@ async function registerWorker(): Promise<void> {
   }
 }
 if (import.meta.env.PROD && "serviceWorker" in navigator) {
-  void registerWorker();
+  await registerWorker();
 }
 
 const theme = createTheme({
   fontFamily: '"Scoutie Sans Variable", sans-serif',
 });
 const root = document.querySelector("#root");
-if (!root) throw new Error("web/index.html has no #root element to mount into");
+if (!root) {
+  throw new Error("web/index.html has no #root element to mount into");
+}
 createRoot(root).render(
   <React.StrictMode>
     <MantineProvider theme={theme} defaultColorScheme="light">

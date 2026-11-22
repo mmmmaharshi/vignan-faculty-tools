@@ -37,7 +37,7 @@ test.describe("the cascade's option loop", () => {
     ).toEqual(full);
   });
   test("a run keeps asking while a level below a chosen one is still empty", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const outcome = await runCascade(
       { seed: sel(), known: nothing },
       (request) => {
@@ -63,7 +63,7 @@ test.describe("the cascade's option loop", () => {
     expect(outcome?.sel).toEqual(SETTLED);
   });
   test("later passes carry the lists this run fetched, never the incoming known", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     // A stale screen: it holds a course list this run must not trust.
     const stale = reply({
       course: ["9"],
@@ -155,7 +155,7 @@ test.describe("the cascade's option loop", () => {
     ).toBeGreaterThan(1);
   });
   test("a selection that is already settled is one request", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const outcome = await runCascade(
       { seed: sel(SETTLED), known: nothing },
       (request) => {
@@ -167,7 +167,7 @@ test.describe("the cascade's option loop", () => {
     expect(outcome?.sel).toEqual(SETTLED);
   });
   test("a pass that stumbles is asked again once, then settles", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const outcome = await runCascade(
       { seed: sel(SETTLED), known: nothing },
       (request) => {
@@ -185,7 +185,7 @@ test.describe("the cascade's option loop", () => {
     expect(outcome?.sel).toEqual(SETTLED);
   });
   test("a run that fails after settling carries what arrived, on the error", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const failure = await runCascade(
       { seed: sel(), known: nothing },
       // Async so the settled reply needs no Promise.resolve wrapper; the
@@ -208,7 +208,7 @@ test.describe("the cascade's option loop", () => {
     expect(partial?.opts.course.map((o) => o.value)).toEqual(["1"]);
   });
   test("a pass that keeps stumbling fails the run after its retry", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const failure = await runCascade(
       { seed: sel(SETTLED), known: nothing },
       (request) => {
@@ -220,7 +220,7 @@ test.describe("the cascade's option loop", () => {
     expect(runs.length, "one retry per pass, never a loop").toBe(2);
   });
   test("a judged 4xx is answered, never re-asked", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const failure = await runCascade(
       { seed: sel(SETTLED), known: nothing },
       (request) => {
@@ -232,7 +232,7 @@ test.describe("the cascade's option loop", () => {
     expect(runs.length, "re-asking a judged request cannot change it").toBe(1);
   });
   test("a run that starts with a semester chosen sends its title as the batch", async () => {
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const known = reply({
       course: ["1"],
       semester: [],
@@ -255,7 +255,7 @@ test.describe("the cascade's option loop", () => {
   });
   test("a run superseded while the Portal is being asked stops there and answers nothing", async () => {
     const controller = new AbortController();
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const outcome = await runCascade(
       { seed: sel(SETTLED), known: nothing, signal: controller.signal },
       (request) => {
@@ -273,7 +273,7 @@ test.describe("the cascade's option loop", () => {
   });
   test("a run superseded on a pass that had more to do asks no further", async () => {
     const controller = new AbortController();
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const outcome = await runCascade(
       { seed: sel(), known: nothing, signal: controller.signal },
       (request) => {
@@ -296,7 +296,7 @@ test.describe("the cascade's option loop", () => {
   test("a run that is already superseded asks the Portal nothing", async () => {
     const controller = new AbortController();
     controller.abort();
-    const runs: OptionsRequest[] = [];
+    const runs: Array<OptionsRequest> = [];
     const outcome = await runCascade(
       { seed: sel(), known: nothing, signal: controller.signal },
       (request) => {

@@ -20,7 +20,9 @@ const EXPIRED_NOTE: Note = {
 /** The note the sign-in form is owed. A deliberate sign-out and a boot that
  *  found no session are the expected answers, so neither says anything. */
 export function endNote(end: SessionEnd): Note | null {
-  if (end.kind === "expired") return EXPIRED_NOTE;
+  if (end.kind === "expired") {
+    return EXPIRED_NOTE;
+  }
   return end.kind === "boot" ? bootNote(end.end) : null;
 }
 

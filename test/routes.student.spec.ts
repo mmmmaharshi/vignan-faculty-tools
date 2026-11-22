@@ -118,7 +118,7 @@ test.describe("the student profile handler", () => {
     // always present carries the one ECAP stated.
     const { reader, calls } = fake({
       classAttendanceMonths: {
-        [todayIST()]: classGrid([["21CS001", "30\\40", "75"]]),
+        [todayIST()]: classGrid([["21CS001", String.raw`30\40`, "75"]]),
       },
     });
     const reply = await handleStudentProfile(reader, {
@@ -152,7 +152,9 @@ test.describe("the student profile handler", () => {
         last ? todayDay : new Date(year ?? 0, monthNumber ?? 0, 0).getDate()
       );
       const previous = months[index - 1];
-      if (!previous) continue;
+      if (!previous) {
+        continue;
+      }
       expect(
         monthIndex(month.month.to) - monthIndex(previous.month.to),
         `${month.month.to} follows ${previous.month.to}`
@@ -224,7 +226,8 @@ test.describe("the student profile handler", () => {
     const september = months.find((month) => month.month.to === "30/09/2026");
     expect(september?.pct, "no figure is not a failing figure").toBeNull();
     expect(
-      months.filter((month) => month.pct != null).length,
+      months.filter((month) => month.pct !== null && month.pct !== undefined)
+        .length,
       "the months ECAP did answer keep their figures"
     ).toBe(months.length - 1);
   });
@@ -310,12 +313,13 @@ test.describe("the student profile handler", () => {
 
 test("the full-semester walk stops at its deadline with the part it read", async () => {
   let calls = 0;
-  const stalled = {
+  const stalled: PortalReader = {
+    ...fake().reader,
     studentWise: () => {
       calls += 1;
       return Promise.withResolvers<string>().promise;
     },
-  } as unknown as PortalReader;
+  };
   const answer = await readFullSemesterAbsences(
     stalled,
     "21CS001",

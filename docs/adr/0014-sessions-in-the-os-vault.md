@@ -4,7 +4,9 @@ Date: 2026-09-28
 
 ## Status
 
-Accepted
+Accepted — **superseded by ADR 0024**. The vault and `session-store.ts` described
+below were removed; the browser now carries the session. The cookie spike and
+the reasoning about ECAP's session lifetime remain the record of why.
 
 Supersedes the "sessions are still in memory" consequence recorded in ADR 0013.
 

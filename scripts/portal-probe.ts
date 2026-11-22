@@ -32,8 +32,8 @@ import {
 const userId = process.env.ECAP_USER ?? "";
 const password = process.env.ECAP_PASS ?? "";
 if (!userId || !password) {
-  console.error(
-    "Set ECAP_USER and ECAP_PASS. They are never printed or stored."
+  process.stderr.write(
+    "Set ECAP_USER and ECAP_PASS. They are never printed or stored.\n"
   );
   process.exit(1);
 }
@@ -44,14 +44,14 @@ const jar = new CookieJar();
 try {
   await signInTo(jar, userId, password);
 } catch (error) {
-  console.error(
-    `Sign-in failed (${error instanceof Error ? error.message : String(error)}).`
+  process.stderr.write(
+    `Sign-in failed (${error instanceof Error ? error.message : String(error)}).\n`
   );
   process.exit(1);
 }
 
 const wanted = process.argv[2] ?? "";
-const declared = (text: string): { name: string; params: string }[] =>
+const declared = (text: string): Array<{ name: string; params: string }> =>
   [
     ...text.matchAll(
       /(?<name>[A-Za-z_]\w*)\s*:\s*function\((?<params>[^)]*)\)/g
@@ -71,24 +71,36 @@ if (wanted === "logout") {
   for (const m of shell.matchAll(
     /(?:href|action)=["'](?<target>[^"']*(?:logout|signout|logoff)[^"']*)["']/gi
   )) {
-    if (m.groups?.target) hits.add(m.groups.target);
+    if (m.groups?.target) {
+      hits.add(m.groups.target);
+    }
   }
   for (const m of shell.matchAll(
     /(?<control>__doPostBack\(['"][^'"]*(?:logout|signout|logoff)[^'"]*['"]\)|lnkLogOut)/gi
   )) {
-    if (m.groups?.control) hits.add(m.groups.control);
+    if (m.groups?.control) {
+      hits.add(m.groups.control);
+    }
   }
-  if (hits.size === 0) console.log("No sign-out control on the landing shell.");
-  else for (const hit of [...hits].toSorted()) console.log(hit);
+  if (hits.size === 0) {
+    process.stdout.write("No sign-out control on the landing shell.\n");
+  } else {
+    for (const hit of [...hits].toSorted()) {
+      process.stdout.write(hit + "\n");
+    }
+  }
 } else {
   const proxyResponse = await portalRequest(jar, REGISTER_REMOTE.proxy);
   const proxy = await proxyResponse.text();
   const methods = declared(proxy);
-  console.log(`signed in; the proxy declares ${methods.length} method(s)\n`);
+  process.stdout.write(
+    `signed in; the proxy declares ${methods.length} method(s)\n\n`
+  );
   for (const m of methods.toSorted((a, b) => a.name.localeCompare(b.name))) {
-    if (wanted && !m.name.toLowerCase().includes(wanted.toLowerCase()))
+    if (wanted && !m.name.toLowerCase().includes(wanted.toLowerCase())) {
       continue;
-    console.log(`${m.name}(${m.params})`);
+    }
+    process.stdout.write(`${m.name}(${m.params})\n`);
   }
 
   if (wanted) {
@@ -98,7 +110,9 @@ if (wanted === "logout") {
       onchangemethod: "",
       isdefaultall: false,
     });
-    console.log("\nLoadCourses answered:", Boolean(liveness));
-    console.log("It offered:", options(liveness));
+    process.stdout.write(
+      `\nLoadCourses answered: ${String(Boolean(liveness))}\n`
+    );
+    process.stdout.write(`It offered: ${String(options(liveness))}\n`);
   }
 }

@@ -44,7 +44,7 @@ type StudentDetailsProps = {
   /** The class and window a searched figure belongs to, one labeled row each.
    *  Only Student Search passes it — a register on screen already names both
    *  of its own. */
-  scope?: readonly { label: string; value: string }[];
+  scope?: ReadonlyArray<{ label: string; value: string }>;
   /** Render the panel in the page flow rather than in a drawer. Used by the
    *  Student Search screen, which shows one result below its form. */
   inline?: boolean;
@@ -54,7 +54,7 @@ type StudentDetailsProps = {
    *  the whole semester, which the caller passes through as this same prop.
    *  One list, never two: a month's dates beside the semester's read as two
    *  answers to one question. Null when ECAP would give neither. */
-  fullAbsent?: string[] | null;
+  fullAbsent?: Array<string> | null;
 
   /** What the full-semester list is called. On the All subjects path it is the
    *  student's absences across every subject; on a subject path it is that
@@ -69,7 +69,7 @@ type FigureProps = {
   color: string;
 };
 /** The absent dates, five to a row, so a long list stays readably wide. */
-const chunked = (dates: readonly string[]): string[][] =>
+const chunked = (dates: ReadonlyArray<string>): Array<Array<string>> =>
   Array.from({ length: Math.ceil(dates.length / 5) }, (_, i) =>
     dates.slice(i * 5, i * 5 + 5)
   );
@@ -83,7 +83,7 @@ const chunked = (dates: readonly string[]): string[][] =>
 const MonthsBlock = ({
   months,
 }: {
-  months: readonly StudentMonth[];
+  months: ReadonlyArray<StudentMonth>;
 }): React.JSX.Element => (
   <>
     <Text c="dimmed" size="xs" tt="uppercase">
@@ -109,7 +109,9 @@ const MonthsBlock = ({
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="sm" fw={600}>
-                  {month.pct == null ? "—" : `${month.pct.toFixed(2)}%`}
+                  {month.pct === null || month.pct === undefined
+                    ? "—"
+                    : `${month.pct.toFixed(2)}%`}
                 </Text>
               </Table.Td>
             </Table.Tr>
@@ -126,7 +128,7 @@ const AbsenceBlock = ({
   dates,
 }: {
   title: string;
-  dates: readonly string[];
+  dates: ReadonlyArray<string>;
 }): React.JSX.Element => (
   <>
     <Group gap="xs" align="center" justify="space-between" w="100%">
@@ -175,7 +177,7 @@ const FigureRow = ({
           {cell}
         </Text>
         <Text size="sm" fw={700}>
-          {pct == null ? "—" : `${pct.toFixed(2)}%`}
+          {pct === null || pct === undefined ? "—" : `${pct.toFixed(2)}%`}
         </Text>
         {badge && (
           <Badge color={color} size="sm" variant="light">
@@ -268,12 +270,13 @@ export const StudentDetails = ({
           {/* A figure the Portal did not give is an absence, not a zero, so its
               row is left out rather than printed as a dash — and the figures
               ride the same rows the table shows, subject beside overall. */}
-          {student.pct != null ||
+          {(student.pct !== null && student.pct !== undefined) ||
           student.attendedOfHeld !== "" ||
           carriesOverall(student) ? (
             <Table striped withTableBorder tabularNums>
               <Table.Tbody>
-                {student.pct != null || student.attendedOfHeld !== "" ? (
+                {(student.pct !== null && student.pct !== undefined) ||
+                student.attendedOfHeld !== "" ? (
                   <FigureRow
                     label="Subject attendance"
                     cell={student.attendedOfHeld}
@@ -470,7 +473,7 @@ export const StudentDetails = ({
                     </Table.Td>
                   </Table.Tr>
                 ))}
-                {backlogTotal == null ? null : (
+                {backlogTotal === null || backlogTotal === undefined ? null : (
                   <Table.Tr>
                     <Table.Td c="dimmed">
                       <Text size="sm">Total backlogs</Text>
@@ -529,7 +532,9 @@ export const StudentDetails = ({
       ) : null}
     </Stack>
   );
-  if (inline) return content;
+  if (inline) {
+    return content;
+  }
   return (
     <Drawer
       opened={opened ?? false}

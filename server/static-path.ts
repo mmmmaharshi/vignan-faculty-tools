@@ -8,7 +8,8 @@ import path from "node:path";
 export function resolveWithin(root: string, pathname: string): string | null {
   const rootDir = path.resolve(root);
   const resolved = path.resolve(root, `.${pathname}`);
-  if (resolved !== rootDir && !resolved.startsWith(rootDir + path.sep))
+  if (resolved !== rootDir && !resolved.startsWith(rootDir + path.sep)) {
     return null;
+  }
   return resolved;
 }

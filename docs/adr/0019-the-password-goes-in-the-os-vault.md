@@ -4,7 +4,10 @@ Date: 2026-10-15
 
 ## Status
 
-Accepted
+Accepted — **superseded by ADR 0024**. The password is now kept in the browser's
+localStorage with the session so a stateless server can revive a dead ECAP
+session. The rule that a 502 stays ambiguous was decided in ADR 0013 and ADR 0002,
+not here.
 
 Supersedes the "the password is never written to disk" consequence of ADR 0014.
 ADR 0014's vault mechanics (one entry per session, the index budget, the write

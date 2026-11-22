@@ -23,7 +23,7 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
   page calls it with none — so neither does the server. Asking with `no`
   answers a session-state `HttpException` instead of a timetable.
 - The answer is an HTML fragment for the `tblschedule` grid, parsed by
-  `parseTodayClasses` in `portal-replies.ts`. The grid has no header row —
+  `parseTodayClasses` in `server/portal-daywork.ts`. The grid has no header row —
   each row is the period and time in the first cell, subject over section in
   the second — so positions are fixed by the shape ECAP itself pinned live
   (2026-10-24), not guessed. An `<hr/>` stacks a second subject under the
@@ -46,7 +46,7 @@ Home reads ECAP's own `GetToDayClasses` on the faculty dashboard's proxy
 
 - No manual timetable entry: one more portal read through the same handler
   shape as every other.
-- The hours are remembered, in `web/period-times.ts`, keyed by period name:
+- The hours are remembered, in `web/home/period-times.ts`, keyed by period name:
   every read folds its stated hours in, so a period that moved corrects
   itself and a read that states nothing never erases what was learnt. It is
   what lets a cleared evening — when ECAP states no hours at all — still show

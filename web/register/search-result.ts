@@ -12,7 +12,7 @@ import type { ScopeRow } from "./search-scope";
  * with it are distinct answers. The wire reply is untouched; this is the app's
  * reading of it.
  */
-export type SearchKind =
+type SearchKind =
   | "idle"
   | "pending"
   | "refused"
@@ -20,14 +20,14 @@ export type SearchKind =
   | "no-roll"
   | "found";
 
-export type SearchResult = { kind: SearchKind } & SearchShown;
+type SearchResult = { kind: SearchKind } & SearchShown;
 
 type SearchShown = {
   note: Note | null;
   student: Student | null;
   profile: StudentProfile | null;
-  fullAbsent: string[] | null;
-  scope: ScopeRow[] | undefined;
+  fullAbsent: Array<string> | null;
+  scope: Array<ScopeRow> | undefined;
 };
 
 export function searchResult(
@@ -52,10 +52,20 @@ export function searchResult(
   };
   // An ask in flight owns the screen before any earlier answer or refusal:
   // the panel stays mounted so its loader is what the reader sees.
-  if (loading) return { kind: "pending", ...shown };
-  if (error) return { kind: "refused", ...shown };
-  if (!found) return { kind: "idle", ...shown };
-  if (!found.class) return { kind: "no-class", ...shown };
-  if (!found.student) return { kind: "no-roll", ...shown };
+  if (loading) {
+    return { kind: "pending", ...shown };
+  }
+  if (error) {
+    return { kind: "refused", ...shown };
+  }
+  if (!found) {
+    return { kind: "idle", ...shown };
+  }
+  if (!found.class) {
+    return { kind: "no-class", ...shown };
+  }
+  if (!found.student) {
+    return { kind: "no-roll", ...shown };
+  }
   return { kind: "found", ...shown };
 }

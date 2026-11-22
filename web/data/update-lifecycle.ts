@@ -46,8 +46,9 @@ export function updateStep(phase: UpdatePhase, event: UpdateEvent): UpdateStep {
     // A waiting shell behind an old one is offered at once; that path ends
     // here, so no updatefound listener is attached (there is nothing to wait
     // for — the offer already covers it).
-    if (event.hasWaiting && event.hasController)
+    if (event.hasWaiting && event.hasController) {
       return { phase: "installed-waiting", action: "offer" };
+    }
     // With no old shell there is nothing a download could update, but the
     // registration is still watched; with one, we watch for the download.
     return {
@@ -58,21 +59,28 @@ export function updateStep(phase: UpdatePhase, event: UpdateEvent): UpdateStep {
   if (event.kind === "updatefound") {
     // An offer already made, or an update being applied, owns the answer: a
     // second worker found behind it must not drop that offer for a download.
-    if (phase === "installed-waiting" || phase === "updating")
+    if (phase === "installed-waiting" || phase === "updating") {
       return { phase, action: "none" };
+    }
     return { phase: "downloading", action: "watch" };
   }
   if (event.kind === "worker-state") {
     // Only the worker this visit is watching may make an offer. A state change
     // after the offer was made or the update was accepted cannot ask a second
     // time — one question, one answer.
-    if (phase !== "downloading") return { phase, action: "none" };
-    if (event.state !== "installed") return { phase, action: "none" };
+    if (phase !== "downloading") {
+      return { phase, action: "none" };
+    }
+    if (event.state !== "installed") {
+      return { phase, action: "none" };
+    }
     return event.hasController
       ? { phase: "installed-waiting", action: "offer" }
       : { phase: "first-install", action: "none" };
   }
-  if (phase !== "installed-waiting") return { phase, action: "none" };
+  if (phase !== "installed-waiting") {
+    return { phase, action: "none" };
+  }
   return event.confirmed
     ? { phase: "updating", action: "apply" }
     : { phase: "installed-waiting", action: "none" };

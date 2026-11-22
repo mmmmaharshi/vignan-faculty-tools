@@ -27,7 +27,9 @@ export function scanStep<T>(
   scan: SectionScan<T>,
   read: SectionRead<T>
 ): SectionScan<T> {
-  if (scan.kind !== "scanning") return scan;
+  if (scan.kind !== "scanning") {
+    return scan;
+  }
   if (read.kind === "answered") {
     return read.row
       ? { kind: "found", section: read.section, row: read.row }
@@ -42,8 +44,12 @@ export function scanStep<T>(
 
 /** Closes the loop: an answer without the roll outranks a refusal beside it. */
 export function endScan<T>(scan: SectionScan<T>): SectionScan<T> {
-  if (scan.kind !== "scanning") return scan;
-  if (scan.answered) return { kind: "no-row" };
+  if (scan.kind !== "scanning") {
+    return scan;
+  }
+  if (scan.answered) {
+    return { kind: "no-row" };
+  }
   return scan.failure
     ? { kind: "refused", error: scan.failure }
     : { kind: "unanswered" };

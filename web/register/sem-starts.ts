@@ -7,6 +7,9 @@ import type { Sel } from "./cascade";
  *  data, not personal data, so — unlike saved sections — it is not scoped by
  *  user id and it survives sign-out with the next user. */
 export type SemStarts = Record<string, string>;
+/** The earliest held day each class ever stated, not the window last opened.
+ *  `range.ts` owns that separate memory; a hand-narrowed From does not rewrite
+ *  the class's start. */
 const STARTS_KEY = "sem-starts";
 /** A selection plus its batch: the semester value alone can repeat next year, but
  *  the Portal's own batch title ("2025") does not, so a new year starts a new
@@ -37,9 +40,13 @@ export function noteSemStart(
   prev: SemStarts,
   key: string,
   stated: string | null
-): SemStarts {
-  if (!key || !stated || !valid(stated)) return prev;
+) {
+  if (!key || !stated || !valid(stated)) {
+    return prev;
+  }
   const cur = prev[key];
-  if (cur && code(cur) <= code(stated)) return prev;
-  return { ...prev, [key]: stated };
+  if (cur && code(cur) <= code(stated)) {
+    return prev;
+  }
+  return { ...prev, [key]: stated } satisfies SemStarts;
 }

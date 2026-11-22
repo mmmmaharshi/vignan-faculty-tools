@@ -4,20 +4,22 @@ import { watchForUpdates } from "../web/data/sw-update";
 
 /** A fake installing worker the test drives through states by hand. */
 const fakeWorker = () => {
-  const listeners = new Map<string, (() => void)[]>();
+  const listeners = new Map<string, Array<() => void>>();
   return {
     state: "installing",
     addEventListener(type: string, listener: () => void): void {
       listeners.set(type, [...(listeners.get(type) ?? []), listener]);
     },
     fire(type: string): void {
-      for (const listener of listeners.get(type) ?? []) listener();
+      for (const listener of listeners.get(type) ?? []) {
+        listener();
+      }
     },
   };
 };
 
 const fakeRegistration = (worker: ReturnType<typeof fakeWorker>) => {
-  const listeners = new Map<string, (() => void)[]>();
+  const listeners = new Map<string, Array<() => void>>();
   return {
     installing: worker,
     waiting: null,
@@ -25,7 +27,9 @@ const fakeRegistration = (worker: ReturnType<typeof fakeWorker>) => {
       listeners.set(type, [...(listeners.get(type) ?? []), listener]);
     },
     fire(type: string): void {
-      for (const listener of listeners.get(type) ?? []) listener();
+      for (const listener of listeners.get(type) ?? []) {
+        listener();
+      }
     },
   };
 };

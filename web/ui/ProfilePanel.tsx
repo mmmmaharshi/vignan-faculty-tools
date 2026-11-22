@@ -26,24 +26,36 @@ const Row = ({
   </>
 );
 const designationLabel = (code: string): string => {
-  if (code === "0") return "Faculty";
-  if (code === "-1" || code === "") return "Not available from ECAP";
+  if (code === "0") {
+    return "Faculty";
+  }
+  if (code === "-1" || code === "") {
+    return "Not available from ECAP";
+  }
   return `HOD / designation ${code}`;
 };
 const nameValue = (
   faculty: FacultyProfile | null | undefined,
   busy: boolean
 ): string => {
-  if (faculty?.name) return faculty.name;
-  if (busy) return "Reading from ECAP...";
+  if (faculty?.name) {
+    return faculty.name;
+  }
+  if (busy) {
+    return "Reading from ECAP...";
+  }
   return "—";
 };
 const designationValue = (
   faculty: FacultyProfile | null | undefined,
   busy: boolean
 ): string => {
-  if (faculty) return designationLabel(faculty.designation);
-  if (busy) return "Reading from ECAP...";
+  if (faculty) {
+    return designationLabel(faculty.designation);
+  }
+  if (busy) {
+    return "Reading from ECAP...";
+  }
   return "—";
 };
 export const ProfilePanel = ({

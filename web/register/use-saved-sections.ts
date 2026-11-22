@@ -9,7 +9,7 @@ import {
   rememberSection,
   savedSections,
 } from "./saved-sections";
-import type { SavedSection, SavedSectionCard } from "./saved-sections";
+import type { SavedSection } from "./saved-sections";
 
 /**
  * The saved sections: whether the selection on screen is one worth saving, the
@@ -17,28 +17,24 @@ import type { SavedSection, SavedSectionCard } from "./saved-sections";
  * itself — it is cleared with the session, and the session is App's — so this
  * hook reads it, writes through `setSaved`, and owns nothing else.
  *
- * `save` persists only once a register has loaded (See ADR 0016: a failed or
- * ambiguous request must not save a card, and Load register stays a decision),
- * which is why the effect watches the reply rather than the selection.
+ * The automatic save persists only once a register has loaded (ADR 0016: a
+ * failed or ambiguous request must not save a card, and Load register stays a
+ * decision), which is why the effect watches the reply rather than the
+ * selection. The `save` action this hook returns is the deliberate override:
+ * the Save this section button writes the card immediately, before any load.
  */
 export function useSavedSections(setup: {
   userId: string;
   sel: Sel;
   opts: OptionsReply;
-  savedList: SavedSection[] | null;
+  savedList: Array<SavedSection> | null;
   registerData: RegisterReply | null;
-  setSaved: (value: { userId: string; list: SavedSection[] } | null) => void;
+  setSaved: (
+    value: { userId: string; list: Array<SavedSection> } | null
+  ) => void;
   setSel: (target: Sel) => void;
   runRefresh: (seed: Sel, known: OptionsReply) => Promise<void>;
-}): {
-  /** The four levels that name a section, all chosen. The subject is not one of
-   *  them: a card reopens the section and lands on the section-wide register. */
-  sectionChosen: boolean;
-  cards: SavedSectionCard[];
-  save: () => void;
-  apply: (target: Sel) => void;
-  clear: (target: Sel) => void;
-} {
+}) {
   const {
     userId,
     sel,
@@ -55,7 +51,9 @@ export function useSavedSections(setup: {
     Boolean(sel.branch) &&
     Boolean(sel.section);
   const remember = useCallback(() => {
-    if (!userId || !sectionChosen) return;
+    if (!userId || !sectionChosen) {
+      return;
+    }
     rememberSection(
       userId,
       sel,
@@ -67,8 +65,12 @@ export function useSavedSections(setup: {
    *  dedupes, so re-loading the same section just moves it to the front. */
   const lastSavedRegister = useRef<RegisterReply | null>(null);
   useEffect(() => {
-    if (!userId || !sectionChosen || !registerData) return;
-    if (registerData === lastSavedRegister.current) return;
+    if (!userId || !sectionChosen || !registerData) {
+      return;
+    }
+    if (registerData === lastSavedRegister.current) {
+      return;
+    }
     lastSavedRegister.current = registerData;
     remember();
   }, [userId, sectionChosen, registerData, remember]);

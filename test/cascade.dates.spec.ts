@@ -75,14 +75,19 @@ test.describe("dates", () => {
   });
   test("a refused storage does not break the range", () => {
     const real = globalThis.localStorage;
-    globalThis.localStorage = {
+    const denied: Storage = {
+      length: 0,
+      clear: () => undefined,
       getItem: () => {
         throw new Error("denied");
       },
+      key: () => null,
+      removeItem: () => undefined,
       setItem: () => {
         throw new Error("denied");
       },
-    } as unknown as Storage;
+    };
+    globalThis.localStorage = denied;
     expect(() => rememberRangeStart("2026-06-01")).not.toThrow();
     expect(startingRange(new Date(2026, 8, 28, 12, 0, 0))).toEqual({
       from: "2026-09-01",
@@ -130,13 +135,17 @@ test.describe("the today-table memory", () => {
   test("the table survives a reload until its date rolls", () => {
     saved.clear();
     const memory = noteTodayMemory(null, day, rows);
-    if (!memory) throw new Error("expected a memory to persist");
+    if (!memory) {
+      throw new Error("expected a memory to persist");
+    }
     writeTodayMemory("faculty-a", memory);
     expect(readTodayMemory("faculty-a")).toEqual(memory);
   });
   test("one faculty member's timetable is not the next one's", () => {
     const memory = noteTodayMemory(null, day, rows);
-    if (!memory) throw new Error("expected a memory to persist");
+    if (!memory) {
+      throw new Error("expected a memory to persist");
+    }
     writeTodayMemory("faculty-a", memory);
     expect(
       readTodayMemory("faculty-b"),
@@ -150,17 +159,24 @@ test.describe("the today-table memory", () => {
   });
   test("a refused storage breaks neither the read nor the write", () => {
     const real = globalThis.localStorage;
-    globalThis.localStorage = {
+    const denied: Storage = {
+      length: 0,
+      clear: () => undefined,
       getItem: () => {
         throw new Error("denied");
       },
+      key: () => null,
+      removeItem: () => undefined,
       setItem: () => {
         throw new Error("denied");
       },
-    } as unknown as Storage;
+    };
+    globalThis.localStorage = denied;
     const memory = noteTodayMemory(null, day, rows);
     expect(() => {
-      if (memory) writeTodayMemory("faculty-a", memory);
+      if (memory) {
+        writeTodayMemory("faculty-a", memory);
+      }
     }).not.toThrow();
     expect(readTodayMemory("faculty-a")).toBeNull();
     globalThis.localStorage = real;

@@ -7,7 +7,7 @@ import type { Option } from "../shared/api.js";
 
 export type ResolvedClass = {
   levels: Record<"course" | "semester" | "branch", Option>;
-  sections: Option[];
+  sections: Array<Option>;
   label: string;
   /** True when the semester came from the SGPA guess rather than the page. */
   semesterInferred: boolean;
@@ -32,7 +32,7 @@ export function classResolution(input: {
   course: Option;
   branch: Option;
   semester: ClassSemester;
-  sections: Option[];
+  sections: Array<Option>;
   noSectionsReason: string;
 }): ClassResolution {
   if (!input.sections.length) {

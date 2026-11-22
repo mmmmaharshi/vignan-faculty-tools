@@ -33,23 +33,31 @@ export function createCascadeRun(): CascadeRun {
     state.status === "current" && state.controller.signal === signal;
   return {
     start: () => {
-      if (state.status === "current") state.controller.abort();
+      if (state.status === "current") {
+        state.controller.abort();
+      }
       const controller = new AbortController();
       state = { status: "current", controller };
       return controller.signal;
     },
     owns,
     supersede: () => {
-      if (state.status === "current") state.controller.abort();
+      if (state.status === "current") {
+        state.controller.abort();
+      }
       state = { status: "superseded" };
     },
     keepPartial: (signal, partial) => {
-      if (!owns(signal) || !partial) return null;
+      if (!owns(signal) || !partial) {
+        return null;
+      }
       state = { status: "failed" };
       return partial;
     },
     finish: (signal) => {
-      if (!owns(signal)) return false;
+      if (!owns(signal)) {
+        return false;
+      }
       state = { status: "idle" };
       return true;
     },

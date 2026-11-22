@@ -13,11 +13,15 @@ export function readStringMap(
 ): Record<string, string> {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return {};
+    if (!raw) {
+      return {};
+    }
     const parsed: unknown = JSON.parse(raw);
-    if (typeof parsed !== "object" || parsed === null) return {};
+    if (typeof parsed !== "object" || parsed === null) {
+      return {};
+    }
     return Object.fromEntries(
-      Object.entries(parsed as Record<string, unknown>).filter(
+      Object.entries(parsed).filter(
         (entry): entry is [string, string] =>
           typeof entry[1] === "string" && valid(entry[1])
       )
@@ -45,7 +49,9 @@ export function readStored<T>(
 ): T | null {
   try {
     const raw = localStorage.getItem(key);
-    if (!raw) return null;
+    if (!raw) {
+      return null;
+    }
     const parsed: unknown = JSON.parse(raw);
     return valid(parsed) ? parsed : null;
   } catch {

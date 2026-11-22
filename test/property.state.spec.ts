@@ -159,7 +159,9 @@ test.describe("the redirect guard converges", () => {
           let hops = 0;
           for (; hops < 5; hops++) {
             const next = nextRoute(current, view);
-            if (next === null || next === current) return hops <= 2;
+            if (next === null || next === current) {
+              return hops <= 2;
+            }
             current = next;
           }
           return false;
@@ -219,8 +221,12 @@ test.describe("the boot decision is a total transition", () => {
           data,
           retried: false,
         });
-        if (booted) return action.kind === "wait";
-        if (data === undefined) return action.kind === "retry";
+        if (booted) {
+          return action.kind === "wait";
+        }
+        if (data === undefined) {
+          return action.kind === "retry";
+        }
         return action.kind === "signIn" || action.kind === "signOut";
       }),
       { numRuns: 100 }
@@ -297,7 +303,9 @@ test.describe("the session generation is final", () => {
             }
             // A response may write only if its generation was never dropped.
             const written = epoch.admits(command.at);
-            if (orphaned.has(command.at)) return !written;
+            if (orphaned.has(command.at)) {
+              return !written;
+            }
           }
           return true;
         }
@@ -309,7 +317,9 @@ test.describe("the session generation is final", () => {
     assert(
       property(nat(5), (bumps) => {
         const epoch = createEpoch();
-        for (let i = 0; i < bumps; i++) epoch.bump();
+        for (let i = 0; i < bumps; i++) {
+          epoch.bump();
+        }
         return epoch.admits(epoch.current());
       }),
       { numRuns: 50 }
@@ -328,8 +338,9 @@ test.describe("the search result has one answer per case", () => {
           searched(hasClass, hasRoll),
           false
         );
-        if (!hasClass)
+        if (!hasClass) {
           return result.scope === undefined && result.student === null;
+        }
         return (
           result.scope !== undefined && (result.student !== null) === hasRoll
         );
@@ -376,17 +387,21 @@ test.describe("a superseded cascade run owns nothing further", () => {
         }),
         (steps) => {
           const run = createCascadeRun();
-          const signals: AbortSignal[] = [];
+          const signals: Array<AbortSignal> = [];
           let current: AbortSignal | null = null;
           for (const step of steps) {
             if (step === "start") {
               current = run.start();
               signals.push(current);
-            } else if (step === "supersede") run.supersede();
-            else if (current) run.finish(current);
+            } else if (step === "supersede") {
+              run.supersede();
+            } else if (current) {
+              run.finish(current);
+            }
             const owners = signals.filter((signal) => run.owns(signal));
-            if (owners.length > 1 || owners.some((signal) => signal.aborted))
+            if (owners.length > 1 || owners.some((signal) => signal.aborted)) {
               return false;
+            }
           }
           return true;
         }
@@ -399,7 +414,9 @@ test.describe("a superseded cascade run owns nothing further", () => {
       property(boolean(), (supersedeFirst) => {
         const run = createCascadeRun();
         const signal = run.start();
-        if (supersedeFirst) run.supersede();
+        if (supersedeFirst) {
+          run.supersede();
+        }
         const partial = { sel: EMPTY_SEL, opts: EMPTY_OPTS };
         return supersedeFirst
           ? run.keepPartial(signal, partial) === null
@@ -430,8 +447,12 @@ test.describe("the load snap is claimed once or not at all", () => {
             armed = false;
           } else {
             const fired = snap.consume();
-            if (fired && (!armed || claimed)) return false;
-            if (fired) claimed = true;
+            if (fired && (!armed || claimed)) {
+              return false;
+            }
+            if (fired) {
+              claimed = true;
+            }
             armed = false;
           }
         }
@@ -444,7 +465,9 @@ test.describe("the load snap is claimed once or not at all", () => {
     assert(
       property(nat(5), (edits) => {
         const snap = createLoadSnap();
-        for (let i = 0; i < edits; i++) snap.disarm();
+        for (let i = 0; i < edits; i++) {
+          snap.disarm();
+        }
         snap.arm();
         return snap.consume();
       }),
@@ -473,7 +496,9 @@ test.describe("the load gate never contradicts itself", () => {
         }),
         (input) => {
           const gate = loadGate(input);
-          if (gate !== "finding-start") return true;
+          if (gate !== "finding-start") {
+            return true;
+          }
           return (
             input.preLoading &&
             !input.rememberedStart &&
@@ -560,7 +585,7 @@ test.describe("a presentational surface is never neither showing nor loading", (
     assert(
       property(
         oneof(
-          constant<TodayClass[] | null>(null),
+          constant<Array<TodayClass> | null>(null),
           array(todayClassArb, { maxLength: 3 })
         ),
         boolean(),
@@ -625,7 +650,7 @@ test.describe("a presentational surface is never neither showing nor loading", (
     assert(
       property(
         oneof(
-          constant<DayWorkSection[] | null>(null),
+          constant<Array<DayWorkSection> | null>(null),
           array(sectionArb, { maxLength: 4 })
         ),
         boolean(),
@@ -719,7 +744,9 @@ test.describe("the installed update reaches one offer", () => {
         for (const event of events) {
           const { phase: next, action } = updateStep(phase, event);
           phase = next;
-          if (action === "offer" || action === "apply") return false;
+          if (action === "offer" || action === "apply") {
+            return false;
+          }
         }
         return true;
       }),
@@ -742,19 +769,23 @@ test.describe("the full-semester absence walk keeps what it read", () => {
     assert(
       property(array(anAbsenceStep(), { maxLength: 14 }), (steps) => {
         let walk = walking;
-        const readDays: string[] = [];
+        const readDays: Array<string> = [];
         let monthsRead = 0;
         let oldest: string | null = null;
         let stopped = false;
         for (const step of steps) {
-          if (stopped) continue;
+          if (stopped) {
+            continue;
+          }
           walk = advance(walk, step);
           if (step.kind === "read") {
             readDays.unshift(...step.days);
             monthsRead++;
             oldest = step.start;
           }
-          if (walk.kind !== "walking") stopped = true;
+          if (walk.kind !== "walking") {
+            stopped = true;
+          }
         }
         const answer = absenceResult(endAtCap(walk), "31/10/2026");
         return (
@@ -771,7 +802,9 @@ test.describe("the full-semester absence walk keeps what it read", () => {
     assert(
       property(anAbsenceStep(), anAbsenceStep(), (first, later) => {
         const stopped = advance(walking, first);
-        if (stopped.kind === "walking") return true;
+        if (stopped.kind === "walking") {
+          return true;
+        }
         const after = advance(stopped, later);
         const before = absenceResult(stopped, "31/10/2026");
         const again = absenceResult(after, "31/10/2026");
@@ -810,9 +843,13 @@ test.describe("the section scan has one outcome", () => {
     assert(
       property(array(aSectionRead(), { maxLength: 8 }), (later) => {
         const foundScan = scanStep(startScan<Student>(), found);
-        if (foundScan.kind !== "found") return false;
+        if (foundScan.kind !== "found") {
+          return false;
+        }
         let scan: SectionScan<Student> = foundScan;
-        for (const read of later) scan = scanStep(scan, read);
+        for (const read of later) {
+          scan = scanStep(scan, read);
+        }
         return (
           scan.kind === "found" &&
           scan.section === foundScan.section &&
@@ -829,7 +866,9 @@ test.describe("the section scan has one outcome", () => {
         let answered = false;
         for (const read of reads) {
           scan = scanStep(scan, read);
-          if (read.kind === "answered") answered = true;
+          if (read.kind === "answered") {
+            answered = true;
+          }
         }
         return endScan(scan).kind !== "refused" || !answered;
       }),
@@ -893,7 +932,9 @@ test.describe("the liveness guard never answers an unprobed call", () => {
     assert(
       property(nat(20), (reads) => {
         let touch = untouched;
-        for (let i = 0; i < reads; i++) touch = markTouched();
+        for (let i = 0; i < reads; i++) {
+          touch = markTouched();
+        }
         return livenessGuard(touch).kind === (reads ? "answer" : "probe");
       }),
       { numRuns: 100 }
@@ -919,11 +960,17 @@ test.describe("the backlog cursor has two states", () => {
         for (const text of cells) {
           const wasAwaiting = cursor.kind === "awaiting-subjects";
           const step = backlogStep(cursor, text);
-          if (step.kind === "stop") return step.total >= 0;
+          if (step.kind === "stop") {
+            return step.total >= 0;
+          }
           const { cursor: next, kind } = step;
-          if (kind === "open-row") opened = true;
+          if (kind === "open-row") {
+            opened = true;
+          }
           if (kind === "fill-subjects") {
-            if (!wasAwaiting || !opened) return false;
+            if (!wasAwaiting || !opened) {
+              return false;
+            }
             opened = false;
           }
           cursor = next;

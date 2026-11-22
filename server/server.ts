@@ -41,8 +41,9 @@ const server = Bun.serve({
       }
       if (req.method === "GET" && !reqPath.startsWith("/api/")) {
         const resolved = resolveWithin(DIST, reqPath);
-        if (!resolved)
+        if (!resolved) {
           return json({ error: "Not found" } satisfies ErrorReply, 404);
+        }
         const asset = Bun.file(resolved);
         if (await asset.exists()) {
           // Bun's MIME table cannot be trusted for this one: Chrome wants the
@@ -69,10 +70,10 @@ const server = Bun.serve({
       }
       return json({ error: "Not found" } satisfies ErrorReply, 404);
     } catch (error) {
-      console.error("[error]", error);
+      process.stderr.write("[error] " + String(error) + "\n");
       return json({ error: "Something went wrong." }, 500);
     }
   },
 });
-console.log(`\n  Vignan Faculty Tools`);
-console.log(`  http://127.0.0.1:${server.port}\n`);
+process.stdout.write("\n  Vignan Faculty Tools\n");
+process.stdout.write(`  http://127.0.0.1:${server.port}\n\n`);

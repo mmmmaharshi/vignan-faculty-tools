@@ -20,7 +20,7 @@ export const opt = (
   title,
 });
 export const resolved = <T>(value: T): Promise<T> => Promise.resolve(value);
-export const nth = <T>(list: readonly T[], n: number): T => {
+export const nth = <T>(list: ReadonlyArray<T>, n: number): T => {
   const hit = list[n];
   if (hit === undefined) {
     throw new Error(`expected at least ${n + 1} call(s), got ${list.length}`);
@@ -37,15 +37,23 @@ export const nth = <T>(list: readonly T[], n: number): T => {
  * first and only then reaches the pair under test: a read left out of it answers
  * at once and never appears in `started`.
  */
-export const startedPair = (
+export const startedPair = <T>(
   reader: PortalReader,
-  run: (reader: PortalReader) => Promise<unknown>,
-  hold: readonly string[] = ["register", "class", "offered", "profile", "wise"]
-): { started: string[]; loaded: Promise<unknown>; release: () => void } => {
-  const started: string[] = [];
+  run: (reader: PortalReader) => Promise<T>,
+  hold: ReadonlyArray<string> = [
+    "register",
+    "class",
+    "offered",
+    "profile",
+    "wise",
+  ]
+) => {
+  const started: Array<string> = [];
   const gate = Promise.withResolvers<undefined>();
   const held = async <T>(name: string, call: () => Promise<T>): Promise<T> => {
-    if (!hold.includes(name)) return call();
+    if (!hold.includes(name)) {
+      return call();
+    }
     started.push(name);
     await gate.promise;
     return call();
@@ -70,36 +78,36 @@ export const startedPair = (
   };
 };
 export const bothStarted = (
-  started: string[],
+  started: Array<string>,
   first: string,
   second: string
 ): void => {
   expect(started.toSorted()).toEqual([first, second].toSorted());
 };
-export type Calls = {
+type Calls = {
   courses: number;
   branches: number;
-  sections: [string, string, string, string | undefined][];
-  subjects: [string, string, string][];
-  register: (RegisterRequest & Record<string, unknown>)[];
-  classAttendance: (RegisterRequest & Record<string, unknown>)[];
-  studentProfile: string[];
-  studentWise: [string, string][];
+  sections: Array<[string, string, string, string | undefined]>;
+  subjects: Array<[string, string, string]>;
+  register: Array<RegisterRequest>;
+  classAttendance: Array<RegisterRequest>;
+  studentProfile: Array<string>;
+  studentWise: Array<[string, string]>;
   /** The window each Student Wise read was asked over. */
-  studentWiseWindows: { from: string; to: string }[];
+  studentWiseWindows: Array<{ from: string; to: string }>;
   /** What each day-class-work read was asked for. */
-  dayWork: DayWorkRequest[];
+  dayWork: Array<DayWorkRequest>;
   /** The subject ids each subject report was asked for. */
-  subjectReports: string[];
+  subjectReports: Array<string>;
   /** Each Cumulative read: roll, name, and the window asked. */
-  studentCumulative: [string, string, string, string][];
+  studentCumulative: Array<[string, string, string, string]>;
 };
 export const oneRow = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr></table>`;
 export const twoRows = `<table><tr><th>Sl.No</th><th>Roll No</th><th>Name</th><th>Attend / Held</th><th>%</th></tr>
 <tr><td>1</td><td>21CS001</td><td>A Student</td><td>38/45</td><td>84.44</td></tr>
 <tr><td>2</td><td>21CS002</td><td>B Student</td><td>20/45</td><td>44.44</td></tr></table>`;
-export const classGrid = (rows: [string, string, string][]): string =>
+export const classGrid = (rows: Array<[string, string, string]>): string =>
   `<table>
     <tr><td>ATTENDANCE REPORT FOR THE PERIOD OF</td></tr>
     <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>AI</th><th>Total</th><th>Percent</th></tr>
@@ -113,7 +121,7 @@ export const classGrid = (rows: [string, string, string][]): string =>
   </table>`;
 export const subjectGrid = (
   subject: string,
-  rows: [string, string][]
+  rows: Array<[string, string]>
 ): string =>
   `<table>
     <tr><th>Sl.No</th><th>Roll.No</th><th>Student Name</th><th>${subject}</th><th>Percent</th></tr>
@@ -124,13 +132,15 @@ export const subjectGrid = (
       )
       .join("")}
   </table>`;
-export const ONE_CLASS_ROW = classGrid([["21CS001", "381\\481", "79.21"]]);
+export const ONE_CLASS_ROW = classGrid([
+  ["21CS001", String.raw`381\481`, "79.21"],
+]);
 /** The Cumulative student-wise register, shaped as ECAP sends it: the reply's
  *  own legend (colour -> words), then one row per day with a period per cell.
  *  Green is a holiday and carries no text; a cell with a subject and no colour
  *  was attended. Three days of seven periods is 21 held, 21 attended — the
  *  figure the screen prints for a clean window. */
-export const CUMULATIVE_GRID = `<table><tr><td>
+const CUMULATIVE_GRID = `<table><tr><td>
 <div style='width:30px;height:15px;background-color:Green;float:left'></div><div class='reportData2'>&nbsp;Holiday</div>
 <div style='width:30px;height:15px;background-color:Yellow;float:left'></div><div class='reportData2'>&nbsp;Absent</div>
 <div style='width:30px;height:15px;background-color:Red;float:left'></div><div class='reportData2'>&nbsp;Not Entered</div>
@@ -150,18 +160,18 @@ export const CUMULATIVE_GRID = `<table><tr><td>
 /** A Student Wise report: one row per subject, one column per day the section
  *  met, and one mark per period inside a cell. MFCS says `A` on 05/08 and SE on
  *  06/08, so the student missed both dates, each once. */
-export const STUDENT_GRID = `<table>
+const STUDENT_GRID = `<table>
 <tr><th>Sl.No</th><th>Subject</th><th>05/08</th><th>06/08</th><th>07/08</th><th>Atted/Held</th><th>%</th></tr>
 <tr><td>1</td><td>MFCS</td><td>P&nbsp;P</td><td>A&nbsp;A</td><td>-</td><td>12/14</td><td>85.71</td></tr>
 <tr><td>2</td><td>SE</td><td>A</td><td>P</td><td>P</td><td>10/14</td><td>71.43</td></tr>
 </table>`;
 export const fake = (
   answers: {
-    course?: Option[];
-    branch?: Option[];
-    semester?: Option[];
-    section?: Option[];
-    subject?: Option[];
+    course?: Array<Option>;
+    branch?: Array<Option>;
+    semester?: Array<Option>;
+    section?: Array<Option>;
+    subject?: Array<Option>;
     register?: string;
     classAttendance?: string;
     /** The class report for one month, keyed by the window's end date: the
@@ -169,16 +179,16 @@ export const fake = (
     classAttendanceMonths?: Record<string, string>;
     /** The windows, by end date, whose class report refuses with a 502 — the
      *  one row that goes blank while the rest of the table stands. */
-    classFailsMonths?: string[];
+    classFailsMonths?: Array<string>;
     /** The windows, by end date, that refuse the session with a 401. */
-    classDeadMonths?: string[];
+    classDeadMonths?: Array<string>;
     classFails?: boolean;
     studentProfile?: string;
     studentWise?: string;
     /** The Cumulative register's reply, whose grid the totals are counted from. */
     studentCumulative?: string;
     /** The subjects the SUBJECT ATTENDANCE page offers for the class. */
-    offeredSubjects?: Option[];
+    offeredSubjects?: Array<Option>;
     /** When true the offered-subject listing itself fails with a 502. */
     offeredFails?: boolean;
     /** One subject report grid per offered subject value. A missing subject
@@ -186,7 +196,7 @@ export const fake = (
      *  only states labels. */
     subjectReports?: Record<string, string>;
     /** Subject values whose report ECAP refuses with a 502. */
-    subjectFails?: string[];
+    subjectFails?: Array<string>;
     /** The dashboard's schedule fragment for today. */
     today?: string;
     /** The day-class-work report's fragment for the branch and date. */
@@ -197,7 +207,7 @@ export const fake = (
     studentWiseMonths?: Record<string, string>;
     studentFails?: boolean;
   } = {}
-): { reader: PortalReader; calls: Calls } => {
+) => {
   const calls: Calls = {
     courses: 0,
     branches: 0,
@@ -247,13 +257,11 @@ export const fake = (
       return resolved(html ?? subjectGrid(String(subject.label), []));
     },
     register: (p) => {
-      calls.register.push(p as RegisterRequest & Record<string, unknown>);
+      calls.register.push(p as RegisterRequest);
       return resolved(answers.register ?? oneRow);
     },
     classAttendance: (p) => {
-      calls.classAttendance.push(
-        p as RegisterRequest & Record<string, unknown>
-      );
+      calls.classAttendance.push(p as RegisterRequest);
       if (answers.classFails) {
         return Promise.reject(new HttpError(502, "class report unavailable"));
       }
@@ -335,7 +343,7 @@ export const walkDated = (date: string): string => `<table>
     <tr><td>1</td><td>21CS001</td><td>A</td><td>P</td><td>1/1</td><td>100</td></tr>
   </table>`;
 export const walked = (
-  extra: Record<string, unknown> = {}
+  extra: Partial<SemStartRequest> = {}
 ): SemStartRequest => ({
   ...levels({ from: "01/10/2026", to: "18/10/2026" }),
   walkBack: 2,

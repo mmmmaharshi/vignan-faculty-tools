@@ -55,7 +55,9 @@ export const OPTIONS_PATH = "/api/options";
 const LOGIN_PATH = "/api/login";
 const LOGOUT_PATH = "/api/logout";
 /** A key this server answers, on its own or as the first half of an array key. */
-const isServerKey = (key: unknown): key is string | [string, ...unknown[]] =>
+const isServerKey = (
+  key: unknown
+): key is string | [string, ...Array<unknown>] =>
   (typeof key === "string" && key.startsWith("/api/")) ||
   (Array.isArray(key) &&
     typeof key[0] === "string" &&
@@ -115,8 +117,12 @@ async function read<T>(res: Response, sent: number): Promise<T> {
   // Only the session this request set out with may slide: an answer that was
   // in flight across a sign-out belongs to the ended session, not the empty
   // shelf, and storing it would log the next visit back in.
-  if (slid && epoch.admits(sent)) saveStoredSession(slid);
-  if (res.status === 204) return {} as T;
+  if (slid && epoch.admits(sent)) {
+    saveStoredSession(slid);
+  }
+  if (res.status === 204) {
+    return {} as T;
+  }
   const body = (await res.json().catch(() => ({}))) as { error?: string };
   if (!res.ok) {
     throw new ApiError(
@@ -128,7 +134,9 @@ async function read<T>(res: Response, sent: number): Promise<T> {
 }
 const withSession = (init: RequestInit): RequestInit => {
   const stored = loadStoredSession();
-  if (!stored) return init;
+  if (!stored) {
+    return init;
+  }
   return {
     ...init,
     headers: { ...init.headers, [SESSION_HEADER]: stored },
@@ -336,8 +344,9 @@ export function useSignOut() {
  * sections, and the next person's screen must not open with a register or a
  * student's phone numbers already in it.
  */
-export const forgetServerData = (): Promise<unknown> =>
-  mutate(isServerKey, undefined, { revalidate: false });
+export const forgetServerData = async (): Promise<void> => {
+  await mutate(isServerKey, undefined, { revalidate: false });
+};
 /** Every screen read a refresh may re-read: each read hook's path, named
  *  once here so a new endpoint joins the refresh by joining this list. The
  *  register is deliberately absent — the click stays its only fetch
@@ -355,7 +364,7 @@ const REFRESHABLE_PATHS: ReadonlySet<string> = new Set([
 ]);
 const isRefreshableKey = (
   key: unknown
-): key is string | [string, ...unknown[]] =>
+): key is string | [string, ...Array<unknown>] =>
   isServerKey(key) &&
   REFRESHABLE_PATHS.has(typeof key === "string" ? key : key[0]);
 /**
@@ -365,5 +374,6 @@ const isRefreshableKey = (
  * re-runs from its own caller beside this, where a picker is on screen to
  * settle it.
  */
-export const revalidateServerData = (): Promise<unknown> =>
-  mutate(isRefreshableKey, undefined, { revalidate: true });
+export const revalidateServerData = async (): Promise<void> => {
+  await mutate(isRefreshableKey, undefined, { revalidate: true });
+};

@@ -4,7 +4,9 @@ import type { Level } from "./portal-reader.js";
 
 function chosenLevel(b: Partial<RegisterRequest>, key: Level): Option {
   const o = b[key];
-  if (!o?.value || !o?.label) throw new HttpError(400, `Choose a ${key}.`);
+  if (!o?.value || !o?.label) {
+    throw new HttpError(400, `Choose a ${key}.`);
+  }
   return o;
 }
 export function requireLevels(

@@ -10,17 +10,20 @@ const course = (value: string, label: string): Option => ({
   label,
 });
 const reader = (
-  answer: Option[] | Error | (() => Option[] | Error)
-): { courses: () => Promise<Option[]> } => ({
+  answer: Array<Option> | Error | (() => Array<Option> | Error)
+) => ({
   courses: () => {
     const value = typeof answer === "function" ? answer() : answer;
-    if (value instanceof Error) return Promise.reject(value);
+    if (value instanceof Error) {
+      return Promise.reject(value);
+    }
     return Promise.resolve(value);
   },
 });
-/** The verdict alone: what `/api/session` asks. */
+/** The liveness probe that feeds `/api/session`; the verdict itself is combined
+ *  with the revival failure in `session-verdict.ts`. */
 const verdictOf = async (portal: {
-  courses: () => Promise<Option[]>;
+  courses: () => Promise<Array<Option>>;
 }): Promise<string> => {
   const answer = await courseVerdict(portal);
   return answer.verdict;
@@ -61,7 +64,7 @@ test.describe("is this session alive?", () => {
   });
   test("a reader that throws synchronously is unknown, not a crash", async () => {
     const rude = {
-      courses: (): Promise<Option[]> => {
+      courses: (): Promise<Array<Option>> => {
         throw new Error("threw before returning a promise");
       },
     };

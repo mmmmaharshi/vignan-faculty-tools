@@ -14,10 +14,7 @@ export const MONTH_WALK_CAP = 12;
 /** One calendar month as a portal window, dd/mm/yyyy both ends. Month shapes
  *  are the only range ECAP reliably answers — live runs show wide registers
  *  come back empty — so every walk reads month by month. */
-export function monthWindow(
-  year: number,
-  month: number
-): { from: string; to: string } {
+export function monthWindow(year: number, month: number) {
   const mm = String(month).padStart(2, "0");
   return {
     from: `01/${mm}/${year}`,
@@ -44,14 +41,17 @@ export function nextMonth(
  * is the step's own. The comparison is numeric because the Portal is not
  * trusted to zero-pad.
  */
-function datesInMonth(dates: readonly string[], month: number): string[] {
+function datesInMonth(
+  dates: ReadonlyArray<string>,
+  month: number
+): Array<string> {
   return dates.filter((c) => Number(c.split("/")[1]) === month);
 }
 /** The month's own first held day as dd/mm/yyyy, or null where the grid
  *  states none of it. The year comes from the shared rule that places a stated
  *  day inside a window, not from attaching the walk's own year afterwards. */
 export function monthStart(
-  dates: readonly string[],
+  dates: ReadonlyArray<string>,
   year: number,
   month: number
 ): string | null {

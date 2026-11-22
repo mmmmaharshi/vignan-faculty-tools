@@ -138,17 +138,21 @@ test.describe("the saved sections", () => {
   });
   test("a refused storage saves nothing and breaks nothing", () => {
     const real = globalThis.localStorage;
-    globalThis.localStorage = {
+    const denied: Storage = {
+      length: 0,
+      clear: () => undefined,
       getItem: () => {
+        throw new Error("denied");
+      },
+      key: () => null,
+      removeItem: () => {
         throw new Error("denied");
       },
       setItem: () => {
         throw new Error("denied");
       },
-      removeItem: () => {
-        throw new Error("denied");
-      },
-    } as unknown as Storage;
+    };
+    globalThis.localStorage = denied;
     expect(() => rememberSection("sirichandrasekhar", SECTION_A)).not.toThrow();
     expect(savedSections("sirichandrasekhar")).toEqual([]);
     expect(() => forgetSection("sirichandrasekhar", SECTION_A)).not.toThrow();

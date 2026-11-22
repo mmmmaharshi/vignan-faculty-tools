@@ -50,7 +50,7 @@ disagree with the server about which band a student is in.
 that is about *time* rather than data: which pass wins, and how a memoised
 callback sees the current selection.
 
-The seam is the line between those, and it is the same one `portal-replies.ts`
+The seam is the line between those, and it is the same one `server/portal-register.ts` and `server/portal-html.ts`
 draws for the server. ADR 0003's reasoning transfers unchanged: a rule that is a
 pure function over plain data can be tested in milliseconds, and a rule that is
 not has to be tested through a browser and a live portal.

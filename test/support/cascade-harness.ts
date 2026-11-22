@@ -31,7 +31,9 @@ export const bar = (code: string, below: 75 | 65): RowFilter => ({
   ...NO_FILTER,
   subjectBars: [{ code, below }],
 });
-export const reply = (perLevel: Record<Level, string[]>): OptionsReply => ({
+export const reply = (
+  perLevel: Record<Level, Array<string>>
+): OptionsReply => ({
   course: perLevel.course.map((v) => opt(v)),
   semester: perLevel.semester.map((v) => opt(v)),
   branch: perLevel.branch.map((v) => opt(v)),
@@ -63,13 +65,17 @@ export const chosenOf = (
   picked: Sel
 ): Record<Level, Option> => {
   const chosen = chosenLevels(opts, picked);
-  if (!chosen.ok) throw new Error(`no option for ${chosen.label}`);
+  if (!chosen.ok) {
+    throw new Error(`no option for ${chosen.label}`);
+  }
   return chosen.levels;
 };
 /** The Date Range tail for a fixed selection and range, varying only the
  *  register's own class-day count: the range fact, then classes held — or
  *  the bare range where the Portal stated no count. */
-export const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
+export const dateRangeTail = (
+  classesHeld?: number | null
+): Array<ChosenFact> => {
   const opts = reply({
     course: ["1"],
     semester: ["3"],
@@ -98,7 +104,7 @@ export const dateRangeTail = (classesHeld?: number | null): ChosenFact[] => {
 export const statedTail = (
   statedFrom: string,
   semStart?: string
-): ChosenFact[] => {
+): Array<ChosenFact> => {
   const opts = reply({
     course: ["1"],
     semester: ["3"],
@@ -148,10 +154,10 @@ export const student = (pct: number | null): Student => ({
   name: "A Student",
   attendedOfHeld: "38/45",
   pct,
-  irregular: pct != null && pct < 75,
-  critical: pct != null && pct < 60,
+  irregular: pct !== null && pct !== undefined && pct < 75,
+  critical: pct !== null && pct !== undefined && pct < 60,
   overallPct: 79.21,
-  overallAttendedOfHeld: "381\\481",
+  overallAttendedOfHeld: String.raw`381\481`,
   overallIrregular: false,
   overallCritical: false,
   subjects: [],
@@ -169,7 +175,7 @@ globalThis.localStorage = {
   clear: () => saved.clear(),
   key: () => null,
   length: 0,
-} as unknown as Storage;
+} as Storage;
 
 export const CLASS_A: Sel = {
   course: "1",
