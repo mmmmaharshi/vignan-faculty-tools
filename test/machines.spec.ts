@@ -26,7 +26,7 @@ import type {
   Student,
   TodayClass,
 } from "../shared/api";
-import { loadGate, loadNote, registerScreenReady } from "../web/app/load-gate";
+import { loadGate, loadNote } from "../web/app/load-gate";
 import { createLoadSnap } from "../web/app/load-snap";
 import {
   closePanel,
@@ -132,7 +132,7 @@ const bootPhase = (hasController: boolean, hasWaiting: boolean) =>
   updateStep(FIRST_PHASE, { kind: "boot", hasController, hasWaiting });
 
 const screenShown = (input: Parameters<typeof loadGate>[0]): boolean =>
-  registerScreenReady(loadGate(input));
+  loadGate(input) === "ready";
 
 const bootFrom = (over: Partial<Parameters<typeof bootStep>[0]>) =>
   bootStep({

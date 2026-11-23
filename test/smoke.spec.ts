@@ -6,6 +6,8 @@ import type { ClientSession } from "../shared/api";
 
 const USER = process.env.ECAP_USER ?? "";
 const PASS = process.env.ECAP_PASS ?? "";
+const isApiRequest = (req: { url: () => string }): boolean =>
+  new URL(req.url()).pathname.startsWith("/api/");
 type SelectState = { index: number; value: string; disabled: boolean };
 function selectState(page: Page, label: string): Promise<SelectState | null> {
   return page.evaluate((text) => {
@@ -732,9 +734,18 @@ test.describe("Vignan Faculty Tools", () => {
     ).toBe("/home");
     for (const path of ["/", "/dashboard", "/nonsense", "/profile"]) {
       let calls = 0;
+      let inFlight = 0;
+      let lastApiAt = 0;
       const countApi = (req: { url: () => string }) => {
-        if (new URL(req.url()).pathname.startsWith("/api/")) {
+        if (isApiRequest(req)) {
           calls += 1;
+          inFlight += 1;
+          lastApiAt = Date.now();
+        }
+      };
+      const finishApi = (req: { url: () => string }) => {
+        if (isApiRequest(req)) {
+          inFlight = Math.max(0, inFlight - 1);
         }
       };
       await page.goto(path, { waitUntil: "domcontentloaded" });
@@ -755,11 +766,25 @@ test.describe("Vignan Faculty Tools", () => {
         });
       }
       page.on("request", countApi);
-      await page.waitForTimeout(3000);
+      page.on("requestfinished", finishApi);
+      page.on("requestfailed", finishApi);
+      // Anchor the quiet window only once every listener is attached: a read
+      // in the gap between the heading and the listener still counts.
+      lastApiAt = Date.now();
+      // A slow portal can answer well after the heading appears. Wait for a
+      // quiet API stream rather than a fixed slice of the wall clock, so the
+      // observation starts only when the screen has really stopped asking.
+      await expect
+        .poll(() => inFlight === 0 && Date.now() - lastApiAt > 3000, {
+          timeout: 90_000,
+        })
+        .toBe(true);
       const afterSettle = calls;
       await page.waitForTimeout(3000);
       const later = calls;
       page.off("request", countApi);
+      page.off("requestfinished", finishApi);
+      page.off("requestfailed", finishApi);
       expect(
         later,
         `${path} kept making requests after settling: ${afterSettle} then ${later}`

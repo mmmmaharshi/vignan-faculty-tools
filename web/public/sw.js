@@ -8,10 +8,10 @@
  * - `/assets/*` filenames carry a content hash, so cache-first is safe there
  *   and nowhere else is cached blindly.
  */
-// Bump this name whenever a new shell changes a document's shape: the cache is
-// keyed by it, and activate deletes every other cache. Leaving it unchanged can
-// serve an old index.html offline after a deploy.
-const SHELL = "vignan-shell-v2";
+// The build replaces the placeholder with a hash of index.html, so a changed
+// shell gets a new cache name and activate deletes the old one. An unchanged
+// name can serve an old index.html offline after a deploy.
+const SHELL = "vignan-shell-__SHELL_VERSION__";
 
 // The one page allowed to work with no connection: cached up front so it is
 // there before it is ever needed. If even the install was offline, the worker

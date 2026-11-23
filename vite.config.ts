@@ -6,6 +6,7 @@ import oxfmt from "ultracite/oxfmt";
 import type { Plugin, ViteUserConfig } from "vite-plus";
 import { defineConfig, lazyPlugins } from "vite-plus";
 
+import { stampShellVersion } from "./scripts/shell-version";
 import { createApi } from "./server/api";
 import { safeHost } from "./shared/api";
 
@@ -85,6 +86,16 @@ function apiPlugin(): Plugin {
   };
 }
 
+function shellVersionPlugin(): Plugin {
+  return {
+    name: "shell-version",
+    apply: "build",
+    closeBundle() {
+      stampShellVersion("dist");
+    },
+  };
+}
+
 // Not this project's source: prose, and the vendored skill files under `.agents/`.
 const NOT_SOURCE = ["**/*.md", ".agents/**"];
 // The preset and Vite+ declare their own copies of oxlint's config types; their
@@ -125,7 +136,7 @@ export default defineConfig({
   },
   root: "web",
   base: "/",
-  plugins: lazyPlugins(() => [react(), apiPlugin()]),
+  plugins: lazyPlugins(() => [react(), apiPlugin(), shellVersionPlugin()]),
   build: {
     outDir: "../dist",
     emptyOutDir: true,

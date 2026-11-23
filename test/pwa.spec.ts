@@ -1,4 +1,10 @@
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
+
 import { test, expect } from "@playwright/test";
+
+import { stampShellVersion } from "../scripts/shell-version";
 
 /*
  * The installable shell, with no credentials. The manifest carries what the
@@ -6,6 +12,26 @@ import { test, expect } from "@playwright/test";
  * an API answer — a cached attendance read would show stale numbers, and a
  * cached session reply could revive a dead session.
  */
+test("a changed shell gets a new service-worker cache name", () => {
+  const dir = mkdtempSync(path.join(tmpdir(), "shell-version-"));
+  try {
+    const worker = 'const SHELL = "vignan-shell-__SHELL_VERSION__";\n';
+    const writeShell = (html: string): void => {
+      writeFileSync(path.join(dir, "index.html"), html);
+      writeFileSync(path.join(dir, "sw.js"), worker);
+      stampShellVersion(dir);
+    };
+    writeShell("<html>one</html>");
+    const first = readFileSync(path.join(dir, "sw.js"), "utf8");
+    writeShell("<html>two</html>");
+    const second = readFileSync(path.join(dir, "sw.js"), "utf8");
+    expect(first, "a new document stamps a new cache").not.toBe(second);
+    expect(first, "no placeholder ships").not.toContain("__SHELL_VERSION__");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test.describe("the installable shell", () => {
   test("the manifest states everything the install prompt needs", async ({
     request,

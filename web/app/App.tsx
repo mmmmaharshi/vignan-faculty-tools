@@ -7,7 +7,6 @@ import {
   Loader,
   Stack,
   Text,
-  TextInput,
   Title,
 } from "@mantine/core";
 import { ArrowClockwise, FloppyDisk, SignOut } from "@phosphor-icons/react";
@@ -16,7 +15,7 @@ import type { FormEvent } from "react";
 import { useLocation, useNavigate } from "react-router";
 
 import type { OptionsReply, RegisterRequest, Student } from "../../shared/api";
-import { messageOf, todayIST } from "../../shared/portal-values";
+import { messageOf } from "../../shared/portal-values";
 import {
   clearStoredSession,
   forgetServerData,
@@ -70,20 +69,13 @@ import {
   registerRows,
 } from "../register/worklist";
 import { ClassPicker } from "../ui/ClassPicker";
-import { HomePanel } from "../ui/HomePanel";
+import { HomeScreen } from "../ui/HomeScreen";
 import { BarNav, RailNav } from "../ui/NavTabs";
-import { ProfilePanel } from "../ui/ProfilePanel";
-import { RegisterSummary } from "../ui/RegisterSummary";
-import { RegisterTable } from "../ui/RegisterTable";
-import { SavedSections } from "../ui/SavedSections";
+import { ProfileScreen } from "../ui/ProfileScreen";
+import { RegisterScreen } from "../ui/RegisterScreen";
+import { SearchScreen } from "../ui/SearchScreen";
 import { SignInPanel } from "../ui/SignInPanel";
-import { StudentDetails } from "../ui/StudentDetails";
-import { UnpostedPanel } from "../ui/UnpostedPanel";
-import {
-  loadGate,
-  loadNote as gateNote,
-  registerScreenReady,
-} from "./load-gate";
+import { loadGate, loadNote as gateNote } from "./load-gate";
 import { createLoadSnap } from "./load-snap";
 import {
   CLOSED_PANEL,
@@ -344,10 +336,6 @@ const App = (): React.JSX.Element => {
           text: "ECAP would not give this student's full-semester absences.",
         }
       : null;
-  /** Student Search's own sentence: what the server refused, or why there is no
-   *  class or no row for that roll. A 401 has already ended the session through
-   *  the sweep above, so it says nothing here. */
-  const searchNote: Note | null = found.note;
   /** Home's own sentence: what the server refused. An empty day is not this —
    *  it is the skeleton table with blank classes. */
   const todayNote: Note | null = refusalNote(today.error);
@@ -355,10 +343,6 @@ const App = (): React.JSX.Element => {
    *  through the sweep above, so it says nothing here. */
   const unpostedNote: Note | null = refusalNote(unposted.error);
   const savedList = saved?.userId === userId && userId ? saved.list : null;
-  /** The class and window a searched figure belongs to, named on the panel: a
-   *  percentage with no period under it invites being read as a semester's. An
-   *  inferred semester is marked as one, so a guess never prints as a fact. */
-  const scopeRows = found.scope;
   /** The name arriving is also the moment the saved sections become readable, so
    *  both are set together: a restore never went through the sign-in form. The
    *  stored values are not applied to the cascade here — filling the form is the
@@ -823,75 +807,37 @@ const App = (): React.JSX.Element => {
     case "app": {
       if (onHome) {
         body = (
-          <>
-            <HomePanel
-              classes={todayShown}
-              note={todayNote}
-              date={todayIST()}
-            />
-            <UnpostedPanel
-              sections={unposted.data?.sections ?? null}
-              note={unpostedNote}
-              branch={unpostedBranch}
-              onBranchChange={setUnpostedBranch}
-            />
-          </>
+          <HomeScreen
+            classes={todayShown}
+            note={todayNote}
+            postings={{
+              sections: unposted.data?.sections ?? null,
+              note: unpostedNote,
+              branch: unpostedBranch,
+              onBranchChange: setUnpostedBranch,
+            }}
+          />
         );
       } else if (onProfile) {
         body = (
-          <>
-            <ProfilePanel
-              userId={userId}
-              faculty={facultyProfile.data ?? null}
-              busy={facultyProfile.isLoading}
-            />
-            {/* The rail holds Sign out on desktop. There is no drawer on a
-                phone, so the screen about the signed-in user carries it. */}
-            <Group hiddenFrom="sm" justify="flex-end" mt="lg">
-              <Button
-                onClick={signOut}
-                variant="default"
-                leftSection={<SignOut size={18} aria-hidden />}
-              >
-                Sign out
-              </Button>
-            </Group>
-          </>
+          <ProfileScreen
+            userId={userId}
+            faculty={facultyProfile.data ?? null}
+            busy={facultyProfile.isLoading}
+            onSignOut={signOut}
+          />
         );
       } else if (onSearch) {
         body = (
-          <>
-            <form onSubmit={findStudent}>
-              <Group align="flex-end" gap="sm">
-                <TextInput
-                  label="Roll number"
-                  placeholder="21CS001"
-                  value={searchRoll}
-                  onChange={(e) => setSearchRoll(e.currentTarget.value)}
-                  flex={1}
-                />
-                <Button type="submit" loading={search.isLoading}>
-                  Search
-                </Button>
-              </Group>
-            </form>
-            {/* Idle has no student, no note and no busy: nothing for the panel
-                to say until an ask has an answer. */}
-            {found.kind === "idle" ? null : (
-              <StudentDetails
-                student={found.student}
-                inline
-                profile={found.profile}
-                busy={search.isLoading}
-                note={searchNote}
-                scope={scopeRows}
-                fullAbsent={found.fullAbsent}
-                fullTitle="Absent — full semester"
-              />
-            )}
-          </>
+          <SearchScreen
+            roll={searchRoll}
+            onRollChange={setSearchRoll}
+            onSubmit={findStudent}
+            searching={search.isLoading}
+            found={found}
+          />
         );
-      } else if (!registerScreenReady(gate)) {
+      } else if (gate !== "ready") {
         // One screen, one wait: nothing of the register page is drawn while a
         // read that can change it is still in flight.
         body = (
@@ -904,50 +850,38 @@ const App = (): React.JSX.Element => {
         );
       } else {
         body = (
-          <>
-            {savedSectionCards.length ? (
-              <SavedSections
-                classes={savedSectionCards}
-                onOpen={applySavedSection}
-                onForget={clearSavedSection}
-              />
-            ) : null}
-            {picker}
-            {summary ? (
-              <RegisterSummary
-                summary={summary}
-                scope={overallMode ? "overall" : "subject"}
-              />
-            ) : null}
-            {summary ? (
-              <RegisterTable
-                rows={rows}
-                total={result?.students.length ?? 0}
-                summary={summary}
-                filter={filter}
-                counts={counts}
-                onFilterChange={setFilter}
-                onShowDetails={showDetails}
-                chosen={registerFacts}
-                overallMode={overallMode}
-              />
-            ) : null}
-            <StudentDetails
-              student={panel.student}
-              opened={isPanelOpen(panel)}
-              onClose={() => setPanel(closePanel(panel))}
-              onExitTransitionEnd={() => setPanel(finishClose(panel))}
-              profile={profile.data ?? null}
-              busy={profile.isLoading}
-              note={profileNote ?? semAbsencesNote}
-              fullAbsent={fullAbsencesShown}
-              fullTitle={
-                overallMode
-                  ? "Absent — full semester"
-                  : "Absent — full semester, this subject"
-              }
-            />
-          </>
+          <RegisterScreen
+            saved={{
+              classes: savedSectionCards,
+              onOpen: applySavedSection,
+              onForget: clearSavedSection,
+            }}
+            picker={picker}
+            table={{
+              rows,
+              total: result?.students.length ?? 0,
+              summary,
+              filter,
+              counts,
+              onFilterChange: setFilter,
+              onShowDetails: showDetails,
+              chosen: registerFacts,
+              overallMode,
+            }}
+            panel={{
+              student: panel.student,
+              opened: isPanelOpen(panel),
+              onClose: () => setPanel(closePanel(panel)),
+              onExitTransitionEnd: () => setPanel(finishClose(panel)),
+              profile: profile.data ?? null,
+              busy: profile.isLoading,
+              note: profileNote ?? semAbsencesNote,
+              fullAbsent: fullAbsencesShown,
+              fullTitle: overallMode
+                ? "Absent — full semester"
+                : "Absent — full semester, this subject",
+            }}
+          />
         );
       }
       break;

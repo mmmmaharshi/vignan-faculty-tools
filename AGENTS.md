@@ -200,11 +200,13 @@ web/data/            the transport and the browser's own storage: client.ts (eve
                      generation that drops a response landing after sign-out),
                      sw-update.ts, update-lifecycle.ts (the one update offer),
                      format.ts
-web/ui/              presentational modules, one per surface (SignInPanel is the
-                     sign-in form); only HomePanel holds state,
-                     and only its ticking clock — and UnpostedPanel, only which
-                     period box stands open, and StudentDetails, only which
-                     semester's grade modal stands open — the memories live in App
+web/ui/              presentational modules, one per surface: HomeScreen,
+                     ProfileScreen, SearchScreen and RegisterScreen compose the
+                     four screens; SignInPanel is the sign-in form. Only HomePanel
+                     holds state, and only its ticking clock — and UnpostedPanel,
+                     only which period box stands open, and StudentDetails, only
+                     which semester's grade modal stands open — the memories live
+                     in App
 docs/portal-wire.md  the Portal's per-method contracts: proxy, session marker,
                      parameters in declared order, reply shape, and the traps
                      measured against each. Read it before writing any ECAP call
@@ -213,6 +215,8 @@ scripts/portal-probe.ts  one Portal call, measured: prints the signed-in proxy's
                      with `logout` it prints the sign-out control instead
 scripts/typecheck-staged.ts  the commit hook's typecheck, swallowing the filenames
                      lint-staged appends
+scripts/shell-version.ts the build's stamp on the service worker's cache name:
+                     a hash of index.html, so a new shell installs a new worker
 shared/api.ts        the server/client contract; both sides import it
 shared/portal-values.ts  the rules both runtimes apply to a Portal value, and the
                      campus clock: the bands, the stated percentage, the register's
@@ -516,8 +520,8 @@ fill is a rule bug, two requests racing is a loop bug.
 - **The Load gate is one state, not three guards.** `web/app/load-gate.ts` answers
   `ready | loading-options | reading-register | finding-start` from the same
   inputs the button and the note read, so the two cannot disagree. The whole
-  Register screen waits for that gate through `registerScreenReady`: no saved
-  cards, form, summary or table is drawn while options, the start walk or a
+  Register screen waits for that gate: no saved cards, form, summary or table
+  is drawn while options, the start walk or a
   register reply is in flight. Once the screen is up, From already holds the
   class's remembered start; a reader who wants another window types it then.
 - **The URL has one steady-state writer.** `web/app/route-guard.ts` (`nextRoute`)

@@ -20,7 +20,7 @@ type SearchKind =
   | "no-roll"
   | "found";
 
-type SearchResult = { kind: SearchKind } & SearchShown;
+export type SearchResult = { kind: SearchKind } & SearchShown;
 
 type SearchShown = {
   note: Note | null;
