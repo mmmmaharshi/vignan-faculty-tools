@@ -1,7 +1,10 @@
 import { expect, test } from "@playwright/test";
 
 import {
+  hold,
+  release,
   resetStub,
+  sessionAnswer,
   signIn,
   signInAndSettle,
   state,
@@ -348,5 +351,49 @@ test.describe("the app's own data layer", () => {
         }
       )
       .toBe(true);
+  });
+
+  test("a stored session warms the home screen while the probe is still parked", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    hold("session");
+    // The reload's boot probe parks, but the chunk must not wait for it: the
+    // stored session already said Home is one decision away.
+    const warmed = page.waitForRequest(/HomeScreen-.*\.js$/, {
+      timeout: 15_000,
+    });
+    await page.reload();
+    await warmed;
+    await release("session", async (held) => {
+      const answer = sessionAnswer(held.wasIn);
+      await held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: answer.headers,
+        body: answer.body,
+      });
+    });
+    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Today's Classes" })
+    ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("without a stored session the home screen stays unfetched", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await expect(page.getByLabel("ECAP user name")).toBeVisible();
+    const fetched = await page.evaluate(() =>
+      performance
+        .getEntriesByType("resource")
+        .map((entry) => new URL(entry.name).pathname)
+        .filter((name) => name.includes("HomeScreen"))
+    );
+    expect(
+      fetched,
+      "the sign-in form warms nothing: no session, no landing screen"
+    ).toEqual([]);
   });
 });

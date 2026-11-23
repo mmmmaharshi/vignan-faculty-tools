@@ -338,21 +338,23 @@ profile panel, `/search` is the Student Search screen (one roll
 number in, the class ECAP says that student is in, the class report's row for it,
 and the profile ECAP holds for it), `/login` is the sign-in form. `/` also renders
 the dashboard and the guard sends it on, so it is a second way in rather than a
-fifth screen; anything else redirects to `/`. **`App` owns all four** — the
-router is not asked to split it, because that would duplicate the cascade's
+fifth screen; anything else redirects to `/`. **`App` owns all four** — there
+is no router to split it across, because that would duplicate the cascade's
 state or move it into a context, and ADR 0005 rejected a context for that
 reason.
 
-- **`web/main.tsx` has exactly one route, a catch-all rendering `App`.** Do not
-  enumerate paths there. Every path used to render the same component, so the list
-  was a *second* statement of which path is the dashboard with nothing connecting
-  it to `DASHBOARD_PATH` — and when they disagreed the result was a **redirect
-  loop**, measured at 37 navigations and 82 API calls in six seconds. It presents
-  as a page that never finishes loading rather than as an error. `App` decides
-  every path from `pathname === LOGIN_PATH`; a path that only names `App` has no
-  business in that file. **The loop only happens while signed in** — signed out
-  the guard's first move is `/` to `/login` and it stops, so a check run signed out
-  passes against the broken build.
+- **There is no router library: `web/main.tsx` renders `App` directly.**
+  The path is history state, read through `usePathname` and moved through
+  `navigateTo` (`web/app/navigate.ts`) — five static paths need no route table,
+  nesting or loaders, and the 350KB of `react-router` source was a quarter of
+  the initial bundle for none of them. A second statement of which path is the
+  dashboard used to live in that file, and when the two disagreed the result
+  was a **redirect loop**, measured at 37 navigations and 82 API calls in six
+  seconds. It presents as a page that never finishes loading rather than as an
+  error. `App` decides every path from the pathname; a path that only names
+  `App` has no business in that file. **The loop only happens while signed
+  in** — signed out the guard's first move is `/` to `/login` and it stops, so
+  a check run signed out passes against the broken build.
 
 - **The server serves `index.html` for extensionless paths**, or a deep link to
   `/login` 404s before any JavaScript runs. A path *with* a dot is a real file

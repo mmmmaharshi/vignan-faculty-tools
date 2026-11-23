@@ -96,6 +96,32 @@ function shellVersionPlugin(): Plugin {
   };
 }
 
+/** The hashed font name is only known once the bundle is written, so the
+ *  document cannot name it statically. Every woff2 the bundle emits preloads
+ *  beside the stylesheet that declares it, moving the font fetch from
+ *  "after CSS parses" into the initial wave. */
+function fontPreloadPlugin(): Plugin {
+  return {
+    name: "font-preload",
+    apply: "build",
+    transformIndexHtml(html, { bundle }) {
+      const fonts = Object.keys(bundle ?? {}).filter((name) =>
+        name.endsWith(".woff2")
+      );
+      if (!fonts.length) {
+        return html;
+      }
+      const links = fonts
+        .map(
+          (font) =>
+            `    <link rel="preload" href="/${font}" as="font" type="font/woff2" crossorigin>`
+        )
+        .join("\n");
+      return html.replace("</title>", `</title>\n${links}`);
+    },
+  };
+}
+
 // Not this project's source: prose, and the vendored skill files under `.agents/`.
 const NOT_SOURCE = ["**/*.md", ".agents/**"];
 // The preset and Vite+ declare their own copies of oxlint's config types; their
@@ -136,7 +162,12 @@ export default defineConfig({
   },
   root: "web",
   base: "/",
-  plugins: lazyPlugins(() => [react(), apiPlugin(), shellVersionPlugin()]),
+  plugins: lazyPlugins(() => [
+    react(),
+    apiPlugin(),
+    shellVersionPlugin(),
+    fontPreloadPlugin(),
+  ]),
   build: {
     outDir: "../dist",
     emptyOutDir: true,

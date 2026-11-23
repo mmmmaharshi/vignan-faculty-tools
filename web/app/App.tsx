@@ -10,9 +10,15 @@ import {
   Title,
 } from "@mantine/core";
 import { ArrowClockwise, FloppyDisk, SignOut } from "@phosphor-icons/react";
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, {
+  lazy,
+  Suspense,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import type { FormEvent } from "react";
-import { useLocation, useNavigate } from "react-router";
 
 import type { OptionsReply, RegisterRequest, Student } from "../../shared/api";
 import { messageOf } from "../../shared/portal-values";
@@ -21,6 +27,7 @@ import {
   forgetServerData,
   revalidateServerData,
   isExpired,
+  loadStoredSession,
   reloadSession,
   useSession,
   useSignIn,
@@ -68,15 +75,30 @@ import {
   pruneSubjectBars,
   registerRows,
 } from "../register/worklist";
-import { ClassPicker } from "../ui/ClassPicker";
-import { HomeScreen } from "../ui/HomeScreen";
 import { BarNav, RailNav } from "../ui/NavTabs";
-import { ProfileScreen } from "../ui/ProfileScreen";
-import { RegisterScreen } from "../ui/RegisterScreen";
-import { SearchScreen } from "../ui/SearchScreen";
-import { SignInPanel } from "../ui/SignInPanel";
+/** A screen's code is fetched when the screen is opened, not on first paint:
+ *  four of the five are unreachable from the sign-in form and from Home. */
+const ClassPicker = lazy(() =>
+  import("../ui/ClassPicker").then((m) => ({ default: m.ClassPicker }))
+);
+const HomeScreen = lazy(() =>
+  import("../ui/HomeScreen").then((m) => ({ default: m.HomeScreen }))
+);
+const ProfileScreen = lazy(() =>
+  import("../ui/ProfileScreen").then((m) => ({ default: m.ProfileScreen }))
+);
+const RegisterScreen = lazy(() =>
+  import("../ui/RegisterScreen").then((m) => ({ default: m.RegisterScreen }))
+);
+const SearchScreen = lazy(() =>
+  import("../ui/SearchScreen").then((m) => ({ default: m.SearchScreen }))
+);
+const SignInPanel = lazy(() =>
+  import("../ui/SignInPanel").then((m) => ({ default: m.SignInPanel }))
+);
 import { loadGate, loadNote as gateNote } from "./load-gate";
 import { createLoadSnap } from "./load-snap";
+import { navigateTo, usePathname } from "./navigate";
 import {
   CLOSED_PANEL,
   closePanel,
@@ -107,8 +129,8 @@ import type { Note } from "./types";
 const refusalNote = (error: ApiError | undefined): Note | null =>
   error && !isExpired(error) ? { kind: "error", text: messageOf(error) } : null;
 const App = (): React.JSX.Element => {
-  const navigate = useNavigate();
-  const { pathname } = useLocation();
+  const pathname = usePathname();
+  const navigate = navigateTo;
   const onLogin = pathname === LOGIN_PATH;
   const onHome = pathname === HOME_PATH;
   const onProfile = pathname === PROFILE_PATH;
@@ -165,6 +187,18 @@ const App = (): React.JSX.Element => {
   /** The cascade run's one owner: which run holds the screen, which has been
    *  superseded, and which failed keeping what it settled. */
   const cascadeRun = useRef(createCascadeRun());
+  /** The landing screen's chunk, fetched while the boot probe is still in
+   *  flight rather than after it answers: a stored session means Home is one
+   *  decision away, so its bytes travel beside the probe instead of behind
+   *  it. No stored session means the sign-in form, so nothing is fetched for
+   *  it. Once per document — a second mount reuses the settled module. */
+  const warmedHome = useRef(false);
+  useEffect(() => {
+    if (!warmedHome.current && loadStoredSession()) {
+      warmedHome.current = true;
+      void import("../ui/HomeScreen");
+    }
+  }, []);
   /** The one-shot snap: a real load arms it, a typed range disarms it, and the
    *  settle effect consumes it once. One owner, so the two cannot race. */
   const loadSnap = useRef(createLoadSnap());
@@ -948,13 +982,24 @@ const App = (): React.JSX.Element => {
       <AppShell.Main
         pb={{ base: "calc(64px + env(safe-area-inset-bottom))", sm: "lg" }}
       >
-        {screen === "app" ? (
-          body
-        ) : (
-          <Container size="sm" py="xl">
-            {body}
-          </Container>
-        )}
+        <Suspense
+          fallback={
+            <Stack align="center" mt="xl" gap="sm" role="status">
+              <Loader size="lg" />
+              <Text c="dimmed" size="sm">
+                Loading...
+              </Text>
+            </Stack>
+          }
+        >
+          {screen === "app" ? (
+            body
+          ) : (
+            <Container size="sm" py="xl">
+              {body}
+            </Container>
+          )}
+        </Suspense>
       </AppShell.Main>
       {/* Tabs, not buttons: icon over label, no fill, colour says which screen.
           An UnstyledButton is the one Mantine component that carries no button

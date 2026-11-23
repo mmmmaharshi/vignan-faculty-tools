@@ -108,6 +108,35 @@ test.describe("the installable shell", () => {
     ).toEqual([]);
   });
 
+  test("the document preloads the hashed font it renders with", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await expect(page.getByLabel("ECAP user name")).toBeVisible({
+      timeout: 15_000,
+    });
+    // The hash is stamped at build time, so the test reads the document's
+    // own answer rather than naming a file: a plugin that misfires names
+    // nothing the page ever fetches.
+    const preloaded = await page.evaluate(
+      () =>
+        document
+          .querySelector('link[rel="preload"][as="font"]')
+          ?.getAttribute("href") ?? ""
+    );
+    expect(preloaded, "the font preload names a woff2").toMatch(/\.woff2$/);
+    const fetched = await page.evaluate(() =>
+      performance
+        .getEntriesByType("resource")
+        .map((entry) => new URL(entry.name).pathname)
+        .filter((name) => name.endsWith(".woff2"))
+    );
+    expect(
+      fetched,
+      "the preloaded file is the file the page renders with"
+    ).toContain(preloaded);
+  });
+
   test("an offline navigation falls back to the offline page", async ({
     page,
     context,
