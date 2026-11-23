@@ -2,7 +2,7 @@
  *  Run `bun run build` first, then `bun scripts/perf-metrics.ts`. */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
-import { gzipSync } from "node:zlib";
+import { brotliCompressSync, constants } from "node:zlib";
 
 const groupOf = (name: string): string =>
   name.endsWith(".js")
@@ -23,12 +23,14 @@ function files(dir: string): Array<string> {
 }
 
 const groups = new Map<string, { raw: number; gzip: number; count: number }>();
-/** Already-compressed formats travel as-is: gzipping a woff2 or png only
- *  spends CPU to grow the reply, and the server answers them raw too. */
+/** What the server answers a modern browser: brotli where it pays, identity
+ *  where the format is already compressed. */
 const wireBytes = (file: string, bytes: Buffer): number =>
   file.endsWith(".png") || file.endsWith(".woff2") || file.endsWith(".woff")
     ? bytes.length
-    : gzipSync(bytes, { level: 9 }).length;
+    : brotliCompressSync(bytes, {
+        params: { [constants.BROTLI_PARAM_QUALITY]: 11 },
+      }).length;
 for (const file of files("dist")) {
   const bytes = readFileSync(file);
   const gz = wireBytes(file, bytes);
@@ -43,7 +45,7 @@ const order = ["js", "css", "font", "image", "other"];
 const out = (line: string): void => {
   process.stdout.write(`${line}\n`);
 };
-out("group   files   raw bytes   gzip bytes");
+out("group   files   raw bytes   wire bytes");
 for (const g of order) {
   const r = groups.get(g);
   if (r) {

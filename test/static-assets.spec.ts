@@ -1,11 +1,16 @@
 import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { gunzipSync } from "node:zlib";
+import { brotliDecompressSync, gunzipSync } from "node:zlib";
 
 import { test, expect } from "@playwright/test";
 
-import { acceptsGzip, compressedAsset } from "../server/compressed-assets";
+import {
+  acceptsEncoding,
+  acceptsGzip,
+  compressedAsset,
+  warmCompressedAssets,
+} from "../server/compressed-assets";
 import { resetStub, stub } from "./support/client-stub";
 
 /** A real file on disk: `compressedAsset` reads the bytes itself, so a
@@ -30,6 +35,11 @@ test.describe("compressed static assets", () => {
     expect(acceptsGzip("br, deflate")).toBe(false);
     expect(acceptsGzip(null)).toBe(false);
   });
+  test("an explicit refusal is not an acceptance", () => {
+    expect(acceptsEncoding("br;q=0, gzip", "br")).toBe(false);
+    expect(acceptsEncoding("br;q=0, gzip", "gzip")).toBe(true);
+    expect(acceptsEncoding("GZip; Q=0", "gzip")).toBe(false);
+  });
   test("a compressible asset round-trips through gzip with its headers", async () => {
     const body = Buffer.from(`var x = ${"0".repeat(4000)};\n`);
     const full = fixture("app-abc123.js", body);
@@ -49,23 +59,53 @@ test.describe("compressed static assets", () => {
     expect(wire.length).toBeLessThan(body.length);
     expect(Buffer.from(gunzipSync(wire))).toEqual(body);
   });
-  test("no gzip accepted, a compressed format, or a tiny file answers null", async () => {
+  test("no acceptable encoding, a compressed format, or a tiny file answers null", async () => {
     const big = Buffer.from(`var x = ${"0".repeat(4000)};\n`);
     const full = fixture("app-abc123.js", big);
     await expect(
       compressedAsset(full, "/assets/app-abc123.js", "br", {})
     ).resolves.toBeNull();
     await expect(
-      compressedAsset(full, "/assets/icon.png", "gzip", {})
+      compressedAsset(full, "/assets/icon.png", "gzip, br", {})
     ).resolves.toBeNull();
     const tiny = fixture("tiny.js", Buffer.from("var x = 1;\n"));
     await expect(
       compressedAsset(tiny, "/assets/tiny.js", "gzip", {})
     ).resolves.toBeNull();
   });
+  test("brotli wins where the client names it, and round-trips", async () => {
+    const body = Buffer.from(`var x = ${"0".repeat(4000)};\n`);
+    const dir = mkdtempSync(path.join(tmpdir(), "compressed-"));
+    test.info().annotations.push({ type: "cleanup", description: dir });
+    const full = path.join(dir, "app-abc123.js");
+    writeFileSync(full, body);
+    await warmCompressedAssets(dir);
+    const res = await compressedAsset(
+      full,
+      "/assets/app-abc123.js",
+      "gzip, deflate, br",
+      {}
+    );
+    expect(res?.headers.get("content-encoding")).toBe("br");
+    expect(res?.headers.get("vary")).toBe("Accept-Encoding");
+    const wire = Buffer.from(await res!.arrayBuffer());
+    expect(wire.length).toBeLessThan(body.length);
+    expect(Buffer.from(brotliDecompressSync(wire))).toEqual(body);
+    // Brotli refused: the warmed gzip is the answer, not a failure.
+    const gz = await compressedAsset(
+      full,
+      "/assets/app-abc123.js",
+      "br;q=0, gzip",
+      {}
+    );
+    expect(gz?.headers.get("content-encoding")).toBe("gzip");
+    expect(
+      Buffer.from(gunzipSync(Buffer.from(await gz!.arrayBuffer())))
+    ).toEqual(body);
+  });
 });
 
-/** A reply the server gzipped on the wire: the seam the unit tests cannot
+/** A reply the server compressed on the wire: the seam the unit tests cannot
  *  see — they run under Node, while the server answers WHATWG requests. The
  *  query string dodges the worker cache, so the answer is the server's. */
 test.describe("compressed static assets over the wire", () => {
@@ -74,7 +114,9 @@ test.describe("compressed static assets over the wire", () => {
     await page.route("**/api/**", stub);
   });
 
-  test("a hashed script arrives gzipped, and says so", async ({ page }) => {
+  test("a hashed script arrives in the best encoding, and says so", async ({
+    page,
+  }) => {
     await page.goto("/login");
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
     const src = await page.evaluate(() => {
@@ -91,8 +133,9 @@ test.describe("compressed static assets over the wire", () => {
         vary: res.headers.get("vary"),
       };
     }, src);
-    expect(seen.encoding, "the server gzips hashed assets").toBe("gzip");
-    expect(seen.vary, "caches must not serve it to clients without gzip").toBe(
+    // The browser names br beside gzip, and br is the smaller answer.
+    expect(seen.encoding, "the server prefers brotli").toBe("br");
+    expect(seen.vary, "caches must not serve it to clients without it").toBe(
       "Accept-Encoding"
     );
   });

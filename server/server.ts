@@ -1,12 +1,26 @@
 import type { ErrorReply } from "../shared/api.js";
 import { createApi, json } from "./api.js";
-import { compressedAsset } from "./compressed-assets.js";
+import { compressedAsset, warmCompressedAssets } from "./compressed-assets.js";
 import { SECURITY_HEADERS } from "./security-headers.js";
 import { resolveWithin } from "./static-path.js";
 
 const PORT = Number(process.env.PORT || 8787);
 const ROOT = import.meta.dir;
 const DIST = `${ROOT}/../dist`;
+/** The hashed assets compress once, in the background, so no request waits on
+ *  Brotli's slowest quality. A warm that fails leaves on-demand gzip, which is
+ *  the same reply as before this pass existed. */
+async function warmInBackground(): Promise<void> {
+  try {
+    await warmCompressedAssets(`${DIST}/assets`);
+  } catch {
+    // Unreachable: the pass swallows its own I/O failures.
+  }
+}
+// Background on purpose: the server listens while the cache fills, and an
+// early request compresses gzip on demand instead of waiting on quality 11.
+// oxlint-disable-next-line unicorn/prefer-top-level-await
+void warmInBackground();
 async function indexHtml(): Promise<Response> {
   const index = Bun.file(`${DIST}/index.html`);
   if (!(await index.exists())) {
