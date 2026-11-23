@@ -1,5 +1,6 @@
 import type { ErrorReply } from "../shared/api.js";
 import { createApi, json } from "./api.js";
+import { compressedAsset } from "./compressed-assets.js";
 import { SECURITY_HEADERS } from "./security-headers.js";
 import { resolveWithin } from "./static-path.js";
 
@@ -51,15 +52,29 @@ const server = Bun.serve({
           const contentType = reqPath.endsWith(".webmanifest")
             ? "application/manifest+json"
             : asset.type || "application/octet-stream";
-          return new Response(asset, {
-            headers: {
-              "content-type": contentType,
-              "cache-control": reqPath.startsWith("/assets/")
-                ? "public, max-age=31536000, immutable"
-                : "no-store, must-revalidate",
-              ...SECURITY_HEADERS,
-            },
-          });
+          const headers = {
+            "content-type": contentType,
+            "cache-control": reqPath.startsWith("/assets/")
+              ? "public, max-age=31536000, immutable"
+              : "no-store, must-revalidate",
+            ...SECURITY_HEADERS,
+          };
+          // A gzip-capable client gets the precompressed bytes, but only under
+          // `/assets/*`: those names carry a content hash, so the in-memory
+          // copy can never go stale beside its source. Un hashed files are
+          // rewritten by every build, which a long-running server outlives.
+          const gz = reqPath.startsWith("/assets/")
+            ? await compressedAsset(
+                resolved,
+                reqPath,
+                req.headers.get("accept-encoding"),
+                headers
+              )
+            : null;
+          if (gz) {
+            return gz;
+          }
+          return new Response(asset, { headers });
         }
         if (!reqPath.includes(".")) {
           return indexHtml();
