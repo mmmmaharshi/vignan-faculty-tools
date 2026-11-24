@@ -158,13 +158,17 @@ test.describe("the app's own data layer", () => {
     await page.goto("/login");
     await signIn(page);
     await page.getByRole("button", { name: "Register", exact: true }).click();
-    // The whole screen waits for the walk: no form to take the month window
-    // still on screen, and no register read before the start is known.
-    await expect(page.getByRole("status")).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    // The month window is still on screen, but Load must not take it: the
+    // semester start has not answered yet.
     await expect(
       page.getByText("Finding the semester start", { exact: false })
-    ).toBeVisible();
-    await expect(page.getByRole("combobox", { name: "Course" })).toHaveCount(0);
+    ).toBeVisible({ timeout: 15_000 });
+    await page
+      .getByRole("button", { name: "Load register" })
+      .click({ force: true });
     expect(
       state.registerCalls,
       "no register goes out before the start is known"
@@ -176,10 +180,9 @@ test.describe("the app's own data layer", () => {
         body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
       })
     );
-    await expect(page.getByRole("combobox", { name: "Course" })).toBeVisible({
+    await expect(page.getByLabel("From")).toHaveValue("2026-08-05", {
       timeout: 15_000,
     });
-    await expect(page.getByLabel("From")).toHaveValue("2026-08-05");
     await page.getByRole("button", { name: "Load register" }).click();
     await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
       timeout: 15_000,
@@ -189,13 +192,33 @@ test.describe("the app's own data layer", () => {
     );
   });
 
-  test("a hand-typed range wins over the walked start", async ({ page }) => {
+  test("a hand-typed range loads at once, without waiting for the walk", async ({
+    page,
+  }) => {
     hold("walk");
     state.semStartWalkFrom = "05/08/2026";
     await page.goto("/login");
     await signIn(page);
     await page.getByRole("button", { name: "Register", exact: true }).click();
-    await expect(page.getByRole("status")).toBeVisible({ timeout: 15_000 });
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await expect(
+      page.getByText("Finding the semester start", { exact: false })
+    ).toBeVisible({ timeout: 15_000 });
+    // The typed range needs no probe: the gate lifts for it at once.
+    await page.getByLabel("From").fill("2026-09-01");
+    await expect(
+      page.getByText("Finding the semester start", { exact: false })
+    ).toHaveCount(0);
+    // The typed range lifted the gate: a normal click loads it at once.
+    await page.getByRole("button", { name: "Load register" }).click();
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
+    expect(state.lastRegisterFrom, "the typed range wins over the walk").toBe(
+      "01/09/2026"
+    );
     await release("walk", (held) =>
       held.route.fulfill({
         status: 200,
@@ -203,18 +226,46 @@ test.describe("the app's own data layer", () => {
         body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
       })
     );
-    await expect(page.getByLabel("From")).toHaveValue("2026-08-05", {
-      timeout: 15_000,
-    });
-    // With the screen up, a typed range is a new ask: the walked start no
-    // longer decides the window the register reads.
-    await page.getByLabel("From").fill("2026-09-01");
-    await page.getByRole("button", { name: "Load register" }).click();
-    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
-      timeout: 15_000,
-    });
-    expect(state.lastRegisterFrom, "the typed range wins over the walk").toBe(
-      "01/09/2026"
+  });
+
+  test("editing only To keeps the gate: From is still unsettled", async ({
+    page,
+  }) => {
+    hold("walk");
+    state.semStartWalkFrom = "05/08/2026";
+    await page.goto("/login");
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await expect(
+      page.getByText("Finding the semester start", { exact: false })
+    ).toBeVisible({ timeout: 15_000 });
+    await page.getByLabel("To").fill("2026-08-31");
+    await page
+      .getByRole("button", { name: "Load register" })
+      .click({ force: true });
+    expect(
+      state.registerCalls,
+      "a typed To alone must not take the unsettled From"
+    ).toBe(0);
+    await release("walk", (held) =>
+      held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
+      })
+    );
+    // Typing To asked again while the first walk was held: the queue kept
+    // both, so a second release answers the next one. Answering the held
+    // walk early instead would have settled From before the click above.
+    await release("walk", (held) =>
+      held.route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ statedFrom: state.semStartWalkFrom }),
+      })
     );
   });
 });

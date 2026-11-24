@@ -521,11 +521,10 @@ fill is a rule bug, two requests racing is a loop bug.
   read gated on one but not the other fired for a panel already leaving.
 - **The Load gate is one state, not three guards.** `web/app/load-gate.ts` answers
   `ready | loading-options | reading-register | finding-start` from the same
-  inputs the button and the note read, so the two cannot disagree. The whole
-  Register screen waits for that gate: no saved cards, form, summary or table
-  is drawn while options, the start walk or a
-  register reply is in flight. Once the screen is up, From already holds the
-  class's remembered start; a reader who wants another window types it then.
+  inputs the button and the note read, so the two cannot disagree. A typed
+  From lifts it; a typed To alone does not — while the walk is in flight for
+  an unremembered class, the first click cannot take the month window still
+  on screen.
 - **The URL has one steady-state writer.** `web/app/route-guard.ts` (`nextRoute`)
   decides every redirect once the session is known; the back-button effect
   delegates to it. The boot effect keeps its own landing-screen rule (a

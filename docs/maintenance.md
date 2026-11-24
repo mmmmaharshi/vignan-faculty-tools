@@ -171,13 +171,13 @@ the pointers in AGENTS.md name when to do so.
   fails changes nothing, except a 401, which still signs out. `Load register`
   stays the only caller of `/api/register`: the walk reads through
   `/api/sem-start`, the same endpoint the row above already calls. While the
-  walk is in flight for a class with no remembered start, the whole Register
-  screen waits: no saved cards, form or table is drawn, so the first click
-  cannot take the month window still on screen and the reader cannot type over
-  a start that has not answered. Once the screen is up, the walked start has
-  settled From; a window typed after that wins over that start for the next
-  load. A failed walk lifts the gate too; the month window is the fallback
-  then.
+  walk is in flight for a class with no remembered start, Load register stays
+  disabled under a "Finding the semester start…" note — while the inputs stay
+  live — so the first click cannot take the month window still on screen.
+  Till Now is the standing window, not just the opening one. Typing From
+  lifts the gate at once: it needs no probe, while a typed To alone leaves
+  From unsettled. A failed walk lifts it too; the month window is the
+  fallback then.
 
 - **A panel shows one absent list: the full semester's.** The Portal states only
   the days inside the window, so the panel reads the **same** read again over

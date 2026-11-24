@@ -871,17 +871,6 @@ const App = (): React.JSX.Element => {
             found={found}
           />
         );
-      } else if (gate !== "ready") {
-        // One screen, one wait: nothing of the register page is drawn while a
-        // read that can change it is still in flight.
-        body = (
-          <Stack align="center" mt="xl" gap="sm" role="status">
-            <Loader size="lg" />
-            <Text c="dimmed" size="sm">
-              {gateNote(gate)}
-            </Text>
-          </Stack>
-        );
       } else {
         body = (
           <RegisterScreen
