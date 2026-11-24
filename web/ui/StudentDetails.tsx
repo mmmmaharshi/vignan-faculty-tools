@@ -12,7 +12,7 @@ import {
   Table,
   Text,
 } from "@mantine/core";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type {
   Student,
@@ -23,6 +23,7 @@ import type {
 import type { Note } from "../app/types";
 import { badgeFor, carriesOverall, displayName } from "../register/worklist";
 import { SemesterClasses } from "./SemesterClasses";
+import { useSwipeToClose } from "./use-swipe-to-close";
 
 type StudentDetailsProps = {
   /** The student whose row was opened, or null when nothing is open. */
@@ -221,6 +222,8 @@ export const StudentDetails = ({
   const hasGpa = cgpaShown || sgpa.length > 0;
   /** The semester whose subject grades the modal names, or null when shut. */
   const [gradesFor, setGradesFor] = useState<StudentSgpa | null>(null);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  useSwipeToClose(!inline && (opened ?? false), onClose, drawerRef);
   const content = (
     <Stack
       gap="md"
@@ -537,11 +540,14 @@ export const StudentDetails = ({
   }
   return (
     <Drawer
+      ref={drawerRef}
       opened={opened ?? false}
       onClose={onClose ?? (() => undefined)}
       position="right"
       size="md"
       title="Student details"
+      removeScrollProps={{ allowPinchZoom: true }}
+      styles={{ content: { overscrollBehaviorX: "none" } }}
       closeButtonProps={{ "aria-label": "Close student details" }}
       onExitTransitionEnd={onExitTransitionEnd ?? (() => undefined)}
     >

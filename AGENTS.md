@@ -518,7 +518,10 @@ fill is a rule bug, two requests racing is a loop bug.
   `open | closing | closed` with the student inside: `closing` is the ~200ms
   slide-out that still draws its row, and only `open` fires the wider
   absent-dates read. `detail` + `detailOpen` was the same fact apart, and a
-  read gated on one but not the other fired for a panel already leaving.
+  read gated on one but not the other fired for a panel already leaving. On
+  touch screens, a left swipe closes the drawer through that same transition;
+  the drawer's horizontal overscroll containment and `web/ui/use-swipe-to-close.ts`
+  cancel the browser-back gesture while table swipes still scroll their own content.
 - **The Load gate is one state, not three guards.** `web/app/load-gate.ts` answers
   `ready | loading-options | reading-register | finding-start` from the same
   inputs the button and the note read, so the two cannot disagree. A typed
