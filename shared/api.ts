@@ -209,6 +209,10 @@ export interface StudentMonth {
  * the page left blank is an empty string, which the panel renders as nothing.
  */
 export interface StudentProfile {
+  /** The profile page's own student name, when it states one. */
+  name: string;
+  /** The profile page's own roll number, when it states one. */
+  roll: string;
   cgpa: string;
   credits: string;
   cgpaPercent: string;
@@ -379,20 +383,31 @@ export interface FindClass {
   semester: Option;
   branch: Option;
   /** The section the student's row was found in. Null when the roll was in none
-   *  of the branch and semester's sections — which is an answer, not a failure. */
+   *  of the branch and semester's sections, or when no attendance report could
+   *  be read — the profile is still an answer in both cases. */
   section: Option | null;
   /** True when the semester came from the SGPA guess rather than the page, so
    *  the panel can say so instead of printing the guess as a fact. */
   semesterInferred: boolean;
 }
+/** Class fields exactly as the profile page stated them. Kept even when one
+ *  missing value prevents the Portal's own options from resolving a class. */
+export interface FindStatedClass {
+  course: string;
+  semester: string;
+  branch: string;
+  section: string;
+}
 export interface FindReply {
   profile: StudentProfile;
-  /** Null when the profile page states no class, or states one the Portal's own
-   *  lists do not offer; `note` then says which. */
+  statedClass: FindStatedClass;
+  /** Null when the profile page states no class, states one the Portal's own
+   *  lists do not offer, or the class lists could not be read; `note` says which. */
   class: FindClass | null;
   window: { from: string; to: string };
   /** The register row for the held window, or null when the roll is in no
-   *  section of that class — the profile above is still an answer. */
+   *  section of that class or the attendance report could not be read — the
+   *  profile above is still an answer. */
   student: Student | null;
   /** The same student's absent days over the whole semester, walked back
    *  month by month so no range wider than a month is ever asked. Null when
@@ -400,7 +415,9 @@ export interface FindReply {
   fullAbsent: Array<string> | null;
   /** The period fullAbsent covers. Null with it. */
   fullRange: { from: string; to: string } | null;
-  /** Why there is no class or no row, in words; empty when both are there. */
+  /** Why there is no class, no row or no readable attendance, or a warning that
+   *  the full-semester absent list or section scan is incomplete. Empty when
+   *  none applies. */
   note: string;
 }
 export interface OptionsRequest {

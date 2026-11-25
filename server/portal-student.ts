@@ -147,23 +147,32 @@ export function parseStudentProfile(html: string): StudentProfile | null {
   }
   const phones: Array<StudentPhone> = [];
   const seen = new Set<string>();
+  let name = "";
+  let roll = "";
   for (const tr of html.match(ROW) ?? []) {
     const cells = cellsOf(tr);
     for (let i = 0; i + 1 < cells.length; i++) {
       const label = cells[i] ?? "";
-      const number = cells[i + 2] ?? "";
+      const value = (cells[i + 2] ?? "").trim();
       if (cells[i + 1] !== SEPARATOR) {
         continue;
       }
-      if (!PHONE_LABEL.test(label) || !number || seen.has(number)) {
+      if (!roll && /^roll\s*no\.?$/i.test(label)) {
+        roll = value;
+      } else if (!name && /^(?:student\s+)?name$/i.test(label)) {
+        name = value;
+      }
+      if (!PHONE_LABEL.test(label) || !value || seen.has(value)) {
         continue;
       }
-      seen.add(number);
-      phones.push({ label, number });
+      seen.add(value);
+      phones.push({ label, number: value });
     }
   }
   const gpa = GPA_LINE.exec(cellText(html));
   return {
+    name,
+    roll,
     cgpa: gpa?.groups?.cgpa ?? "",
     credits: gpa?.groups?.credits ?? "",
     cgpaPercent: gpa?.groups?.pct ?? "",

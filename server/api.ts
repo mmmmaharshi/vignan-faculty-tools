@@ -3,6 +3,7 @@ import type {
   ClientSession,
   ErrorReply,
   FacultyProfile,
+  FindReply,
   FindRequest,
   LeaveStatus,
   LoginRequest,
@@ -13,6 +14,7 @@ import type {
   SemAbsencesRequest,
   SessionReply,
   SemStartRequest,
+  StudentProfile,
   StudentRequest,
 } from "../shared/api.js";
 import { SESSION_HEADER } from "../shared/api.js";
@@ -22,7 +24,7 @@ import {
   handleRegister,
   handleSemStart,
 } from "./class-routes.js";
-import { handleFind } from "./find-routes.js";
+import { handleFind, isFindPartial } from "./find-routes.js";
 import {
   handleFacultyProfile,
   handleTodayClasses,
@@ -283,6 +285,68 @@ class Portal {
     );
   }
 }
+
+const isFindReply = (value: unknown): value is FindReply =>
+  typeof value === "object" &&
+  value !== null &&
+  "profile" in value &&
+  "statedClass" in value &&
+  "class" in value &&
+  "window" in value &&
+  "student" in value &&
+  "note" in value;
+
+const statedClassSize = (stated: FindReply["statedClass"]): number =>
+  Object.values(stated).filter(Boolean).length;
+
+const mergeStudentProfiles = (
+  first: StudentProfile,
+  retry: StudentProfile
+): StudentProfile => ({
+  name: retry.name || first.name,
+  roll: retry.roll || first.roll,
+  cgpa: retry.cgpa || first.cgpa,
+  credits: retry.credits || first.credits,
+  cgpaPercent: retry.cgpaPercent || first.cgpaPercent,
+  sgpa: retry.sgpa.length ? retry.sgpa : first.sgpa,
+  phones: retry.phones.length ? retry.phones : first.phones,
+  backlogs:
+    retry.backlogs.rows.length ||
+    retry.backlogs.total !== null ||
+    retry.backlogs.note
+      ? retry.backlogs
+      : first.backlogs,
+  absent: retry.absent,
+  totals: retry.totals,
+  months: retry.months,
+});
+
+const mergeFindReplies = (first: FindReply, retry: FindReply): FindReply => {
+  const classSource = retry.class ? retry : first.class ? first : null;
+  const statedSource =
+    statedClassSize(retry.statedClass) > statedClassSize(first.statedClass)
+      ? retry
+      : first;
+  return {
+    profile: mergeStudentProfiles(first.profile, retry.profile),
+    statedClass: classSource?.statedClass ?? statedSource.statedClass,
+    class: classSource?.class ?? null,
+    window: classSource?.window ?? retry.window ?? first.window,
+    student: classSource
+      ? classSource.student
+      : (retry.student ?? first.student),
+    fullAbsent: classSource
+      ? classSource.fullAbsent
+      : (retry.fullAbsent ?? first.fullAbsent),
+    fullRange: classSource
+      ? classSource.fullRange
+      : (retry.fullRange ?? first.fullRange),
+    note: (retry.class ? [retry.note] : [retry.note, first.note])
+      .filter((note, index, notes) => note && notes.indexOf(note) === index)
+      .join(" "),
+  };
+};
+
 export function json(
   body: unknown,
   status = 200,
@@ -472,23 +536,53 @@ export function createApi({ connect = () => new Portal() }: ApiOptions = {}) {
    * 502 signs in again once and retries the same read on the fresh portal.
    * A second failure signs out or answers as-is instead of buying another
    * revival. One revival per failure, failure-path only, and it never
-   * signs anyone out on ambiguity.
+   * signs anyone out on ambiguity. A partial Student Search keeps the profile
+   * it already read when that revival or retry fails with anything but a 401.
    */
-  async function withRevival<T>(
+  async function withRevival(
     s: Session,
-    run: (portal: PortalPort) => Promise<T>
-  ): Promise<T> {
+    run: (portal: PortalPort) => Promise<object>
+  ): Promise<object> {
     try {
       return await run(s.portal);
     } catch (error) {
+      const partial = isFindPartial(error) ? error.reply : null;
       if (!(error instanceof HttpError)) {
         throw error;
       }
       if (error.status !== 401 && error.status !== 502) {
         throw error;
       }
-      await reauthenticate(s);
-      return await run(s.portal);
+      try {
+        await reauthenticate(s);
+        const retried = await run(s.portal);
+        if (!partial) {
+          return retried;
+        }
+        if (!isFindReply(retried)) {
+          throw new Error("Student Search retry returned an invalid reply.", {
+            cause: error,
+          });
+        }
+        return mergeFindReplies(partial, retried);
+      } catch (retryError) {
+        if (retryError instanceof HttpError && retryError.status === 401) {
+          throw retryError;
+        }
+        if (isFindPartial(retryError)) {
+          return partial
+            ? mergeFindReplies(partial, retryError.reply)
+            : retryError.reply;
+        }
+        if (partial) {
+          const warning = `The revival or retry did not complete: ${messageOf(retryError)}`;
+          return {
+            ...partial,
+            note: partial.note ? `${partial.note} ${warning}` : warning,
+          };
+        }
+        throw retryError;
+      }
     }
   }
   /** Answers every `/api/*` request. Shared by `server.ts` (prod) and the Vite dev plugin. */

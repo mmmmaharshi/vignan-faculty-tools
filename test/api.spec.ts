@@ -9,11 +9,13 @@ import { HTTP_TIMEOUT_MS } from "../server/portal-transport";
 import { SECURITY_HEADERS } from "../server/security-headers";
 import type {
   ClientSession,
+  FindReply,
   OptionsReply,
   RegisterRequest,
   SessionReply,
 } from "../shared/api";
 import { SESSION_HEADER } from "../shared/api";
+import { CLASS_PAGE } from "./support/routes-fake";
 
 test("every API answer carries the security headers", () => {
   const answer = json({ ok: true });
@@ -241,6 +243,361 @@ test.describe("handleApi", () => {
     expect((await after.json()) as SessionReply).toMatchObject({
       signedIn: true,
     });
+  });
+  test("an empty course list during Student Search still expires the session", async () => {
+    const revivals = { count: 0 };
+    const reader = readerWith({
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      courses: () => Promise.resolve([]),
+    });
+    const api = createApi({ connect: () => portalOf(reader, revivals) });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    expect(res.status).toBe(401);
+    expect(revivals.count, "the expired session gets one revival").toBe(1);
+  });
+  test("a partial Student Search is retried once before the profile-only answer", async () => {
+    const revivals = { count: 0 };
+    let attendanceCalls = 0;
+    const reader = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      classAttendance: () => {
+        attendanceCalls += 1;
+        return Promise.reject(new HttpError(502, "report unavailable"));
+      },
+    });
+    const api = createApi({ connect: () => portalOf(reader, revivals) });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.profile.cgpa).toBe("5.61");
+    expect(reply.student).toBeNull();
+    expect(reply.note).toMatch(/class attendance report/);
+    expect(attendanceCalls, "the original read and one retry").toBe(2);
+    expect(revivals.count, "one shared revival").toBe(1);
+  });
+  test("a successful retry drops the superseded partial warning", async () => {
+    const revivals = { count: 0 };
+    const first = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      register: () => Promise.resolve(ONE_ROW),
+      classAttendance: () =>
+        Promise.reject(new HttpError(502, "report unavailable")),
+    });
+    const retry = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      register: () => Promise.resolve(ONE_ROW),
+      classAttendance: () => Promise.resolve(ONE_CLASS_ROW),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? first : retry, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.student?.roll).toBe("21CS001");
+    expect(reply.note).not.toContain("Attendance could not be read");
+    expect(reply.note).not.toContain("report unavailable");
+    expect(revivals.count).toBe(1);
+  });
+  test("a failed revival still returns the profile already read", async () => {
+    const revivals = { count: 0 };
+    const reader = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      classAttendance: () =>
+        Promise.reject(new HttpError(502, "report unavailable")),
+    });
+    const api = createApi({
+      connect: () =>
+        portalOf(reader, revivals, new HttpError(502, "sign-in down")),
+    });
+    const session = stored();
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.profile.cgpa).toBe("5.61");
+    expect(reply.note).toContain("sign-in down");
+    expect(revivals.count).toBe(1);
+  });
+  test("a non-partial retry failure keeps the original profile", async () => {
+    const revivals = { count: 0 };
+    const first = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      classAttendance: () =>
+        Promise.reject(new HttpError(502, "report unavailable")),
+    });
+    const retry = readerWith({
+      studentProfile: () =>
+        Promise.reject(new HttpError(502, "profile retry unavailable")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? first : retry, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.profile.cgpa).toBe("5.61");
+    expect(reply.note).toContain("profile retry unavailable");
+    expect(revivals.count).toBe(1);
+  });
+  test("a partial retry keeps the class resolved by the first attempt", async () => {
+    const revivals = { count: 0 };
+    const first = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      classAttendance: () =>
+        Promise.reject(new HttpError(502, "report unavailable")),
+    });
+    const retry = readerWith({
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      courses: () =>
+        Promise.reject(new HttpError(502, "course list unavailable")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? first : retry, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.class?.branch.label).toBe("IT");
+    expect(reply.class?.section).toBeNull();
+    expect(reply.note).toMatch(/class attendance report/);
+    expect(reply.note).toMatch(/course list/i);
+    expect(revivals.count).toBe(1);
+  });
+  test("a sparse retry profile does not erase data from the first attempt", async () => {
+    const revivals = { count: 0 };
+    const first = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      classAttendance: () =>
+        Promise.reject(new HttpError(502, "report unavailable")),
+    });
+    const retry = readerWith({
+      studentProfile: () =>
+        Promise.resolve("<div id='divProfile_BioData'><table></table></div>"),
+      courses: () =>
+        Promise.reject(new HttpError(502, "course list unavailable")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? first : retry, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.profile.cgpa).toBe("5.61");
+    expect(reply.profile.phones).toEqual([
+      { label: "Mobile.No", number: "7661864881" },
+    ]);
+    expect(revivals.count).toBe(1);
+  });
+  test("a retained class keeps the stated class from the same attempt", async () => {
+    const revivals = { count: 0 };
+    const first = readerWith({
+      courses: () => Promise.resolve([COURSE]),
+      branchesAndSemesters: () =>
+        Promise.resolve([[opt("4", "IT")], [opt("3", "III Semester")]]),
+      sections: () => Promise.resolve([opt("12", "Section-1")]),
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      classAttendance: () =>
+        Promise.reject(new HttpError(502, "report unavailable")),
+    });
+    const retry = readerWith({
+      studentProfile: () =>
+        Promise.resolve(
+          CLASS_PAGE.replaceAll("IT", "CSE").replaceAll(
+            "Section-1",
+            "Section-9"
+          )
+        ),
+      courses: () =>
+        Promise.reject(new HttpError(502, "course list unavailable")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? first : retry, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.class?.branch.label).toBe("IT");
+    expect(reply.statedClass.branch).toBe("IT");
+    expect(reply.statedClass.section).toBe("Section-1");
+    expect(revivals.count).toBe(1);
+  });
+  test("a successful sparse retry keeps the first profile", async () => {
+    const revivals = { count: 0 };
+    const first = readerWith({
+      studentProfile: () => Promise.resolve(CLASS_PAGE),
+      courses: () =>
+        Promise.reject(new HttpError(502, "course list unavailable")),
+    });
+    const retry = readerWith({
+      studentProfile: () =>
+        Promise.resolve("<div id='divProfile_BioData'><table></table></div>"),
+      courses: () => Promise.resolve([COURSE]),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? first : retry, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.class).toBeNull();
+    expect(reply.profile.cgpa).toBe("5.61");
+    expect(reply.profile.phones).toEqual([
+      { label: "Mobile.No", number: "7661864881" },
+    ]);
+    expect(revivals.count).toBe(1);
+  });
+  test("two unresolved attempts keep the more complete stated class", async () => {
+    const revivals = { count: 0 };
+    const first = readerWith({
+      studentProfile: () =>
+        Promise.resolve(
+          CLASS_PAGE.replace(
+            "<tr><td>Semester</td><td>:</td><td>III</td></tr>",
+            ""
+          )
+        ),
+      courses: () =>
+        Promise.reject(new HttpError(502, "course list unavailable")),
+    });
+    const retry = readerWith({
+      studentProfile: () =>
+        Promise.resolve(
+          `<div id='divProfile_BioData'><table>
+            <tr><td>Semester</td><td>:</td><td>III</td></tr>
+            <tr><td>Section</td><td>:</td><td>Section-9</td></tr>
+          </table></div>`
+        ),
+      courses: () =>
+        Promise.reject(new HttpError(502, "course list unavailable")),
+    });
+    let built = 0;
+    const api = createApi({
+      connect: () => portalOf(built++ < 2 ? first : retry, revivals),
+    });
+    const session = await signIn(api);
+    revivals.count = 0;
+
+    const res = await post(
+      api,
+      "/api/find",
+      { roll: "21CS001", from: "01/10/2025", to: "22/10/2025" },
+      session
+    );
+    const reply = (await res.json()) as FindReply;
+    expect(res.status).toBe(200);
+    expect(reply.class).toBeNull();
+    expect(reply.statedClass).toEqual({
+      course: "B.Tech",
+      semester: "",
+      branch: "IT",
+      section: "Section-1",
+    });
+    expect(revivals.count).toBe(1);
   });
   test("an unknown course verdict on unposted is retried once over a fresh sign-in", async () => {
     const revivals = { count: 0 };

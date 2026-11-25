@@ -184,10 +184,16 @@ that student in, the row that class's own report holds for them (attendance and
 band), and the GPA, semesters, phone numbers and backlogs ECAP states for them.
 The class is read from the student's own page rather than picked, so a student
 not in the class still gets their profile, and a class the page names but the
-Portal's lists do not offer is a named answer rather than a guess. The attendance
-figure covers the window the app opens at, which the panel names. It reads a
-register through a deliberate ask, never through the cascade's refresh loop. See
-ADR 0025.
+Portal's lists do not offer is a named answer rather than a guess. The profile's
+name and roll number stay visible without an attendance row, and class fields the
+profile stated stay visible when a missing semester prevents resolution or its
+attendance report fails. Partial retry answers merge so an earlier resolved class
+is not lost. A class-list or attendance-report refusal spends one revival, then
+keeps the profile and names the missing attendance if the retry or revival also
+fails with anything except a 401. A no-row answer says when not every section was
+readable. The attendance figure covers the window the app opens at, which the
+panel names. It reads a register through a deliberate ask, never through the
+cascade's refresh loop. See ADR 0025.
 _Avoid_: Find student, lookup, search student
 
 **Home**:

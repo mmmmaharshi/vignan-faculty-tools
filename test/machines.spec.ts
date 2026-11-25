@@ -112,6 +112,8 @@ const foundClass = {
 };
 const foundReply = (over: Partial<FindReply> = {}): FindReply => ({
   profile: {
+    name: "",
+    roll: "",
     cgpa: "",
     credits: "",
     cgpaPercent: "",
@@ -119,6 +121,7 @@ const foundReply = (over: Partial<FindReply> = {}): FindReply => ({
     phones: [],
     backlogs: { rows: [], total: null, note: "" },
   },
+  statedClass: { course: "", semester: "", branch: "", section: "" },
   class: foundClass,
   window: { from: "01/07/2026", to: "31/07/2026" },
   student: student("1"),
@@ -249,6 +252,8 @@ test.describe("explicit state machines", () => {
     expect(searchScope(null), "no class, nothing to scope").toBeUndefined();
     const scope = searchScope({
       profile: {
+        name: "",
+        roll: "",
         cgpa: "",
         credits: "",
         cgpaPercent: "",
@@ -256,6 +261,7 @@ test.describe("explicit state machines", () => {
         phones: [],
         backlogs: { rows: [], total: null, note: "" },
       },
+      statedClass: { course: "", semester: "", branch: "", section: "" },
       class: {
         course: { value: "1", label: "B.Tech", title: "" },
         semester: { value: "1", label: "I Semester", title: "2025" },

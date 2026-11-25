@@ -12,7 +12,7 @@ import { sameRoll } from "../shared/portal-values.js";
 import { readRegister } from "./class-routes.js";
 import { endScan, scanStep, startScan } from "./find-scan.js";
 import type { SectionScan } from "./find-scan.js";
-import { HttpError, rethrowExpired } from "./http-error.js";
+import { HttpError, refusalOf, rethrowExpired } from "./http-error.js";
 import type { PortalReader } from "./portal-reader.js";
 import { parseStudentClass } from "./portal-student.js";
 import { resolveClass } from "./student-class.js";
@@ -22,6 +22,27 @@ import {
   readAbsences,
   readFullSemesterAbsences,
 } from "./student-routes.js";
+
+const PARTIAL_FIND = Symbol("partial-find");
+
+/** A profile that arrived before attendance failed. The API spends its one
+ *  revival on this error, then returns the carried reply if revival or retry
+ *  also fails with anything except a 401. */
+export class FindPartial extends HttpError {
+  readonly [PARTIAL_FIND] = true;
+
+  constructor(
+    readonly reply: FindReply,
+    cause: unknown
+  ) {
+    const refusal = refusalOf(cause);
+    super(refusal.status, refusal.message);
+    this.name = "FindPartial";
+  }
+}
+
+export const isFindPartial = (error: unknown): error is FindPartial =>
+  typeof error === "object" && error !== null && PARTIAL_FIND in error;
 
 /**
  * One roll number in, the student's class and attendance figure out.
@@ -47,24 +68,40 @@ export async function handleFind(
   }
   const html = await portal.studentProfile(roll);
   const profile = profilePageOrThrow(html);
-  const found = await resolveClass(portal, parseStudentClass(html), profile);
+  const statedClass = parseStudentClass(html);
+  const profileOnly = (note: string, from: string, to: string): FindReply => ({
+    profile,
+    statedClass,
+    class: null,
+    window: { from, to },
+    student: null,
+    fullAbsent: null,
+    fullRange: null,
+    note,
+  });
+  let found: Awaited<ReturnType<typeof resolveClass>>;
+  try {
+    found = await resolveClass(portal, statedClass, profile);
+  } catch (error) {
+    rethrowExpired(error);
+    const reason =
+      error instanceof Error
+        ? error.message
+        : "ECAP's class lists could not be read.";
+    throw new FindPartial(
+      profileOnly(`Class could not be resolved: ${reason}`, b.from, b.to),
+      error
+    );
+  }
   if (found.kind === "unstated") {
-    return {
-      profile,
-      class: null,
-      window: { from: b.from, to: b.to },
-      student: null,
-      fullAbsent: null,
-      fullRange: null,
-      note: found.reason,
-    };
+    return profileOnly(found.reason, b.from, b.to);
   }
   const resolved = found.value;
   // The class report states no dates, so its window is whatever we ask for.
   const window = { from: b.from, to: b.to };
-  // The scan owns the four ways this loop can end. Only a scan where no
-  // section answered and at least one refused owes a portal failure; a report
-  // that answered without the roll is the "No row" note instead.
+  // The scan owns the four ways this loop can end. A found row stops it; an
+  // answered report without the roll is the "No row" note, and only a scan where
+  // no section answered owes an attendance warning beside the profile.
   let scan: SectionScan<Student> = startScan();
   for (const section of resolved.sections) {
     const gridRequest = {
@@ -131,6 +168,7 @@ export async function handleFind(
       }
       return {
         profile: { ...profile, ...reads },
+        statedClass,
         class: {
           ...resolved.levels,
           section,
@@ -146,16 +184,35 @@ export async function handleFind(
   }
   const ended = endScan(scan);
   if (ended.kind === "refused") {
-    if (ended.error instanceof HttpError) {
-      throw ended.error;
-    }
-    throw new HttpError(
-      502,
-      "ECAP's class attendance report came back in an unexpected shape, so no figure could be read for this student."
+    const reason =
+      ended.error instanceof Error
+        ? ended.error.message
+        : "ECAP's class attendance report could not be read.";
+    throw new FindPartial(
+      {
+        profile,
+        statedClass,
+        class: {
+          ...resolved.levels,
+          section: null,
+          semesterInferred: resolved.semesterInferred,
+        },
+        window,
+        student: null,
+        fullAbsent: null,
+        fullRange: null,
+        note: `Attendance could not be read: ${reason}`,
+      },
+      ended.error
     );
   }
+  const incomplete =
+    scan.kind === "scanning" && scan.failure
+      ? " Not every section could be read, so this no-row answer is incomplete."
+      : "";
   return {
     profile,
+    statedClass,
     class: {
       ...resolved.levels,
       section: null,
@@ -165,6 +222,6 @@ export async function handleFind(
     student: null,
     fullAbsent: null,
     fullRange: null,
-    note: `No row for ${roll} in ${resolved.label} over ${window.from} to ${window.to}.`,
+    note: `No row for ${roll} in ${resolved.label} over ${window.from} to ${window.to}.${incomplete}`,
   };
 }

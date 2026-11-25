@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { handleFind } from "../server/find-routes";
+import { handleFind, isFindPartial } from "../server/find-routes";
 import { HttpError } from "../server/http-error";
 import type { PortalReader } from "../server/portal-reader";
 import {
@@ -9,6 +9,7 @@ import {
   readFullSemesterAbsences,
 } from "../server/student-routes";
 import { ALL_SUBJECTS } from "../shared/api";
+import type { FindReply } from "../shared/api";
 import { todayIST } from "../shared/portal-values";
 import {
   CLASS_PAGE,
@@ -29,6 +30,13 @@ import {
 const monthIndex = (date: string): number => {
   const [, m, y] = date.split("/").map(Number);
   return (y ?? 0) * 12 + (m ?? 0);
+};
+const partialReply = async (work: Promise<FindReply>): Promise<FindReply> => {
+  const result = await work.catch((error: unknown) => error);
+  if (!isFindPartial(result)) {
+    throw result;
+  }
+  return result.reply;
 };
 
 test.describe("the student profile handler", () => {
@@ -64,6 +72,8 @@ test.describe("the student profile handler", () => {
     });
     const reply = await handleStudentProfile(reader, { roll: "21CS001" });
     expect(reply).toEqual({
+      name: "",
+      roll: "",
       cgpa: "",
       credits: "",
       cgpaPercent: "",
@@ -412,16 +422,59 @@ test.describe("a roll number searched on its own", () => {
     // subjects table shows are not on this screen, and each is one ECAP read.
     expect(calls.subjectReports).toEqual([]);
   });
-  test("a report every section refused keeps its refusal", async () => {
-    // A class report no section could give is a portal failure, not a student
-    // with no absence: the search states the refusal rather than "No row".
-    const { reader } = fake({ studentProfile: CLASS_PAGE, classFails: true });
-    const failure = await handleFind(reader, {
+  test("a dead session while resolving the class still signs out", async () => {
+    const { reader } = fake({ studentProfile: CLASS_PAGE });
+    const expired: PortalReader = {
+      ...reader,
+      branchesAndSemesters: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleFind(expired, {
       roll: "21CS001",
       ...ask,
     }).catch((error: unknown) => error);
-    expect((failure as HttpError).status).toBe(502);
-    expect((failure as HttpError).message).toMatch(/class attendance report/);
+    expect((failure as HttpError).status).toBe(401);
+  });
+  test("a dead session in the attendance report still signs out", async () => {
+    const { reader } = fake({ studentProfile: CLASS_PAGE });
+    const expired: PortalReader = {
+      ...reader,
+      classAttendance: () => Promise.reject(new HttpError(401, "expired")),
+    };
+    const failure = await handleFind(expired, {
+      roll: "21CS001",
+      ...ask,
+    }).catch((error: unknown) => error);
+    expect((failure as HttpError).status).toBe(401);
+  });
+  test("a class-list refusal keeps the profile that already arrived", async () => {
+    const { reader } = fake({ studentProfile: CLASS_PAGE });
+    const partial: PortalReader = {
+      ...reader,
+      branchesAndSemesters: () =>
+        Promise.reject(new HttpError(502, "semester list unavailable")),
+    };
+    const reply = await partialReply(
+      handleFind(partial, { roll: "21CS001", ...ask })
+    );
+    expect(reply.class).toBeNull();
+    expect(reply.student).toBeNull();
+    expect(reply.profile.cgpa).toBe("5.61");
+    expect(reply.note).toMatch(/semester list unavailable/);
+  });
+  test("a report every section refused keeps its profile and names the failure", async () => {
+    // Attendance is only one part of the answer. The profile already arrived,
+    // so a report refusal must not replace it with a whole-request error.
+    const { reader } = fake({ studentProfile: CLASS_PAGE, classFails: true });
+    const reply = await partialReply(
+      handleFind(reader, {
+        roll: "21CS001",
+        ...ask,
+      })
+    );
+    expect(reply.profile.cgpa).toBe("5.61");
+    expect(reply.class?.section).toBeNull();
+    expect(reply.student).toBeNull();
+    expect(reply.note).toMatch(/class attendance report/);
   });
   test("a report that answers without the roll states no row, not an error", async () => {
     const { reader } = fake({
@@ -432,6 +485,28 @@ test.describe("a roll number searched on its own", () => {
     const reply = await handleFind(reader, { roll: "21CS001", ...ask });
     expect(reply.student).toBeNull();
     expect(reply.note).toMatch(/No row for 21CS001/);
+  });
+  test("a no-row answer warns when another section could not be read", async () => {
+    const { reader } = fake({
+      studentProfile: CLASS_PAGE.replace(
+        "<tr><td>Section</td><td>:</td><td>Section-1</td></tr>",
+        ""
+      ),
+      section: [opt("1", "Section-1"), opt("2", "Section-2")],
+      classAttendance: classGrid([["21CS999", String.raw`381\481`, "79.21"]]),
+    });
+    const partial: PortalReader = {
+      ...reader,
+      classAttendance: (p) =>
+        p.section?.value === "2"
+          ? Promise.reject(new HttpError(502, "section unavailable"))
+          : reader.classAttendance(p),
+    };
+    const reply = await handleFind(partial, { roll: "21CS001", ...ask });
+    expect(reply.student).toBeNull();
+    expect(reply.note).toMatch(/No row for 21CS001/);
+    expect(reply.note).toMatch(/incomplete|not every section/i);
+    expect(reply.profile.cgpa).toBe("5.61");
   });
   test("a Search result states the semester's class counts beside the profile", async () => {
     const { reader, calls } = fake({

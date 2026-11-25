@@ -331,6 +331,8 @@ const BIO_DATA = `<div id='tblReport'><h1 >BIO-DATA</h1><div id='divProfile_BioD
 test.describe("the student profile page", () => {
   test("reads the GPA line it states, and every number it filled", () => {
     expect(parseStudentProfile(BIO_DATA)).toEqual({
+      name: "MALLADI DHEERAJ",
+      roll: "24L31A0393",
       cgpa: "5.61",
       credits: "16/19",
       cgpaPercent: "48.55",
@@ -398,6 +400,8 @@ test.describe("the student profile page", () => {
 <td>Phone.No</td><td>:</td><td>6300113013</td>
 <td>Mobile.No</td><td>:</td><td>6300113013</td></tr></table>CGPA: 8.34 Credits:20.5/20.5 75.91 %</div>`;
     expect(parseStudentProfile(html)).toEqual({
+      name: "",
+      roll: "",
       cgpa: "8.34",
       credits: "20.5/20.5",
       cgpaPercent: "75.91",
@@ -409,6 +413,8 @@ test.describe("the student profile page", () => {
   test("a student with no past semesters keeps the page's own NA, and no percentage", () => {
     const html = `<div id='divProfile_BioData'><table><tr><td>Mobile.No</td><td>:</td><td>9182979977</td></tr></table>CGPA:&nbsp;NA&nbsp;&nbsp;Credits:0/0</div>`;
     expect(parseStudentProfile(html)).toEqual({
+      name: "",
+      roll: "",
       cgpa: "NA",
       credits: "0/0",
       cgpaPercent: "",

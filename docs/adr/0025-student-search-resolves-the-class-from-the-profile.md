@@ -50,3 +50,16 @@ Rules:
   panel prints exactly what it read, so a wrong class is visible rather than
   silent. If the page states no class at all, the tab degrades to profile-only.
 - No new icon library, no new CSS: the rail button uses Phosphor `MagnifyingGlass`.
+
+## Amendment — 2026-11-25
+
+The profile is a complete answer on its own. The reply carries the name and roll
+number the profile page states, and the panel shows that identity even when no
+attendance row exists. Class fields the profile stated stay visible even when a
+missing semester prevents class resolution, and a stated section stays visible
+when its attendance report fails. Partial retry answers merge so a class resolved
+on the first attempt is not lost. A class-list or attendance-report
+refusal after the profile has been read spends the shared one-time revival, then
+returns the profile with a warning if the retry or revival also fails with
+anything except a 401. A no-row answer says when not every section could be read.
+Only a 401 still ends the session.

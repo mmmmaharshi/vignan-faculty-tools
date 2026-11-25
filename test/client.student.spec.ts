@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 
 import {
   hold,
+  profileFor,
   profileRolls,
   releaseFind,
   releaseProfile,
@@ -129,6 +130,100 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible({ timeout: 15_000 });
     await expect(panel.getByText("CGPA 5.61")).toBeVisible();
     await expect(panel.getByText("Overall attendance")).toHaveCount(0);
+  });
+
+  test("Student Search keeps identity and profile when no semester resolves", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.route("**/api/find", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          profile: { ...profileFor("21C"), name: "C Student", roll: "21C" },
+          class: null,
+          statedClass: {
+            course: "B.Tech",
+            branch: "IT",
+            semester: "",
+            section: "IT-3A",
+          },
+          window: { from: "01/10/2026", to: "16/10/2026" },
+          student: null,
+          fullAbsent: null,
+          fullRange: null,
+          note: "ECAP's profile page does not state a semester, and its SGPA list states no completed semester to infer one from.",
+        }),
+      });
+    });
+    await page.getByRole("button", { name: "Student Search" }).click();
+    await page.getByLabel("Roll number").fill("21C");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+
+    expect(
+      await page.getByRole("row", { name: "Name C Student" }).count(),
+      "the profile's identity stays visible without an attendance row"
+    ).toBe(1);
+    await expect(page.getByRole("row", { name: "Roll No 21C" })).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "Course B.Tech" })
+    ).toBeVisible();
+    await expect(page.getByRole("row", { name: "Branch IT" })).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "Section (profile) IT-3A" })
+    ).toBeVisible();
+    await expect(page.getByText("CGPA NA", { exact: true })).toBeVisible();
+    await expect(
+      page.getByText("Student have no backlogs", { exact: true })
+    ).toBeVisible();
+    await expect(page.getByText(/does not state a semester/)).toBeVisible();
+  });
+
+  test("an attendance failure keeps the section stated by the profile", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    await page.route("**/api/find", async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          profile: { ...profileFor("21B"), name: "B Student", roll: "21B" },
+          statedClass: {
+            course: "B.Tech",
+            semester: "I Semester",
+            branch: "IT",
+            section: "Section-1",
+          },
+          class: {
+            course: { value: "1", label: "B.Tech", title: "" },
+            semester: { value: "1", label: "I Semester", title: "2025" },
+            branch: { value: "1", label: "IT", title: "" },
+            section: null,
+            semesterInferred: true,
+          },
+          window: { from: "01/10/2026", to: "16/10/2026" },
+          student: null,
+          fullAbsent: null,
+          fullRange: null,
+          note: "Attendance could not be read: report unavailable.",
+        }),
+      });
+    });
+    await page.getByRole("button", { name: "Student Search" }).click();
+    await page.getByLabel("Roll number").fill("21B");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+
+    await expect(
+      page.getByRole("row", { name: "Section (profile) Section-1" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row", { name: "Name B Student" })
+    ).toBeVisible();
+    await expect(page.getByRole("row", { name: "Roll No 21B" })).toBeVisible();
+    await expect(page.getByText("CGPA 5.61", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Attendance could not be read/)).toBeVisible();
   });
 
   test("a narrowed window still names the full semester's absences", async ({

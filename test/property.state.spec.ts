@@ -111,6 +111,8 @@ const sectionArb = record({ branch: string(), section: string() }).map(
 );
 const searched = (hasClass: boolean, hasRoll: boolean): FindReply => ({
   profile: {
+    name: "",
+    roll: "",
     cgpa: "",
     credits: "",
     cgpaPercent: "",
@@ -118,6 +120,7 @@ const searched = (hasClass: boolean, hasRoll: boolean): FindReply => ({
     phones: [],
     backlogs: { rows: [], total: null, note: "" },
   },
+  statedClass: { course: "", semester: "", branch: "", section: "" },
   class: hasClass
     ? {
         course: { value: "1", label: "B.Tech", title: "" },

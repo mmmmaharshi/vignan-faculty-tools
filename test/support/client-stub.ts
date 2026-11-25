@@ -332,6 +332,8 @@ export const backlogsFor = (roll: string): StudentBacklogs => {
 /** What ECAP states for one student. 21C's page says in words that there are
  *  none, 21A's says nothing about them, and 21B has a backlog to show. */
 export const profileFor = (roll: string): StudentProfile => ({
+  name: `${roll} Student`,
+  roll,
   cgpa: roll === "21C" ? "NA" : "5.61",
   credits: roll === "21C" ? "" : "16/19",
   cgpaPercent: roll === "21C" ? "" : "48.55",
@@ -391,6 +393,12 @@ export const findReply = (roll: string) => {
   }
   return {
     profile: profileFor(roll),
+    statedClass: {
+      course: "B.Tech",
+      semester: "I Semester",
+      branch: "IT",
+      section: student ? "Section-1" : "",
+    },
     class: {
       course: opt("1", "B.Tech"),
       semester: opt("1", "I Semester", "2025"),

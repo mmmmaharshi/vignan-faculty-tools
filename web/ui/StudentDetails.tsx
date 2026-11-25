@@ -218,6 +218,8 @@ export const StudentDetails = ({
   const backlogTotal = profile?.backlogs.total ?? null;
   const backlogNote = profile?.backlogs.note ?? "";
   const months = profile?.months ?? [];
+  const identityName = student?.name || profile?.name || "";
+  const identityRoll = student?.roll || profile?.roll || "";
   const cgpaShown = Boolean(cgpa || credits);
   const hasGpa = cgpaShown || sgpa.length > 0;
   /** The semester whose subject grades the modal names, or null when shut. */
@@ -230,85 +232,84 @@ export const StudentDetails = ({
       mt={inline ? "xl" : undefined}
       mb={inline ? "md" : undefined}
     >
-      {student ? (
-        <>
-          <Table striped withTableBorder tabularNums>
-            <Table.Tbody>
+      {identityName || identityRoll || scope?.length ? (
+        <Table striped withTableBorder tabularNums>
+          <Table.Tbody>
+            {identityName ? (
               <Table.Tr>
                 <Table.Td c="dimmed">
                   <Text size="sm">Name</Text>
                 </Table.Td>
                 <Table.Td ta="right">
                   <Text size="sm" fw={600}>
-                    {displayName(student.name)}
+                    {displayName(identityName)}
                   </Text>
                 </Table.Td>
               </Table.Tr>
+            ) : null}
+            {identityRoll ? (
               <Table.Tr>
                 <Table.Td c="dimmed">
                   <Text size="sm">Roll No</Text>
                 </Table.Td>
                 <Table.Td ta="right">
                   <Text ff="monospace" size="sm">
-                    {student.roll}
+                    {identityRoll}
                   </Text>
                 </Table.Td>
               </Table.Tr>
-              {/* The class the figure belongs to, one labeled row each:
-                  the caller names every piece, so no row goes anonymous. */}
-              {scope?.map(({ label, value }) => (
-                <Table.Tr key={label}>
-                  <Table.Td c="dimmed">
-                    <Text size="sm">{label}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text c="dimmed" size="xs">
-                      {value}
-                    </Text>
-                  </Table.Td>
-                </Table.Tr>
-              )) ?? null}
-            </Table.Tbody>
-          </Table>
-          {/* A figure the Portal did not give is an absence, not a zero, so its
-              row is left out rather than printed as a dash — and the figures
-              ride the same rows the table shows, subject beside overall. */}
-          {(student.pct !== null && student.pct !== undefined) ||
-          student.attendedOfHeld !== "" ||
-          carriesOverall(student) ? (
-            <Table striped withTableBorder tabularNums>
-              <Table.Tbody>
-                {(student.pct !== null && student.pct !== undefined) ||
-                student.attendedOfHeld !== "" ? (
-                  <FigureRow
-                    label="Subject attendance"
-                    cell={student.attendedOfHeld}
-                    pct={student.pct}
-                    {...badgeFor(
-                      student.critical,
-                      student.irregular,
-                      "subject"
-                    )}
-                  />
-                ) : null}
-                {/* The count lives in the table's Attended / Total column; the
-                    panel repeats only the figure and its band. */}
-                {carriesOverall(student) ? (
-                  <FigureRow
-                    label="Overall attendance"
-                    cell=""
-                    pct={student.overallPct}
-                    {...badgeFor(
-                      student.overallCritical,
-                      student.overallIrregular,
-                      "overall"
-                    )}
-                  />
-                ) : null}
-              </Table.Tbody>
-            </Table>
-          ) : null}
-        </>
+            ) : null}
+            {/* The class the figure belongs to, one labeled row each:
+                the caller names every piece, so no row goes anonymous. */}
+            {scope?.map(({ label, value }) => (
+              <Table.Tr key={label}>
+                <Table.Td c="dimmed">
+                  <Text size="sm">{label}</Text>
+                </Table.Td>
+                <Table.Td ta="right">
+                  <Text c="dimmed" size="xs">
+                    {value}
+                  </Text>
+                </Table.Td>
+              </Table.Tr>
+            )) ?? null}
+          </Table.Tbody>
+        </Table>
+      ) : null}
+      {/* A figure the Portal did not give is an absence, not a zero, so its
+          row is left out rather than printed as a dash — and the figures
+          ride the same rows the table shows, subject beside overall. */}
+      {student &&
+      ((student.pct !== null && student.pct !== undefined) ||
+        student.attendedOfHeld !== "" ||
+        carriesOverall(student)) ? (
+        <Table striped withTableBorder tabularNums>
+          <Table.Tbody>
+            {(student.pct !== null && student.pct !== undefined) ||
+            student.attendedOfHeld !== "" ? (
+              <FigureRow
+                label="Subject attendance"
+                cell={student.attendedOfHeld}
+                pct={student.pct}
+                {...badgeFor(student.critical, student.irregular, "subject")}
+              />
+            ) : null}
+            {/* The count lives in the table's Attended / Total column; the
+                panel repeats only the figure and its band. */}
+            {carriesOverall(student) ? (
+              <FigureRow
+                label="Overall attendance"
+                cell=""
+                pct={student.overallPct}
+                {...badgeFor(
+                  student.overallCritical,
+                  student.overallIrregular,
+                  "overall"
+                )}
+              />
+            ) : null}
+          </Table.Tbody>
+        </Table>
       ) : null}
       {/* The semester's own class counts and the way back to the line. The
           totals read answers with the profile, so no block shows until it

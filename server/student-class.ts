@@ -2,6 +2,7 @@ import type { StudentProfile } from "../shared/api.js";
 import { matchOption } from "../shared/portal-values.js";
 import { classResolution, unstatedReason } from "./class-resolution.js";
 import type { ClassResolution, ClassSemester } from "./class-resolution.js";
+import { requireCourses } from "./portal-liveness.js";
 import type { PortalReader } from "./portal-reader.js";
 import type { StatedClass } from "./portal-student.js";
 
@@ -56,7 +57,7 @@ export async function resolveClass(
   stated: StatedClass,
   profile: StudentProfile
 ): Promise<ClassResolution> {
-  const course = matchOption(stated.course, await portal.courses());
+  const course = matchOption(stated.course, await requireCourses(portal));
   if (!course) {
     return {
       kind: "unstated",
