@@ -294,6 +294,7 @@ test.describe("the mobile student drawer", () => {
     const path = new URL(page.url()).pathname;
     const historyLength = await page.evaluate(() => window.history.length);
     const surface = await drawer.evaluateHandle((element) => element);
+    await expectDrawerOpen(drawer);
     const box = await boxOf(surface);
     await nativeSwipe(page, box, -180, 0, true);
     await expect(drawer).toBeHidden({ timeout: 2000 });
@@ -327,6 +328,7 @@ test.describe("the mobile student drawer", () => {
     page,
   }) => {
     const drawer = await openDrawer(page);
+    await expectDrawerOpen(drawer);
     const body = await drawer.evaluateHandle((element) => element);
     const box = await boxOf(body);
     await nativeSwipe(page, box, 0, -180, true);
