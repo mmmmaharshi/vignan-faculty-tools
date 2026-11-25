@@ -35,6 +35,14 @@ the register it lands on is the section-wide one and the user narrows from there
   screen is irrelevant to whether a section can be saved.
 - A save missing any of the four is dropped rather than offered blank.
 
+## Amendment — 2026-11-25
+
+Opening a card remains one action on one saved section, and it now loads that
+section's register as well as filling the four levels. Saving alone still reads
+no register. `Save this section` is disabled while the selected section is
+already on a card; choosing a subject inside it narrows the table and does not
+make the section saveable again.
+
 ## Consequences
 
 - One card per section, which is what the user asked for. Re-saving moves it to

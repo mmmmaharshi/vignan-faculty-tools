@@ -151,10 +151,7 @@ test.describe("the app's own data layer", () => {
     expect(state.optionsCalls, "settle once").toBe(5);
     await page.getByRole("button", { name: "Refresh" }).click();
     await expect.poll(() => state.optionsCalls, { timeout: 15_000 }).toBe(6);
-    expect(
-      state.registerCalls,
-      "the click stays the register's only fetch"
-    ).toBe(0);
+    expect(state.registerCalls, "a refresh fetches no register").toBe(0);
   });
 
   test("a period box opens whose class it is", async ({ page }) => {

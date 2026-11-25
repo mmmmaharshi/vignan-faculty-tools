@@ -24,13 +24,19 @@ The dashboard view is memory only. Every load starts with an empty selection,
 the default date window, no ticked bars and no click, so `/dashboard` always
 shows the form and no table. The cascade still settles on boot and re-reads the
 options, so a renamed subject or a new section corrects itself; nothing in that
-path fetches a register. `Load register` remains the only way `/api/register` is
-ever fetched.
+path fetches a register. `Load register` and opening a saved section are the
+deliberate ways `/api/register` is fetched.
 
 No student rows are written to localStorage. The server keeps no session, so
 the credential and the ECAP password still live there by ADR 0024, and the
 timetable's own periods and the remembered semester starts remain as Portal
 facts. Those are not student data.
+
+## Amendment — 2026-11-25
+
+Opening a saved section now fetches the register it names, beside `Load
+register`. Both are deliberate asks; a cascade settle, a refresh and a reload
+still fetch none. The empty reload and the no-student-rows rule are unchanged.
 
 ## Consequences
 

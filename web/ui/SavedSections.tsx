@@ -8,8 +8,8 @@ import type { SavedSectionCard } from "../register/saved-sections";
 
 /**
  * The saved sections, as cards above the class form. Opening one fills the four
- * levels and lands on the section-wide register: the card is a shortcut to the
- * form, not a request.
+ * levels and loads the section-wide register: the card is both the form filled
+ * and the register it names.
  */
 export const SavedSections = ({
   classes,

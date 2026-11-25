@@ -65,8 +65,7 @@ Failure rules: a probe that fails changes nothing — the register on screen is
 complete without it — except a 401, which still ends the session through the
 shared sweep, because a dead session is a dead session however it was found.
 `test/smoke.spec.ts` still counts `/api/register` POSTs on the wire unchanged:
-the probe travels on its own path, so "Load register is the only way a register
-is ever fetched" survives the rewrite.
+the probe travels on its own path, so only a deliberate ask fetches a register.
 
 ## Consequences
 

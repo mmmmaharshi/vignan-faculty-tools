@@ -36,6 +36,10 @@ export type SavedSectionCard = {
  */
 export type SavedSection = Sel & { sectionLabel?: string };
 const STORE_PREFIX = "section-";
+/** A selection's section identity: the subject is always the section-wide one,
+ *  so a subject pick inside a saved section is not a different class. */
+export const sectionKeyOf = (sel: Sel): string =>
+  selKeyOf({ ...sel, subject: ALL_SUBJECTS.value });
 /** A stored entry becomes a section only if all five values are strings; the
  *  subject it was saved under is replaced by the section-wide one, because that
  *  is what a card opens. Anything else is dropped rather than half-read. A

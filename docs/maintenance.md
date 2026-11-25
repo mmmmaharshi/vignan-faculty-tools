@@ -87,7 +87,7 @@ the pointers in AGENTS.md name when to do so.
   **All subjects** path it *is* the register, so an empty one is a named 502. The
   two paths have opposite failure rules on purpose.
 
-- **`Load register` is still the only thing that fetches a register.** The class
+- **Only `Load register` or opening a saved section fetches a register.** The class
   report is read *inside* that one request, so the smoke test that counts
   `/api/register` POSTs on the wire is unchanged by all of this.
 
@@ -217,10 +217,12 @@ the pointers in AGENTS.md name when to do so.
   is why `sgpaBySemester` locates the column first; the semester name comes from
   the `Semester` span above that table, not from the last span on the page.
 
-- **A saved section is four values, and no Portal call.** `Save this section`
-  writes course, semester, branch and section; a card above the class form fills
-  those four and lands on the section-wide register (`ALL SUBJECTS`), so the user
-  narrows from there. One card per section, never one per subject: a subject says
+- **A saved section is four values.** `Save this section` writes course, semester,
+  branch and section; opening a card fills those four and loads the section-wide
+  register (`ALL SUBJECTS`), so the user narrows from there. Saving alone reads
+  nothing. Once the selected section is already on a card, the Save button stays
+  disabled: a subject pick narrows that section, it does not make a second class.
+  One card per section, never one per subject: a subject says
   which register to read, not which section the user works in. There is no
   dashboard and no per-subject fetch — one was built and removed, and ADR 0016
   records why. **A Section has no statistics of its own**, which is why the

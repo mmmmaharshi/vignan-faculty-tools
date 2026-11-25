@@ -19,7 +19,7 @@ import type {
  *
  * `smoke.spec.ts` drives the real Portal, because the Portal's own wire is not
  * something a stub can vouch for. This is the other half: the app's own fetch
- * layer — the keys, the click-only register, the probe, the sweep on sign-out —
+ * layer — the keys, the deliberate register, the probe, the sweep on sign-out —
  * exercised in a browser, where SWR's behaviour actually happens. The API is
  * stubbed in the *browser*, so nothing here reaches ECAP.
  */

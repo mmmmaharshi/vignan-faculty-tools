@@ -53,6 +53,7 @@ import {
 } from "../register/cascade";
 import type { Level, Sel } from "../register/cascade";
 import { partialOf } from "../register/cascade-run";
+import type { CascadeOutcome } from "../register/cascade-run";
 import { createCascadeRun } from "../register/cascade-run-state";
 import { useDashboardView } from "../register/dashboard-view";
 import { useOptionsChain } from "../register/options-chain";
@@ -452,7 +453,7 @@ const App = (): React.JSX.Element => {
    *  produced it, so a version closing over `sel` or `opts` would ask the Portal
    *  about the selection before last. */
   const runRefresh = useCallback(
-    async (seed: Sel, known: OptionsReply) => {
+    async (seed: Sel, known: OptionsReply): Promise<CascadeOutcome | null> => {
       const signal = cascadeRun.current.start();
       // A new settle is a new class context: a range typed for the last one
       // no longer guards From against the settle-time snap.
@@ -478,7 +479,7 @@ const App = (): React.JSX.Element => {
       // superseded while it settled is dropped here: the newer one is the one on
       // screen.
       if (!outcome || !cascadeRun.current.finish(signal)) {
-        return;
+        return null;
       }
       setSel(outcome.sel);
       setOpts(outcome.opts);
@@ -495,6 +496,7 @@ const App = (): React.JSX.Element => {
           ? f
           : { ...f, subjectBars: kept };
       });
+      return outcome;
     },
     [triggerCascade, setSel, setFilter, setRangeEdited]
   );
@@ -505,23 +507,9 @@ const App = (): React.JSX.Element => {
   const retryOptions = useCallback(() => {
     void runRefresh(sel, opts);
   }, [runRefresh, sel, opts]);
-  /** The saved sections: the cards above the class form, and the three actions
-   *  on them. App keeps the list itself, because signing out clears it. */
-  const savedSectionsView = useSavedSections({
-    userId,
-    sel,
-    opts,
-    savedList,
-    registerData: register.data ?? null,
-    setSaved,
-    setSel,
-    runRefresh,
-  });
-  const { sectionChosen, cards: savedSectionCards } = savedSectionsView;
   /** Re-reads the screen in place: server data revalidates, and the dashboard
    *  re-settles its cascade too — the selection stays, so unlike a reload
-   *  nothing the picker holds is lost. The register is never re-read here:
-   *  the click stays its only fetch. */
+   *  nothing the picker holds is lost. A refresh or a settle fetches no register. */
   const refreshScreen = async (): Promise<void> => {
     if (refreshing || busy) {
       return;
@@ -538,10 +526,13 @@ const App = (): React.JSX.Element => {
       setRefreshing(false);
     }
   };
-  const loadRegister = () => {
+  /** The register request for one settled selection. Values are passed because
+   *  an Open settles its selection before React commits the render for it. */
+  const loadReady = gate === "ready";
+  const askRegister = (askedSel: Sel, askedOpts: OptionsReply) => {
     // The button is busy while the gate holds, so this is unreachable through
     // it; it stays as the rule's second half for any other caller.
-    if (gate === "finding-start") {
+    if (!loadReady) {
       return;
     }
     setFormNote(null);
@@ -549,7 +540,7 @@ const App = (): React.JSX.Element => {
       setFormNote({ kind: "warning", text: "Choose a date range." });
       return;
     }
-    const chosen = chosenLevels(opts, sel);
+    const chosen = chosenLevels(askedOpts, askedSel);
     if (!chosen.ok) {
       setFormNote({
         kind: "warning",
@@ -580,6 +571,25 @@ const App = (): React.JSX.Element => {
     // The range someone asked for is the one worth opening at again.
     rememberRangeStart(range.from);
   };
+  /** The saved sections: the cards above the class form, and the three actions
+   *  on them. App keeps the list itself, because signing out clears it. */
+  const savedSectionsView = useSavedSections({
+    userId,
+    sel,
+    opts,
+    savedList,
+    registerData: register.data ?? null,
+    setSaved,
+    setSel,
+    runRefresh,
+    loadReady,
+    loadRegister: askRegister,
+  });
+  const {
+    sectionChosen,
+    currentSaved,
+    cards: savedSectionCards,
+  } = savedSectionsView;
   /** A roll number is the whole ask: the class comes from the student's own ECAP
    *  page, and the window from where the app opens at. Nothing is fetched per
    *  keystroke — the form submits, and one search is one read. */
@@ -774,10 +784,10 @@ const App = (): React.JSX.Element => {
   const clearSavedSection = (target: Sel) => {
     savedSectionsView.clear(target);
   };
-  /** Opening a saved section fills its four levels and the section-wide subject:
-   *  no register is fetched, and Load register stays a decision. */
+  /** Opening a saved section fills its four levels and loads the register it
+   *  names, so the card is one action rather than two. */
   const applySavedSection = (target: Sel) => {
-    savedSectionsView.apply(target);
+    void savedSectionsView.apply(target);
   };
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) {
@@ -796,14 +806,14 @@ const App = (): React.JSX.Element => {
       filterNote={filterNote}
       onSelect={onSelectLevel}
       onRange={onRangeChange}
-      onLoad={loadRegister}
+      onLoad={() => askRegister(sel, opts)}
       onRetryOptions={
         optionsError && !optionsLoading ? retryOptions : undefined
       }
       trailing={
         <Button
           onClick={saveSection}
-          disabled={!sectionChosen || !userId.trim()}
+          disabled={!sectionChosen || currentSaved || !userId.trim()}
           leftSection={<FloppyDisk size={18} aria-hidden />}
         >
           Save this section

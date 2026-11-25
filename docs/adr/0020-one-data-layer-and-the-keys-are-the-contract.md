@@ -42,10 +42,10 @@ discipline:
 
 - **A key is a cache entry, so anything the user must ask for again on purpose
   gets a key that changes per ask.** The register is `[REGISTER_PATH, request,
-  attempt]`, where `attempt` is a counter a click increments. A key SWR has not
-  seen is a load, so a repeat click is not a cache hit; and a register that lands
-  after a newer one answers to a key that nothing is showing, so **the newer
-  register is the one on screen** — ADR 0015's click-only rule and the
+  attempt]`, where `attempt` is a counter a deliberate load increments. A key SWR
+  has not seen is a load, so a repeat click is not a cache hit; and a register
+  that lands after a newer one answers to a key that nothing is showing, so **the
+  newer register is the one on screen** — the deliberate-ask rule and the
   "newer refresh always wins" rule, in one mechanism.
 - **The option chain is one key, not five.** Its requests depend on each other, so
   the thing worth caching is a *run*, and a run is named by the selection it
@@ -97,7 +97,7 @@ Alternatives considered:
   a fake fetcher, including both abort checks.
 - **The layer is tested where it runs, and without a credential.** `client.spec.ts`
   serves the built app and answers `/api/*` in the browser, so the keys, the
-  click-only register, the probe and the sweep are exercised in a real browser.
+  deliberate register, the probe and the sweep are exercised in a real browser.
   A stub cannot vouch for what the *Portal* sends — that stays `smoke.spec.ts`'s
   job — but this is the first check of the app's own fetch layer, and it caught a
   probe test of its own that could not fail.

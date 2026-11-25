@@ -548,6 +548,51 @@ test.describe("the app's own data layer", () => {
     ).toBeVisible({ timeout: 5000 });
   });
 
+  test("opening a saved section loads its register and disables Save", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.evaluate(() => localStorage.removeItem("section-faculty"));
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+
+    const save = page.getByRole("button", { name: "Save this section" });
+    await expect(save, "an unsaved class can be saved").toBeEnabled();
+    await save.click();
+    await expect(
+      page.getByRole("button", { name: "Open" }).first(),
+      "the deliberate save writes the card before any register"
+    ).toBeVisible();
+    expect(state.registerCalls, "saving alone reads no register").toBe(0);
+
+    await page.getByRole("button", { name: "Open" }).first().click();
+    await expect(
+      page.locator("thead ~ tbody tr"),
+      "opening the card loads its register"
+    ).toHaveCount(3, { timeout: 15_000 });
+    expect(state.registerCalls, "the open is the one register read").toBe(1);
+    await expect(
+      save,
+      "a class already on a saved card cannot be saved again"
+    ).toBeDisabled();
+
+    await page.getByRole("combobox", { name: "Subject" }).click();
+    await page.getByRole("option", { name: "MFCS", exact: true }).click();
+    await expect(
+      save,
+      "a subject pick inside the saved section keeps it unsaveable"
+    ).toBeDisabled();
+
+    await page.getByRole("button", { name: "Forget" }).first().click();
+    await expect(
+      save,
+      "forgetting the card makes the class saveable"
+    ).toBeEnabled();
+  });
+
   test("opening a saved section lands on all subjects, whatever subject was chosen", async ({
     page,
   }) => {
@@ -596,16 +641,23 @@ test.describe("the app's own data layer", () => {
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
+    await expect(page.locator("thead ~ tbody tr")).toHaveCount(3, {
+      timeout: 15_000,
+    });
     const callsAfterFirstOpen = state.optionsCalls;
     expect(
       callsAfterFirstOpen,
       "the first open asked the chain"
     ).toBeGreaterThan(0);
+    const registersAfterFirstOpen = state.registerCalls;
 
     await page.getByRole("button", { name: "Open" }).first().click();
     await expect
       .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
       .toBe("ALL SUBJECTS");
+    await expect
+      .poll(() => state.registerCalls, { timeout: 15_000 })
+      .toBe(registersAfterFirstOpen + 1);
     expect(
       state.optionsCalls,
       "a second open settles from the cache, with no Portal call"

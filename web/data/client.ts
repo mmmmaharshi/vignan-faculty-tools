@@ -349,8 +349,8 @@ export const forgetServerData = async (): Promise<void> => {
 };
 /** Every screen read a refresh may re-read: each read hook's path, named
  *  once here so a new endpoint joins the refresh by joining this list. The
- *  register is deliberately absent — the click stays its only fetch
- *  (ADR 0015) — and so are the login, logout, and options-chain mutation
+ *  register is deliberately absent — only a click or an opened saved section
+ *  fetches it — and so are the login, logout, and options-chain mutation
  *  keys, which hold no screen read to revalidate. */
 const REFRESHABLE_PATHS: ReadonlySet<string> = new Set([
   SESSION_PATH,
@@ -370,7 +370,7 @@ const isRefreshableKey = (
 /**
  * Re-reads what the screens show, in place: every path in
  * `REFRESHABLE_PATHS` revalidates. A register stays a decision (ADR 0015),
- * so the click is still the only way one is ever fetched. The cascade
+ * so only a click or an opened saved section fetches one. The cascade
  * re-runs from its own caller beside this, where a picker is on screen to
  * settle it.
  */

@@ -1,13 +1,15 @@
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import type { OptionsReply, RegisterReply } from "../../shared/api";
 import { selectionAfter } from "./cascade";
 import type { Sel } from "./cascade";
+import type { CascadeOutcome } from "./cascade-run";
 import {
   abbreviate,
   forgetSection,
   rememberSection,
   savedSections,
+  sectionKeyOf,
 } from "./saved-sections";
 import type { SavedSection } from "./saved-sections";
 
@@ -33,7 +35,14 @@ export function useSavedSections(setup: {
     value: { userId: string; list: Array<SavedSection> } | null
   ) => void;
   setSel: (target: Sel) => void;
-  runRefresh: (seed: Sel, known: OptionsReply) => Promise<void>;
+  runRefresh: (
+    seed: Sel,
+    known: OptionsReply
+  ) => Promise<CascadeOutcome | null>;
+  /** True once the class form can take a register request for the settled class. */
+  loadReady: boolean;
+  /** Loads the register for a selection the cascade has just settled. */
+  loadRegister: (sel: Sel, opts: OptionsReply) => void;
 }) {
   const {
     userId,
@@ -44,12 +53,20 @@ export function useSavedSections(setup: {
     setSaved,
     setSel,
     runRefresh,
+    loadReady,
+    loadRegister,
   } = setup;
   const sectionChosen =
     Boolean(sel.course) &&
     Boolean(sel.semester) &&
     Boolean(sel.branch) &&
     Boolean(sel.section);
+  /** The saved subject is always section-wide, so a subject pick inside an
+   *  already saved section does not make it a second saveable class. */
+  const currentSaved = Boolean(
+    sectionChosen &&
+    savedList?.some((s) => sectionKeyOf(s) === sectionKeyOf(sel))
+  );
   const remember = useCallback(() => {
     if (!userId || !sectionChosen) {
       return;
@@ -62,7 +79,8 @@ export function useSavedSections(setup: {
     setSaved({ userId, list: savedSections(userId) });
   }, [userId, sectionChosen, sel, opts, setSaved]);
   /** Persist the section only once its register has actually loaded. rememberSection
-   *  dedupes, so re-loading the same section just moves it to the front. */
+   *  dedupes, so re-loading the same section just moves it to the front. An
+   *  already saved section is left alone: an Open must not rewrite the card order. */
   const lastSavedRegister = useRef<RegisterReply | null>(null);
   useEffect(() => {
     if (!userId || !sectionChosen || !registerData) {
@@ -72,8 +90,10 @@ export function useSavedSections(setup: {
       return;
     }
     lastSavedRegister.current = registerData;
-    remember();
-  }, [userId, sectionChosen, registerData, remember]);
+    if (!currentSaved) {
+      remember();
+    }
+  }, [userId, sectionChosen, currentSaved, registerData, remember]);
   const clear = useCallback(
     (target: Sel) => {
       forgetSection(userId, target);
@@ -81,15 +101,49 @@ export function useSavedSections(setup: {
     },
     [userId, setSaved]
   );
-  /** Opening a saved section fills its four levels with the section-wide subject:
-   *  no register is fetched, and Load register stays a decision. */
+  /** Opening a saved section fills its four levels with the section-wide subject
+   *  and loads the register it names. Values come from the settled run because
+   *  React has not committed that selection yet. */
+  const [pendingOpen, setPendingOpen] = useState<{
+    outcome: CascadeOutcome;
+    userId: string;
+  } | null>(null);
   const apply = useCallback(
-    (target: Sel) => {
+    async (target: Sel) => {
       setSel(target);
-      void runRefresh(selectionAfter(target, "section", target), opts);
+      const outcome = await runRefresh(
+        selectionAfter(target, "section", target),
+        opts
+      );
+      if (outcome) {
+        setPendingOpen({ outcome, userId });
+      }
     },
-    [setSel, runRefresh, opts]
+    [setSel, runRefresh, opts, userId]
   );
+  /** The register waits for the gate, so an unremembered class is loaded at the
+   *  semester start the settle walk names, not at the month it is about to
+   *  replace. A moved selection and the previous session both cancel the open. */
+  /* oxlint-disable react/set-state-in-effect */
+  useEffect(() => {
+    if (!pendingOpen) {
+      return;
+    }
+    if (!userId || pendingOpen.userId !== userId) {
+      setPendingOpen(null);
+      return;
+    }
+    if (!loadReady) {
+      return;
+    }
+    if (sectionKeyOf(sel) !== sectionKeyOf(pendingOpen.outcome.sel)) {
+      setPendingOpen(null);
+      return;
+    }
+    setPendingOpen(null);
+    loadRegister(pendingOpen.outcome.sel, pendingOpen.outcome.opts);
+  }, [pendingOpen, userId, loadReady, sel, loadRegister]);
+  /* oxlint-enable react/set-state-in-effect */
   /** Each card's names come from the cascade wherever this session has offered
    *  them, falling back to the label saved with the card — `opts` holds only the
    *  branch on screen, so a card from another branch has no name here. */
@@ -109,5 +163,5 @@ export function useSavedSections(setup: {
           .join(" · "),
       };
     }) ?? [];
-  return { sectionChosen, cards, save: remember, apply, clear };
+  return { sectionChosen, currentSaved, cards, save: remember, apply, clear };
 }

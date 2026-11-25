@@ -50,7 +50,7 @@ fills the five dropdowns.** `Save this class` stores course, semester, branch,
 section and subject — and the Subject's label as a display cache, added by
 amendment 3 — and no dates. Clicking a card fills all five and reads nothing:
 `Load register` stays a decision, and no register is fetched by saving or by
-opening a card.
+opening a card. (Amendment 4 changes the last clause.)
 
 Any number of classes may be saved, one per subject taught.
 
@@ -138,11 +138,21 @@ is the failure the line above the table exists to prevent, traded against a scre
 full of unnamed cards, and the trade is taken because the stale name is corrected
 on the next open while the missing name is corrected never.
 
+### Amendment 4: opening a saved section loads it
+
+Opening a card still lands on the section-wide subject, and it now loads that
+section's register in the same action. The saved unit since ADR 0030 is the
+section: four values, with the subject reset to `ALL SUBJECTS`. Saving alone
+reads no register. `Save this class` is disabled while the selected class
+already has a card; choosing a subject inside it narrows the register and does
+not make the class saveable again.
+
 ## Consequences
 
-- **`/api/register` is still reached only by a click.** The original Consequence
-  — that the click test had to be rewritten because the dashboard made fetching
-  automatic — no longer applies. `test/smoke.spec.ts` still pins it, unchanged.
+- **`/api/register` is still reached only by a deliberate ask.** The original
+  Consequence — that the click test had to be rewritten because the dashboard
+  made fetching automatic — no longer applies. `test/smoke.spec.ts` pins that no
+  refresh or reload fetches one.
 - **The user name is persisted.** The client cannot key `localStorage` without
   knowing who is signed in, and it never could after a cold load: `setUserId` is
   called in exactly two places, and neither is a restore. The ECAP user name

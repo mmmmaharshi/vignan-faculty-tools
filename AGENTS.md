@@ -384,9 +384,10 @@ you touch the cascade:
   options are re-read, so a renamed subject still corrects itself. A link to
   `/dashboard` from elsewhere shows the same empty form, which is what keeps a
   register out of a shared URL (ADR 0032).
-- **`Load register` is the only way `/api/register` is ever *fetched*.** Nothing
-  on the tail of the refresh loop asks for one, and a reload neither fetches nor
-  restores one. The smoke test pins this by counting requests on the wire.
+- **Only a deliberate ask fetches `/api/register`: `Load register` or opening a
+  saved section.** Nothing on the tail of the refresh loop asks for one, and a
+  reload neither fetches nor restores one. The smoke test pins the refresh loop
+  by counting requests on the wire.
 - **The selection reaches the request as a value, never through state.** The
   cascade computes a selection before React commits a render for it, so a version
   closing over `sel` would send the previous one. That bug shipped once and said
@@ -438,7 +439,8 @@ code today:
   password is bare AES ciphertext, not `Salted__`. `Bun.fetch` drops
   `Set-Cookie`, so redirects are followed by hand.
 - **Figures are read, never computed.** The one counted cell is the Cumulative
-  grid's legend. `Load register` is the only fetch; a reload fetches none.
+  grid's legend. Only `Load register` or an opened saved section fetches a
+  register; a reload fetches none.
 - **Session.** End it only through `endSession`. A 401 and an empty course list
   evict; a 502 does not. One URL writer, no state in the URL. No student rows
   in localStorage; the credential is in the clear by decision.
@@ -570,10 +572,10 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
 
 - **A key is a cache entry, so anything the user must ask for again on purpose
   gets a key that changes per ask.** The register is `[REGISTER_PATH, request,
-  attempt]`, where `attempt` is a counter the click increments: every click is a
-  load, a repeat click is not a cache hit, and "the click is the only way a
-  register is ever fetched" survives the rewrite — `test/smoke.spec.ts` still
-  counts the POSTs on the wire. The options chain is the mirror image: one pass
+  attempt]`, where `attempt` is a counter the click increments: every click or
+  saved-section open is a load, a repeat is not a cache hit, and the deliberate
+  ask stays the only fetch — `test/client.register.spec.ts` counts it. The options
+  chain is the mirror image: one pass
   is cached under the request it answered (`options-chain.ts`), so reopening a
   saved section settles from cache with no Portal calls.
 - **A key is a promise about *whose* data it is, so nothing keyed on the server
@@ -587,8 +589,8 @@ a non-2xx into an `ApiError`) and one hook per screen. See ADR 0020.
   `shouldRetryOnError: false` and `dedupingInterval: 0` are the `<SWRConfig>`
   defaults in `web/main.tsx`, because a read must be something the user asked
   for; a hook adds only what differs. The header's Refresh is the user asking:
-  it revalidates every `/api/` key except the register — the click stays the
-  only fetch there — and re-settles the cascade where a picker is on screen. Those defaults used to be repeated on every
+  it revalidates every `/api/` key except the register — only a deliberate ask
+  fetches it — and re-settles the cascade where a picker is on screen. Those defaults used to be repeated on every
   hook, five copies of one decision. The two exceptions are deliberate. The
   **session** probe overrides them: `refreshInterval` of `SESSION_PROBE_MS` when
   idle and `0` when a request is in flight or the login screen is up. And the
@@ -641,7 +643,7 @@ environment at all, in seconds.
 
 **A stub API can vouch for the app's own data layer, but never for the Portal's.**
 `test/client.*.spec.ts` serve the built app and answer `/api/*` in the browser, so
-the keys, the click-only register, the probe and the sweep on sign-out are
+the keys, the deliberate register, the probe and the sweep on sign-out are
 exercised where SWR actually runs; the shapes it answers with are the app's own
 contract, which is all it is testing. What the *Portal* sends is `smoke.spec.ts`'s
 job, against the real thing.

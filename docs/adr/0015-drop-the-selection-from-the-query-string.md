@@ -107,3 +107,9 @@ link that does not open.
 
 **Keep the parameters off the screen but in the history.** No mechanism for this
 that is not a query string.
+
+## Amendment — 2026-11-25
+
+Opening a saved section is a second deliberate route to a register, beside the
+button. The refresh loop and a reload still fetch none, and no selection travels
+in the URL.

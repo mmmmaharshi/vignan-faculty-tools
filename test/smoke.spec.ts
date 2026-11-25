@@ -793,9 +793,7 @@ test.describe("Vignan Faculty Tools", () => {
     await page.getByRole("button", { name: "Sign out" }).click();
     await expect(page.getByLabel("ECAP user name")).toBeVisible();
   });
-  test("the click is the only way a register is ever fetched", async ({
-    page,
-  }) => {
+  test("only a deliberate load fetches a register", async ({ page }) => {
     const registerCalls: Array<unknown> = [];
     page.on("request", (r) => {
       if (r.url().includes("/api/register") && r.method() === "POST") {
