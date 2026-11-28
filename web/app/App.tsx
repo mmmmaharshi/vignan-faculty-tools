@@ -200,6 +200,19 @@ const App = (): React.JSX.Element => {
       void import("../ui/HomeScreen");
     }
   }, []);
+  /** The register screen's chunk, fetched while Home is on screen rather than
+   *  after its tab is opened: opening a saved class then navigates to bytes
+   *  already here. Once per document — a second visit reuses the module. The
+   *  cascade itself is already settled at boot, and the options chain answers
+   *  a settled pass from its cache, so no Portal call is warmed here. */
+  const warmedRegister = useRef(false);
+  useEffect(() => {
+    if (warmedRegister.current || !signedIn || !onHome) {
+      return;
+    }
+    warmedRegister.current = true;
+    void import("../ui/RegisterScreen");
+  }, [signedIn, onHome]);
   /** The one-shot snap: a real load arms it, a typed range disarms it, and the
    *  settle effect consumes it once. One owner, so the two cannot race. */
   const loadSnap = useRef(createLoadSnap());
@@ -789,6 +802,12 @@ const App = (): React.JSX.Element => {
   const applySavedSection = (target: Sel) => {
     void savedSectionsView.apply(target);
   };
+  /** Opening a saved section from Home first moves to the register screen,
+   *  then settles and loads it the same way a card there does. */
+  const openSavedFromHome = (target: Sel) => {
+    navigate(DASHBOARD_PATH);
+    applySavedSection(target);
+  };
   let screen: "booting" | "login" | "app" = "booting";
   if (booted) {
     screen = onLogin ? "login" : "app";
@@ -854,6 +873,11 @@ const App = (): React.JSX.Element => {
           <HomeScreen
             classes={todayShown}
             note={todayNote}
+            saved={{
+              classes: savedSectionCards,
+              onOpen: openSavedFromHome,
+              onForget: clearSavedSection,
+            }}
             postings={{
               sections: unposted.data?.sections ?? null,
               note: unpostedNote,

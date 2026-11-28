@@ -4,6 +4,7 @@ import {
   hold,
   release,
   resetStub,
+  selectValue,
   sessionAnswer,
   signIn,
   signInAndSettle,
@@ -375,6 +376,39 @@ test.describe("the app's own data layer", () => {
     await expect(
       page.getByRole("heading", { name: "Today's Classes" })
     ).toBeVisible({ timeout: 15_000 });
+  });
+
+  test("Home shows saved sections and opens one onto its register", async ({
+    page,
+  }) => {
+    await page.goto("/login");
+    await page.evaluate(() => localStorage.removeItem("section-faculty"));
+    await signIn(page);
+    await page.getByRole("button", { name: "Register", exact: true }).click();
+    await expect
+      .poll(() => selectValue(page, "Subject"), { timeout: 15_000 })
+      .toBe("ALL SUBJECTS");
+    await page.getByRole("button", { name: "Save this section" }).click();
+    await expect(
+      page.getByRole("button", { name: "Open" }).first(),
+      "the deliberate save writes the card before any register"
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })
+      .toBe("/home");
+    await expect(
+      page.getByRole("heading", { name: "Saved sections" }),
+      "the card travels with the faculty, not with the screen"
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Open" }).first().click();
+    await expect
+      .poll(() => new URL(page.url()).pathname, { timeout: 15_000 })
+      .toBe("/dashboard");
+    await expect(
+      page.locator("thead ~ tbody tr"),
+      "opening the card from Home loads its register"
+    ).toHaveCount(3, { timeout: 15_000 });
   });
 
   test("without a stored session the home screen stays unfetched", async ({
