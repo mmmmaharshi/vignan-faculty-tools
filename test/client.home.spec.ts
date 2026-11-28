@@ -411,6 +411,29 @@ test.describe("the app's own data layer", () => {
     ).toHaveCount(3, { timeout: 15_000 });
   });
 
+  test("warming the register screen costs no class or register reads", async ({
+    page,
+  }) => {
+    await signInAndSettle(page);
+    const optionsCalls = state.optionsCalls;
+    const registerCalls = state.registerCalls;
+    await page.getByRole("button", { name: "Home", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "Today's Classes" })
+    ).toBeVisible({ timeout: 15_000 });
+    // The chunk prefetch and the settled cascade answer from memory and the
+    // options cache: sitting on Home must not spend a Portal read behind the
+    // faculty member's back. The absence is the assertion, so dwell first.
+    await page.waitForTimeout(1000);
+    expect(
+      state.optionsCalls,
+      "no extra class pass while warming the register screen"
+    ).toBe(optionsCalls);
+    expect(state.registerCalls, "no register without its deliberate tap").toBe(
+      registerCalls
+    );
+  });
+
   test("without a stored session the home screen stays unfetched", async ({
     page,
   }) => {
